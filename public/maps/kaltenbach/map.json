@@ -1,0 +1,150 @@
+{
+ "name": "Kaltenbach",
+ "village": "Kaltenbach",
+ "river": "Erlenbach",
+ "sizeM": 640,
+ "playArea": [
+  {
+   "x": -172,
+   "y": 298
+  },
+  {
+   "x": 298,
+   "y": 298
+  },
+  {
+   "x": 298,
+   "y": -172
+  },
+  {
+   "x": 172,
+   "y": -298
+  },
+  {
+   "x": -298,
+   "y": -298
+  },
+  {
+   "x": -298,
+   "y": 172
+  }
+ ],
+ "hqs": {
+  "nato": {
+   "x": -277.0,
+   "y": 0.0,
+   "radius": 25.0
+  },
+  "pact": {
+   "x": 277.0,
+   "y": 0.0,
+   "radius": 25.0
+  }
+ },
+ "points": [
+  {
+   "id": "A",
+   "name": "A",
+   "x": 0.0,
+   "y": 200.0,
+   "radius": 25.0
+  },
+  {
+   "id": "B",
+   "name": "B",
+   "x": 0.0,
+   "y": 0.0,
+   "radius": 25.0
+  },
+  {
+   "id": "C",
+   "name": "C",
+   "x": 0.0,
+   "y": -200.0,
+   "radius": 25.0
+  }
+ ],
+ "crossings": [
+  {
+   "id": "NF",
+   "kind": "ford",
+   "x": 68.07,
+   "y": 230.0,
+   "halfWidth": 6.5
+  },
+  {
+   "id": "NB",
+   "kind": "footbridge",
+   "x": 62.37,
+   "y": 140.0,
+   "halfWidth": 1.5
+  },
+  {
+   "id": "C",
+   "kind": "bridge",
+   "x": 0.0,
+   "y": 0.0,
+   "halfWidth": 4.0
+  },
+  {
+   "id": "SB",
+   "kind": "footbridge",
+   "x": -62.37,
+   "y": -140.0,
+   "halfWidth": 1.5
+  },
+  {
+   "id": "SF",
+   "kind": "ford",
+   "x": -68.07,
+   "y": -230.0,
+   "halfWidth": 6.5
+  }
+ ],
+ "grid": {
+  "cols": 9,
+  "rows": 9,
+  "squareM": 71.11111111111111,
+  "letters": "ABCDEFGHI"
+ },
+ "data": {
+  "cells": 640,
+  "cellM": 1,
+  "cover": "cover_u8.bin",
+  "ground": "ground_f32.bin",
+  "top": "top_f32.bin",
+  "coverIds": {
+   "open": 0,
+   "road": 1,
+   "water": 2,
+   "hedge": 3,
+   "woods": 4,
+   "building": 5,
+   "wall": 6,
+   "prop": 7,
+   "ford": 8
+  }
+ },
+ "images": {
+  "play": [
+   "map_8192.webp",
+   "map_4096.webp",
+   "map_2048.webp",
+   "map_1024.webp",
+   "map_512.webp",
+   "map_256.webp",
+   "map_128.webp",
+   "map_64.webp",
+   "map_32.webp",
+   "map_16.webp",
+   "map_8.webp",
+   "map_4.webp",
+   "map_2.webp",
+   "map_1.webp"
+  ],
+  "outer": {
+   "file": "outer_2048.webp",
+   "sizeM": 1920
+  }
+ }
+}
