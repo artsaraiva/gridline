@@ -1,0 +1,265 @@
+{
+ "name": "Kaltenbach",
+ "village": "Kaltenbach",
+ "river": "Erlenbach",
+ "sizeM": 960,
+ "playArea": [
+  {
+   "x": 456,
+   "y": -12
+  },
+  {
+   "x": 452,
+   "y": 90
+  },
+  {
+   "x": 460,
+   "y": 200
+  },
+  {
+   "x": 447,
+   "y": 310
+  },
+  {
+   "x": 438,
+   "y": 425
+  },
+  {
+   "x": 330,
+   "y": 432
+  },
+  {
+   "x": 200,
+   "y": 421
+  },
+  {
+   "x": 80,
+   "y": 436
+  },
+  {
+   "x": -40,
+   "y": 428
+  },
+  {
+   "x": -150,
+   "y": 433
+  },
+  {
+   "x": -240,
+   "y": 420
+  },
+  {
+   "x": -330,
+   "y": 332
+  },
+  {
+   "x": -420,
+   "y": 243
+  },
+  {
+   "x": -452,
+   "y": 150
+  },
+  {
+   "x": -447,
+   "y": 40
+  },
+  {
+   "x": -456,
+   "y": 12
+  },
+  {
+   "x": -452,
+   "y": -90
+  },
+  {
+   "x": -460,
+   "y": -200
+  },
+  {
+   "x": -447,
+   "y": -310
+  },
+  {
+   "x": -438,
+   "y": -425
+  },
+  {
+   "x": -330,
+   "y": -432
+  },
+  {
+   "x": -200,
+   "y": -421
+  },
+  {
+   "x": -80,
+   "y": -436
+  },
+  {
+   "x": 40,
+   "y": -428
+  },
+  {
+   "x": 150,
+   "y": -433
+  },
+  {
+   "x": 240,
+   "y": -420
+  },
+  {
+   "x": 330,
+   "y": -332
+  },
+  {
+   "x": 420,
+   "y": -243
+  },
+  {
+   "x": 452,
+   "y": -150
+  },
+  {
+   "x": 447,
+   "y": -40
+  }
+ ],
+ "hqs": {
+  "nato": {
+   "x": -415.0,
+   "y": 0.0,
+   "radius": 35.0
+  },
+  "pact": {
+   "x": 415.0,
+   "y": 0.0,
+   "radius": 35.0
+  }
+ },
+ "points": [
+  {
+   "id": "A",
+   "name": "A",
+   "x": -262.0,
+   "y": -322.0,
+   "radius": 25.0,
+   "owner": "nato"
+  },
+  {
+   "id": "B",
+   "name": "B",
+   "x": 0.0,
+   "y": 300.0,
+   "radius": 25.0,
+   "owner": null
+  },
+  {
+   "id": "C",
+   "name": "C",
+   "x": 0.0,
+   "y": 0.0,
+   "radius": 25.0,
+   "owner": null
+  },
+  {
+   "id": "D",
+   "name": "D",
+   "x": 0.0,
+   "y": -300.0,
+   "radius": 25.0,
+   "owner": null
+  },
+  {
+   "id": "E",
+   "name": "E",
+   "x": 262.0,
+   "y": 322.0,
+   "radius": 25.0,
+   "owner": "pact"
+  }
+ ],
+ "crossings": [
+  {
+   "id": "NF",
+   "kind": "ford",
+   "x": 103.3,
+   "y": 345.0,
+   "halfWidth": 6.5
+  },
+  {
+   "id": "NB",
+   "kind": "footbridge",
+   "x": 86.71,
+   "y": 210.0,
+   "halfWidth": 1.5
+  },
+  {
+   "id": "C",
+   "kind": "bridge",
+   "x": 0.0,
+   "y": 0.0,
+   "halfWidth": 4.0
+  },
+  {
+   "id": "SB",
+   "kind": "footbridge",
+   "x": -86.71,
+   "y": -210.0,
+   "halfWidth": 1.5
+  },
+  {
+   "id": "SF",
+   "kind": "ford",
+   "x": -103.3,
+   "y": -345.0,
+   "halfWidth": 6.5
+  }
+ ],
+ "grid": {
+  "cols": 13,
+  "rows": 13,
+  "squareM": 73.84615384615384,
+  "letters": "ABCDEFGHIJKLM"
+ },
+ "data": {
+  "cells": 960,
+  "cellM": 1,
+  "cover": "cover_u8.bin",
+  "ground": "ground_f32.bin",
+  "top": "top_f32.bin",
+  "coverIds": {
+   "open": 0,
+   "road": 1,
+   "water": 2,
+   "hedge": 3,
+   "woods": 4,
+   "building": 5,
+   "wall": 6,
+   "prop": 7,
+   "ford": 8
+  }
+ },
+ "images": {
+  "play": [
+   "map_8192.webp",
+   "map_4096.webp",
+   "map_2048.webp",
+   "map_1024.webp",
+   "map_512.webp",
+   "map_256.webp",
+   "map_128.webp",
+   "map_64.webp",
+   "map_32.webp",
+   "map_16.webp",
+   "map_8.webp",
+   "map_4.webp",
+   "map_2.webp",
+   "map_1.webp"
+  ],
+  "outer": {
+   "file": "outer_2048.webp",
+   "sizeM": 2880
+  }
+ }
+}
