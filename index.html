@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Gridline</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #0d0f0c; }
+      canvas { display: block; touch-action: none; }
+      #readout {
+        position: fixed; top: 16px; left: 16px; padding: 8px 12px;
+        font: 600 14px/1.4 ui-monospace, monospace; font-variant-numeric: tabular-nums; text-transform: uppercase;
+        color: #e8e2c8; background: rgba(8, 10, 8, 0.72); border: 1px solid rgba(232, 226, 200, 0.22);
+        pointer-events: none; white-space: pre;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="readout"></div>
+    <script type="module" src="/src/console/main.ts"></script>
+  </body>
+</html>
