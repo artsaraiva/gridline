@@ -168,6 +168,11 @@ export interface Tune {
   // #38 Radio
 
   // #39 Supply crate
+  supplyCooldownSeconds: number; // from the call; Supply Drop is ready at match start
+  supplyFallSeconds: number; // from the call to the crate landing
+  supplyStaySeconds: number; // the landed crate stays this long
+  supplyRadiusM: number; // friendly Soldiers this close to a landed crate are refilled and healed
+  supplyHealPerSecond: number; // hit points a Soldier in reach gets back each second
 
   // #40 Barrage
 
@@ -288,6 +293,11 @@ export interface EffectView {
   left: number;
   /** Its full working time in seconds. */
   total: number;
+  // #39 Supply Drop: the crate falls before it works
+  /** Seconds until the crate lands; 0 = on the ground. Only on a crate. */
+  landsIn?: number;
+  /** How long the fall takes in all, in seconds. Only on a crate. */
+  fall?: number;
 }
 
 /** Things that happened this tick, on every Side; `commanderEvents` keeps the ones a Side's Console may show. */
