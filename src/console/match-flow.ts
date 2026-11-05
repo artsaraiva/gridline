@@ -41,8 +41,9 @@ async function startMatch(setup: MatchSetup) {
   session.enemySide = enemyOf(setup.commanderSide);
   session.seed = setup.seed;
   session.ended = false;
-  session.host = await startSimHost({ kind: 'start', ...setup });
-  drawMap(session.host.map);
+  const host = await startSimHost({ kind: 'start', map: params.get('map') === 'test' ? 'test' : 'kaltenbach', ...setup });
+  await drawMap(host.map); // the ticking sim waits in the worker's queue while the bake loads
+  session.host = host;
 }
 
 setupForm.addEventListener('submit', (e) => {

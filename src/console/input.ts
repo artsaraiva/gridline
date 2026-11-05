@@ -1,6 +1,7 @@
 // Map pointer input: pan with drag, zoom with the wheel around the cursor; a tap (press and release in place) and the
 // pointer position go to targeting.
 import { camera, pxToWorld, renderer, toWorld } from './renderer';
+import { zoomRange } from './layers/map';
 import { hover, tap } from './targeting';
 
 const TAP_PX = 6; // a press that moves less than this is a tap, not a pan
@@ -32,7 +33,7 @@ renderer.domElement.addEventListener(
     const before = pxToWorld();
     const cx = e.clientX - innerWidth / 2;
     const cy = innerHeight / 2 - e.clientY;
-    camera.zoom = Math.min(20, Math.max(0.5, camera.zoom * Math.exp(-e.deltaY * 0.0015)));
+    camera.zoom = Math.min(zoomRange.max, Math.max(zoomRange.min, camera.zoom * Math.exp(-e.deltaY * 0.0015)));
     camera.updateProjectionMatrix();
     const after = pxToWorld();
     camera.position.x += cx * (before - after); // keep the world point under the cursor fixed

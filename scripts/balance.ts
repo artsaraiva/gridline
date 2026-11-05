@@ -1,10 +1,11 @@
 // Headless AI-vs-AI balance runner: plays whole matches over many seeds and summarises them. Run with `pnpm balance`.
+import { KALTENBACH } from './kaltenbach';
 import { RIVER_FIELD } from '../src/maps/river-field';
 import { TEST_FIELD } from '../src/maps/test-field';
 import { commanderView, createMatch, step, SIDES, type MapData, type MatchResult, type SideId, type Tune } from '../src/sim';
 import { DEFAULT_TUNE } from '../src/sim/tune';
 
-export const MAPS: Record<string, MapData> = { river: RIVER_FIELD, test: TEST_FIELD };
+export const MAPS: Record<string, MapData> = { kaltenbach: KALTENBACH, river: RIVER_FIELD, test: TEST_FIELD };
 
 export interface MatchSummary {
   seed: number;

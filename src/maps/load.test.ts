@@ -33,11 +33,11 @@ describe('map loader: 1 m bake data to the Simulation\'s 2 m cells', () => {
 
   it('turns buildings into walls, hedges and woods into cover, the river into water and the ford into wading', () => {
     const m = match();
-    const b = find(ids.building);
+    const b = find(ids.building!);
     expect(cellAt(m, b.x, b.y)).toBe(WALL);
     expect(walkCost(m, b.x, b.y)).toBe(0);
     // a hedge is one metre wide, so a 2 m cell takes it when half of the cell is hedge; woods are broad
-    for (const [id, least] of [[ids.hedge, 0.6], [ids.woods, 0.9]] as const) {
+    for (const [id, least] of [[ids.hedge!, 0.6], [ids.woods!, 0.9]] as const) {
       let all = 0, kept = 0;
       for (let y = -440; y < 440; y++)
         for (let x = -440; x < 440; x++)
@@ -48,10 +48,10 @@ describe('map loader: 1 m bake data to the Simulation\'s 2 m cells', () => {
       expect(all).toBeGreaterThan(0);
       expect(kept / all, `cover id ${id}`).toBeGreaterThan(least);
     }
-    const w = find(ids.water);
+    const w = find(ids.water!);
     expect(cellAt(m, w.x, w.y)).toBe(WATER);
     expect(walkCost(m, w.x, w.y)).toBe(0);
-    const f = find(ids.ford, 1);
+    const f = find(ids.ford!, 1);
     expect(walkCost(m, f.x, f.y)).toBe(20); // half speed
     expect(walkCost(m, 100, 300)).toBe(10);
   });
