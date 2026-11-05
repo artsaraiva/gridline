@@ -9,7 +9,8 @@ export type MatchSetup = { seed: number; squadsPerSide: number; commanderSide: S
 export type MatchRecord = MatchSetup & { map: string; log: Command[] };
 
 export type ToHost =
-  | ({ kind: 'start' } & MatchSetup)
+  /** `map`: 'test' for the small hand-written field, the baked Kaltenbach otherwise. */
+  | ({ kind: 'start'; map?: 'test' | 'kaltenbach' } & MatchSetup)
   | { kind: 'command'; command: UnstampedCommand };
 
 export type FromHost =

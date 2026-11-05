@@ -23,7 +23,7 @@ export const DEFAULT_TUNE: Tune = {
 
   // Tickets, match length, HQ
   tickets: 150,
-  drainSeconds: [8, 5, 3],
+  drainSeconds: [6, 4, 2.5], // retuned on Kaltenbach (#42): [8, 5, 3] ran 18 min; this runs ~15 min
   matchSeconds: 25 * 60,
   hqRadius: 35,
 

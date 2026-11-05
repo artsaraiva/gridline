@@ -3,6 +3,7 @@ import type { Match } from './index';
 import { resetSoldierAi } from './ai';
 import { insideCount } from './capture';
 import { canStand, dist2 } from './geometry';
+import { nearestWalkable } from './grid';
 import { lastDeath, membersOf, wiped, type Soldier, type Squad } from './state';
 import { enemyOf, type SimEvent, type Vec2 } from './types';
 
@@ -27,7 +28,7 @@ function redeployAt(m: Match, sq: Squad): Vec2 {
     best = dist2(p, near);
     at = p;
   }
-  return at;
+  return nearestWalkable(m, at);
 }
 
 /**
