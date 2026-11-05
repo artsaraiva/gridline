@@ -1,13 +1,14 @@
 // Orders on the map (#36): a line from each ordered Squad's leader to its point, and DOM tags: the Squad tag on the leader
-// (name, strength, task, Order state, alerts) and a Holding tag on the point. Line: solid while Following, amber dashed with a
-// reason glyph while Delayed, faint dashes while pending. #44 restyles the tags; #43 may move the lines to APP-6 colours.
+// (name, strength, task, Order state, alerts) beside layers/squads.ts's APP-6 frame, and a Holding tag on the point. Line:
+// solid while Following, amber dashed with a reason glyph while Delayed, faint dashes while pending.
 import * as THREE from 'three/webgpu';
-import type { CommanderView, FriendlyView, SquadView, Vec2 } from '../../sim/types';
-import { COLOR, layer, toScreen } from '../renderer';
+import type { CommanderView, FriendlyView, Vec2 } from '../../sim/types';
+import { BRIGHT, COLOR, GLOW, layer, toScreen } from '../renderer';
 import { squadTag } from '../summary';
 import { targeting } from '../targeting';
+import { css } from './symbols';
 
-export const AMBER = 0xffc23d;
+export const AMBER = COLOR.amber;
 const MAX_DASHES = 300;
 const DASH_PX = 7;
 const GAP_PX = 5;
@@ -27,7 +28,10 @@ function lineFor(id: number) {
   if (!l) {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MAX_DASHES * 6), 3));
-    l = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ transparent: true }));
+    const m = new THREE.LineBasicNodeMaterial({ transparent: true, depthWrite: false });
+    m.opacityNode = BRIGHT;
+    m.mrtNode = GLOW();
+    l = new THREE.LineSegments(g, m);
     l.frustumCulled = false;
     layer.add(l);
     lines.set(id, l);
@@ -61,8 +65,6 @@ function tag(i: number, p: Vec2, dx: number, dy: number, text: string, color: st
   el.style.transform = `translate(${s.x + dx}px, ${s.y + dy}px)`;
 }
 
-const css = (hex: number) => `#${hex.toString(16).padStart(6, '0')}`;
-
 /** `px` is world metres per screen pixel. */
 export function drawOrders(view: CommanderView, px: number) {
   let n = 0;
@@ -76,15 +78,15 @@ export function drawOrders(view: CommanderView, px: number) {
     const there = lead && point && (lead.x - point.x) ** 2 + (lead.y - point.y) ** 2 < point.radius ** 2;
     line.visible = !!(lead && point && o && !(o.state === 'holding' && there));
     if (lead && point && o) {
-      const m = line.material as THREE.LineBasicMaterial;
+      const m = line.material as THREE.LineBasicNodeMaterial;
       m.color.setHex(o.state === 'delayed' ? AMBER : COLOR.friendly);
-      m.opacity = o.state === 'pending' ? 0.55 : 1;
+      m.opacity = o.state === 'pending' ? 0.55 : 0.85;
       if (o.state === 'following' || o.state === 'holding') segments(line, lead, point, 1e9, 0);
       else segments(line, lead, point, DASH_PX * px, GAP_PX * px);
       if (o.state === 'delayed') tag(n++, { x: (lead.x + point.x) / 2, y: (lead.y + point.y) / 2 }, 6, -8, GLYPH[o.reason ?? 'retreat'], css(AMBER));
       if (o.state === 'holding') tag(n++, point, 4, 6, `HOLD · ${q.name.toUpperCase()}`, css(COLOR.friendly));
     }
-    if (lead) tag(n++, lead, 12, -26, squadTag(q, view.friendlies.some((f) => f.squad === q.id && f.suppressed)), css(targeting.selected === q.id ? AMBER : COLOR.friendly));
+    if (lead) tag(n++, lead, 40, -30, squadTag(q, view.friendlies.some((f) => f.squad === q.id && f.suppressed)), css(targeting.selected === q.id ? AMBER : COLOR.friendly));
   }
   for (let i = n; i < tags.length; i++) tags[i]!.hidden = true;
 }

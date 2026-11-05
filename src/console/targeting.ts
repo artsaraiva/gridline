@@ -56,12 +56,16 @@ export function validSpot(p: Vec2): boolean {
   return (p.x - hq.x) ** 2 + (p.y - hq.y) ** 2 >= r * r;
 }
 
+/** Called after an Asset is confirmed (the feed throws a static burst). */
+export const confirmed: (() => void)[] = [];
+
 /** Calls the armed Asset on the pinned spot. */
 export function confirm() {
   const { armed, spot } = targeting;
   if (!armed || !spot) return;
   session.host?.send({ side: session.commanderSide, kind: 'asset', asset: armed, at: spot });
   disarm();
+  for (const f of confirmed) f();
 }
 
 /**

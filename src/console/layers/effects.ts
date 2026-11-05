@@ -4,19 +4,19 @@
 import * as THREE from 'three/webgpu';
 import { gridRef } from '../../sim/grid-ref';
 import type { CommanderView, Vec2 } from '../../sim/types';
-import { COLOR, flat, layer, toScreen } from '../renderer';
+import { COLOR, layer, toScreen } from '../renderer';
 import { session } from '../session';
 import { clock } from '../summary';
 import { overlaps, targeting, validSpot } from '../targeting';
+import { css, dashedRing, fading } from './symbols';
 
 const crateGeometry = new THREE.PlaneGeometry(1, 1);
 const NAME = { scan: 'Scan UAV', supply: 'Supply Drop', barrage: 'Barrage' };
-const ringGeometry = new THREE.RingGeometry(0.97, 1, 96);
 const discGeometry = new THREE.CircleGeometry(1, 96);
 const uavGeometry = new THREE.ShapeGeometry(new THREE.Shape([new THREE.Vector2(0.6, 0), new THREE.Vector2(-0.5, 0.5), new THREE.Vector2(-0.2, 0), new THREE.Vector2(-0.5, -0.5)]));
 
-/** A ring, a faint disc and an orbiting marker, pooled: rings carry no id, so they are reused in draw order. */
-type Ring = { group: THREE.Group; ring: THREE.Mesh; disc: THREE.Mesh; uav: THREE.Mesh; crate: THREE.Mesh };
+/** A ring, a faint disc and markers, pooled: rings carry no id, so they are reused in draw order. */
+type Ring = { group: THREE.Group; ring: ReturnType<typeof dashedRing>; disc: THREE.Mesh; uav: THREE.Mesh; crate: THREE.Mesh };
 const pool: Ring[] = [];
 const labelBox = document.getElementById('labels')!;
 const labels: HTMLElement[] = [];
@@ -28,22 +28,23 @@ const material = (m: THREE.Mesh) => m.material as THREE.MeshBasicMaterial;
 function ringAt(i: number, p: Vec2, radius: number, color: number, fill: number): Ring {
   let r = pool[i];
   if (!r) {
-    const mesh = (g: THREE.BufferGeometry) => {
-      const m = new THREE.Mesh(g, flat(color));
-      material(m).transparent = true;
-      return m;
+    r = {
+      group: new THREE.Group(),
+      ring: dashedRing(120, color, { dash: 2, gap: 6, width: 2 }),
+      disc: new THREE.Mesh(discGeometry, fading(color, fill)),
+      uav: new THREE.Mesh(uavGeometry, fading(color)),
+      crate: new THREE.Mesh(crateGeometry, fading(color)),
     };
-    r = { group: new THREE.Group(), ring: mesh(ringGeometry), disc: mesh(discGeometry), uav: mesh(uavGeometry), crate: mesh(crateGeometry) };
-    r.group.add(r.disc, r.ring, r.uav, r.crate);
+    r.group.add(r.disc, r.ring.mesh, r.uav, r.crate);
     layer.add(r.group);
     pool.push(r);
   }
   r.group.visible = true;
   r.group.position.set(p.x, p.y, 0.5);
-  r.ring.scale.setScalar(radius);
   r.disc.scale.setScalar(radius);
-  material(r.ring).color.setHex(color);
-  material(r.ring).opacity = 0.85;
+  r.ring.r.value = radius;
+  r.ring.alpha.value = 0.85;
+  r.ring.tint.value.setHex(color);
   material(r.disc).color.setHex(color);
   material(r.disc).opacity = fill;
   material(r.uav).color.setHex(color);
@@ -76,8 +77,6 @@ function label(i: number, p: Vec2, dx: number, dy: number, text: string, color: 
   el.style.transform = `translate(${x}px, ${y}px)`;
 }
 
-const css = (hex: number) => `#${hex.toString(16).padStart(6, '0')}`;
-
 /** `scale` is the chevron size in metres (constant on screen), used for the orbiting UAV marker. */
 export function drawEffects(view: CommanderView, scale: number, now: number) {
   let rings = 0;
@@ -100,7 +99,7 @@ export function drawEffects(view: CommanderView, scale: number, now: number) {
       r.crate.scale.setScalar(scale * (1.2 + high));
       r.crate.position.set(0, high * 40, 0.1);
       material(r.crate).opacity = 1 - 0.6 * high;
-      material(r.ring).opacity = 0.35 + 0.5 * (1 - high);
+      r.ring.alpha.value = 0.35 + 0.5 * (1 - high);
       if (high) time = `LANDS ${clock(Math.ceil(e.landsIn))}`;
     }
     if (e.impactIn) time = `IMPACT ${clock(Math.ceil(e.impactIn))}`; // the Barrage counts down to its first shell

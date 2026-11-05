@@ -1,5 +1,6 @@
 // Map pointer input: pan with drag, zoom with the wheel around the cursor; a tap (press and release in place) and the
 // pointer position go to targeting.
+import { burst } from './post';
 import { camera, pxToWorld, renderer, toWorld } from './renderer';
 import { hover, tap } from './targeting';
 
@@ -38,6 +39,7 @@ renderer.domElement.addEventListener(
     const after = pxToWorld();
     camera.position.x += cx * (before - after); // keep the world point under the cursor fixed
     camera.position.y += cy * (before - after);
+    burst(0.3);
   },
   { passive: false },
 );

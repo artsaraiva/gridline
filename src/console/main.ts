@@ -9,13 +9,15 @@ import { drawEffects, hideEffectLabels } from './layers/effects';
 import { addImpact, drawImpacts } from './layers/impacts';
 import { addDeathMarker, drawDeathMarkers } from './layers/markers';
 import { drawOrders, hideOrderTags } from './layers/orders';
-import { drawPoint } from './layers/points';
+import { drawHqs, drawPoint } from './layers/points';
+import { drawSquadFrames } from './layers/squads';
+import { UNIT_PX } from './layers/symbols';
+import { addShot, drawTracers } from './layers/tracers';
 import { checkEnd } from './match-flow';
+import { renderFeed } from './post';
 import { drawReadout } from './readout';
-import { camera, pxToWorld, renderer, scene } from './renderer';
+import { metresPerPx, pxToWorld, renderer } from './renderer';
 import { session } from './session';
-
-const CHEVRON_PX = 14;
 
 renderer.setAnimationLoop(() => {
   const host = session.host;
@@ -27,7 +29,7 @@ renderer.setAnimationLoop(() => {
     showRadioLog(false);
     hideEffectLabels();
     hideOrderTags();
-    renderer.render(scene, camera);
+    renderFeed();
     return;
   }
   const now = performance.now();
@@ -36,20 +38,25 @@ renderer.setAnimationLoop(() => {
   for (const e of host.takeEvents()) {
     if (e.kind === 'death') addDeathMarker(e.x, e.y, e.side, now);
     else if (e.kind === 'impact') addImpact(e.x, e.y, now);
+    else if (e.kind === 'shot' || e.kind === 'suppressive') addShot(e, view, now);
     logRadio(e, view);
   }
-  const scale = CHEVRON_PX * pxToWorld();
+  metresPerPx.value = pxToWorld();
+  const scale = UNIT_PX * metresPerPx.value; // one symbol unit in metres
   drawAssetRail(view); // before the effects: their labels keep clear of the map Confirm button it places
   drawImpacts(now);
   drawEffects(view, scale, now);
-  drawOrders(view, pxToWorld());
+  drawOrders(view, metresPerPx.value);
   drawSquads(view);
   showRadioLog(true);
   drawDeathMarkers(now, scale);
   drawLastKnown(view, scale);
   drawChevrons(view, scale);
-  view.points.forEach(drawPoint);
+  drawHqs(host.map, scale);
+  for (const p of view.points) drawPoint(p, scale);
+  drawSquadFrames(view, scale);
+  drawTracers(now, scale);
   checkEnd(view);
   drawReadout(view);
-  renderer.render(scene, camera);
+  renderFeed();
 });
