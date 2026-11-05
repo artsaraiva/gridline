@@ -13,10 +13,54 @@
         color: #e8e2c8; background: rgba(8, 10, 8, 0.72); border: 1px solid rgba(232, 226, 200, 0.22);
         pointer-events: none; white-space: pre;
       }
+      .screen {
+        position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); min-width: 280px; padding: 20px 24px;
+        font: 600 14px/1.5 ui-monospace, monospace; font-variant-numeric: tabular-nums; text-transform: uppercase;
+        color: #e8e2c8; background: rgba(8, 10, 8, 0.88); border: 1px solid rgba(232, 226, 200, 0.22);
+        display: flex; flex-direction: column; gap: 14px;
+      }
+      .screen[hidden] { display: none; }
+      .screen input { accent-color: #e8e2c8; }
+      .screen h1 { margin: 0; font-size: 28px; letter-spacing: 0.08em; }
+      .screen fieldset { margin: 0; padding: 0; border: 0; display: flex; gap: 16px; align-items: center; }
+      .screen legend { padding: 0 0 6px; opacity: 0.6; }
+      .screen dl { margin: 0; display: grid; grid-template-columns: auto auto; gap: 4px 24px; }
+      .screen dd { margin: 0; text-align: right; }
+      .screen select, .screen button {
+        font: inherit; text-transform: inherit; color: inherit; background: transparent;
+        border: 1px solid rgba(232, 226, 200, 0.4); padding: 6px 12px; cursor: pointer;
+      }
+      .screen select option { background: #0d0f0c; }
+      .screen button:hover, .screen button:focus-visible { background: rgba(232, 226, 200, 0.12); }
+      .screen .row { display: flex; gap: 8px; }
     </style>
   </head>
   <body>
-    <div id="readout"></div>
+    <div id="readout" hidden></div>
+    <form id="setup" class="screen">
+      <h1>Gridline</h1>
+      <fieldset>
+        <legend>Faction</legend>
+        <label><input type="radio" name="side" value="nato" checked /> NATO</label>
+        <label><input type="radio" name="side" value="pact" /> Warsaw Pact</label>
+      </fieldset>
+      <label>Squads per Side <select name="squads"></select></label>
+      <button type="submit">Start match</button>
+    </form>
+    <div id="end" class="screen" hidden>
+      <h1 id="end-result"></h1>
+      <div id="end-reason"></div>
+      <dl>
+        <dt>Tickets</dt><dd id="end-friendly"></dd>
+        <dt></dt><dd id="end-enemy"></dd>
+        <dt>Match time</dt><dd id="end-time"></dd>
+        <dt>Seed</dt><dd id="end-seed"></dd>
+      </dl>
+      <div class="row">
+        <button id="end-copy" type="button">Copy match record</button>
+        <button id="end-new" type="button">New match</button>
+      </div>
+    </div>
     <script type="module" src="/src/console/main.ts"></script>
   </body>
 </html>

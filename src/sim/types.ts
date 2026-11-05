@@ -1,5 +1,6 @@
 export type SideId = 'nato' | 'pact';
 export const SIDES: readonly SideId[] = ['nato', 'pact'];
+export const enemyOf = (s: SideId): SideId => (s === 'nato' ? 'pact' : 'nato');
 
 export interface Vec2 {
   x: number;
