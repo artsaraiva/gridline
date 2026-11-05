@@ -1,7 +1,7 @@
 // Bare Console entry: wires the modules and runs the render loop, one line per layer.
 import './input';
 import { drawAssetRail } from './chrome/assets';
-import { logRadio, showRadioLog } from './chrome/radio-log';
+import { drawRadioLog, logRadio, showRadioLog } from './chrome/radio-log';
 import { drawSquads } from './chrome/squads';
 import { drawChevrons } from './layers/chevrons';
 import { drawLastKnown } from './layers/contacts';
@@ -45,6 +45,7 @@ renderer.setAnimationLoop(() => {
   drawOrders(view, pxToWorld());
   drawSquads(view);
   showRadioLog(true);
+  drawRadioLog(now);
   drawDeathMarkers(now, scale);
   drawLastKnown(view, scale);
   drawChevrons(view, scale);

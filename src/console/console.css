@@ -90,8 +90,25 @@ canvas { display: block; touch-action: none; }
 #squads .card .ord.delayed { color: var(--amber); }
 #squads .card .clr { font: inherit; text-transform: inherit; color: var(--bone); background: transparent; border: 1px solid var(--faint); min-height: 36px; cursor: pointer; }
 #squads .card .clr:hover, #squads .card .clr:focus-visible { background: rgba(232, 226, 200, 0.12); }
-#radio { position: fixed; left: 16px; bottom: 16px; width: 470px; min-height: 22px; pointer-events: none; padding: 6px 10px; box-sizing: border-box; background: var(--panel); border: 1px solid var(--faint); font: 600 13px/1.5 ui-monospace, monospace; color: var(--bone); }
-#radio div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#radio div:nth-last-child(n+3) { opacity: 0.7; }
-#radio div:nth-last-child(n+4) { opacity: 0.45; }
-#radio div:nth-last-child(n+5) { opacity: 0.25; }
+/* Radio log (#38): typed lines, newest at the bottom, older fading; ▾ folds it to the newest line. #44 places it. */
+#radio { position: fixed; left: 16px; bottom: 16px; width: 470px; box-sizing: border-box; padding: 6px 10px; background: var(--panel); border: 1px solid var(--faint); font: 600 13px/1.5 ui-monospace, monospace; color: var(--bone); }
+#radio .head { display: flex; align-items: center; gap: 8px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--bone-dim); }
+#radio .head span { flex: 1; }
+#net { width: 8px; height: 8px; border-radius: 50%; border: 1px solid var(--bone-dim); box-sizing: border-box; }
+#net.on { background: var(--bone); border-color: var(--bone); box-shadow: 0 0 6px var(--bone); }
+#radio-fold { font: inherit; color: var(--bone); background: transparent; border: 1px solid var(--faint); min-width: 28px; min-height: 22px; cursor: pointer; }
+#radio-fold:hover, #radio-fold:focus-visible { background: rgba(232, 226, 200, 0.12); }
+#radio.folded #radio-fold { transform: rotate(180deg); }
+#radio[hidden] { display: none; }
+#radio .ln { display: flex; gap: 8px; align-items: baseline; white-space: nowrap; overflow: hidden; }
+#radio .ln[role=button] { cursor: pointer; }
+#radio .ln:focus-visible { outline: 1px solid var(--bone); }
+#radio .ln b { text-transform: uppercase; color: var(--bone-dim); }
+#radio .ln .tx { overflow: hidden; text-overflow: ellipsis; }
+#radio .ln.bad .tx { color: var(--ho); }
+#radio .ln .chip { margin-left: auto; padding: 0 6px; font-style: normal; font-size: 12px; line-height: 1.3; color: var(--ink); background: var(--bone); }
+#radio .ln:nth-last-child(n+3) { opacity: 0.75; }
+#radio .ln:nth-last-child(n+4) { opacity: 0.55; }
+#radio .ln:nth-last-child(n+5) { opacity: 0.4; }
+#radio .ln:nth-last-child(n+6) { opacity: 0.28; }
+#radio.folded .ln:not(:last-child) { display: none; }

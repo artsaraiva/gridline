@@ -1,4 +1,4 @@
-import { enemyOf, type CommanderView, type SideId, type SquadView } from '../sim/types';
+import { enemyOf, type CommanderView, type SideId, type SimEvent, type SquadView } from '../sim/types';
 
 export const FACTION: Record<SideId, string> = { nato: 'NATO', pact: 'Warsaw Pact' };
 
@@ -35,4 +35,16 @@ export function squadTag(q: SquadView, suppressed: boolean): string {
   if (q.order) parts.push(q.order.state.toUpperCase());
   if (suppressed) parts.push('SUPPRESSED');
   return parts.join(' · ');
+}
+
+const BAD_NEWS = new Set(['mandown', 'wiped', 'lost', 'fire']);
+
+/** One line of the radio log: who says it, what, where (a Grid Reference) and whether it is bad news. Null for events that are not for the log. */
+export function radioLine(e: SimEvent, view: CommanderView): { from: string; text: string; grid: string | null; squad: number | null; bad: boolean; onAir: boolean } | null {
+  if (e.side !== view.side) return null;
+  if (e.kind === 'rejected') return { from: 'HQ', text: `${e.command.kind} rejected, ${e.reason}`, grid: null, squad: null, bad: true, onAir: false };
+  if (e.kind !== 'radio') return null;
+  // a wiped Squad can't speak: the net reports it
+  const from = e.squad === null || e.type === 'wiped' ? 'NET' : (view.squads.find((q) => q.id === e.squad)?.name ?? '').toUpperCase();
+  return { from, text: e.text, grid: e.grid ?? null, squad: e.squad, bad: BAD_NEWS.has(e.type), onAir: true };
 }
