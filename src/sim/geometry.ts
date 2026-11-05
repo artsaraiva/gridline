@@ -1,4 +1,5 @@
 import type { Match } from './index';
+import { walkCost } from './grid';
 import type { Soldier } from './state';
 import { enemyOf, type SideId, type Vec2 } from './types';
 
@@ -21,5 +22,6 @@ export const inHq = (m: Match, side: SideId, p: Vec2) => {
   return dist2(p, hq) < r * r;
 };
 
-/** The Play Area boundary and the enemy HQ are walls to a Soldier. */
-export const canStand = (m: Match, s: Soldier, p: Vec2) => insidePolygon(m.map.playArea, p.x, p.y) && !inHq(m, enemyOf(s.side), p);
+/** The Play Area boundary, walls, water and the enemy HQ are walls to a Soldier. */
+export const canStand = (m: Match, s: Soldier, p: Vec2) =>
+  insidePolygon(m.map.playArea, p.x, p.y) && walkCost(m, p.x, p.y) > 0 && !inHq(m, enemyOf(s.side), p);

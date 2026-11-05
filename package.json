@@ -7,7 +7,8 @@
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:replay": "playwright test"
+    "test:replay": "playwright test",
+    "balance": "node scripts/run-balance.mjs"
   },
   "dependencies": {
     "three": "0.186.1"
