@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { commanderView, createMatch, step, SIDES, type Match } from '../sim';
 import { routeFlow, flowDist } from '../sim/ai/flow';
-import { COVER, WALL, WATER, walkCost, cellAt } from '../sim/grid';
+import { COVER, WALL, WATER, walkCost, cellAt, nearestWalkable } from '../sim/grid';
 import { DEFAULT_TUNE } from '../sim/tune';
 import { insidePolygon } from '../sim/geometry';
 import type { BakedMap } from './baked';
@@ -75,6 +75,15 @@ describe('map loader: 1 m bake data to the Simulation\'s 2 m cells', () => {
       }
   });
 
+  it('finds ground to stand on beside a Capture Point that sits in a building', () => {
+    const m = match();
+    const a = m.map.points.find((p) => p.id === 'A')!;
+    expect(walkCost(m, a.x, a.y)).toBe(0);
+    const at = nearestWalkable(m, a);
+    expect(walkCost(m, at.x, at.y)).toBeGreaterThan(0);
+    expect(Math.hypot(at.x - a.x, at.y - a.y)).toBeLessThan(10);
+  });
+
   it('opens the river only at the five crossings, each one on its own', () => {
     const m = match();
     const from = m.map.hqs.nato;
@@ -87,7 +96,7 @@ describe('map loader: 1 m bake data to the Simulation\'s 2 m cells', () => {
 describe('a match on the baked map', () => {
   it('keeps every Soldier on walkable ground inside the Play Area', () => {
     const m: Match = match();
-    for (let t = 0; t < 20 * 240; t++) {
+    for (let t = 0; t < 20 * 600; t++) {
       step(m, []);
       if (t % 10) continue;
       for (const side of SIDES)

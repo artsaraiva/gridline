@@ -107,6 +107,25 @@ export function walkCost(m: Match, x: number, y: number): number {
   return k < 0 ? 0 : m.grid.cost[k]!;
 }
 
+/** `p` itself when it can be walked on, else the centre of the nearest walkable cell (a Capture Point may sit in a building). */
+export function nearestWalkable(m: Match, p: Vec2): Vec2 {
+  if (walkCost(m, p.x, p.y) > 0) return p;
+  const g = m.grid;
+  const i0 = Math.floor((p.x - g.x0) / m.tune.cellM);
+  const j0 = Math.floor((p.y - g.y0) / m.tune.cellM);
+  let best = p;
+  let bestD = Infinity;
+  for (let r = 1; r < Math.max(g.cols, g.rows) && bestD === Infinity; r++)
+    for (let j = j0 - r; j <= j0 + r; j++)
+      for (let i = i0 - r; i <= i0 + r; i++) {
+        if (Math.max(Math.abs(i - i0), Math.abs(j - j0)) < r || i < 0 || j < 0 || i >= g.cols || j >= g.rows || !g.cost[j * g.cols + i]) continue;
+        const c = cellCentre(m, j * g.cols + i);
+        const d = (c.x - p.x) ** 2 + (c.y - p.y) ** 2;
+        if (d < bestD) (bestD = d), (best = c);
+      }
+  return best; // shortcut: the first ring with a walkable cell, up to 1.4x farther than the true nearest; fine for a spawn spot
+}
+
 /** Grid line of sight: samples every half cell between the two, blocked by any wall cell. */
 export function los(m: Match, a: Vec2, b: Vec2): boolean {
   const dx = b.x - a.x;
