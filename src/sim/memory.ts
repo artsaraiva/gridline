@@ -2,7 +2,8 @@
 // the union of what the Side's Soldiers see (Contacts) and where they last saw it (Last Known Positions).
 import type { Match } from './index';
 import type { Mix, Soldier, Squad } from './state';
-import { SIDES, type LastKnownView, type SideId } from './types';
+import { dist2 } from './geometry';
+import { SIDES, type LastKnownView, type SideId, type SimEvent } from './types';
 
 /** One enemy Soldier a Squad knows about. `heard` entries (gunfire) steer behaviour but never become Contacts. */
 export interface Sighting {
@@ -25,6 +26,26 @@ export function see(m: Match, sq: Squad, e: Soldier) {
   const s: Sighting = { id: e.id, x: e.x, y: e.y, tick: m.tick, source: 'seen' };
   note(sq.memory, s);
   note(m.sightings[sq.side], { ...s });
+}
+
+/**
+ * Gunfire phase, right after the shots: the target's Squad, and every living enemy of the shooter within `hearM` of
+ * it, hears where the shot came from. A sighting from this tick's perception is not replaced by a heard one.
+ */
+export function hear(m: Match, events: SimEvent[]) {
+  const t = m.tune;
+  for (const e of events) {
+    if (e.kind !== 'shot') continue;
+    const shooter = m.soldiers[e.from]!;
+    const heard: Sighting = { id: shooter.id, x: shooter.x, y: shooter.y, tick: m.tick, source: 'heard' };
+    for (const sq of m.squads) {
+      if (sq.side === shooter.side) continue;
+      const near = (s: Soldier) => s.id === e.to || (s.state === 'alive' && dist2(s, shooter) <= t.hearM * t.hearM);
+      if (!sq.members.some((id) => near(m.soldiers[id]!))) continue;
+      if (sq.memory.some((o) => o.id === shooter.id && o.tick === m.tick)) continue;
+      note(sq.memory, { ...heard });
+    }
+  }
 }
 
 /** Drops squad memory older than `memorySeconds` and Side sightings older than `lkpSeconds`. Runs at the start of perception. */

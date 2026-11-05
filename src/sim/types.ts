@@ -103,6 +103,7 @@ export interface Tune {
   // #35 Fog of war: memory, Last Known Positions
   memorySeconds: number; // a Squad forgets an enemy it has not seen or heard for this long
   lkpSeconds: number; // a lost Contact shows as a Last Known Position, fading, for this long
+  hearM: number; // Soldiers this close to a shooter hear it (the target always does)
 
   // #36 Orders
 

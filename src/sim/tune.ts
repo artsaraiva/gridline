@@ -64,6 +64,7 @@ export const DEFAULT_TUNE: Tune = {
   // #35 Fog of war: memory, Last Known Positions
   memorySeconds: 8,
   lkpSeconds: 3.5,
+  hearM: 90,
 
   // #36 Orders
 

@@ -6,7 +6,7 @@ import { capture, drain, end, hashCapture } from './capture';
 import { casualties, fire, suppressionDecay } from './combat';
 import { applyCommands } from './commands';
 import { buildGrid, type Grid } from './grid';
-import { hashMemory, type Sighting } from './memory';
+import { hashMemory, hear, type Sighting } from './memory';
 import { perceive } from './perception';
 import { returnToFight } from './respawn';
 import { rnd } from './rng';
@@ -86,6 +86,7 @@ export function step(m: Match, commands: Command[]): SimEvent[] {
   casualties(m, events);
   perceive(m);
   fire(m, events);
+  hear(m, events);
   for (const s of m.soldiers) if (s.state === 'alive') walk(m, s);
   suppressionDecay(m);
   returnToFight(m, events);
