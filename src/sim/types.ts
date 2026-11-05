@@ -44,6 +44,24 @@ export interface MapData {
    * (rivers run north-south). A ford is slow going. The `bridge` is the centre's own fight, never avoided as dangerous.
    */
   crossings?: Crossing[];
+  /** #42: a baked map's terrain on cells; when present it replaces `walls`, `cover`, `water` and the box rule of `crossings`. */
+  terrain?: Terrain;
+}
+
+/**
+ * #42: terrain on a cell grid, row-major, row 0 at the south edge (y up). `x0`, `y0` is the south-west corner in metres.
+ * `cells` holds 0 open, or WALL / COVER / WATER from grid.ts; `wade` marks fords (slow going); `crossing` is the index into
+ * `MapData.crossings` of the crossing the cell belongs to, -1 for none.
+ */
+export interface Terrain {
+  x0: number;
+  y0: number;
+  cols: number;
+  rows: number;
+  cellM: number;
+  cells: Uint8Array;
+  wade: Uint8Array;
+  crossing: Int8Array;
 }
 
 export interface Crossing {
