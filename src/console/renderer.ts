@@ -11,7 +11,7 @@ export const renderer = new THREE.WebGPURenderer({ antialias: true }); // falls 
 renderer.setPixelRatio(devicePixelRatio);
 document.body.appendChild(renderer.domElement);
 export const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0d0f0c);
+scene.background = new THREE.Color(COLOR.ink);
 
 // Orthographic camera looking down -z: x east, y north, world units are metres.
 const VIEW_M = 680; // world height shown at zoom 1: the whole Play Area

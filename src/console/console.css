@@ -1,19 +1,27 @@
-html, body { margin: 0; height: 100%; overflow: hidden; background: #0d0f0c; }
+@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&display=swap');
+/* Feed palette (renderer.ts COLOR has the same values) and chrome type: Chakra Petch, tabular numbers, RGB-split shadow. */
+:root {
+  --bone: #e8e2c8; --bone-dim: rgba(232, 226, 200, 0.55); --bone-faint: rgba(232, 226, 200, 0.22);
+  --friendly: #6fd0ff; --hostile: #ff4b3e; --amber: #ffc23d; --ink: #05090b; --panel: rgba(5, 9, 11, 0.74);
+  --font: 'Chakra Petch', ui-monospace, monospace;
+  --rgb-split: -1px 0 rgba(255, 40, 60, 0.35), 1px 0 rgba(40, 220, 255, 0.35);
+}
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--ink); }
 canvas { display: block; touch-action: none; }
 #readout {
   position: fixed; top: 16px; left: 16px; padding: 8px 12px;
-  font: 600 14px/1.4 ui-monospace, monospace; font-variant-numeric: tabular-nums; text-transform: uppercase;
-  color: #e8e2c8; background: rgba(8, 10, 8, 0.72); border: 1px solid rgba(232, 226, 200, 0.22);
+  font: 600 14px/1.4 var(--font); text-shadow: var(--rgb-split); font-variant-numeric: tabular-nums; text-transform: uppercase;
+  color: var(--bone); background: var(--panel); border: 1px solid var(--bone-faint);
   pointer-events: none; white-space: pre;
 }
 .screen {
   position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); min-width: 280px; padding: 20px 24px;
-  font: 600 14px/1.5 ui-monospace, monospace; font-variant-numeric: tabular-nums; text-transform: uppercase;
-  color: #e8e2c8; background: rgba(8, 10, 8, 0.88); border: 1px solid rgba(232, 226, 200, 0.22);
+  font: 600 14px/1.5 var(--font); text-shadow: var(--rgb-split); font-variant-numeric: tabular-nums; text-transform: uppercase;
+  color: var(--bone); background: rgba(5, 9, 11, 0.88); border: 1px solid var(--bone-faint);
   display: flex; flex-direction: column; gap: 14px;
 }
 .screen[hidden] { display: none; }
-.screen input { accent-color: #e8e2c8; }
+.screen input { accent-color: var(--bone); }
 .screen h1 { margin: 0; font-size: 28px; letter-spacing: 0.08em; }
 .screen fieldset { margin: 0; padding: 0; border: 0; display: flex; gap: 16px; align-items: center; }
 .screen legend { padding: 0 0 6px; opacity: 0.6; }
@@ -23,6 +31,6 @@ canvas { display: block; touch-action: none; }
   font: inherit; text-transform: inherit; color: inherit; background: transparent;
   border: 1px solid rgba(232, 226, 200, 0.4); padding: 6px 12px; cursor: pointer;
 }
-.screen select option { background: #0d0f0c; }
+.screen select option { background: var(--ink); }
 .screen button:hover, .screen button:focus-visible { background: rgba(232, 226, 200, 0.12); }
 .screen .row { display: flex; gap: 8px; }
