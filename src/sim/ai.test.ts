@@ -234,21 +234,28 @@ describe('under fire', () => {
   // Nobody can be Wounded, ammo never runs out, and fire barely pins.
   const cover = patches(-80, 120, -40, 40, 4);
   const map = field({ points: [{ id: 'Q', name: 'Q', x: 150, y: 0, owner: 'pact' }], cover });
-  const attack = () => {
+  const squadsFacing = () => {
     const place: Record<number, Placement> = {};
     for (const i of [0, 1, 2, 3]) Object.assign(place, { [i]: { x: -80, y: i * 4 - 6 }, [i + 4]: { x: 150, y: i * 4 - 6, fx: -1 } });
-    return play(scene({ map, place, tune: { hp: 1e9, suppressPerShot: 0.05, ammo: 1e6 } }), 60 * HZ);
+    return place;
+  };
+  const attack = () => {
+    return play(scene({ map, place: squadsFacing(), tune: { hp: 1e9, suppressPerShot: 0.05, ammo: 1e6 } }), 60 * HZ);
   };
 
   it('Squad members take cover nearby, at least 5 m apart', () => {
-    const { nato } = attack();
-    const contact = nato.findIndex((v) => v.contacts.length > 0);
-    expect(contact).toBeGreaterThan(0);
-    const covered = nato.slice(contact, contact + 15 * HZ).some((v) => {
-      const inside = v.friendlies.filter((f) => inCover(cover, f));
-      return inside.length >= 3 && inside.every((a) => inside.every((b) => a === b || dist(a, b) >= 4.5));
-    });
-    expect(covered).toBe(true);
+    // one solid block of cover, big enough for all four to bunch up in were they not kept apart
+    const block = patches(0, 14, -8, 8, 2);
+    const { nato } = play(scene({ map: field({ points: [{ id: 'Q', name: 'Q', x: 150, y: 0, owner: 'pact' }], cover: block }), place: squadsFacing(), tune: { hp: 1e9, suppressPerShot: 0.05, ammo: 1e6 } }), 60 * HZ);
+    let crowd = 0;
+    let closest = Infinity;
+    for (const v of nato) {
+      const inside = v.friendlies.filter((f) => inCover(block, f));
+      if (inside.length >= 3) crowd++;
+      for (const a of inside) for (const b of inside) if (a !== b) closest = Math.min(closest, dist(a, b));
+    }
+    expect(crowd).toBeGreaterThan(5 * HZ); // three or more spend a good while in the block
+    expect(closest).toBeGreaterThanOrEqual(4.5) // 5 m, less a step's slack;
   });
 
   it('a Squad of 3 or more under contact within 130 m flanks: radios the side and grid, and the flankers swing out that way', () => {
@@ -294,6 +301,37 @@ describe('peel-off and suppressive fire', () => {
     expect(rounds.length).toBeGreaterThan(5);
     expect(rounds.every((e) => e.side === 'nato' && e.tick - lastSeen <= 4 * HZ)).toBe(true);
     expect(rounds.every((e) => Math.abs(e.x - lkp.x) <= 3 && Math.abs(e.y - lkp.y) <= 3)).toBe(true);
+  });
+});
+
+describe('suppressive fire numbers', () => {
+  // nato Soldier 0 holds a fresh seen Last Known Position 60 m off, where pact Soldier 4 stands unseen (nobody sees anyone).
+  // Scatter is off, so the round lands on the Soldier; its first one is fired on tick 0.
+  const base = (tune: Partial<Tune> = {}) => scene({ map: field(), place: { 0: { x: 0, y: 0, fx: 1 }, 4: { x: 60, y: 0 } }, tune: { visionM: 0, suppressiveScatterM: 0, suppressDecayPerSecond: 0, damage: [1, 1], ...tune } });
+  // one tick from a copy of `b` on its own seed (the map grid is shared: building it is the slow part)
+  const volley = (b: Match, seed: number) => {
+    const m: Match = { ...b, rng: seed, soldiers: structuredClone(b.soldiers), squads: structuredClone(b.squads), points: structuredClone(b.points), sightings: structuredClone(b.sightings) };
+    m.squads[0]!.memory.push({ id: 4, x: 60, y: 0, tick: 0, source: 'seen' });
+    const events = step(m, []);
+    return { events, hit: events.some((e) => e.kind === 'suppressive' && e.hit), suppression: m.soldiers[4]!.suppression };
+  };
+
+  it('suppresses the enemy at its Last Known Position by 0.6x a round of aimed fire', () => {
+    const { events, suppression } = volley(base(), 1);
+    expect(events.filter((e) => e.kind === 'suppressive')).toHaveLength(1);
+    expect(suppression).toBeCloseTo(DEFAULT_TUNE.suppressPerShot * 0.6, 9);
+  });
+
+  it('hits it at 0.3x the usual chance', () => {
+    const rate = (tune: Partial<Tune>) => {
+      const b = base(tune);
+      let hits = 0;
+      for (let seed = 1; seed <= 2000; seed++) if (volley(b, seed).hit) hits++;
+      return hits / 2000;
+    };
+    expect(rate({ hitChance: 1 })).toBeGreaterThan(0.27);
+    expect(rate({ hitChance: 1 })).toBeLessThan(0.33);
+    expect(rate({ hitChance: 0.5 })).toBeLessThan(0.18); // 0.15: it scales with hitChance
   });
 });
 
