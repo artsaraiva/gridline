@@ -19,8 +19,9 @@ function map(points: { x: number; y: number }[], pactHqX = 3000): MapData {
   };
 }
 
+/** Nobody sees anybody unless `tune` says so: these tests check capture and drain without combat in the way. */
 function start(m: MapData, tune: Partial<Tune> = {}, squadsPerSide = 1, seed = 1): Match {
-  return createMatch({ seed, map: m, tune: { ...DEFAULT_TUNE, ...tune }, squadsPerSide, commanderSide: 'nato' });
+  return createMatch({ seed, map: m, tune: { ...DEFAULT_TUNE, visionM: 0, ...tune }, squadsPerSide, commanderSide: 'nato' });
 }
 
 /** Steps `ticks` times and returns the nato Commander view after every step. */
@@ -166,7 +167,7 @@ describe('determinism', () => {
     { tick: 200, side: 'nato', kind: 'asset', asset: 'scan', at: { x: 0, y: 0 } },
   ];
   const hashes = (seed: number) => {
-    const m = start(field, {}, 3, seed);
+    const m = start(field, { visionM: DEFAULT_TUNE.visionM }, 3, seed); // combat on: the squads meet and fight
     const out: string[] = [];
     for (let t = 0; t < 120 * HZ; t++) {
       step(m, log.filter((c) => c.tick === t));

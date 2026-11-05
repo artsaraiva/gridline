@@ -1,10 +1,11 @@
-// Bare Console: stand-in map plane, chevrons, Capture Point rings, Tickets and clock, mouse pan and zoom.
+// Bare Console: stand-in map plane, chevrons, Capture Point rings, death markers, Tickets, clock and Squads, mouse pan and zoom.
 import * as THREE from 'three/webgpu';
 import { startSimHost } from '../host/host';
-import type { PointView, SoldierView, SideId } from '../sim/types';
+import type { FriendlyView, PointView, SoldierView, SideId, SquadView } from '../sim/types';
 
 const COLOR = { bone: 0xe8e2c8, friendly: 0x6fd0ff, hostile: 0xff4b3e, ground: 0x262c22 };
 const CHEVRON_PX = 14;
+const DEATH_MARKER_MS = 5000;
 
 const params = new URLSearchParams(location.search);
 const commanderSide: SideId = params.get('side') === 'pact' ? 'pact' : 'nato';
@@ -75,19 +76,52 @@ const chevronShape = new THREE.Shape([
 ]);
 const chevronGeometry = new THREE.ShapeGeometry(chevronShape);
 const chevrons = new Map<string, THREE.Mesh>();
-function drawChevrons(list: SoldierView[], kind: 'friendly' | 'hostile', seen: Set<string>, scale: number) {
+function drawChevrons(list: (SoldierView | FriendlyView)[], kind: 'friendly' | 'hostile', seen: Set<string>, scale: number) {
   for (const c of list) {
     const key = `${kind}${c.id}`;
     let mesh = chevrons.get(key);
     if (!mesh) {
       mesh = new THREE.Mesh(chevronGeometry, flat(COLOR[kind]));
+      (mesh.material as THREE.MeshBasicMaterial).transparent = true;
       scene.add(mesh);
       chevrons.set(key, mesh);
     }
     mesh.position.set(c.x, c.y, 1);
     mesh.rotation.z = Math.atan2(c.fy, c.fx);
     mesh.scale.setScalar(scale);
+    (mesh.material as THREE.MeshBasicMaterial).opacity = 'state' in c && c.state === 'wounded' ? 0.35 : 1;
     seen.add(key);
+  }
+}
+
+// Death markers: an X where a Soldier died, fading out over DEATH_MARKER_MS.
+const barGeometry = new THREE.PlaneGeometry(1.1, 0.22);
+const deathMarkers: { mark: THREE.Group; material: THREE.MeshBasicMaterial; at: number }[] = [];
+function addDeathMarker(x: number, y: number, side: SideId, at: number) {
+  const material = flat(COLOR[side === commanderSide ? 'friendly' : 'hostile']);
+  material.transparent = true;
+  const mark = new THREE.Group();
+  for (const angle of [Math.PI / 4, -Math.PI / 4]) {
+    const bar = new THREE.Mesh(barGeometry, material);
+    bar.rotation.z = angle;
+    mark.add(bar);
+  }
+  mark.position.set(x, y, 0.8);
+  scene.add(mark);
+  deathMarkers.push({ mark, material, at });
+}
+function drawDeathMarkers(now: number, scale: number) {
+  for (let i = deathMarkers.length - 1; i >= 0; i--) {
+    const { mark, material, at } = deathMarkers[i]!;
+    const left = 1 - (now - at) / DEATH_MARKER_MS;
+    if (left > 0) {
+      material.opacity = left;
+      mark.scale.setScalar(scale * 0.8);
+      continue;
+    }
+    scene.remove(mark);
+    material.dispose();
+    deathMarkers.splice(i, 1);
   }
 }
 
@@ -126,10 +160,21 @@ const readout = document.getElementById('readout')!;
 const clock = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 const enemySide: SideId = commanderSide === 'nato' ? 'pact' : 'nato';
 
+/** "ALPHA ■■■□ +7 +--": living members, then each dead member's respawn timer (-- = waiting for quiet); or the redeploy countdown. */
+function squadLine(q: SquadView): string {
+  const name = q.name.padEnd(8);
+  if (q.redeployIn !== null) return `${name}WIPED · REDEPLOY ${Math.ceil(q.redeployIn)}`;
+  const pips = '■'.repeat(q.strength) + '□'.repeat(q.size - q.strength);
+  return `${name}${pips} ${q.respawnIn.map((s) => (s > 0 ? `+${Math.ceil(s)}` : '+--')).join(' ')}`.trimEnd();
+}
+
 renderer.setAnimationLoop(() => {
-  const view = host.sample(performance.now());
+  const now = performance.now();
+  const view = host.sample(now);
+  for (const e of host.takeEvents()) if (e.kind === 'death') addDeathMarker(e.x, e.y, e.side, now);
   const seen = new Set<string>();
   const scale = CHEVRON_PX * pxToWorld();
+  drawDeathMarkers(now, scale);
   drawChevrons(view.friendlies, 'friendly', seen, scale);
   drawChevrons(view.contacts, 'hostile', seen, scale);
   for (const [key, mesh] of chevrons) mesh.visible = seen.has(key);
@@ -138,6 +183,7 @@ renderer.setAnimationLoop(() => {
   readout.textContent =
     `${commanderSide} ${view.tickets[commanderSide]}   ${enemySide} ${view.tickets[enemySide]}   ${clock(view.seconds)}` +
     (result ? `\n${result} · ${view.result!.reason}` : '') +
-    `\nseed ${seed}`;
+    `\n\n${view.squads.map(squadLine).join('\n')}` +
+    `\n\nseed ${seed}`;
   renderer.render(scene, camera);
 });
