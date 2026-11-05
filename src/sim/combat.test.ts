@@ -45,14 +45,14 @@ const ONE_SHOT: Partial<Tune> = { hitChance: 1, damage: [100, 100] };
 
 type Logged = SimEvent & { tick: number };
 
-/** Steps `ticks` times; returns every event (with its tick) and the nato Commander view after every step. */
-function play(m: Match, ticks: number): { events: Logged[]; views: CommanderView[] } {
+/** Steps `ticks` times; returns every event (with its tick) and `side`'s Commander view after every step. */
+function play(m: Match, ticks: number, side: SideId = 'nato'): { events: Logged[]; views: CommanderView[] } {
   const events: Logged[] = [];
   const views: CommanderView[] = [];
   for (let i = 0; i < ticks; i++) {
     const tick = m.tick;
     for (const e of step(m, [])) events.push({ ...e, tick });
-    views.push(commanderView(m, 'nato'));
+    views.push(commanderView(m, side));
   }
   return { events, views };
 }
@@ -320,18 +320,22 @@ describe('bounds', () => {
   it('Soldiers never leave the Play Area', () => {
     // a point on the north edge, Soldiers aiming up to 40 m around it; nobody sees anybody
     const m = scene({ place: {}, tune: { squadSize: 4, spread: 40, visionM: 0 }, map: { points: [{ id: 'N', name: 'N', x: 0, y: 590 }] } });
-    const { views } = play(m, 200 * HZ);
-    const reached = views.at(-1)!.friendlies.filter((f) => f.y > 560);
+    const views: CommanderView[] = [];
+    for (let i = 0; i < 200 * HZ; i++) {
+      step(m, []);
+      views.push(commanderView(m, 'nato'), commanderView(m, 'pact')); // both Sides' own Soldiers: no fog in the way
+    }
+    const reached = views.at(-2)!.friendlies.filter((f) => f.y > 560);
     expect(reached.length).toBeGreaterThan(0);
-    for (const v of views) for (const f of [...v.friendlies, ...v.contacts]) expect(f.y).toBeLessThanOrEqual(600);
+    for (const v of views) for (const f of v.friendlies) expect(f.y).toBeLessThanOrEqual(600);
   });
 
   it('the enemy never enters or targets the other HQ', () => {
     // nato Squad holds a point on its own HQ; the pact Squad walks at it from 200 m; nobody can be Wounded
     const hqs = { nato: { x: -100, y: 0 }, pact: { x: 100, y: 0 } };
     const m = scene({ place: {}, tune: { squadSize: 4, spread: 6, hp: 1e9 }, map: { hqs, points: [{ id: 'H', name: 'H', x: -100, y: 0, owner: 'nato' }] } });
-    const { events, views } = play(m, 120 * HZ);
-    const gap = Math.min(...views.flatMap((v) => v.contacts.map((c) => Math.hypot(c.x - hqs.nato.x, c.y - hqs.nato.y))));
+    const { events, views } = play(m, 120 * HZ, 'pact'); // the pact's own Soldiers: no fog in the way
+    const gap = Math.min(...views.flatMap((v) => v.friendlies.map((c) => Math.hypot(c.x - hqs.nato.x, c.y - hqs.nato.y))));
     expect(gap).toBeGreaterThanOrEqual(DEFAULT_TUNE.hqRadius);
     expect(gap).toBeLessThan(DEFAULT_TUNE.hqRadius + 3); // they did walk right up to it
     expect(shots(events, 'nato').length).toBeGreaterThan(0);

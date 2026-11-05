@@ -1,5 +1,5 @@
 // Sim host, worker side: runs the Simulation on a fixed 20 Hz tick, stamps Commands, keeps the match record (seed, setup, Command log) and hands it over when the match ends.
-import { commanderView, createMatch, step, type Command, type Match } from '../sim/index';
+import { commanderEvents, commanderView, createMatch, step, type Command, type Match } from '../sim/index';
 import { DEFAULT_TUNE } from '../sim/tune';
 import { TEST_FIELD } from '../maps/test-field';
 import type { FromHost, MatchRecord, ToHost } from './protocol';
@@ -13,7 +13,8 @@ const post = (msg: FromHost) => postMessage(msg);
 function tick() {
   const events = step(match, pending);
   pending = [];
-  post({ kind: 'view', view: commanderView(match, record.commanderSide), events, ...(match.result && { record }) });
+  const side = record.commanderSide;
+  post({ kind: 'view', view: commanderView(match, side), events: commanderEvents(match, side, events), ...(match.result && { record }) });
 }
 
 function loop(next: number) {

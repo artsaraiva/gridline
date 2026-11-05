@@ -1,6 +1,7 @@
 // Bare Console entry: wires the modules and runs the render loop, one line per layer.
 import './input';
 import { drawChevrons } from './layers/chevrons';
+import { drawLastKnown } from './layers/contacts';
 import { addDeathMarker, drawDeathMarkers } from './layers/markers';
 import { drawPoint } from './layers/points';
 import { checkEnd } from './match-flow';
@@ -22,6 +23,7 @@ renderer.setAnimationLoop(() => {
   for (const e of host.takeEvents()) if (e.kind === 'death') addDeathMarker(e.x, e.y, e.side, now);
   const scale = CHEVRON_PX * pxToWorld();
   drawDeathMarkers(now, scale);
+  drawLastKnown(view, scale);
   drawChevrons(view, scale);
   view.points.forEach(drawPoint);
   checkEnd(view);

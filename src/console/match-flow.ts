@@ -4,6 +4,7 @@ import type { MatchSetup } from '../host/protocol';
 import { enemyOf, type CommanderView } from '../sim/types';
 import { drawMap } from './layers/map';
 import { resetChevrons } from './layers/chevrons';
+import { resetContacts } from './layers/contacts';
 import { resetMarkers } from './layers/markers';
 import { resetPoints } from './layers/points';
 import { layer } from './renderer';
@@ -30,6 +31,7 @@ async function startMatch(setup: MatchSetup) {
   layer.clear();
   resetPoints();
   resetChevrons();
+  resetContacts();
   resetMarkers();
   session.commanderSide = setup.commanderSide;
   session.enemySide = enemyOf(setup.commanderSide);

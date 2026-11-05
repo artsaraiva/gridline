@@ -101,6 +101,9 @@ export interface Tune {
   // #34 Squad AI: movement, routes, cover, fire model, ammo
 
   // #35 Fog of war: memory, Last Known Positions
+  memorySeconds: number; // a Squad forgets an enemy it has not seen or heard for this long
+  lkpSeconds: number; // a lost Contact shows as a Last Known Position, fading, for this long
+  hearM: number; // Soldiers this close to a shooter hear it (the target always does)
 
   // #36 Orders
 
@@ -167,20 +170,30 @@ export interface PointView {
   progress: number;
 }
 
+/** Where a lost Contact was last seen: no facing. `fade` runs from 1 (just lost) to 0 (about to go). */
+export interface LastKnownView {
+  x: number;
+  y: number;
+  fade: number;
+}
+
 /** New fields go in optional (`?`), so view literals in other tickets and tests (summary.test.ts) still typecheck. */
 export interface CommanderView {
   side: SideId;
   tick: number;
   seconds: number;
   friendlies: FriendlyView[];
-  contacts: SoldierView[]; // no fog yet: every living enemy Soldier
+  /** Enemy Soldiers a friendly Soldier sees right now: position and facing only. */
+  contacts: SoldierView[];
+  /** Lost Contacts, fading out. */
+  lastKnown?: LastKnownView[];
   squads: SquadView[];
   points: PointView[];
   tickets: Record<SideId, number>;
   result: MatchResult | null;
 }
 
-/** Things that happened this tick. No fog filter yet: every Side's events. */
+/** Things that happened this tick, on every Side; `commanderEvents` keeps the ones a Side's Console may show. */
 export type SimEvent =
   | { kind: 'shot'; side: SideId; from: number; to: number; hit: boolean }
   | { kind: 'wounded' | 'death' | 'respawn'; side: SideId; id: number; x: number; y: number }
