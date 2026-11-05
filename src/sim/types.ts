@@ -143,7 +143,7 @@ export interface FriendlyView extends SoldierView {
   suppressed: boolean;
 }
 
-/** A friendly Squad. */
+/** A friendly Squad. New fields go in optional (`?`), so view literals in other tickets and tests still typecheck. */
 export interface SquadView {
   id: number;
   name: string;
@@ -167,6 +167,7 @@ export interface PointView {
   progress: number;
 }
 
+/** New fields go in optional (`?`), so view literals in other tickets and tests (summary.test.ts) still typecheck. */
 export interface CommanderView {
   side: SideId;
   tick: number;
