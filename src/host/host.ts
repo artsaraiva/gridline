@@ -1,5 +1,5 @@
 // Sim host, main-thread side: starts the worker and interpolates Commander views between ticks for drawing.
-import type { SoldierView, CommanderView, MapData } from '../sim/types';
+import type { SoldierView, CommanderView, MapData, SimEvent } from '../sim/types';
 import type { FromHost, ToHost, UnstampedCommand } from './protocol';
 
 export interface SimHost {
@@ -7,6 +7,8 @@ export interface SimHost {
   /** The latest view with Soldier positions interpolated to `now` (one tick behind the sim). */
   sample(now: number): CommanderView;
   send(command: UnstampedCommand): void;
+  /** Events from every tick since the last call. */
+  takeEvents(): SimEvent[];
 }
 
 export function startSimHost(opts: Extract<ToHost, { kind: 'start' }>): Promise<SimHost> {
@@ -17,19 +19,22 @@ export function startSimHost(opts: Extract<ToHost, { kind: 'start' }>): Promise<
     let curr: CommanderView;
     let currAt = 0;
     let tickMs = 50;
+    let events: SimEvent[] = [];
     worker.onmessage = (e: MessageEvent<FromHost>) => {
       const msg = e.data;
       prev = curr ?? msg.view;
       curr = msg.view;
       currAt = performance.now();
+      if (msg.kind === 'view') events.push(...msg.events);
       if (msg.kind !== 'started') return;
       tickMs = 1000 / msg.hz;
       resolve({
         map: msg.map,
         send: (command) => post({ kind: 'command', command }),
+        takeEvents: () => events.splice(0),
         sample(now) {
           const a = Math.min(1, Math.max(0, (now - currAt) / tickMs));
-          const lerp = (from: SoldierView[], to: SoldierView[]) => {
+          const lerp = <T extends SoldierView>(from: T[], to: T[]) => {
             const before = new Map(from.map((c) => [c.id, c]));
             return to.map((c) => {
               const b = before.get(c.id) ?? c;

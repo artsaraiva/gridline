@@ -6,12 +6,26 @@ export interface Vec2 {
   y: number;
 }
 
+/** Axis-aligned box in metres. */
+export interface Rect {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
 /** Metres, origin at map centre, x east, y north. */
 export interface MapData {
   name: string;
   playArea: Vec2[];
-  hqs: Record<SideId, Vec2>;
-  points: { id: string; name: string; x: number; y: number; radius?: number }[];
+  /** `radius` defaults to `tune.hqRadius`. */
+  hqs: Record<SideId, Vec2 & { radius?: number }>;
+  /** `radius` defaults to `tune.captureRadius`; `owner` is the Side holding the point at the start. */
+  points: { id: string; name: string; x: number; y: number; radius?: number; owner?: SideId | null }[];
+  /** Cells that block line of sight. */
+  walls?: Rect[];
+  /** Cells that make a Soldier standing in them harder to hit. */
+  cover?: Rect[];
 }
 
 export interface Tune {
@@ -32,6 +46,31 @@ export interface Tune {
   tickets: number;
   drainSeconds: number[]; // index = point lead - 1; leads past the end use the last entry
   matchSeconds: number;
+  hqRadius: number; // the enemy never enters or targets inside it
+  cellM: number; // sight grid cell size
+  visionM: number;
+  visionCos: number; // cone: an enemy is in view while cos(angle off facing) >= this
+  fireRangeM: number;
+  hitChance: number;
+  fireSeconds: number; // between shots, plus up to fireJitterSeconds, seeded
+  fireJitterSeconds: number;
+  hp: number;
+  damage: [number, number]; // per hit, seeded between the two
+  coverHitMul: number; // hit chance multiplier on a target standing in cover
+  suppressPerShot: number; // added to the target's suppression (0..1) per shot fired at it
+  suppressDecayPerSecond: number;
+  suppressAccuracyLoss: number; // hit chance x (1 - this x suppression)
+  suppressedAt: number; // suppression above this counts as suppressed
+  pinnedAt: number; // suppression above this counts as pinned: no reviving
+  bleedOutSeconds: number;
+  reviveSeconds: number;
+  reviveRangeM: number;
+  reviveReachM: number; // how close the reviver must be to work
+  reviveHp: number;
+  respawnSeconds: number;
+  respawnBehindM: number; // a Squad Respawn lands this far behind the first living member
+  quietSeconds: number; // no enemy seen for this long (and nobody suppressed) before a Squad Respawn
+  redeploySeconds: number;
 }
 
 export type Command =
@@ -43,7 +82,7 @@ export interface MatchResult {
   reason: 'tickets' | 'time';
 }
 
-/** A friendly Soldier, or an enemy one shown as a Contact. */
+/** A Soldier's position and facing: all an enemy Contact shows, and the base of a friendly. */
 export interface SoldierView {
   id: number;
   x: number;
@@ -51,6 +90,28 @@ export interface SoldierView {
   /** Unit facing vector. */
   fx: number;
   fy: number;
+}
+
+export type SoldierState = 'alive' | 'wounded' | 'dead';
+
+/** A friendly Soldier; dead ones are left out. */
+export interface FriendlyView extends SoldierView {
+  squad: number;
+  state: Exclude<SoldierState, 'dead'>;
+  suppressed: boolean;
+}
+
+/** A friendly Squad. */
+export interface SquadView {
+  id: number;
+  name: string;
+  size: number;
+  /** Living (not Wounded) members. */
+  strength: number;
+  /** Seconds until each dead member may Squad Respawn; 0 = waiting for the Squad to be quiet. Empty when wiped. */
+  respawnIn: number[];
+  /** Seconds until the wiped Squad Redeploys; null unless wiped. */
+  redeployIn: number | null;
 }
 
 export interface PointView {
@@ -68,11 +129,17 @@ export interface CommanderView {
   side: SideId;
   tick: number;
   seconds: number;
-  friendlies: SoldierView[];
-  contacts: SoldierView[]; // no fog yet: every enemy Soldier
+  friendlies: FriendlyView[];
+  contacts: SoldierView[]; // no fog yet: every living enemy Soldier
+  squads: SquadView[];
   points: PointView[];
   tickets: Record<SideId, number>;
   result: MatchResult | null;
 }
 
-export type SimEvent = never; // ponytail: no events until radio/combat land
+/** Things that happened this tick. No fog filter yet: every Side's events. */
+export type SimEvent =
+  | { kind: 'shot'; side: SideId; from: number; to: number; hit: boolean }
+  | { kind: 'wounded' | 'death' | 'respawn'; side: SideId; id: number; x: number; y: number }
+  | { kind: 'revived'; side: SideId; id: number; by: number }
+  | { kind: 'redeploy'; side: SideId; squad: number; x: number; y: number };

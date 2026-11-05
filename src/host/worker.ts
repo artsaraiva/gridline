@@ -12,9 +12,9 @@ const record = { seed: 0, log: [] as Command[] }; // ponytail: in memory only; e
 const post = (msg: FromHost) => postMessage(msg);
 
 function tick() {
-  step(match, pending);
+  const events = step(match, pending);
   pending = [];
-  post({ kind: 'view', view: commanderView(match, side) });
+  post({ kind: 'view', view: commanderView(match, side), events });
 }
 
 function loop(next: number) {
