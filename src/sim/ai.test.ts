@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { RIVER_FIELD } from '../maps/river-field';
-import { commanderView, createMatch, step, type Match } from './index';
+import { commanderView, createMatch, gridRef, step, type Match } from './index';
 import { DEFAULT_TUNE } from './tune';
-import type { CommanderView, MapData, SimEvent, Tune } from './types';
+import type { CommanderView, MapData, Rect, SimEvent, Tune } from './types';
 
 const HZ = DEFAULT_TUNE.hz;
 
@@ -218,5 +218,100 @@ describe('Resupply', () => {
     const left = nato.findIndex((v) => v.friendlies.every((f) => dist(f, P) > DEFAULT_TUNE.captureRadius));
     expect(left).toBeGreaterThan(0);
     expect(nato.slice(0, left).every((v) => v.friendlies.every((f) => f.ammo === 10 / DEFAULT_TUNE.ammo))).toBe(true);
+  });
+});
+
+/** 2 m cover patches every `step` metres over the box. */
+function patches(x0: number, x1: number, y0: number, y1: number, step: number): Rect[] {
+  const out: Rect[] = [];
+  for (let x = x0; x <= x1; x += step) for (let y = y0; y <= y1; y += step) out.push({ x0: x, y0: y, x1: x + 2, y1: y + 2 });
+  return out;
+}
+const inCover = (cover: Rect[], p: { x: number; y: number }) => cover.some((r) => p.x >= r.x0 && p.x < r.x1 && p.y >= r.y0 && p.y < r.y1);
+
+describe('under fire', () => {
+  // A nato Squad walks from x = -80 at enemy point Q, held by a pact Squad facing it, over ground strewn with cover.
+  // Nobody can be Wounded, ammo never runs out, and fire barely pins.
+  const cover = patches(-80, 120, -40, 40, 4);
+  const map = field({ points: [{ id: 'Q', name: 'Q', x: 150, y: 0, owner: 'pact' }], cover });
+  const attack = () => {
+    const place: Record<number, Placement> = {};
+    for (const i of [0, 1, 2, 3]) Object.assign(place, { [i]: { x: -80, y: i * 4 - 6 }, [i + 4]: { x: 150, y: i * 4 - 6, fx: -1 } });
+    return play(scene({ map, place, tune: { hp: 1e9, suppressPerShot: 0.05, ammo: 1e6 } }), 60 * HZ);
+  };
+
+  it('Squad members take cover nearby, at least 5 m apart', () => {
+    const { nato } = attack();
+    const contact = nato.findIndex((v) => v.contacts.length > 0);
+    expect(contact).toBeGreaterThan(0);
+    const covered = nato.slice(contact, contact + 15 * HZ).some((v) => {
+      const inside = v.friendlies.filter((f) => inCover(cover, f));
+      return inside.length >= 3 && inside.every((a) => inside.every((b) => a === b || dist(a, b) >= 4.5));
+    });
+    expect(covered).toBe(true);
+  });
+
+  it('a Squad of 3 or more under contact within 130 m flanks: radios the side and grid, and the flankers swing out that way', () => {
+    const { nato, pact, events } = attack();
+    const flanks = events.filter((e) => e.kind === 'radio' && e.type === 'flanking');
+    expect(flanks).toHaveLength(1);
+    const call = flanks[0]! as Extract<SimEvent, { kind: 'radio' }> & { tick: number };
+    expect(call).toMatchObject({ side: 'nato', squad: 0, text: expect.stringMatching(/^flanking (left|right)$/) });
+    expect(pact[call.tick]!.friendlies.map((f) => gridRef(map.grid!, f))).toContain(call.grid);
+    // the leader's line to the enemy when the call went out; left is counter-clockwise of it
+    const lead = nato[call.tick]!.friendlies[0]!;
+    const enemy = { x: 150, y: 0 };
+    const side = call.text.endsWith('left') ? 1 : -1;
+    const aside = (p: { x: number; y: number }) => (side * ((enemy.x - lead.x) * (p.y - lead.y) - (enemy.y - lead.y) * (p.x - lead.x))) / dist(enemy, lead);
+    const within20s = nato.slice(call.tick, call.tick + 20 * HZ);
+    expect(within20s.some((v) => v.friendlies.some((f) => aside(f) > 25))).toBe(true);
+  });
+});
+
+describe('peel-off and suppressive fire', () => {
+  // A nato Squad holds its point P; one pact Soldier, 40 m off and facing away, goes down to the first volley and is lost
+  // from sight. Nobody else is near.
+  const P = { id: 'P', name: 'P', x: 30, y: 0, owner: 'nato' as const };
+  const lkp = { x: 60, y: 5 };
+  const lostTarget = () => {
+    const place: Record<number, Placement> = { 4: { ...lkp, fx: 1 } };
+    for (const i of [0, 1, 2, 3]) place[i] = { x: 20, y: i * 6 - 9 };
+    return play(scene({ map: field({ points: [P] }), place, tune: { hitChance: 1, damage: [100, 100], reviveRangeM: 0 } }), 15 * HZ);
+  };
+
+  it('one healthy Soldier peels off to the Last Known Position of a lost target; the rest hold', () => {
+    const { nato } = lostTarget();
+    const start = nato[0]!.friendlies;
+    const went = start.filter((s) => nato.slice(0, 12 * HZ).some((v) => dist(v.friendlies.find((f) => f.id === s.id)!, lkp) < 15));
+    expect(went).toHaveLength(1);
+    for (const v of nato) for (const f of v.friendlies) if (f.id !== went[0]!.id) expect(dist(f, P)).toBeLessThan(DEFAULT_TUNE.captureRadius);
+  });
+
+  it('the others put suppressive fire on it while it is under 4 s old', () => {
+    const { events } = lostTarget();
+    const lastSeen = 0; // the pact Soldier went down on tick 0
+    const rounds = events.filter((e) => e.kind === 'suppressive') as (Extract<SimEvent, { kind: 'suppressive' }> & { tick: number })[];
+    expect(rounds.length).toBeGreaterThan(5);
+    expect(rounds.every((e) => e.side === 'nato' && e.tick - lastSeen <= 4 * HZ)).toBe(true);
+    expect(rounds.every((e) => Math.abs(e.x - lkp.x) <= 3 && Math.abs(e.y - lkp.y) <= 3)).toBe(true);
+  });
+});
+
+describe('hold', () => {
+  // A nato Squad holds its point P, ringed with cover; a pact Squad attacks it from 200 m. Nobody can be Wounded.
+  const P = { id: 'P', name: 'P', x: 0, y: 0, owner: 'nato' as const };
+  const cover = patches(-40, 40, -40, 40, 6);
+  const defend = () => {
+    const place: Record<number, Placement> = {};
+    for (const i of [0, 1, 2, 3]) Object.assign(place, { [i]: { x: -5, y: i * 4 - 6 }, [i + 4]: { x: 200, y: i * 6 - 9, fx: -1 } });
+    return play(scene({ map: field({ points: [P], cover }), place, tune: { hp: 1e9, suppressPerShot: 0.05, ammo: 1e6 } }), 90 * HZ);
+  };
+
+  it('a holding Squad stays within 1.5x the point radius, in cover in and around it, and chases only inside that leash', () => {
+    const { nato, events } = defend();
+    expect(events.filter((e) => e.kind === 'shot' && e.side === 'nato').length).toBeGreaterThan(50); // they did fight
+    for (const v of nato) for (const f of v.friendlies) expect(dist(f, P)).toBeLessThanOrEqual(1.5 * DEFAULT_TUNE.captureRadius + 0.5);
+    expect(nato[15 * HZ]!.squads[0]).toMatchObject({ task: 'hold', point: 'P' });
+    expect(nato[15 * HZ]!.friendlies.filter((f) => inCover(cover, f)).length).toBeGreaterThanOrEqual(3);
   });
 });

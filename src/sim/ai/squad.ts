@@ -181,8 +181,9 @@ function flank(m: Match, sq: Squad, L: Soldier, goal: Vec2, th: Vec2, flow: Flow
   if (sq.flankSince < 0) {
     sq.flankSince = m.tick;
     sq.phaseUntil = 0;
+    // swing round the threat toward the goal's side: +1 counter-clockwise, which is right as seen from the Squad
     sq.flankSign = (L.x - th.x) * (goal.y - th.y) - (L.y - th.y) * (goal.x - th.x) >= 0 ? 1 : -1;
-    const text = `flanking ${sq.flankSign > 0 ? 'left' : 'right'}`;
+    const text = `flanking ${sq.flankSign > 0 ? 'right' : 'left'}`;
     events.push({ kind: 'radio', side: sq.side, squad: sq.id, type: 'flanking', text, ...(m.map.grid ? { grid: gridRef(m.map.grid, th) } : {}), priority: 1 });
   }
   const flankers = team.filter((_, n) => n % 2 === 1);

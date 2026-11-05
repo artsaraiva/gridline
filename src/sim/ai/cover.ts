@@ -69,7 +69,7 @@ export function pickCover(m: Match, s: Soldier, mates: Soldier[], o: CoverSearch
       if (o.progress) {
         const prog = here - flowDist(m, o.progress.flow, p);
         if (!(prog >= o.progress.min)) continue;
-        sc += Math.min(prog, 14) * 0.09;
+        if (!o.flank) sc += Math.min(prog, 14) * 0.09;
       }
       sc += o.threat ? shelter(m, p, o.threat) * 2 : cellAt(m, p.x, p.y) === COVER ? 0.4 : 0;
       if (o.leash && dc < o.leash.inside) sc += 0.9;
@@ -82,9 +82,9 @@ export function pickCover(m: Match, s: Soldier, mates: Soldier[], o: CoverSearch
         const al = Math.sqrt(ax * ax + ay * ay) || 1;
         const bl = Math.sqrt(bx * bx + by * by) || 1;
         if (bl > Math.sqrt(dist2(s, th)) + 10) continue; // never away from the threat
-        const cos = (ax * bx + ay * by) / (al * bl);
-        const cross = (ax * by - ay * bx) / (al * bl);
-        sc += o.flank.sign * cross > 0 ? (1 - cos) * 1.6 : -0.6;
+        // metres off the support's line of fire, on the flank's side: worth twice the walk, at any range
+        const aside = (o.flank.sign * (ax * by - ay * bx)) / al;
+        sc += aside > 0 ? aside * 0.06 : -0.6;
       }
       sc -= Math.sqrt(dist2(p, s)) * 0.03;
       found.push([sc, p]);
