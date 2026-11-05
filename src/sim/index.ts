@@ -6,6 +6,7 @@ import { capture, drain, end, hashCapture } from './capture';
 import { casualties, fire, suppressionDecay } from './combat';
 import { applyCommands } from './commands';
 import { buildGrid, type Grid } from './grid';
+import { hashMemory, hear, type Sighting } from './memory';
 import { perceive } from './perception';
 import { returnToFight } from './respawn';
 import { rnd } from './rng';
@@ -13,7 +14,7 @@ import { hashSoldiers, hashSquads, sign, stageTicks, type Point, type Soldier, t
 import { SIDES, type Command, type MapData, type MatchResult, type SideId, type SimEvent, type Tune } from './types';
 
 export * from './types';
-export { commanderView } from './view';
+export { commanderEvents, commanderView } from './view';
 export { gridRef } from './grid-ref';
 
 export interface Match {
@@ -28,6 +29,7 @@ export interface Match {
   tickets: Record<SideId, number>;
   pointLead: number; // nato points - pact points
   drainTicks: number; // ticks the current point lead has been draining
+  sightings: Record<SideId, Sighting[]>; // what each Side's Soldiers saw lately, one per enemy id; see memory.ts
   result: MatchResult | null;
 }
 
@@ -51,12 +53,13 @@ export function createMatch(opts: {
     tickets: { nato: tune.tickets, pact: tune.tickets },
     pointLead: 0,
     drainTicks: 0,
+    sightings: { nato: [], pact: [] },
     result: null,
   };
   for (const side of SIDES) {
     const hq = map.hqs[side];
     for (let q = 0; q < opts.squadsPerSide; q++) {
-      const squad: Squad = { id: m.squads.length, side, members: [], goal: -1, lastSeen: -1e9 };
+      const squad: Squad = { id: m.squads.length, side, members: [], goal: -1, lastSeen: -1e9, memory: [] };
       m.squads.push(squad);
       for (let i = 0; i < tune.squadSize; i++) {
         const ox = (rnd(m) * 2 - 1) * tune.spread;
@@ -81,8 +84,9 @@ export function step(m: Match, commands: Command[]): SimEvent[] {
   applyCommands(m, commands, events);
   for (const sq of m.squads) if ((m.tick + sq.id) % Math.round(t.thinkSeconds * t.hz) === 0) think(m, sq);
   casualties(m, events);
-  for (const s of m.soldiers) if (s.state === 'alive') perceive(m, s);
+  perceive(m);
   fire(m, events);
+  hear(m, events);
   for (const s of m.soldiers) if (s.state === 'alive') walk(m, s);
   suppressionDecay(m);
   returnToFight(m, events);
@@ -105,5 +109,6 @@ export function stateHash(m: Match): string {
   hashSoldiers(m, mix);
   hashSquads(m, mix);
   hashCapture(m, mix);
+  hashMemory(m, mix);
   return h.toString(16).padStart(8, '0');
 }

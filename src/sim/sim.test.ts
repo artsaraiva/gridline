@@ -24,19 +24,22 @@ function start(m: MapData, tune: Partial<Tune> = {}, squadsPerSide = 1, seed = 1
   return createMatch({ seed, map: m, tune: { ...DEFAULT_TUNE, visionM: 0, ...tune }, squadsPerSide, commanderSide: 'nato' });
 }
 
-/** Steps `ticks` times and returns the nato Commander view after every step. */
-function run(match: Match, ticks: number): CommanderView[] {
-  const views: CommanderView[] = [];
+/** The nato Commander view, plus the pact Soldiers from the pact view: ground truth the fog hides from nato. */
+type Seen = CommanderView & { pact: CommanderView['friendlies'] };
+
+/** Steps `ticks` times and returns what each Side sees after every step. */
+function run(match: Match, ticks: number): Seen[] {
+  const views: Seen[] = [];
   for (let i = 0; i < ticks; i++) {
     step(match, []);
-    views.push(commanderView(match, 'nato'));
+    views.push({ ...commanderView(match, 'nato'), pact: commanderView(match, 'pact').friendlies });
   }
   return views;
 }
 
-const inside = (v: CommanderView, p: PointView) => {
+const inside = (v: Seen, p: PointView) => {
   const n = (cs: { x: number; y: number }[]) => cs.filter((c) => (c.x - p.x) ** 2 + (c.y - p.y) ** 2 < p.radius ** 2).length;
-  return { nato: n(v.friendlies), pact: n(v.contacts) };
+  return { nato: n(v.friendlies), pact: n(v.pact) };
 };
 
 describe('capture', () => {
@@ -70,7 +73,7 @@ describe('capture', () => {
 
   it('equal numbers inside freeze the progress', () => {
     const views = run(start(map([{ x: 0, y: 0 }], 100)), 60 * HZ);
-    const isContested = (v: CommanderView) => {
+    const isContested = (v: Seen) => {
       const n = inside(v, v.points[0]!);
       return n.nato > 0 && n.nato === n.pact;
     };
@@ -187,9 +190,9 @@ describe('determinism', () => {
 
 describe('squads', () => {
   it('fields any number of Squads per Side', () => {
-    const v = commanderView(start(map([{ x: 0, y: 0 }]), {}, 8), 'pact');
-    expect(v.friendlies).toHaveLength(32);
-    expect(v.contacts).toHaveLength(32);
+    const m = start(map([{ x: 0, y: 0 }]), {}, 8);
+    expect(commanderView(m, 'nato').friendlies).toHaveLength(32);
+    expect(commanderView(m, 'pact').friendlies).toHaveLength(32);
   });
 });
 
