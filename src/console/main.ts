@@ -4,6 +4,7 @@ import { drawAssetRail } from './chrome/assets';
 import { drawChevrons } from './layers/chevrons';
 import { drawLastKnown } from './layers/contacts';
 import { drawEffects, hideEffectLabels } from './layers/effects';
+import { addImpact, drawImpacts } from './layers/impacts';
 import { addDeathMarker, drawDeathMarkers } from './layers/markers';
 import { drawPoint } from './layers/points';
 import { checkEnd } from './match-flow';
@@ -24,9 +25,13 @@ renderer.setAnimationLoop(() => {
   }
   const now = performance.now();
   const view = host.sample(now);
-  for (const e of host.takeEvents()) if (e.kind === 'death') addDeathMarker(e.x, e.y, e.side, now);
+  for (const e of host.takeEvents()) {
+    if (e.kind === 'death') addDeathMarker(e.x, e.y, e.side, now);
+    else if (e.kind === 'impact') addImpact(e.x, e.y, now);
+  }
   const scale = CHEVRON_PX * pxToWorld();
   drawAssetRail(view); // before the effects: their labels keep clear of the map Confirm button it places
+  drawImpacts(now);
   drawEffects(view, scale, now);
   drawDeathMarkers(now, scale);
   drawLastKnown(view, scale);

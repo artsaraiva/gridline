@@ -80,7 +80,9 @@ export function drawEffects(view: CommanderView, scale: number, now: number) {
   let rings = 0;
   let tags = 0;
   for (const e of view.effects ?? []) {
-    const r = ringAt(rings++, e, e.radius, COLOR.friendly, 0.06);
+    const danger = e.asset === 'barrage';
+    const r = ringAt(rings++, e, e.radius, danger ? COLOR.hostile : COLOR.friendly, danger ? 0.1 : 0.06);
+    for (const shell of e.shells ?? []) ringAt(rings++, shell, 2 + 10 * (1 - shell.flight), COLOR.hostile, 0.2); // a shell coming down
     if (e.asset === 'scan') {
       const a = (now / 1000) * 0.35;
       r.uav.visible = true;
@@ -88,7 +90,8 @@ export function drawEffects(view: CommanderView, scale: number, now: number) {
       r.uav.position.set(Math.cos(a) * e.radius, Math.sin(a) * e.radius, 0.1);
       r.uav.rotation.z = a + Math.PI / 2;
     }
-    label(tags++, { x: e.x + e.radius * 0.72, y: e.y + e.radius * 0.72 }, 6, -18, `${NAME[e.asset].toUpperCase()} ${clock(Math.ceil(e.left))}`, css(COLOR.friendly));
+    const countdown = e.impactIn ? `IMPACT ${clock(Math.ceil(e.impactIn))}` : clock(Math.ceil(e.left)); // the Barrage counts down to its first shell
+    label(tags++, { x: e.x + e.radius * 0.72, y: e.y + e.radius * 0.72 }, 6, -18, `${NAME[e.asset].toUpperCase()} ${countdown}`, css(danger ? COLOR.hostile : COLOR.friendly));
   }
   const at = targeting.armed && (targeting.spot ?? targeting.pointer);
   const radius = targeting.armed && view.assets?.find((a) => a.asset === targeting.armed)?.radius;

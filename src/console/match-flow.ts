@@ -6,6 +6,7 @@ import { drawMap } from './layers/map';
 import { resetChevrons } from './layers/chevrons';
 import { resetContacts } from './layers/contacts';
 import { resetEffects } from './layers/effects';
+import { resetImpacts } from './layers/impacts';
 import { resetMarkers } from './layers/markers';
 import { resetPoints } from './layers/points';
 import { layer } from './renderer';
@@ -36,6 +37,7 @@ async function startMatch(setup: MatchSetup) {
   resetContacts();
   resetMarkers();
   resetEffects();
+  resetImpacts();
   disarm();
   session.commanderSide = setup.commanderSide;
   session.enemySide = enemyOf(setup.commanderSide);
