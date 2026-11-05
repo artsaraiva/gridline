@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { endSummary } from './summary';
-import type { CommanderView, MatchResult, SideId } from '../sim/types';
+import { endSummary, orderLine, squadTag } from './summary';
+import type { CommanderView, MatchResult, SideId, SquadView } from '../sim/types';
 
 function ended(side: SideId, result: MatchResult, tickets: Record<SideId, number>, seconds: number): CommanderView {
   return { side, tick: seconds * 20, seconds, friendlies: [], contacts: [], squads: [], points: [], tickets, result };
@@ -30,5 +30,24 @@ describe('end summary', () => {
     expect(s.result).toBe('DRAW');
     expect(s.reason).toBe('Time ran out');
     expect(s.time).toBe('25:00');
+  });
+});
+
+describe('Order line and Squad tag', () => {
+  const view = { points: [{ id: 'C', name: 'C' }] } as CommanderView;
+  const squad = (extra: Partial<SquadView> = {}): SquadView => ({ id: 0, name: 'Bravo', size: 4, strength: 3, respawnIn: [7.2], redeployIn: null, ...extra });
+
+  it('the Order line names the verb, the point and what delays it', () => {
+    expect(orderLine(squad(), view)).toBe('NO ORDER');
+    expect(orderLine(squad({ order: { point: 'C', state: 'pending' } }), view)).toBe('ORDER SENT · C');
+    expect(orderLine(squad({ order: { point: null, state: 'pending' } }), view)).toBe('CLEAR SENT');
+    expect(orderLine(squad({ order: { point: 'C', state: 'following' } }), view)).toBe('TAKE C');
+    expect(orderLine(squad({ order: { point: 'C', state: 'holding' } }), view)).toBe('HOLD C');
+    expect(orderLine(squad({ order: { point: 'C', state: 'delayed', reason: 'resupply' } }), view)).toBe('RESUPPLYING · ORDER C');
+  });
+
+  it('the Squad tag shows name, strength with respawn timers, task, Order state and alerts', () => {
+    expect(squadTag(squad({ task: 'move', order: { point: 'C', state: 'delayed', reason: 'retreat' } }), true)).toBe('BRAVO 3/4 +8 · MOVE · DELAYED · SUPPRESSED');
+    expect(squadTag(squad({ respawnIn: [] }), false)).toBe('BRAVO 3/4');
   });
 });

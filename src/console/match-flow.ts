@@ -5,12 +5,15 @@ import { enemyOf, type CommanderView } from '../sim/types';
 import { drawMap } from './layers/map';
 import { resetChevrons } from './layers/chevrons';
 import { resetContacts } from './layers/contacts';
+import { resetRadioLog } from './chrome/radio-log';
+import { resetSquads } from './chrome/squads';
 import { resetEffects } from './layers/effects';
+import { resetOrders } from './layers/orders';
 import { resetMarkers } from './layers/markers';
 import { resetPoints } from './layers/points';
 import { layer } from './renderer';
 import { session } from './session';
-import { disarm } from './targeting';
+import { disarm, select } from './targeting';
 import { endSummary } from './summary';
 
 const MIN_SQUADS = 3;
@@ -36,7 +39,11 @@ async function startMatch(setup: MatchSetup) {
   resetContacts();
   resetMarkers();
   resetEffects();
+  resetOrders();
+  resetSquads();
+  resetRadioLog();
   disarm();
+  select(null);
   session.commanderSide = setup.commanderSide;
   session.enemySide = enemyOf(setup.commanderSide);
   session.seed = setup.seed;
