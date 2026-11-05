@@ -6,7 +6,7 @@ import type { AssetKind, CommanderView, Vec2 } from '../../sim/types';
 import { pxToWorld, toScreen } from '../renderer';
 import { session } from '../session';
 import { clock } from '../summary';
-import { arm, confirm, disarm, placeConfirm, targeting } from '../targeting';
+import { arm, confirm, disarm, escape, placeConfirm, targeting } from '../targeting';
 
 const icon = (d: string) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round">${d}</svg>`;
 const ROWS: { key: string; asset: AssetKind; name: string; icon: string }[] = [
@@ -37,7 +37,7 @@ const usable = (asset: AssetKind) => !!last && !last.result && last.assets?.find
 
 document.addEventListener('keydown', (e) => {
   if (!last || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
-  if (e.key === 'Escape') return disarm();
+  if (e.key === 'Escape') return escape();
   const r = ROWS.find((r) => r.key === e.key.toUpperCase());
   if (r && usable(r.asset)) arm(r.asset);
 });

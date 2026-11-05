@@ -1,7 +1,9 @@
 // Targeting: the Console's arm / preview / confirm state machine for Assets. No DOM here: input.ts feeds it pointer
 // moves and taps, chrome/assets.ts arms and confirms, layers/effects.ts draws the preview from it.
 // Arm an Asset, and its preview ring follows the pointer; a tap pins the ring, a second tap on the same spot (or Confirm)
-// calls the Asset there; arming it again, Cancel or Esc disarms. Squad selection and Orders (#36) join this module.
+// calls the Asset there; arming it again, Cancel or Esc disarms.
+// Orders (#36): select a Squad (its tile, or its chevrons on the map), then tap a Capture Point: the Order goes out as a
+// Command and the Squad stays selected; Clear sends a null Order. Only the Simulation decides what an Order does.
 import { insidePolygon } from '../sim/geometry';
 import { DEFAULT_TUNE } from '../sim/tune';
 import { enemyOf, type AssetKind, type Vec2 } from '../sim/types';
@@ -13,6 +15,8 @@ export const targeting = {
   pointer: null as Vec2 | null,
   /** The pinned target spot; null until the first tap. */
   spot: null as Vec2 | null,
+  /** The selected friendly Squad's id; null = none. */
+  selected: null as number | null,
 };
 
 export function disarm() {
@@ -28,6 +32,20 @@ export function arm(asset: AssetKind) {
 }
 
 export const hover = (p: Vec2 | null) => (targeting.pointer = p);
+
+export const select = (squad: number | null) => (targeting.selected = squad);
+
+/** Esc: disarms an armed Asset, else drops the Squad selection. */
+export function escape() {
+  if (targeting.armed) disarm();
+  else select(null);
+}
+
+/** Clears the selected Squad's Order. */
+export function clearOrder() {
+  const { selected } = targeting;
+  if (selected !== null) session.host?.send({ side: session.commanderSide, kind: 'order', squad: selected, point: null });
+}
 
 /** Assets land anywhere inside the Play Area except on the enemy HQ (the Simulation rejects the rest). */
 export function validSpot(p: Vec2): boolean {
@@ -46,12 +64,25 @@ export function confirm() {
   disarm();
 }
 
-/** A tap on the map at `p`; within `sameM` metres of the pinned spot counts as the same spot. */
-export function tap(p: Vec2, sameM: number) {
+/**
+ * A tap on the map at `p`. With an Asset armed it pins or confirms (within `sameM` metres of the pinned spot is the same
+ * spot). Otherwise a friendly Soldier within `pickM` selects its Squad, and a Capture Point (its ring, at least `pickM` wide)
+ * gives the selected Squad its Order.
+ */
+export function tap(p: Vec2, sameM: number, pickM = sameM) {
   const { armed, spot } = targeting;
-  if (!armed || !validSpot(p)) return;
-  if (spot && (p.x - spot.x) ** 2 + (p.y - spot.y) ** 2 <= sameM * sameM) return confirm();
-  targeting.spot = p;
+  if (armed) {
+    if (!validSpot(p)) return;
+    if (spot && (p.x - spot.x) ** 2 + (p.y - spot.y) ** 2 <= sameM * sameM) return confirm();
+    targeting.spot = p;
+    return;
+  }
+  const near = (q: Vec2, r: number) => (p.x - q.x) ** 2 + (p.y - q.y) ** 2 <= r * r;
+  const view = session.view;
+  const friend = view?.friendlies.find((f) => near(f, pickM));
+  if (friend) return select(friend.squad);
+  const point = view?.points.find((q) => near(q, Math.max(q.radius, pickM)));
+  if (point && targeting.selected !== null) session.host?.send({ side: session.commanderSide, kind: 'order', squad: targeting.selected, point: point.id });
 }
 
 export interface Box {

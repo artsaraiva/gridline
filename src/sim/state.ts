@@ -1,6 +1,7 @@
 // Internal state the rule modules share, plus the tiny helpers every one of them uses. Not part of the public surface.
 import type { Match } from './index';
 import type { Sighting } from './memory';
+import type { Order, Pending } from './orders';
 import type { SideId, SoldierState, Tune, Vec2 } from './types';
 
 export interface Soldier {
@@ -55,6 +56,9 @@ export interface Squad {
   flankSign: number; // +1 left, -1 right, 0 = not flanking
   flankSince: number; // tick, -1 = not flanking
   flankDone: boolean; // one flank per contact
+  // #36 Orders
+  order: Order | null; // the standing Order; see orders.ts
+  pending: Pending | null; // an Order sent and not yet acknowledged
 }
 
 export interface Point {

@@ -1,6 +1,7 @@
 // What a Commander sees: the CommanderView built from the Match.
 import { assetContacts, assetViews, effectViews } from './assets/core';
 import type { Match } from './index';
+import { orderView } from './orders';
 import { contactIds, justSeen, lastKnown } from './memory';
 import { lastDeath, membersOf, stageTicks, wiped, type Soldier, type Squad } from './state';
 import type { CommanderView, SideId, SimEvent, SquadView } from './types';
@@ -23,6 +24,7 @@ function squadView(m: Match, sq: Squad, i: number): SquadView {
     task: sq.task === 'none' ? null : sq.task === 'point' ? (sq.mode === 'hold' ? 'hold' : 'move') : sq.task,
     point: sq.task === 'none' ? null : (m.points[sq.goal]?.id ?? null),
     route: m.map.crossings?.[sq.route]?.id ?? null,
+    order: orderView(m, sq),
   };
 }
 
