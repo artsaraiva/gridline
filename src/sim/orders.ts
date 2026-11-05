@@ -3,7 +3,7 @@
 // Survival (Retreat, Resupply) delays an Order, never drops it; only a new Command replaces or clears it.
 import type { Match } from './index';
 import { rnd } from './rng';
-import { membersOf, type Mix, type Squad } from './state';
+import { callName, membersOf, wiped, type Mix, type Squad } from './state';
 import type { Command, SimEvent, SquadView } from './types';
 
 /** A Squad's standing Order. */
@@ -18,9 +18,6 @@ export interface Pending {
   point: number;
   due: number; // tick
 }
-
-const PHONETIC: Record<string, string> = { A: 'Alpha', B: 'Bravo', C: 'Charlie', D: 'Delta', E: 'Echo', F: 'Foxtrot', G: 'Golf', H: 'Hotel' };
-export const callName = (name: string) => PHONETIC[name] ?? name;
 
 // radio.ts sets the priority of every line by its type, so the 0 here is never heard.
 const say = (sq: Squad, type: string, text: string, events: SimEvent[]) => events.push({ kind: 'radio', side: sq.side, squad: sq.id, type, text, priority: 0 });
@@ -43,7 +40,7 @@ export function orders(m: Match, events: SimEvent[]) {
       sq.pending = null;
       const o: Order | null = point < 0 ? null : { point, hold: m.points[point]!.owner === sq.side, delayed: survival(sq) };
       sq.order = o;
-      if (membersOf(m, sq).every((s) => s.state === 'dead')) continue; // a wiped Squad can't answer
+      if (wiped(membersOf(m, sq))) continue; // a wiped Squad can't answer
       if (!o) say(sq, 'ack', 'copy, free to engage', events);
       else if (o.delayed) say(sq, 'delayed', delayText(o.delayed), events);
       else say(sq, 'ack', `copy, ${o.hold ? 'holding' : 'moving to'} ${callName(m.points[point]!.name)}`, events);

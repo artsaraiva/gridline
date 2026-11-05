@@ -31,7 +31,7 @@ export function drain(m: Match) {
     m.drainTicks = 0;
   }
   if (lead === 0) return;
-  const seconds = t.drainSeconds[Math.min(Math.abs(lead), t.drainSeconds.length) - 1]!;
+  const seconds = t.drainSeconds[Math.min(Math.abs(lead), 5) - 1]!;
   if (++m.drainTicks < seconds * t.hz) return;
   m.drainTicks = 0;
   const loser = enemyOf(sideOf(lead));

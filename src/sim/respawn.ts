@@ -4,7 +4,7 @@ import { resetSoldierAi } from './ai';
 import { insideCount } from './capture';
 import { canStand, dist2 } from './geometry';
 import { nearestWalkable } from './grid';
-import { lastDeath, membersOf, wiped, type Soldier, type Squad } from './state';
+import { lastDeath, membersOf, wiped, type Point, type Soldier, type Squad } from './state';
 import { enemyOf, type SimEvent, type Vec2 } from './types';
 
 function bringBack(m: Match, s: Soldier, at: Vec2) {
@@ -18,17 +18,16 @@ export function quiet(m: Match, sq: Squad, members: Soldier[]): boolean {
 }
 
 /** Where a wiped Squad Redeploys: the owned, uncontested Capture Point nearest its Order's point or goal (or its HQ), else its HQ. */
-function redeployAt(m: Match, sq: Squad): Vec2 {
-  const hq = m.map.hqs[sq.side];
-  const near = m.points[sq.order?.point ?? sq.goal] ?? hq; // an Order steers the choice
-  let at: Vec2 = hq;
+export function redeployPoint(m: Match, sq: Squad): Point | null {
+  const near = m.points[sq.order?.point ?? sq.goal] ?? m.map.hqs[sq.side]; // an Order steers the choice
+  let at: Point | null = null;
   let best = Infinity;
   for (const p of m.points) {
     if (p.owner !== sq.side || insideCount(m, p, enemyOf(sq.side)) > 0 || dist2(p, near) >= best) continue;
     best = dist2(p, near);
     at = p;
   }
-  return nearestWalkable(m, at);
+  return at;
 }
 
 /**
@@ -41,7 +40,7 @@ export function returnToFight(m: Match, events: SimEvent[]) {
     const members = membersOf(m, sq);
     if (wiped(members)) {
       if (m.tick - lastDeath(members) < t.redeploySeconds * t.hz) continue;
-      const at = redeployAt(m, sq);
+      const at = nearestWalkable(m, redeployPoint(m, sq) ?? m.map.hqs[sq.side]);
       for (const s of members) {
         const spot = { x: at.x + s.ox, y: at.y + s.oy };
         bringBack(m, s, canStand(m, s, spot) ? spot : at);

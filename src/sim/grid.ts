@@ -120,10 +120,10 @@ export function nearestWalkable(m: Match, p: Vec2): Vec2 {
       for (let i = i0 - r; i <= i0 + r; i++) {
         if (Math.max(Math.abs(i - i0), Math.abs(j - j0)) < r || i < 0 || j < 0 || i >= g.cols || j >= g.rows || !g.cost[j * g.cols + i]) continue;
         const c = cellCentre(m, j * g.cols + i);
-        const d = (c.x - p.x) ** 2 + (c.y - p.y) ** 2;
+        const d = (c.x - p.x) * (c.x - p.x) + (c.y - p.y) * (c.y - p.y);
         if (d < bestD) (bestD = d), (best = c);
       }
-  return best; // shortcut: the first ring with a walkable cell, up to 1.4x farther than the true nearest; fine for a spawn spot
+  return best; // shortcut: the first ring with a walkable cell, up to 1.4x farther than the true nearest; fine for a Redeploy spot
 }
 
 /** Grid line of sight: samples every half cell between the two, blocked by any wall cell. */

@@ -6,9 +6,7 @@ import type { Match } from './index';
 import { insideCount } from './capture';
 import { dist2 } from './geometry';
 import { gridRef } from './grid-ref';
-import { callName } from './orders';
-import { membersOf, wiped, type Mix, type Squad } from './state';
-import { squadName } from './view';
+import { callName, membersOf, squadName, wiped, type Mix, type Squad } from './state';
 import { enemyOf, type SideId, type SimEvent, type Vec2 } from './types';
 
 /** Who gets the net first: Squad wiped = Man down, then Copy / Delayed acks, Contact, Taking fire, the rest (1). */

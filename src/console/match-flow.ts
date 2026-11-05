@@ -20,6 +20,7 @@ import { disarm, select } from './targeting';
 import { endSummary } from './summary';
 
 const MIN_SQUADS = 3;
+const DEFAULT_SQUADS = 4;
 const MAX_SQUADS = 8;
 
 const setupForm = document.getElementById('setup') as HTMLFormElement;
@@ -31,7 +32,7 @@ for (let n = MIN_SQUADS; n <= MAX_SQUADS; n++) squadSelect.add(new Option(String
 const params = new URLSearchParams(location.search);
 let urlSeed = params.get('seed');
 (setupForm.elements.namedItem('side') as RadioNodeList).value = params.get('side') === 'pact' ? 'pact' : 'nato';
-squadSelect.value = String(Math.min(MAX_SQUADS, Math.max(MIN_SQUADS, Number(params.get('squads')) || MIN_SQUADS)));
+squadSelect.value = String(Math.min(MAX_SQUADS, Math.max(MIN_SQUADS, Number(params.get('squads')) || DEFAULT_SQUADS)));
 
 async function startMatch(setup: MatchSetup) {
   session.host?.stop();
