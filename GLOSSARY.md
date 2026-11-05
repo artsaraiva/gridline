@@ -16,6 +16,10 @@ _Avoid_: Unit, team, platoon
 One AI-controlled combatant, always a member of a squad.
 _Avoid_: Bot, player, unit
 
+**Squad Leader**:
+An identified Soldier who represents their Squad, distinct from the Commander. Leadership is an identity, not a source of combat bonuses or authority over the Commander's Orders.
+_Avoid_: Commander (for the Soldier), squad commander
+
 **Soldier Cam**:
 A small monitor feed on the Commander's Console showing one friendly soldier's helmet camera, degraded and jammed like a real field feed; the Commander watches through it but never controls the soldier.
 _Avoid_: Player cam, first-person view, spectate
@@ -49,6 +53,10 @@ _Avoid_: Flank, sector, route
 **Ticket**:
 One unit of a side's remaining strength; a side loses tickets when its soldiers die and when the enemy holds more capture points.
 _Avoid_: Score, points, lives
+
+**Commander Score**:
+A per-match measure of the Commander's useful contribution through Orders and Assets, separate from Tickets. It recognizes outcomes rather than serving as spendable currency or unlocking Assets.
+_Avoid_: Tickets, currency, experience points
 
 **HQ**:
 A side's base at its own map edge that can never be captured; where vehicles wait and wiped squads can redeploy.
