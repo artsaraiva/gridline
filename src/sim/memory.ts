@@ -2,7 +2,7 @@
 // the union of what the Side's Soldiers see (Contacts) and where they last saw it (Last Known Positions).
 import type { Match } from './index';
 import type { Mix, Soldier, Squad } from './state';
-import { SIDES, type SideId } from './types';
+import { SIDES, type LastKnownView, type SideId } from './types';
 
 /** One enemy Soldier a Squad knows about. `heard` entries (gunfire) steer behaviour but never become Contacts. */
 export interface Sighting {
@@ -35,9 +35,18 @@ export function forget(m: Match) {
   for (const side of SIDES) m.sightings[side] = m.sightings[side].filter(fresh(t.lkpSeconds));
 }
 
-/** Enemies seen in the latest perception phase and still standing. Called on a view, after `step` moved the tick on. */
+// Both read on a view, after `step` moved the tick on: the latest perception phase ran at tick - 1.
+const isContact = (m: Match, s: Sighting) => s.tick === m.tick - 1 && m.soldiers[s.id]!.state === 'alive';
+
+/** Enemies seen in the latest perception phase and still standing. */
 export function contactIds(m: Match, side: SideId): number[] {
-  return m.sightings[side].filter((s) => s.tick === m.tick - 1 && m.soldiers[s.id]!.state === 'alive').map((s) => s.id);
+  return m.sightings[side].filter((s) => isContact(m, s)).map((s) => s.id);
+}
+
+/** Lost Contacts where they were last seen; `fade` runs from 1 (just lost) to 0 (`lkpSeconds` later). */
+export function lastKnown(m: Match, side: SideId): LastKnownView[] {
+  const span = m.tune.lkpSeconds * m.tune.hz;
+  return m.sightings[side].filter((s) => !isContact(m, s)).map((s) => ({ x: s.x, y: s.y, fade: 1 - (m.tick - 1 - s.tick) / span }));
 }
 
 const SOURCE = { seen: 0, heard: 1 };

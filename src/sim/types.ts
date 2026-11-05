@@ -169,13 +169,23 @@ export interface PointView {
   progress: number;
 }
 
+/** Where a lost Contact was last seen: no facing. `fade` runs from 1 (just lost) to 0 (about to go). */
+export interface LastKnownView {
+  x: number;
+  y: number;
+  fade: number;
+}
+
 /** New fields go in optional (`?`), so view literals in other tickets and tests (summary.test.ts) still typecheck. */
 export interface CommanderView {
   side: SideId;
   tick: number;
   seconds: number;
   friendlies: FriendlyView[];
-  contacts: SoldierView[]; // no fog yet: every living enemy Soldier
+  /** Enemy Soldiers a friendly Soldier sees right now: position and facing only. */
+  contacts: SoldierView[];
+  /** Lost Contacts, fading out. */
+  lastKnown?: LastKnownView[];
   squads: SquadView[];
   points: PointView[];
   tickets: Record<SideId, number>;

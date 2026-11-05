@@ -53,3 +53,31 @@ describe('Contacts', () => {
     for (const views of [behind, walled, far, atHome]) expect(views.flatMap((v) => v.contacts)).toEqual([]);
   });
 });
+
+describe('Last Known Positions', () => {
+  // Two Squads of 1 a Side: nato 0, 1 and pact 2, 3. nato 0 faces east and sees pact 2, 100 m east and facing away, out
+  // of fire range. pact 3, 50 m behind nato 0, Wounds it on tick 0, so from tick 1 nobody on nato's Side sees pact 2.
+  const lost = () =>
+    scene(
+      { 0: { x: 0, y: 0 }, 2: { x: 100, y: 0, fx: 1 }, 3: { x: -50, y: 0, fx: 1 } },
+      { tune: { hp: 100, hitChance: 1, damage: [100, 100], fireRangeM: 60 }, squads: 2 },
+    );
+
+  it('a lost Contact freezes where it was last seen, with no facing, and fades out over 3.5 s', () => {
+    const views = play(lost(), 5 * HZ);
+    expect(views[0]!.contacts.map((c) => c.id)).toEqual([2]);
+    expect(views[0]!.lastKnown).toEqual([]);
+    const shown = views.slice(1).filter((v) => v.lastKnown!.length > 0);
+    expect(shown).toHaveLength(3.5 * HZ);
+    expect(views.slice(1, 1 + shown.length)).toEqual(shown); // from the tick it was lost, without a gap
+    for (const v of shown) {
+      expect(v.contacts).toEqual([]);
+      expect(Object.keys(v.lastKnown![0]!).sort()).toEqual(['fade', 'x', 'y']);
+      expect(v.lastKnown![0]).toMatchObject({ x: 100, y: 0 });
+    }
+    const fades = shown.map((v) => v.lastKnown![0]!.fade);
+    expect(fades[0]).toBeCloseTo(1, 1);
+    expect(fades.at(-1)).toBeCloseTo(0, 1);
+    expect(fades.every((f, i) => i === 0 || f < fades[i - 1]!)).toBe(true);
+  });
+});
