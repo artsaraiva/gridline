@@ -143,6 +143,17 @@ describe('tickets', () => {
     }
   });
 
+  it('a lead of 4 or 5 drains faster than a lead of 3, and each step up is faster', () => {
+    const lost = (lead: number) => {
+      const m = start(map([0, 1, 2, 3, 4].map((i) => ({ x: i * 10, y: 0 }))), { squadSize: 1, matchSeconds: 1e6 });
+      m.points.forEach((p, i) => (p.owner = i < lead ? 'nato' : null));
+      for (let i = 0; i < 60 * HZ; i++) step(m, []);
+      return 150 - m.tickets.pact;
+    };
+    const rates = [1, 2, 3, 4, 5].map(lost);
+    expect(rates.every((n, i) => i === 0 || n > rates[i - 1]!)).toBe(true);
+  });
+
   it('a Side loses the moment its Tickets reach 0', () => {
     const views = runaway({ tickets: 20 });
     const end = views.findIndex((v) => v.result !== null);

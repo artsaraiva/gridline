@@ -94,6 +94,7 @@ export function wound(m: Match, e: Soldier, events: SimEvent[]) {
 export function die(m: Match, s: Soldier, events: SimEvent[]) {
   s.state = 'dead';
   s.deadAt = m.tick;
+  for (const o of membersOf(m, m.squads[s.squad]!)) if (o.reviving === s.id) o.reviving = -1; // a reviver must not keep a job on the dead
   m.tickets[s.side] = Math.max(0, m.tickets[s.side] - 1);
   logDeath(m, { side: s.side, x: s.x, y: s.y, tick: m.tick });
   events.push({ kind: 'death', side: s.side, id: s.id, x: s.x, y: s.y });

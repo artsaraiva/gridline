@@ -55,7 +55,7 @@ export function drawSquads(view: CommanderView | null) {
       t.type = 'button';
       t.dataset.hit = '';
       t.style.order = String(i);
-      t.onclick = () => (targeting.selected === q.id ? select(null) : answer(q.id)); // answer selects, and arms when a Request is open
+      t.onclick = () => select(targeting.selected === q.id ? null : q.id); // a tile only selects; the card button and the radio line answer a Request
       return t;
     });
   }

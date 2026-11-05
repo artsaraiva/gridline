@@ -42,7 +42,7 @@ onmessage = async (e: MessageEvent<ToHost>) => {
     post({ kind: 'started', map, hz: DEFAULT_TUNE.hz, view: commanderView(match, setup.commanderSide) });
     loop(performance.now());
   } else if (match && !match.result) {
-    const cmd = { ...msg.command, tick: match.tick } as Command;
+    const cmd = { ...msg.command, tick: match.tick, side: record.commanderSide } as Command;
     pending.push(cmd);
     record.log.push(cmd);
   }

@@ -3,19 +3,12 @@ import { assetContacts, assetViews, effectViews } from './assets/core';
 import type { Match } from './index';
 import { orderView } from './orders';
 import { requestView } from './requests';
+import { redeployPoint } from './respawn';
 import { contactIds, justSeen, lastKnown } from './memory';
-import { lastDeath, membersOf, stageTicks, wiped, type Soldier, type Squad } from './state';
+import { lastDeath, membersOf, squadName, stageTicks, wiped, type Soldier, type Squad } from './state';
 import type { CommanderView, SideId, SimEvent, SquadView } from './types';
 
-const SQUAD_NAMES = ['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo', 'Foxtrot', 'Golf', 'Hotel'];
-
-/** The call sign of `sq`: Alpha, Bravo... in the order of its Side's Squads. */
-export const squadName = (m: Match, sq: Squad) => {
-  const i = m.squads.filter((o) => o.side === sq.side).indexOf(sq);
-  return SQUAD_NAMES[i] ?? `Squad ${i + 1}`;
-};
-
-function squadView(m: Match, sq: Squad, i: number): SquadView {
+function squadView(m: Match, sq: Squad): SquadView {
   const t = m.tune;
   const members = membersOf(m, sq);
   // seconds until the step that acts at tick `due` has run; 0 once due and still waiting
@@ -23,10 +16,11 @@ function squadView(m: Match, sq: Squad, i: number): SquadView {
   const gone = wiped(members);
   return {
     id: sq.id,
-    name: SQUAD_NAMES[i] ?? `Squad ${i + 1}`,
+    name: squadName(m, sq),
     size: members.length,
     strength: members.filter((s) => s.state === 'alive').length,
     respawnIn: gone ? [] : members.filter((s) => s.state === 'dead').map((s) => secondsUntil(s.deadAt + t.respawnSeconds * t.hz)),
+    ...(gone && { redeployAt: redeployPoint(m, sq)?.id ?? null }),
     redeployIn: gone ? secondsUntil(lastDeath(members) + t.redeploySeconds * t.hz) : null,
     task: sq.task === 'none' ? null : sq.task === 'point' ? (sq.mode === 'hold' ? 'hold' : 'move') : sq.task,
     point: sq.task === 'none' ? null : (m.points[sq.goal]?.id ?? null),
@@ -48,7 +42,7 @@ export function commanderView(m: Match, side: SideId): CommanderView {
       .map((s) => ({ ...soldierView(s), squad: s.squad, state: s.state as 'alive' | 'wounded', suppressed: s.suppression > m.tune.suppressedAt, ammo: s.ammo / m.tune.ammo })),
     contacts: [...new Set([...contactIds(m, side), ...assetContacts(m, side).map((s) => s.id)])].map((id) => soldierView(m.soldiers[id]!)),
     lastKnown: lastKnown(m, side),
-    squads: m.squads.filter((sq) => sq.side === side).map((sq, i) => squadView(m, sq, i)),
+    squads: m.squads.filter((sq) => sq.side === side).map((sq) => squadView(m, sq)),
     points: m.points.map((p) => ({ id: p.id, name: p.name, x: p.x, y: p.y, radius: p.radius, owner: p.owner, progress: p.progress / stage })),
     tickets: { ...m.tickets },
     result: m.result,

@@ -139,6 +139,18 @@ describe('Artillery Barrage: the shells', () => {
     expect(after.tickets.pact).toBe(DEFAULT_TUNE.tickets - 1);
   });
 
+  it('a Wounded Soldier killed by a shell frees the mate who was reviving them', () => {
+    const tune = { barrageShells: 1, walkSpeed: 0 };
+    const [first] = landings(tune);
+    const m = scene({ 0: { x: first!.x, y: first!.y }, 1: { x: first!.x + 20, y: first!.y } }, tune);
+    Object.assign(m.soldiers[0]!, { state: 'wounded', bleed: 60 * HZ });
+    play(m, first!.tick);
+    expect(m.soldiers[1]!.reviving).toBe(0); // the job was on
+    play(m, 1);
+    expect(m.soldiers[0]!.state).toBe('dead');
+    expect(m.soldiers[1]).toMatchObject({ state: 'alive', reviving: -1 });
+  });
+
   it('friendly fire is on: a friendly that cannot get out is killed', () => {
     const [first] = landings({ barrageShells: 1, walkSpeed: 0 });
     const m = scene({ 0: { x: first!.x + 3, y: first!.y } }, { barrageShells: 1, walkSpeed: 0 });

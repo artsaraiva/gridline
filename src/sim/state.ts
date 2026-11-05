@@ -85,9 +85,20 @@ export const membersOf = (m: Match, sq: Squad) => sq.members.map((id) => m.soldi
 export const wiped = (members: Soldier[]) => members.every((s) => s.state === 'dead');
 export const lastDeath = (members: Soldier[]) => Math.max(...members.map((s) => s.deadAt));
 
+const SQUAD_NAMES = ['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo', 'Foxtrot', 'Golf', 'Hotel'];
+
+/** The call sign of `sq`: Alpha, Bravo... in the order of its Side's Squads. */
+export const squadName = (m: Match, sq: Squad) => {
+  const i = m.squads.filter((o) => o.side === sq.side).indexOf(sq);
+  return SQUAD_NAMES[i] ?? `Squad ${i + 1}`;
+};
+
+/** A Capture Point's letter spoken as its call sign (A = Alpha); any other name as written. */
+export const callName = (name: string) => (name.length === 1 && SQUAD_NAMES.find((n) => n[0] === name)) || name;
+
 const STATE = { alive: 0, wounded: 1, dead: 2 };
 
-/** Every Soldier field that changes during a Match. A new Soldier field is mixed in here. */
+/** Every Soldier field that changes during a Match, bar the AI fields (hashed in ai/index.ts hashAi). A new Soldier field is mixed in here. */
 export function hashSoldiers(m: Match, mix: Mix) {
   for (const s of m.soldiers) {
     mix(Math.round(s.x * 1000));

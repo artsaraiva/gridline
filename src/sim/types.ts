@@ -95,7 +95,7 @@ export interface Tune {
 
   // Tickets, match length, HQ
   tickets: number;
-  drainSeconds: number[]; // index = point lead - 1; leads past the end use the last entry
+  drainSeconds: number[]; // index = point lead - 1, for leads 1..5
   matchSeconds: number;
   hqRadius: number; // the enemy never enters or targets inside it
 
@@ -258,6 +258,8 @@ export interface SquadView {
   respawnIn: number[];
   /** Seconds until the wiped Squad Redeploys; null unless wiped. */
   redeployIn: number | null;
+  /** The Capture Point id the wiped Squad would Redeploy at now; null = its HQ. Set only when wiped. */
+  redeployAt?: string | null;
   /** #34: what the Squad does on its own: heads for `point`, holds it, falls back to it (or the HQ), or fetches ammo at the HQ. */
   task?: 'move' | 'hold' | 'retreat' | 'resupply' | null;
   /** #34: the Capture Point id of the task; null = the HQ, or no task. */
