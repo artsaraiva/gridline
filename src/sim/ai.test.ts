@@ -41,6 +41,25 @@ function play(m: Match, ticks: number) {
 
 const routes = (v: CommanderView) => v.squads.map((q) => q.route);
 
+/** Open ground 1200 m across, HQs far out on the flanks. */
+function field(extra: Partial<MapData> = {}): MapData {
+  return {
+    name: 'field',
+    playArea: [
+      { x: -600, y: -600 },
+      { x: 600, y: -600 },
+      { x: 600, y: 600 },
+      { x: -600, y: 600 },
+    ],
+    hqs: { nato: { x: -560, y: 0 }, pact: { x: 560, y: 0 } },
+    points: [],
+    grid: { cols: 16, rows: 16, squareM: 75, letters: 'ABCDEFGHIJKLMNOP' },
+    ...extra,
+  };
+}
+
+const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
+
 describe('routes over the river', () => {
   const toE: MapData = { ...RIVER_FIELD, points: RIVER_FIELD.points.filter((p) => p.id === 'E') };
   const calm: Partial<Tune> = { visionM: 0, routeJitterM: 0 };
@@ -90,5 +109,49 @@ describe('routes over the river', () => {
   it('the centre bridge takes no danger penalties', () => {
     expect(atTheFootbridge(seen, { hp: 1e9 }, 'bridge')).toBe('N');
     expect(atTheFootbridge(lost, killed, 'bridge')).toBe('N');
+  });
+});
+
+describe('point choice', () => {
+  // nato Squads of 1. Enemy point P and neutral point R are the same distance from the nato HQ; nobody sees anybody.
+  // Squad 0 starts at P and decides first; the others decide at the HQ, Squad 2 before Squad 1.
+  const picks = (squads: number, pOwner: 'pact' | null = 'pact') => {
+    const points = [{ id: 'P', name: 'P', x: -460, y: 150, owner: pOwner }, { id: 'R', name: 'R', x: -460, y: -150 }];
+    const m = scene({ map: field({ points }), place: { 0: { x: -460, y: 150 } }, tune: { squadSize: 1, visionM: 0, spread: 0 }, squads });
+    return play(m, HZ + 1).nato[HZ]!.squads.map((q) => q.point);
+  };
+
+  it('a second Squad pairs up to assault an enemy point, though a neutral one scores higher alone', () => {
+    expect(picks(2)).toEqual(['P', 'P']);
+  });
+
+  it('a third Squad does not join them', () => {
+    expect(picks(3)).toEqual(['P', 'R', 'P']);
+  });
+
+  it('Squads spread out over neutral points', () => {
+    expect(picks(2, null)).toEqual(['P', 'R']);
+  });
+});
+
+describe('loose squads', () => {
+  it('a travelling Squad moves as a wedge: the leader in front, the others behind on both sides, spaced out', () => {
+    const m = scene({ map: field({ points: [{ id: 'P', name: 'P', x: 300, y: 0 }] }), tune: { visionM: 0 } });
+    const { nato } = play(m, 30 * HZ);
+    const v = nato.at(-1)!;
+    const lead = v.friendlies.reduce((a, b) => (b.x > a.x ? b : a));
+    const rest = v.friendlies.filter((f) => f !== lead);
+    expect(rest.every((f) => lead.x - f.x > 3 && dist(f, lead) < 25)).toBe(true);
+    expect(rest.some((f) => f.y > lead.y + 2) && rest.some((f) => f.y < lead.y - 2)).toBe(true);
+    for (const a of v.friendlies) for (const b of v.friendlies) if (a !== b) expect(dist(a, b)).toBeGreaterThan(2.5);
+  });
+
+  it('a Soldier more than 60 m from its leader regroups; one within 60 m stays put', () => {
+    // no Capture Points: nobody has anywhere to go
+    const m = scene({ map: field(), place: { 0: { x: 0, y: 0 }, 1: { x: 0, y: 50 }, 2: { x: 0, y: -100 }, 3: { x: 3, y: 0 } }, tune: { visionM: 0 } });
+    const { nato } = play(m, 40 * HZ);
+    const at = (id: number) => nato.at(-1)!.friendlies.find((f) => f.id === id)!;
+    expect(dist(at(1), { x: 0, y: 50 })).toBeLessThan(1);
+    expect(dist(at(2), at(0))).toBeLessThan(15);
   });
 });
