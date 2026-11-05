@@ -4,6 +4,7 @@
 import { think, walk } from './ai';
 import { capture, drain, end, hashCapture } from './capture';
 import { casualties, fire, suppressionDecay } from './combat';
+import { applyCommands } from './commands';
 import { buildGrid, type Grid } from './grid';
 import { perceive } from './perception';
 import { returnToFight } from './respawn';
@@ -72,11 +73,12 @@ export function createMatch(opts: {
   return m;
 }
 
-/** Advances exactly one tick. One line per phase; the order is part of the rules. Commands are tick-stamped; none are acted on yet. */
-export function step(m: Match, _commands: Command[]): SimEvent[] {
+/** Advances exactly one tick. One line per phase; the order is part of the rules. Commands are the ones stamped with this tick. */
+export function step(m: Match, commands: Command[]): SimEvent[] {
   if (m.result) return [];
   const t = m.tune;
   const events: SimEvent[] = [];
+  applyCommands(m, commands, events);
   for (const sq of m.squads) if ((m.tick + sq.id) % Math.round(t.thinkSeconds * t.hz) === 0) think(m, sq);
   casualties(m, events);
   for (const s of m.soldiers) if (s.state === 'alive') perceive(m, s);

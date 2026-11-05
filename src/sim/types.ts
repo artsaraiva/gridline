@@ -153,4 +153,6 @@ export type SimEvent =
   | { kind: 'shot'; side: SideId; from: number; to: number; hit: boolean }
   | { kind: 'wounded' | 'death' | 'respawn'; side: SideId; id: number; x: number; y: number }
   | { kind: 'revived'; side: SideId; id: number; by: number }
-  | { kind: 'redeploy'; side: SideId; squad: number; x: number; y: number };
+  | { kind: 'redeploy'; side: SideId; squad: number; x: number; y: number }
+  /** A Command the Simulation won't carry out. */
+  | { kind: 'rejected'; side: SideId; command: Command; reason: string };
