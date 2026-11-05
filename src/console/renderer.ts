@@ -1,7 +1,7 @@
 // three.js renderer, scene and orthographic map camera, plus the per-match `layer` every map layer draws into.
 import * as THREE from 'three/webgpu';
 import { diffuseColor, dot, float, materialOpacity, mix, mrt, uniform, vec3, vec4 } from 'three/tsl';
-import type { SideId } from '../sim/types';
+import type { SideId, Vec2 } from '../sim/types';
 import { session } from './session';
 
 // The feed palette; console.css carries the same values as CSS variables for the chrome.
@@ -33,6 +33,9 @@ addEventListener('resize', resize);
 export const pxToWorld = () => (camera.top - camera.bottom) / camera.zoom / innerHeight;
 /** `pxToWorld()` for shaders; main.ts sets it every frame. */
 export const metresPerPx = uniform(1);
+/** Screen px (client coordinates) to world metres, and back. */
+export const toWorld = (sx: number, sy: number): Vec2 => ({ x: camera.position.x + (sx - innerWidth / 2) * pxToWorld(), y: camera.position.y - (sy - innerHeight / 2) * pxToWorld() });
+export const toScreen = (p: Vec2): Vec2 => ({ x: innerWidth / 2 + (p.x - camera.position.x) / pxToWorld(), y: innerHeight / 2 - (p.y - camera.position.y) / pxToWorld() });
 
 // Everything drawn for one match lives in `layer`, emptied whole when the next match starts.
 // ponytail: dropped objects' materials and ring geometries are not disposed; a few dozen leak per match.

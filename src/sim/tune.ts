@@ -69,6 +69,9 @@ export const DEFAULT_TUNE: Tune = {
   // #36 Orders
 
   // #37 Assets: core and Scan
+  scanCooldownSeconds: 60,
+  scanSeconds: 15,
+  scanRadiusM: 60,
 
   // #38 Radio
 

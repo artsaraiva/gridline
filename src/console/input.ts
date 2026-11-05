@@ -1,14 +1,25 @@
-// Map pointer input: pan with drag, zoom with the wheel around the cursor.
+// Map pointer input: pan with drag, zoom with the wheel around the cursor; a tap (press and release in place) and the
+// pointer position go to targeting.
 import { burst } from './post';
-import { camera, pxToWorld, renderer } from './renderer';
+import { camera, pxToWorld, renderer, toWorld } from './renderer';
+import { hover, tap } from './targeting';
+
+const TAP_PX = 6; // a press that moves less than this is a tap, not a pan
+const SAME_SPOT_PX = 24; // a second tap this close to the pinned spot is "the same spot"
 
 let drag: { x: number; y: number } | null = null;
+let down: { x: number; y: number } | null = null;
 renderer.domElement.addEventListener('pointerdown', (e) => {
-  drag = { x: e.clientX, y: e.clientY };
+  drag = down = { x: e.clientX, y: e.clientY };
   renderer.domElement.setPointerCapture(e.pointerId);
 });
-renderer.domElement.addEventListener('pointerup', () => (drag = null));
+renderer.domElement.addEventListener('pointerup', (e) => {
+  if (down && Math.abs(e.clientX - down.x) + Math.abs(e.clientY - down.y) < TAP_PX) tap(toWorld(e.clientX, e.clientY), SAME_SPOT_PX * pxToWorld());
+  drag = down = null;
+});
+renderer.domElement.addEventListener('pointerleave', () => hover(null));
 renderer.domElement.addEventListener('pointermove', (e) => {
+  hover(toWorld(e.clientX, e.clientY));
   if (!drag) return;
   const k = pxToWorld();
   camera.position.x -= (e.clientX - drag.x) * k;

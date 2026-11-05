@@ -4,6 +4,7 @@
 import { think, walk } from './ai';
 import { capture, drain, end, hashCapture } from './capture';
 import { casualties, fire, suppressionDecay } from './combat';
+import { assetEffects, hashAssets, newAssets, type Assets } from './assets/core';
 import { applyCommands } from './commands';
 import { buildGrid, type Grid } from './grid';
 import { hashMemory, hear, type Sighting } from './memory';
@@ -30,6 +31,7 @@ export interface Match {
   pointLead: number; // nato points - pact points
   drainTicks: number; // ticks the current point lead has been draining
   sightings: Record<SideId, Sighting[]>; // what each Side's Soldiers saw lately, one per enemy id; see memory.ts
+  assets: Assets; // cooldowns and effects at work; see assets/core.ts
   result: MatchResult | null;
 }
 
@@ -54,6 +56,7 @@ export function createMatch(opts: {
     pointLead: 0,
     drainTicks: 0,
     sightings: { nato: [], pact: [] },
+    assets: newAssets(),
     result: null,
   };
   for (const side of SIDES) {
@@ -85,6 +88,7 @@ export function step(m: Match, commands: Command[]): SimEvent[] {
   for (const sq of m.squads) if ((m.tick + sq.id) % Math.round(t.thinkSeconds * t.hz) === 0) think(m, sq);
   casualties(m, events);
   perceive(m);
+  assetEffects(m, events);
   fire(m, events);
   hear(m, events);
   for (const s of m.soldiers) if (s.state === 'alive') walk(m, s);
@@ -110,5 +114,6 @@ export function stateHash(m: Match): string {
   hashSquads(m, mix);
   hashCapture(m, mix);
   hashMemory(m, mix);
+  hashAssets(m, mix);
   return h.toString(16).padStart(8, '0');
 }

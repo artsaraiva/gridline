@@ -1,16 +1,18 @@
 // The feed's post chain, all TSL: symbology glow, chromatic fringe, then always-on VHS (grain, scanlines, roll bar,
-// vignette) with rare static bursts that split RGB wider and tear rows. Call `burst(k)` on a big moment.
+// vignette) with rare static bursts that split RGB wider and tear rows. Zoom and a confirmed Asset throw a burst;
+// call `burst(k)` on other big moments (#38: pan to a Callout).
 import * as THREE from 'three/webgpu';
 import { float, floor, fract, mix, mrt, output, pass, rand, renderOutput, screenSize, screenUV, smoothstep, step, time, uniform, vec2, vec3, vec4 } from 'three/tsl';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { scanlines, vignette } from 'three/addons/tsl/display/CRT.js';
 import { glitchScheduler } from './glitch';
 import { camera, renderer, scene } from './renderer';
+import { confirmed } from './targeting';
 
 const glitch = uniform(0); // current burst strength, 0..1
 
 const scenePass = pass(scene, camera);
-scenePass.setMRT(mrt({ output, glow: float(0) })); // `flat` materials write glow 1
+scenePass.setMRT(mrt({ output, glow: float(0) })); // materials with `GLOW` write their alpha
 const frame = scenePass.getTextureNode('output');
 const glowMask = scenePass.getTextureNode('glow');
 
@@ -45,6 +47,7 @@ let last = performance.now();
 
 /** Starts a static burst of strength `k` (0..1) unless one ran in the last 4 s. */
 export const burst = (k: number) => !calm && scheduler.burst(performance.now(), k);
+confirmed.push(() => burst(0.8));
 
 /** Renders the scene through the feed chain. */
 export function renderFeed() {
