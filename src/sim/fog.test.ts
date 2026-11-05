@@ -140,7 +140,7 @@ describe('the enemy roster', () => {
     // three Squads a Side; nato 0 and pact 3 shoot each other dead, so a pact Squad is wiped and waiting to Redeploy
     const m = scene({ 0: { x: 0, y: 0 }, 3: { x: 100, y: 0, fx: -1 } }, { tune: { hp: 100, hitChance: 1, damage: [100, 100] }, squads: 3 });
     for (const v of play(m, 12 * HZ)) {
-      expect(Object.keys(v).sort()).toEqual(['contacts', 'friendlies', 'lastKnown', 'points', 'result', 'seconds', 'side', 'squads', 'tick', 'tickets']);
+      expect(Object.keys(v).sort()).toEqual(['assets', 'contacts', 'effects', 'friendlies', 'lastKnown', 'points', 'result', 'seconds', 'side', 'squads', 'tick', 'tickets']);
       expect(v.squads.map((q) => q.id)).toEqual([0, 1, 2]);
       expect(v.friendlies.every((f) => f.id < 3)).toBe(true);
     }
