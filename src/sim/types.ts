@@ -40,24 +40,33 @@ export interface MapData {
 }
 
 export interface Tune {
+  // Match and movement
   hz: number;
   squadSize: number;
   walkSpeed: number; // m/s
   speedJitter: number; // ± fraction of walkSpeed, seeded per Soldier
   spread: number; // ± metres around the Squad's goal, seeded per Soldier
   thinkSeconds: number; // how often a Squad re-picks its Capture Point
+
+  // Capture Points
   captureRadius: number;
   captureSeconds: number; // per stage: enemy to neutral, neutral to owned
   captureBonusPerExtra: number;
   captureMaxMultiplier: number;
+
+  // Squad point choice
   pointValue: { neutral: number; enemy: number; ownedThreatened: number; ownedQuiet: number };
   distancePenaltyPer100m: number;
   crowdPenalty: number;
   stickiness: number;
+
+  // Tickets, match length, HQ
   tickets: number;
   drainSeconds: number[]; // index = point lead - 1; leads past the end use the last entry
   matchSeconds: number;
   hqRadius: number; // the enemy never enters or targets inside it
+
+  // Sight and fire
   cellM: number; // sight grid cell size
   visionM: number;
   visionCos: number; // cone: an enemy is in view while cos(angle off facing) >= this
@@ -73,15 +82,37 @@ export interface Tune {
   suppressAccuracyLoss: number; // hit chance x (1 - this x suppression)
   suppressedAt: number; // suppression above this counts as suppressed
   pinnedAt: number; // suppression above this counts as pinned: no reviving
+
+  // Casualties
   bleedOutSeconds: number;
   reviveSeconds: number;
   reviveRangeM: number;
   reviveReachM: number; // how close the reviver must be to work
   reviveHp: number;
+
+  // Squad Respawn and Redeploy
   respawnSeconds: number;
   respawnBehindM: number; // a Squad Respawn lands this far behind the first living member
   quietSeconds: number; // no enemy seen for this long (and nobody suppressed) before a Squad Respawn
   redeploySeconds: number;
+
+  // Each ticket appends its keys under its own heading below, so parallel tickets do not touch the same lines.
+
+  // #34 Squad AI: movement, routes, cover, fire model, ammo
+
+  // #35 Fog of war: memory, Last Known Positions
+
+  // #36 Orders
+
+  // #37 Assets: core and Scan
+
+  // #38 Radio
+
+  // #39 Supply crate
+
+  // #40 Barrage
+
+  // #41 Requests
 }
 
 export type Command =
@@ -155,4 +186,11 @@ export type SimEvent =
   | { kind: 'revived'; side: SideId; id: number; by: number }
   | { kind: 'redeploy'; side: SideId; squad: number; x: number; y: number }
   /** A Command the Simulation won't carry out. */
-  | { kind: 'rejected'; side: SideId; command: Command; reason: string };
+  | { kind: 'rejected'; side: SideId; command: Command; reason: string }
+  /**
+   * A radio line on `side`'s net. #38 owns Callouts, spam control and the log; other tickets send lines of their own `type`
+   * (e.g. 'contact', 'ack', 'flanking', 'request'). `squad` is null for a line not from a Squad (HQ, the asset net).
+   * `text` is the line without the Grid Reference; `grid` is set when the line is located (see `gridRef`).
+   * A higher `priority` pre-empts a lower one; #38 sets the scale.
+   */
+  | { kind: 'radio'; side: SideId; squad: number | null; type: string; text: string; grid?: string; priority: number };
