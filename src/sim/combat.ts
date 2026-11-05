@@ -74,11 +74,15 @@ export function fire(m: Match, events: SimEvent[]) {
   for (const { shooter, target: e, hit, damage, at, near } of shots) {
     if (e) e.hp -= damage;
     if (at) {
-      for (const o of near!) o.suppression = Math.min(1, o.suppression + t.suppressPerShot * t.suppressiveSuppressMul);
+      for (const o of near!) {
+        o.suppression = Math.min(1, o.suppression + t.suppressPerShot * t.suppressiveSuppressMul);
+        m.squads[o.squad]!.lastHit = m.tick;
+      }
       events.push({ kind: 'suppressive', side: shooter.side, from: shooter.id, x: at.x, y: at.y, hit });
       continue;
     }
     e!.suppression = Math.min(1, e!.suppression + t.suppressPerShot);
+    m.squads[e!.squad]!.lastHit = m.tick;
     events.push({ kind: 'shot', side: shooter.side, from: shooter.id, to: e!.id, hit });
   }
   for (const { target: e } of shots) if (e && e.state === 'alive' && e.hp <= 0) wound(m, e, events);

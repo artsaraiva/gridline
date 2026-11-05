@@ -20,6 +20,7 @@ function squadView(m: Match, sq: Squad): SquadView {
     size: members.length,
     strength: members.filter((s) => s.state === 'alive').length,
     respawnIn: gone ? [] : members.filter((s) => s.state === 'dead').map((s) => secondsUntil(s.deadAt + t.respawnSeconds * t.hz)),
+    takingFire: !gone && m.tick - sq.lastHit <= t.takingFireSeconds * t.hz,
     ...(gone && { redeployAt: redeployPoint(m, sq)?.id ?? null }),
     redeployIn: gone ? secondsUntil(lastDeath(members) + t.redeploySeconds * t.hz) : null,
     task: sq.task === 'none' ? null : sq.task === 'point' ? (sq.mode === 'hold' ? 'hold' : 'move') : sq.task,

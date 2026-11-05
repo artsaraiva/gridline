@@ -135,6 +135,23 @@ describe('fire', () => {
   });
 });
 
+describe('taking fire', () => {
+  const faceOff = { 0: { x: 0, y: 0 }, 1: { x: 100, y: 0 } };
+  const taking = (views: CommanderView[]) => views.map((v) => v.squads[0]!.takingFire);
+
+  it('a Squad shot at is taking fire for takingFireSeconds, then not', () => {
+    // one-shot Soldiers Wound each other on tick 0 and nobody fires again
+    const { views } = play(scene({ place: faceOff, tune: ONE_SHOT }), 6 * HZ);
+    const secs = DEFAULT_TUNE.takingFireSeconds;
+    expect(taking(views).slice(0, secs * HZ)).toEqual(Array(secs * HZ).fill(true));
+    expect(taking(views).slice(secs * HZ + 1).some(Boolean)).toBe(false);
+  });
+
+  it('a Squad nobody shoots at is not taking fire', () => {
+    expect(taking(play(scene({ place: { 0: { x: 0, y: 0 }, 1: { x: 0, y: 500 } } }), 3 * HZ).views).some(Boolean)).toBe(false);
+  });
+});
+
 describe('casualties', () => {
 
   // nato id 0 at the origin facing west and pact id 2 100 m west facing east shoot each other on tick 0.

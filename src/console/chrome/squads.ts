@@ -4,7 +4,7 @@
 import { gridRef } from '../../sim/grid-ref';
 import type { CommanderView, SquadView } from '../../sim/types';
 import { session } from '../session';
-import { clock, orderLine, requestLine, squadCentroid } from '../summary';
+import { clock, orderLine, requestLine, squadAlert, squadCentroid } from '../summary';
 import { answer, clearOrder, select, targeting } from '../targeting';
 import { assetIcon, FRAME_SVG } from './icons';
 
@@ -30,6 +30,8 @@ function pips(q: SquadView, view: CommanderView): string {
     n < q.strength ? '<i class="on ok"></i>' : n < q.strength + wounded ? '<i class="hurt"></i>' : '<i></i>',
   ).join('');
 }
+
+const alertOf = (q: SquadView, view: CommanderView) => squadAlert(q, view.friendlies.some((f) => f.squad === q.id && f.suppressed));
 
 function whereOf(q: SquadView, view: CommanderView): string {
   if (wiped(q)) return 'HQ';
@@ -65,7 +67,7 @@ export function drawSquads(view: CommanderView | null) {
     const isSel = targeting.selected === q.id;
     if (isSel) selIdx = i;
     t.hidden = isSel;
-    const cls = `tile${isSel ? ' sel' : ''}${q.order?.state === 'delayed' ? ' delayed' : ''}${wiped(q) ? ' wiped' : ''}${q.request ? ' req' : ''}`;
+    const cls = `tile${isSel ? ' sel' : ''}${q.order?.state === 'delayed' ? ' delayed' : ''}${wiped(q) ? ' wiped' : ''}${q.request ? ' req' : ''}${alertOf(q, view) ? ' fire' : ''}`;
     const html = `${q.request ? `<span class="rq">${assetIcon(q.request.asset, 2.4)}</span>` : ''}<b>${q.name[0]}</b><span class="pips">${pips(q, view)}</span>`;
     if (t.className !== cls) t.className = cls;
     if (t.dataset.h !== html) t.innerHTML = t.dataset.h = html;
@@ -81,7 +83,7 @@ export function drawSquads(view: CommanderView | null) {
   const html =
     `<div class="frame">${FRAME_SVG}</div>` +
     `<div class="body">` +
-    `<div class="top"><b>${q.name}</b><span class="pips">${pips(q, view)}</span></div>` +
+    `<div class="top"><b>${q.name}</b>${alertOf(q, view) ? `<span class="alert">${alertOf(q, view)}</span>` : ''}<span class="pips">${pips(q, view)}</span></div>` +
     `<div class="ord${delayed ? ' delayed' : ''}"><span>${orderLine(q, view)}</span><span class="st${delayed ? ' delayed' : ''}">${stateOf(q)}</span><span class="where">${whereOf(q, view)}</span></div>` +
     (q.request ? `<button type="button" class="ask">${assetIcon(q.request.asset, 2)}<span>${requestLine(q.request)}</span></button>` : '') +
     (q.order ? '<button type="button" class="clr">Clear order</button>' : '') +
