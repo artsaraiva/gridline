@@ -138,4 +138,7 @@ export const DEFAULT_TUNE: Tune = {
   barrageHoldOutM: 2,
 
   // #41 Requests
+  requestSeconds: 30,
+  requestGapSeconds: 15,
+  requestCloseM: 75,
 };

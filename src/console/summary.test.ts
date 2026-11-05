@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { endSummary, orderLine, radioLine, squadTag } from './summary';
+import { endSummary, orderLine, radioLine, requestLine, squadTag } from './summary';
 import type { CommanderView, MatchResult, SideId, SimEvent, SquadView } from '../sim/types';
 
 function ended(side: SideId, result: MatchResult, tickets: Record<SideId, number>, seconds: number): CommanderView {
@@ -57,8 +57,13 @@ describe('radio log line', () => {
   const say = (type: string, side: SideId = 'nato', squad: number | null = 3): SimEvent => ({ kind: 'radio', side, squad, type, text: 'x', grid: 'E5', priority: 1 });
 
   it('names the Squad, keeps the grid and marks bad news', () => {
-    expect(radioLine(say('contact'), view)).toEqual({ from: 'BRAVO', text: 'x', grid: 'E5', squad: 3, bad: false, onAir: true });
+    expect(radioLine(say('contact'), view)).toEqual({ from: 'BRAVO', text: 'x', grid: 'E5', squad: 3, bad: false, request: false, onAir: true });
     for (const bad of ['mandown', 'wiped', 'lost', 'fire']) expect(radioLine(say(bad), view)!.bad).toBe(true);
+  });
+
+  it('a Request is marked, for the amber line', () => {
+    expect(radioLine(say('request'), view)).toMatchObject({ request: true, bad: false, grid: 'E5' });
+    expect(radioLine(say('contact'), view)!.request).toBe(false);
   });
 
   it('a wiped Squad is reported by the net, a rejected Command by HQ, and the other Side is never shown', () => {
@@ -66,5 +71,12 @@ describe('radio log line', () => {
     expect(radioLine(say('asset', 'nato', null), view)!.from).toBe('NET');
     expect(radioLine({ kind: 'rejected', side: 'nato', command: { tick: 0, side: 'nato', kind: 'order', squad: 9, point: null }, reason: 'unknown squad' }, view)).toMatchObject({ from: 'HQ', bad: true, onAir: false });
     expect(radioLine(say('contact', 'pact'), view)).toBeNull();
+  });
+});
+
+describe('Request line', () => {
+  it('names the Asset, the grid and the seconds left', () => {
+    expect(requestLine({ asset: 'barrage', at: { x: 0, y: 0 }, grid: 'E5', left: 23.2 })).toBe('FIRE SUPPORT · E5 · 00:24');
+    expect(requestLine({ asset: 'supply', at: { x: 0, y: 0 }, grid: null, left: 5 })).toBe('SUPPLIES · 00:05');
   });
 });

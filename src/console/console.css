@@ -118,3 +118,9 @@ canvas { display: block; touch-action: none; }
 #radio .ln:nth-last-child(n+5) { opacity: 0.4; }
 #radio .ln:nth-last-child(n+6) { opacity: 0.28; }
 #radio.folded .ln:not(:last-child) { display: none; }
+/* Requests (#41): amber, like Delayed. Tile corner blinks while a Request is open; the card button and the log line are tappable. */
+.tile.req { position: relative; }
+.tile.req::after { content: ''; position: absolute; top: -1px; right: -1px; width: 10px; height: 10px; background: linear-gradient(225deg, var(--amber) 50%, transparent 50%); animation: blink 1s steps(1) infinite; }
+#squads .card .ask { font: inherit; text-transform: inherit; color: var(--amber); background: transparent; border: 1px solid var(--amber); min-height: 36px; cursor: pointer; }
+#squads .card .ask:hover, #squads .card .ask:focus-visible { background: rgba(255, 194, 61, 0.14); }
+#radio .ln.req .tx { color: var(--amber); }

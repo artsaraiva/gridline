@@ -2,6 +2,7 @@
 import type { Match } from './index';
 import type { Sighting } from './memory';
 import type { Order, Pending } from './orders';
+import type { Request } from './requests';
 import type { SideId, SoldierState, Tune, Vec2 } from './types';
 
 export interface Soldier {
@@ -59,6 +60,9 @@ export interface Squad {
   // #36 Orders
   order: Order | null; // the standing Order; see orders.ts
   pending: Pending | null; // an Order sent and not yet acknowledged
+  // #41 Requests
+  request: Request | null; // its open Request; see requests.ts
+  requestNext: number; // first tick it may ask again
 }
 
 export interface Point {

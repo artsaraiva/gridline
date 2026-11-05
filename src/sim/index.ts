@@ -11,6 +11,7 @@ import { hashMemory, hear, type Sighting } from './memory';
 import { hashOrders, orders } from './orders';
 import { perceive } from './perception';
 import { hashRadio, newRadio, radio, type Radio } from './radio';
+import { hashRequests, requests } from './requests';
 import { returnToFight } from './respawn';
 import { rnd } from './rng';
 import { hashSoldiers, hashSquads, sign, stageTicks, type Point, type Soldier, type Squad } from './state';
@@ -68,7 +69,7 @@ export function createMatch(opts: {
   for (const side of SIDES) {
     const hq = map.hqs[side];
     for (let q = 0; q < opts.squadsPerSide; q++) {
-      const squad: Squad = { id: m.squads.length, side, members: [], goal: -1, lastSeen: -1e9, memory: [], order: null, pending: null, ...newSquadAi() };
+      const squad: Squad = { id: m.squads.length, side, members: [], goal: -1, lastSeen: -1e9, memory: [], order: null, pending: null, request: null, requestNext: 0, ...newSquadAi() };
       m.squads.push(squad);
       for (let i = 0; i < tune.squadSize; i++) {
         const ox = (rnd(m) * 2 - 1) * tune.spread;
@@ -103,6 +104,7 @@ export function step(m: Match, commands: Command[]): SimEvent[] {
   returnToFight(m, events);
   for (const p of m.points) capture(m, p);
   orders(m, events);
+  requests(m, events);
   drain(m);
   radio(m, events);
   m.tick++;
@@ -127,5 +129,6 @@ export function stateHash(m: Match): string {
   hashAssets(m, mix);
   hashOrders(m, mix);
   hashRadio(m, mix);
+  hashRequests(m, mix);
   return h.toString(16).padStart(8, '0');
 }
