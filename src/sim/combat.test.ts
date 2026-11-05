@@ -103,9 +103,9 @@ describe('line of sight', () => {
 });
 
 describe('fire', () => {
-  // A long duel nobody can lose: 100 m apart, hit points out of reach.
+  // A long duel nobody can lose: 100 m apart, hit points and ammo out of reach.
   const duel = (tune: Partial<Tune> = {}, map: Partial<MapData> = {}) =>
-    play(scene({ place: { 0: { x: 0, y: 0 }, 1: { x: 100, y: 0 } }, tune: { hp: 1e9, ...tune }, map }), 120 * HZ);
+    play(scene({ place: { 0: { x: 0, y: 0 }, 1: { x: 100, y: 0 } }, tune: { hp: 1e9, ammo: 1e6, ...tune }, map }), 120 * HZ);
   const hitRate = (events: Logged[], side?: SideId) => {
     const fired = shots(events, side);
     return fired.filter((s) => s.hit).length / fired.length;
@@ -250,8 +250,9 @@ describe('Squad Respawn', () => {
   });
 
   it('is blocked while a living member is suppressed', () => {
-    // pact id 6, behind nato id 1, keeps it suppressed in cover where it can't be hit, and is never seen
-    const { events, views } = aftermath({ 6: { x: -100, y: 3, fx: 1 } }, { coverHitMul: 0 }, { cover: [{ x0: -2, y0: 2, x1: 2, y1: 4 }] });
+    // pact id 6, behind nato id 1, keeps it suppressed in cover where it can't be hit, and is never seen. It stands clear
+    // of where pact id 4 was last seen, out of the way of nato id 1's suppressive fire at that spot.
+    const { events, views } = aftermath({ 6: { x: -100, y: 12, fx: 1 } }, { coverHitMul: 0 }, { cover: [{ x0: -2, y0: 2, x1: 2, y1: 4 }] });
     expect(views.slice(HZ).every((v) => v.friendlies.find((f) => f.id === 1)!.suppressed)).toBe(true);
     expect(of(events, 'respawn', 'nato')).toEqual([]);
   });

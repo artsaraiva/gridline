@@ -133,6 +133,16 @@ describe('squad memory', () => {
     expect(memory(m, 1)).toEqual([[3, 'heard']]);
     expect(memory(m, 2)).toEqual([]);
   });
+
+  it('suppressive fire is heard by the Squad it lands on, even from beyond hearing range, and by nobody far from both ends', () => {
+    // pact 2 puts suppressive fire on nato 0's Last Known Position, 100 m off; nato 1 is 200 m north of both; nobody sees anyone
+    const m = scene({ 0: { x: 0, y: 0 }, 1: { x: -50, y: 200 }, 2: { x: -100, y: 0, fx: 1 } }, { tune: { visionM: 0 }, squads: 2 });
+    m.squads[2]!.memory.push({ id: 0, x: 0, y: 0, tick: 0, source: 'seen' });
+    const events = step(m, []);
+    expect(events.some((e) => e.kind === 'suppressive')).toBe(true);
+    expect(memory(m, 0)).toEqual([[2, 'heard']]);
+    expect(memory(m, 1)).toEqual([]);
+  });
 });
 
 describe('the enemy roster', () => {

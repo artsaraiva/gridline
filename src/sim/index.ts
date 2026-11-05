@@ -1,13 +1,14 @@
 // The Simulation: pure, deterministic, no DOM, no clocks, no Math.random.
 // createMatch, step, stateHash and commanderView are its whole public surface; the rules live in the sibling modules.
 // Only + - * / and Math.sqrt touch floats: those are exact across engines (Math.hypot and trig are not).
-import { think, walk } from './ai';
+import { hashAi, newSoldierAi, newSquadAi, think, walk, type Death } from './ai';
 import { capture, drain, end, hashCapture } from './capture';
 import { casualties, fire, suppressionDecay } from './combat';
 import { assetEffects, hashAssets, newAssets, type Assets } from './assets/core';
 import { applyCommands } from './commands';
 import { buildGrid, type Grid } from './grid';
 import { hashMemory, hear, type Sighting } from './memory';
+import { hashOrders, orders } from './orders';
 import { perceive } from './perception';
 import { returnToFight } from './respawn';
 import { rnd } from './rng';
@@ -31,6 +32,7 @@ export interface Match {
   pointLead: number; // nato points - pact points
   drainTicks: number; // ticks the current point lead has been draining
   sightings: Record<SideId, Sighting[]>; // what each Side's Soldiers saw lately, one per enemy id; see memory.ts
+  deaths: Death[]; // recent deaths, for route choice
   assets: Assets; // cooldowns and effects at work; see assets/core.ts
   result: MatchResult | null;
 }
@@ -56,13 +58,14 @@ export function createMatch(opts: {
     pointLead: 0,
     drainTicks: 0,
     sightings: { nato: [], pact: [] },
-    assets: newAssets(),
+    deaths: [],
+    assets: newAssets(tune),
     result: null,
   };
   for (const side of SIDES) {
     const hq = map.hqs[side];
     for (let q = 0; q < opts.squadsPerSide; q++) {
-      const squad: Squad = { id: m.squads.length, side, members: [], goal: -1, lastSeen: -1e9, memory: [] };
+      const squad: Squad = { id: m.squads.length, side, members: [], goal: -1, lastSeen: -1e9, memory: [], order: null, pending: null, ...newSquadAi() };
       m.squads.push(squad);
       for (let i = 0; i < tune.squadSize; i++) {
         const ox = (rnd(m) * 2 - 1) * tune.spread;
@@ -72,6 +75,7 @@ export function createMatch(opts: {
         m.soldiers.push({
           id: m.soldiers.length, side, squad: squad.id, x: hq.x + ox, y: hq.y + oy, fx: sign(side), fy: 0, speed, ox, oy,
           state: 'alive', hp: tune.hp, suppression: 0, target: -1, nextFire: 0, bleed: 0, revive: 0, reviving: -1, deadAt: 0,
+          ...newSoldierAi(m),
         });
       }
     }
@@ -85,7 +89,7 @@ export function step(m: Match, commands: Command[]): SimEvent[] {
   const t = m.tune;
   const events: SimEvent[] = [];
   applyCommands(m, commands, events);
-  for (const sq of m.squads) if ((m.tick + sq.id) % Math.round(t.thinkSeconds * t.hz) === 0) think(m, sq);
+  for (const sq of m.squads) if ((m.tick + sq.id) % Math.round(t.thinkSeconds * t.hz) === 0) think(m, sq, events);
   casualties(m, events);
   perceive(m);
   assetEffects(m, events);
@@ -95,6 +99,7 @@ export function step(m: Match, commands: Command[]): SimEvent[] {
   suppressionDecay(m);
   returnToFight(m, events);
   for (const p of m.points) capture(m, p);
+  orders(m, events);
   drain(m);
   m.tick++;
   end(m);
@@ -114,6 +119,8 @@ export function stateHash(m: Match): string {
   hashSquads(m, mix);
   hashCapture(m, mix);
   hashMemory(m, mix);
+  hashAi(m, mix);
   hashAssets(m, mix);
+  hashOrders(m, mix);
   return h.toString(16).padStart(8, '0');
 }

@@ -65,10 +65,14 @@ describe('capture', () => {
   });
 
   it('a full Squad of 4 takes a neutral point in about 8 s', () => {
+    // a Squad walks in as a wedge, a few metres apart: time the capture while all four are inside
     const views = run(start(map([{ x: 0, y: 0 }]), { speedJitter: 0, spread: 0 }), 60 * HZ);
-    const entered = views.findIndex((v) => inside(v, v.points[0]!).nato === 4);
-    const owned = views.findIndex((v) => v.points[0]!.owner === 'nato');
-    expect((owned - entered + 1) / HZ).toBe(8);
+    const secondsPerStage = views.slice(1).flatMap((v, i) => {
+      const gained = v.points[0]!.progress - views[i]!.points[0]!.progress;
+      return inside(views[i]!, v.points[0]!).nato === 4 && v.points[0]!.progress < 1 ? [Math.round(1 / gained / HZ * 1000) / 1000] : [];
+    });
+    expect(secondsPerStage.length).toBeGreaterThan(HZ);
+    expect(new Set(secondsPerStage)).toEqual(new Set([8]));
   });
 
   it('equal numbers inside freeze the progress', () => {

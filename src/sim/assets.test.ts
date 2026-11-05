@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { commanderView, createMatch, step, type Match } from './index';
 import { DEFAULT_TUNE } from './tune';
-import type { Command, MapData, SimEvent, Tune, Vec2 } from './types';
+import type { AssetKind, Command, MapData, SimEvent, Tune, Vec2 } from './types';
 
 const HZ = DEFAULT_TUNE.hz;
 
@@ -75,9 +75,9 @@ describe('calling an Asset', () => {
     expect(rejections(step(m, [scan(m, { x: -550, y: 10 })]))).toEqual([]); // the own HQ is fine
   });
 
-  it('only Scan UAV can be called for now', () => {
+  it('an Asset that is not in the game is rejected', () => {
     const m = scene();
-    expect(rejections(step(m, [{ ...scan(m, { x: 0, y: 0 }), asset: 'supply' }]))).toEqual(['not available']);
+    expect(rejections(step(m, [{ ...scan(m, { x: 0, y: 0 }), asset: 'nope' as AssetKind }]))).toEqual(['not available']);
   });
 });
 

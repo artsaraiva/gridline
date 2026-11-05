@@ -75,3 +75,29 @@ canvas { display: block; touch-action: none; }
 }
 #labels span[hidden] { display: none; }
 @keyframes blink { 50% { opacity: 0; } }
+
+/* Right rail and radio log (#36 behaviour; #44 restyles). Amber for attention: Delayed and the selection. */
+#squads { position: fixed; top: 16px; right: 16px; width: 248px; display: grid; gap: 8px; font: 600 14px/1.2 var(--font); text-shadow: var(--rgb-split); font-variant-numeric: tabular-nums; text-transform: uppercase; color: var(--bone); }
+#squads[hidden], #squads .card[hidden], #radio[hidden] { display: none; }
+#squads .tiles { display: grid; grid-template-columns: repeat(4, 56px); gap: 8px; }
+.tile { height: 48px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; font: inherit; color: var(--bone); background: var(--panel); border: 1px solid var(--faint); padding: 0; cursor: pointer; }
+.tile b { font-size: 16px; }
+.tile .pips { display: flex; gap: 3px; }
+.tile .pips i { width: 8px; height: 4px; border: 1px solid var(--bone-dim); box-sizing: border-box; }
+.tile .pips i.on { background: var(--fr); border-color: var(--fr); }
+.tile.sel { border-color: var(--bone); }
+.tile.delayed { border-color: var(--amber); }
+.tile.sel.delayed { box-shadow: 0 0 0 1px var(--amber); }
+.tile.wiped { opacity: 0.4; }
+#squads .card { padding: 10px 12px; background: var(--panel); border: 1px solid var(--faint); display: grid; gap: 8px; }
+#squads .card h3 { margin: 0; font-size: 15px; letter-spacing: 0.06em; }
+#squads .card small { font-size: 11px; font-weight: 600; color: var(--bone-dim); text-transform: none; letter-spacing: 0.04em; }
+#squads .card .ord { color: var(--fr); }
+#squads .card .ord.delayed { color: var(--amber); }
+#squads .card .clr { font: inherit; text-transform: inherit; color: var(--bone); background: transparent; border: 1px solid var(--faint); min-height: 36px; cursor: pointer; }
+#squads .card .clr:hover, #squads .card .clr:focus-visible { background: rgba(232, 226, 200, 0.12); }
+#radio { position: fixed; left: 16px; bottom: 16px; width: 470px; min-height: 22px; pointer-events: none; padding: 6px 10px; box-sizing: border-box; background: var(--panel); border: 1px solid var(--faint); font: 600 13px/1.5 var(--font); text-shadow: var(--rgb-split); font-variant-numeric: tabular-nums; color: var(--bone); }
+#radio div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#radio div:nth-last-child(n+3) { opacity: 0.7; }
+#radio div:nth-last-child(n+4) { opacity: 0.45; }
+#radio div:nth-last-child(n+5) { opacity: 0.25; }

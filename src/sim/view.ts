@@ -1,6 +1,7 @@
 // What a Commander sees: the CommanderView built from the Match.
-import { assetViews, effectViews } from './assets/core';
+import { assetContacts, assetViews, effectViews } from './assets/core';
 import type { Match } from './index';
+import { orderView } from './orders';
 import { contactIds, justSeen, lastKnown } from './memory';
 import { lastDeath, membersOf, stageTicks, wiped, type Soldier, type Squad } from './state';
 import type { CommanderView, SideId, SimEvent, SquadView } from './types';
@@ -20,6 +21,10 @@ function squadView(m: Match, sq: Squad, i: number): SquadView {
     strength: members.filter((s) => s.state === 'alive').length,
     respawnIn: gone ? [] : members.filter((s) => s.state === 'dead').map((s) => secondsUntil(s.deadAt + t.respawnSeconds * t.hz)),
     redeployIn: gone ? secondsUntil(lastDeath(members) + t.redeploySeconds * t.hz) : null,
+    task: sq.task === 'none' ? null : sq.task === 'point' ? (sq.mode === 'hold' ? 'hold' : 'move') : sq.task,
+    point: sq.task === 'none' ? null : (m.points[sq.goal]?.id ?? null),
+    route: m.map.crossings?.[sq.route]?.id ?? null,
+    order: orderView(m, sq),
   };
 }
 
@@ -32,8 +37,8 @@ export function commanderView(m: Match, side: SideId): CommanderView {
     seconds: m.tick / m.tune.hz,
     friendlies: m.soldiers
       .filter((s) => s.side === side && s.state !== 'dead')
-      .map((s) => ({ ...soldierView(s), squad: s.squad, state: s.state as 'alive' | 'wounded', suppressed: s.suppression > m.tune.suppressedAt })),
-    contacts: contactIds(m, side).map((id) => soldierView(m.soldiers[id]!)),
+      .map((s) => ({ ...soldierView(s), squad: s.squad, state: s.state as 'alive' | 'wounded', suppressed: s.suppression > m.tune.suppressedAt, ammo: s.ammo / m.tune.ammo })),
+    contacts: [...new Set([...contactIds(m, side), ...assetContacts(m, side).map((s) => s.id)])].map((id) => soldierView(m.soldiers[id]!)),
     lastKnown: lastKnown(m, side),
     squads: m.squads.filter((sq) => sq.side === side).map((sq, i) => squadView(m, sq, i)),
     points: m.points.map((p) => ({ id: p.id, name: p.name, x: p.x, y: p.y, radius: p.radius, owner: p.owner, progress: p.progress / stage })),

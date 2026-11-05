@@ -63,22 +63,24 @@ export function fading(color: number, opacity = 1) {
 
 /**
  * A world-sized dashed ring of `radius` metres whose line, dark halo and dashes stay a constant pixel size.
- * Set `tint.value` to recolour it.
+ * Set `tint.value`, `r.value` or `alpha.value` to update it in place.
  */
 export function dashedRing(radius: number, color: number, { dash = 8, gap = 5, width = 1.5, opacity = 0.85 } = {}) {
   const tint = uniform(new THREE.Color(color));
+  const r = uniform(radius);
+  const alpha = uniform(opacity);
   const p = positionLocal.xy;
-  const off = abs(length(p).sub(radius)).div(metresPerPx); // px from the ring line
-  const along = atan(p.y, p.x).mul(radius).div(metresPerPx); // px around the ring
+  const off = abs(length(p).sub(r)).div(metresPerPx); // px from the ring line
+  const along = atan(p.y, p.x).mul(r).div(metresPerPx); // px around the ring
   const on = step(fract(along.div(dash + gap)), dash / (dash + gap));
   const core = float(1).sub(smoothstep(width / 2 - 0.5, width / 2 + 0.5, off));
   const halo = float(1).sub(smoothstep(width / 2 + 0.5, width / 2 + 1.5, off));
   const material = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false });
   material.colorNode = mix(vec3(0), tint, core);
-  material.opacityNode = max(core.mul(opacity ** 2.2), halo.mul(0.73)).mul(on); // as flat's BRIGHT / shade's DARK curves
+  material.opacityNode = max(core.mul(alpha.pow(2.2)), halo.mul(0.73)).mul(on); // as flat's BRIGHT / shade's DARK curves
   material.mrtNode = GLOW();
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2 * radius + 16, 2 * radius + 16), material);
-  return { mesh, tint };
+  return { mesh, tint, r, alpha };
 }
 
 const fontOf = (weight: number, size: number) => `${weight} ${size}px 'Chakra Petch', ui-monospace, monospace`;

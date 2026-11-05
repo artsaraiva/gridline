@@ -35,6 +35,7 @@ function look(m: Match, s: Soldier) {
   }
   s.target = best;
   if (best < 0) return;
+  s.lastTarget = best;
   sq.lastSeen = m.tick;
   const e = m.soldiers[best]!;
   const d = Math.sqrt(bestD2);

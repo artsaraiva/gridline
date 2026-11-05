@@ -1,7 +1,8 @@
 // Internal state the rule modules share, plus the tiny helpers every one of them uses. Not part of the public surface.
 import type { Match } from './index';
 import type { Sighting } from './memory';
-import type { SideId, SoldierState, Tune } from './types';
+import type { Order, Pending } from './orders';
+import type { SideId, SoldierState, Tune, Vec2 } from './types';
 
 export interface Soldier {
   id: number;
@@ -23,6 +24,17 @@ export interface Soldier {
   revive: number; // Wounded: ticks of revive work done on them
   reviving: number; // id of the Wounded squad mate it is reviving, -1 = none
   deadAt: number; // tick
+  // #34 Squad AI
+  ammo: number; // rounds left
+  lastTarget: number; // last enemy it engaged, kept until its Squad next thinks; -1 = none
+  dest: Vec2 | null; // where its Squad sent it (cover, a bound, a regroup spot); null = follow the Squad
+  path: Vec2[]; // waypoints to `dest` round obstacles, nearest first
+  cover: Vec2 | null; // cover it runs to when pinned in the open; outranks `dest`
+  chaseUntil: number; // tick a peel-off chase ends; 0 = not chasing
+  role: 'flank' | 'support' | null; // its part in a flank
+  regroup: boolean; // walking back to the leader
+  slot: number; // seeded scale of its wedge slot
+  blocked: number; // ticks it has been stuck
 }
 
 export interface Squad {
@@ -32,6 +44,21 @@ export interface Squad {
   goal: number; // index of the Capture Point it is heading for, -1 = not picked yet
   lastSeen: number; // tick a member last saw an enemy
   memory: Sighting[]; // this Squad's own sightings, one per enemy id; see memory.ts
+  // #34 Squad AI
+  task: 'none' | 'point' | 'retreat' | 'resupply'; // `goal` is its Capture Point (-1 = the HQ)
+  mode: 'travel' | 'bound' | 'hold' | 'fallback';
+  route: number; // index into map.crossings of the crossing it takes to its goal, -1 = none
+  slow: boolean; // the leader waits for stragglers
+  phase: number; // which bounding pair moves
+  phaseUntil: number; // tick
+  holdAt: number; // tick holding Soldiers next re-pick cover
+  holdOct: number; // octant of the threat when they last did
+  flankSign: number; // +1 left, -1 right, 0 = not flanking
+  flankSince: number; // tick, -1 = not flanking
+  flankDone: boolean; // one flank per contact
+  // #36 Orders
+  order: Order | null; // the standing Order; see orders.ts
+  pending: Pending | null; // an Order sent and not yet acknowledged
 }
 
 export interface Point {
@@ -72,6 +99,7 @@ export function hashSoldiers(m: Match, mix: Mix) {
     mix(s.revive);
     mix(s.reviving);
     mix(s.deadAt);
+    mix(s.ammo);
   }
 }
 

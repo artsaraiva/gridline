@@ -10,12 +10,13 @@ import { clock } from '../summary';
 import { overlaps, targeting, validSpot } from '../targeting';
 import { css, dashedRing, fading } from './symbols';
 
+const crateGeometry = new THREE.PlaneGeometry(1, 1);
 const NAME = { scan: 'Scan UAV', supply: 'Supply Drop', barrage: 'Barrage' };
 const discGeometry = new THREE.CircleGeometry(1, 96);
 const uavGeometry = new THREE.ShapeGeometry(new THREE.Shape([new THREE.Vector2(0.6, 0), new THREE.Vector2(-0.5, 0.5), new THREE.Vector2(-0.2, 0), new THREE.Vector2(-0.5, -0.5)]));
 
-/** A ring, a faint disc and an orbiting marker, pooled: rings carry no id, so they are reused in draw order. */
-type Ring = { group: THREE.Group; ring: ReturnType<typeof dashedRing>; radius: number; disc: THREE.Mesh; uav: THREE.Mesh };
+/** A ring, a faint disc and markers, pooled: rings carry no id, so they are reused in draw order. */
+type Ring = { group: THREE.Group; ring: ReturnType<typeof dashedRing>; disc: THREE.Mesh; uav: THREE.Mesh; crate: THREE.Mesh };
 const pool: Ring[] = [];
 const labelBox = document.getElementById('labels')!;
 const labels: HTMLElement[] = [];
@@ -23,31 +24,33 @@ const labels: HTMLElement[] = [];
 export const resetEffects = () => (pool.length = 0);
 
 const material = (m: THREE.Mesh) => m.material as THREE.MeshBasicMaterial;
-const makeRing = (radius: number, color: number) => dashedRing(radius, color, { dash: 2, gap: 6, width: 2 });
 
 function ringAt(i: number, p: Vec2, radius: number, color: number, fill: number): Ring {
   let r = pool[i];
   if (!r) {
-    r = { group: new THREE.Group(), ring: makeRing(radius, color), radius, disc: new THREE.Mesh(discGeometry, fading(color, fill)), uav: new THREE.Mesh(uavGeometry, fading(color)) };
-    r.group.add(r.disc, r.ring.mesh, r.uav);
+    r = {
+      group: new THREE.Group(),
+      ring: dashedRing(120, color, { dash: 2, gap: 6, width: 2 }),
+      disc: new THREE.Mesh(discGeometry, fading(color, fill)),
+      uav: new THREE.Mesh(uavGeometry, fading(color)),
+      crate: new THREE.Mesh(crateGeometry, fading(color)),
+    };
+    r.group.add(r.disc, r.ring.mesh, r.uav, r.crate);
     layer.add(r.group);
     pool.push(r);
-  }
-  if (r.radius !== radius) {
-    r.group.remove(r.ring.mesh);
-    r.ring.mesh.geometry.dispose();
-    r.ring = makeRing(radius, color);
-    r.radius = radius;
-    r.group.add(r.ring.mesh);
   }
   r.group.visible = true;
   r.group.position.set(p.x, p.y, 0.5);
   r.disc.scale.setScalar(radius);
+  r.ring.r.value = radius;
+  r.ring.alpha.value = 0.85;
   r.ring.tint.value.setHex(color);
   material(r.disc).color.setHex(color);
   material(r.disc).opacity = fill;
   material(r.uav).color.setHex(color);
+  material(r.crate).color.setHex(color);
   r.uav.visible = false;
+  r.crate.visible = false;
   return r;
 }
 
@@ -79,7 +82,9 @@ export function drawEffects(view: CommanderView, scale: number, now: number) {
   let rings = 0;
   let tags = 0;
   for (const e of view.effects ?? []) {
-    const r = ringAt(rings++, e, e.radius, COLOR.friendly, 0.06);
+    const danger = e.asset === 'barrage';
+    const r = ringAt(rings++, e, e.radius, danger ? COLOR.hostile : COLOR.friendly, danger ? 0.1 : 0.06);
+    for (const shell of e.shells ?? []) ringAt(rings++, shell, 2 + 10 * (1 - shell.flight), COLOR.hostile, 0.2); // a shell coming down
     if (e.asset === 'scan') {
       const a = (now / 1000) * 0.35;
       r.uav.visible = true;
@@ -87,7 +92,18 @@ export function drawEffects(view: CommanderView, scale: number, now: number) {
       r.uav.position.set(Math.cos(a) * e.radius, Math.sin(a) * e.radius, 0.1);
       r.uav.rotation.z = a + Math.PI / 2;
     }
-    label(tags++, { x: e.x + e.radius * 0.72, y: e.y + e.radius * 0.72 }, 6, -18, `${NAME[e.asset].toUpperCase()} ${clock(Math.ceil(e.left))}`, css(COLOR.friendly));
+    let time = clock(Math.ceil(e.left));
+    if (e.landsIn !== undefined && e.fall) { // a Supply Drop crate: it drops toward its spot, growing smaller and brighter, then sits
+      const high = e.landsIn / e.fall;
+      r.crate.visible = true;
+      r.crate.scale.setScalar(scale * (1.2 + high));
+      r.crate.position.set(0, high * 40, 0.1);
+      material(r.crate).opacity = 1 - 0.6 * high;
+      r.ring.alpha.value = 0.35 + 0.5 * (1 - high);
+      if (high) time = `LANDS ${clock(Math.ceil(e.landsIn))}`;
+    }
+    if (e.impactIn) time = `IMPACT ${clock(Math.ceil(e.impactIn))}`; // the Barrage counts down to its first shell
+    label(tags++, { x: e.x + e.radius * 0.72, y: e.y + e.radius * 0.72 }, 6, -18, `${NAME[e.asset].toUpperCase()} ${time}`, css(danger ? COLOR.hostile : COLOR.friendly));
   }
   const at = targeting.armed && (targeting.spot ?? targeting.pointer);
   const radius = targeting.armed && view.assets?.find((a) => a.asset === targeting.armed)?.radius;

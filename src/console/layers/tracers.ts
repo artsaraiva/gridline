@@ -30,12 +30,12 @@ function lineMaterial() {
   return material;
 }
 
-/** Adds the marks for a `shot` event, placed from the view's Soldiers. */
-export function addShot(e: Extract<SimEvent, { kind: 'shot' }>, view: CommanderView, now: number) {
+/** Adds the marks for a `shot` or `suppressive` event, placed from the view's Soldiers. */
+export function addShot(e: Extract<SimEvent, { kind: 'shot' | 'suppressive' }>, view: CommanderView, now: number) {
   const at = (id: number) => view.friendlies.find((s) => s.id === id) ?? view.contacts.find((s) => s.id === id);
   const from = at(e.from);
   if (!from) return;
-  const target = at(e.to);
+  const target = e.kind === 'shot' ? at(e.to) : e;
   const off = e.hit ? 0 : MISS_M;
   const to = target ? { x: target.x + (Math.random() - 0.5) * 2 * off, y: target.y + (Math.random() - 0.5) * 2 * off } : null;
   let shot = pool[live];
