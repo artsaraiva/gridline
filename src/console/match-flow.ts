@@ -7,6 +7,7 @@ import { resetChevrons } from './layers/chevrons';
 import { resetContacts } from './layers/contacts';
 import { resetMarkers } from './layers/markers';
 import { resetPoints } from './layers/points';
+import { resetSquads } from './layers/squads';
 import { layer } from './renderer';
 import { session } from './session';
 import { endSummary } from './summary';
@@ -33,6 +34,7 @@ async function startMatch(setup: MatchSetup) {
   resetChevrons();
   resetContacts();
   resetMarkers();
+  resetSquads();
   session.commanderSide = setup.commanderSide;
   session.enemySide = enemyOf(setup.commanderSide);
   session.seed = setup.seed;

@@ -1,6 +1,6 @@
 // three.js renderer, scene and orthographic map camera, plus the per-match `layer` every map layer draws into.
 import * as THREE from 'three/webgpu';
-import { dot, float, mix, mrt, uniform, vec3 } from 'three/tsl';
+import { diffuseColor, dot, float, materialOpacity, mix, mrt, uniform, vec3, vec4 } from 'three/tsl';
 import type { SideId } from '../sim/types';
 import { session } from './session';
 
@@ -39,10 +39,20 @@ export const metresPerPx = uniform(1);
 export const layer = new THREE.Group();
 scene.add(layer);
 
-/** Symbology material: flat colour, and it glows (post.ts blooms whatever writes `glow`). */
+/** Marks a node material's fragments to glow (post.ts blooms them), as strongly as they are opaque. */
+export const GLOW = () => mrt({ glow: vec4(diffuseColor.a) });
+
+// three blends in linear light, so a faint bright fill over the dark map reads far more opaque than the same `opacity`
+// in CSS / canvas (the prototypes), and a dark one far less. These curves make `opacity` read as it does there.
+// ponytail: exact over a black (BRIGHT) or white (DARK) backdrop only; blend in display space if mid-tones need it.
+export const BRIGHT = materialOpacity.pow(2.2);
+export const DARK = float(1).sub(float(1).sub(materialOpacity).pow(2.2));
+
+/** Symbology material: flat colour, and it glows. `opacity` reads as it would in CSS. */
 export function flat(color: number) {
   const material = new THREE.MeshBasicNodeMaterial({ color, side: THREE.DoubleSide });
-  material.mrtNode = mrt({ glow: float(1) });
+  material.opacityNode = BRIGHT;
+  material.mrtNode = GLOW();
   return material;
 }
 
