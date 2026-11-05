@@ -1,21 +1,22 @@
-// Bare Console: stand-in map plane, chevrons, Capture Point rings, death markers, Tickets, clock and Squads, mouse pan and zoom.
+// Bare Console: match setup and end screens, stand-in map plane, chevrons, Capture Point rings, death markers, Tickets, clock and Squads, mouse pan and zoom.
 import * as THREE from 'three/webgpu';
-import { startSimHost } from '../host/host';
-import type { FriendlyView, PointView, SoldierView, SideId, SquadView } from '../sim/types';
+import { startSimHost, type SimHost } from '../host/host';
+import type { MatchSetup } from '../host/protocol';
+import { enemyOf, type FriendlyView, type PointView, type SoldierView, type SideId, type SquadView } from '../sim/types';
+import { clock, endSummary, FACTION } from './summary';
 
 const COLOR = { bone: 0xe8e2c8, friendly: 0x6fd0ff, hostile: 0xff4b3e, ground: 0x262c22 };
 const CHEVRON_PX = 14;
 const DEATH_MARKER_MS = 5000;
 
-const params = new URLSearchParams(location.search);
-const commanderSide: SideId = params.get('side') === 'pact' ? 'pact' : 'nato';
-const seed = Number(params.get('seed') ?? 4); // seed 4 shows a decisive capture on the test field
-const host = await startSimHost({
-  kind: 'start',
-  seed,
-  squadsPerSide: Number(params.get('squads') ?? 3),
-  commanderSide,
-});
+const MIN_SQUADS = 3;
+const MAX_SQUADS = 8;
+
+let host: SimHost | null = null;
+let commanderSide: SideId = 'nato';
+let enemySide: SideId = 'pact';
+let seed = 0;
+let ended = false;
 
 const renderer = new THREE.WebGPURenderer({ antialias: true }); // falls back to WebGL 2 without WebGPU
 renderer.setPixelRatio(devicePixelRatio);
@@ -39,11 +40,18 @@ function resize() {
 resize();
 addEventListener('resize', resize);
 
+// Everything drawn for one match lives in `layer`, dropped whole when the next match starts.
+// ponytail: dropped objects' materials and ring geometries are not disposed; a few dozen leak per match.
+let layer = new THREE.Group();
+scene.add(layer);
+
 // Stand-in map: a flat plane under the Play Area outline.
 const flat = (color: number) => new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide });
-scene.add(new THREE.Mesh(new THREE.PlaneGeometry(640, 640), flat(COLOR.ground)));
-const outline = [...host.map.playArea, host.map.playArea[0]!].map((p) => new THREE.Vector3(p.x, p.y, 0.1)); // WebGPURenderer has no LineLoop
-scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(outline), new THREE.LineBasicMaterial({ color: COLOR.bone })));
+function drawMap() {
+  layer.add(new THREE.Mesh(new THREE.PlaneGeometry(640, 640), flat(COLOR.ground)));
+  const outline = [...host!.map.playArea, host!.map.playArea[0]!].map((p) => new THREE.Vector3(p.x, p.y, 0.1)); // WebGPURenderer has no LineLoop
+  layer.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(outline), new THREE.LineBasicMaterial({ color: COLOR.bone })));
+}
 
 // Capture Points: owner ring plus a progress arc toward whichever Side the meter favours.
 const sideColor = (s: SideId | null) => (s === null ? COLOR.bone : s === commanderSide ? COLOR.friendly : COLOR.hostile);
@@ -55,7 +63,7 @@ function drawPoint(p: PointView) {
     const arc = new THREE.Mesh(new THREE.BufferGeometry(), flat(COLOR.bone));
     ring.position.set(p.x, p.y, 0.2);
     arc.position.set(p.x, p.y, 0.3);
-    scene.add(ring, arc);
+    layer.add(ring, arc);
     r = { ring, arc, progress: NaN };
     rings.set(p.id, r);
   }
@@ -83,7 +91,7 @@ function drawChevrons(list: (SoldierView | FriendlyView)[], kind: 'friendly' | '
     if (!mesh) {
       mesh = new THREE.Mesh(chevronGeometry, flat(COLOR[kind]));
       (mesh.material as THREE.MeshBasicMaterial).transparent = true;
-      scene.add(mesh);
+      layer.add(mesh);
       chevrons.set(key, mesh);
     }
     mesh.position.set(c.x, c.y, 1);
@@ -107,7 +115,7 @@ function addDeathMarker(x: number, y: number, side: SideId, at: number) {
     mark.add(bar);
   }
   mark.position.set(x, y, 0.8);
-  scene.add(mark);
+  layer.add(mark);
   deathMarkers.push({ mark, material, at });
 }
 function drawDeathMarkers(now: number, scale: number) {
@@ -119,7 +127,7 @@ function drawDeathMarkers(now: number, scale: number) {
       mark.scale.setScalar(scale * 0.8);
       continue;
     }
-    scene.remove(mark);
+    layer.remove(mark);
     material.dispose();
     deathMarkers.splice(i, 1);
   }
@@ -157,8 +165,6 @@ renderer.domElement.addEventListener(
 );
 
 const readout = document.getElementById('readout')!;
-const clock = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
-const enemySide: SideId = commanderSide === 'nato' ? 'pact' : 'nato';
 
 /** "ALPHA ■■■□ +7 +--": living members, then each dead member's respawn timer (-- = waiting for quiet); or the redeploy countdown. */
 function squadLine(q: SquadView): string {
@@ -168,7 +174,84 @@ function squadLine(q: SquadView): string {
   return `${name}${pips} ${q.respawnIn.map((s) => (s > 0 ? `+${Math.ceil(s)}` : '+--')).join(' ')}`.trimEnd();
 }
 
+// Match flow: the setup screen starts a match, the end screen shows how it went and leads back to setup.
+const setupForm = document.getElementById('setup') as HTMLFormElement;
+const endScreen = document.getElementById('end')!;
+const squadSelect = setupForm.elements.namedItem('squads') as HTMLSelectElement;
+for (let n = MIN_SQUADS; n <= MAX_SQUADS; n++) squadSelect.add(new Option(String(n), String(n)));
+
+// URL params preset the setup screen; `seed` fixes the first match's seed (seed 4 shows a decisive capture on the test field).
+const params = new URLSearchParams(location.search);
+let urlSeed = params.get('seed');
+(setupForm.elements.namedItem('side') as RadioNodeList).value = params.get('side') === 'pact' ? 'pact' : 'nato';
+squadSelect.value = String(Math.min(MAX_SQUADS, Math.max(MIN_SQUADS, Number(params.get('squads')) || MIN_SQUADS)));
+
+async function startMatch(setup: MatchSetup) {
+  host?.stop();
+  host = null;
+  scene.remove(layer);
+  layer = new THREE.Group();
+  scene.add(layer);
+  rings.clear();
+  chevrons.clear();
+  deathMarkers.length = 0;
+  commanderSide = setup.commanderSide;
+  enemySide = enemyOf(commanderSide);
+  seed = setup.seed;
+  ended = false;
+  host = await startSimHost({ kind: 'start', ...setup });
+  drawMap();
+}
+
+setupForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const data = new FormData(setupForm);
+  const matchSeed = Number.isFinite(Number(urlSeed ?? NaN)) ? Number(urlSeed) >>> 0 : (Math.random() * 2 ** 32) >>> 0;
+  urlSeed = null;
+  setupForm.hidden = true;
+  void startMatch({
+    commanderSide: data.get('side') === 'pact' ? 'pact' : 'nato',
+    squadsPerSide: Number(data.get('squads')),
+    seed: matchSeed,
+  });
+});
+
+function showEnd(summary: ReturnType<typeof endSummary>) {
+  const set = (id: string, text: string) => (document.getElementById(id)!.textContent = text);
+  set('end-result', summary.result);
+  set('end-reason', summary.reason);
+  set('end-friendly', `${summary.friendly.faction} ${summary.friendly.tickets}`);
+  set('end-enemy', `${summary.enemy.faction} ${summary.enemy.tickets}`);
+  set('end-time', summary.time);
+  set('end-seed', String(seed));
+  set('end-copy', 'Copy match record');
+  endScreen.hidden = false;
+}
+
+document.getElementById('end-copy')!.addEventListener('click', async (e) => {
+  const button = e.currentTarget as HTMLButtonElement;
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(host!.record(), null, 2));
+    button.textContent = 'Copied';
+  } catch {
+    button.textContent = 'Copy failed';
+  }
+});
+
+document.getElementById('end-new')!.addEventListener('click', () => {
+  host?.stop();
+  host = null;
+  endScreen.hidden = true;
+  setupForm.hidden = false;
+});
+
 renderer.setAnimationLoop(() => {
+  if (!host) {
+    readout.hidden = true;
+    renderer.render(scene, camera);
+    return;
+  }
+  readout.hidden = false;
   const now = performance.now();
   const view = host.sample(now);
   for (const e of host.takeEvents()) if (e.kind === 'death') addDeathMarker(e.x, e.y, e.side, now);
@@ -179,10 +262,13 @@ renderer.setAnimationLoop(() => {
   drawChevrons(view.contacts, 'hostile', seen, scale);
   for (const [key, mesh] of chevrons) mesh.visible = seen.has(key);
   view.points.forEach(drawPoint);
-  const result = view.result && (view.result.winner === null ? 'DRAW' : view.result.winner === commanderSide ? 'VICTORY' : 'DEFEAT');
+  // the record arrives with the final view, so wait for both before showing the end screen
+  if (view.result && host.record() && !ended) {
+    ended = true;
+    showEnd(endSummary(view));
+  }
   readout.textContent =
-    `${commanderSide} ${view.tickets[commanderSide]}   ${enemySide} ${view.tickets[enemySide]}   ${clock(view.seconds)}` +
-    (result ? `\n${result} · ${view.result!.reason}` : '') +
+    `${FACTION[commanderSide]} ${view.tickets[commanderSide]}   ${FACTION[enemySide]} ${view.tickets[enemySide]}   ${clock(view.seconds)}` +
     `\n\n${view.squads.map(squadLine).join('\n')}` +
     `\n\nseed ${seed}`;
   renderer.render(scene, camera);

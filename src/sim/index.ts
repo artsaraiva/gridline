@@ -1,7 +1,7 @@
 // The Simulation: pure, deterministic, no DOM, no clocks, no Math.random.
 // The four functions below are its whole public surface.
 // Only + - * / and Math.sqrt touch floats: those are exact across engines (Math.hypot and trig are not).
-import { SIDES, type Command, type CommanderView, type MapData, type MatchResult, type Rect, type SideId, type SimEvent, type SoldierState, type SquadView, type Tune, type Vec2 } from './types';
+import { enemyOf, SIDES, type Command, type CommanderView, type MapData, type MatchResult, type Rect, type SideId, type SimEvent, type SoldierState, type SquadView, type Tune, type Vec2 } from './types';
 
 export * from './types';
 
@@ -82,7 +82,6 @@ function rnd(m: Match): number {
 }
 
 const dist2 = (a: Vec2, b: Vec2) => (a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y);
-const enemyOf = (s: SideId): SideId => (s === 'nato' ? 'pact' : 'nato');
 const sign = (s: SideId) => (s === 'nato' ? 1 : -1);
 const sideOf = (n: number): SideId => (n > 0 ? 'nato' : 'pact');
 const stageTicks = (t: Tune) => t.captureSeconds * t.hz;

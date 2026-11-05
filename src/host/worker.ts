@@ -1,20 +1,19 @@
-// Sim host, worker side: runs the Simulation on a fixed 20 Hz tick, stamps Commands, keeps the seed and Command log.
+// Sim host, worker side: runs the Simulation on a fixed 20 Hz tick, stamps Commands, keeps the match record (seed, setup, Command log) and hands it over when the match ends.
 import { commanderView, createMatch, step, type Command, type Match } from '../sim/index';
 import { DEFAULT_TUNE } from '../sim/tune';
 import { TEST_FIELD } from '../maps/test-field';
-import type { FromHost, ToHost } from './protocol';
+import type { FromHost, MatchRecord, ToHost } from './protocol';
 
 let match: Match;
-let side: Extract<ToHost, { kind: 'start' }>['commanderSide'];
 let pending: Command[] = [];
-const record = { seed: 0, log: [] as Command[] }; // ponytail: in memory only; export comes with the after-action replay
+let record: MatchRecord;
 
 const post = (msg: FromHost) => postMessage(msg);
 
 function tick() {
   const events = step(match, pending);
   pending = [];
-  post({ kind: 'view', view: commanderView(match, side), events });
+  post({ kind: 'view', view: commanderView(match, record.commanderSide), events, ...(match.result && { record }) });
 }
 
 function loop(next: number) {
@@ -33,12 +32,12 @@ function loop(next: number) {
 onmessage = (e: MessageEvent<ToHost>) => {
   const msg = e.data;
   if (msg.kind === 'start') {
-    side = msg.commanderSide;
-    record.seed = msg.seed;
-    match = createMatch({ seed: msg.seed, map: TEST_FIELD, tune: DEFAULT_TUNE, squadsPerSide: msg.squadsPerSide, commanderSide: side });
-    post({ kind: 'started', map: TEST_FIELD, hz: DEFAULT_TUNE.hz, view: commanderView(match, side) });
+    const { kind: _, ...setup } = msg;
+    record = { ...setup, map: TEST_FIELD.name, log: [] };
+    match = createMatch({ ...setup, map: TEST_FIELD, tune: DEFAULT_TUNE });
+    post({ kind: 'started', map: TEST_FIELD, hz: DEFAULT_TUNE.hz, view: commanderView(match, setup.commanderSide) });
     loop(performance.now());
-  } else {
+  } else if (!match.result) {
     const cmd = { ...msg.command, tick: match.tick } as Command;
     pending.push(cmd);
     record.log.push(cmd);
