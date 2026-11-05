@@ -167,6 +167,18 @@ export interface Tune {
   // #39 Supply crate
 
   // #40 Barrage
+  barrageCooldownSeconds: number; // from the call; the Barrage also starts the match on this cooldown
+  barrageWarningSeconds: number; // from the call to the first shell leaving
+  barrageShells: number;
+  barrageSpanSeconds: number; // from the first shell leaving to the last
+  barrageFlightSeconds: number; // a shell is in the air this long before it lands
+  barrageSpreadM: number; // shells land within this of the spot, seeded
+  barrageKillM: number; // a shell kills within this ...
+  barrageWoundM: number; // ... Wounds within this ...
+  barrageSuppressM: number; // ... and suppresses within this
+  barrageSuppression: number; // suppression (0..1) a shell leaves
+  barrageContactSeconds: number; // enemies in the zone are Contacts from the first impact until this long after the last
+  barrageHoldOutM: number; // Soldiers that stay clear of the zone are held this far outside it
 
   // #41 Requests
 }
@@ -279,6 +291,10 @@ export interface EffectView {
   left: number;
   /** Its full working time in seconds. */
   total: number;
+  /** #40 Barrage: shells in the air, each with where it lands and how far along its flight it is (0..1). */
+  shells?: { x: number; y: number; flight: number }[];
+  /** #40 Barrage: seconds until the first shell lands; 0 once it has. */
+  impactIn?: number;
 }
 
 /** Things that happened this tick, on every Side; `commanderEvents` keeps the ones a Side's Console may show. */
@@ -297,4 +313,6 @@ export type SimEvent =
    */
   | { kind: 'radio'; side: SideId; squad: number | null; type: string; text: string; grid?: string; priority: number }
   /** #34: suppressive fire: a round at (x, y) near a Last Known Position, with no enemy in view. */
-  | { kind: 'suppressive'; side: SideId; from: number; x: number; y: number; hit: boolean };
+  | { kind: 'suppressive'; side: SideId; from: number; x: number; y: number; hit: boolean }
+  /** #40: a Barrage shell landed at (x, y); `side` called it. */
+  | { kind: 'impact'; side: SideId; x: number; y: number };

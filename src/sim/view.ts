@@ -1,5 +1,5 @@
 // What a Commander sees: the CommanderView built from the Match.
-import { assetViews, effectViews } from './assets/core';
+import { assetContacts, assetViews, effectViews } from './assets/core';
 import type { Match } from './index';
 import { contactIds, justSeen, lastKnown } from './memory';
 import { lastDeath, membersOf, stageTicks, wiped, type Soldier, type Squad } from './state';
@@ -36,7 +36,7 @@ export function commanderView(m: Match, side: SideId): CommanderView {
     friendlies: m.soldiers
       .filter((s) => s.side === side && s.state !== 'dead')
       .map((s) => ({ ...soldierView(s), squad: s.squad, state: s.state as 'alive' | 'wounded', suppressed: s.suppression > m.tune.suppressedAt, ammo: s.ammo / m.tune.ammo })),
-    contacts: contactIds(m, side).map((id) => soldierView(m.soldiers[id]!)),
+    contacts: [...new Set([...contactIds(m, side), ...assetContacts(m, side).map((s) => s.id)])].map((id) => soldierView(m.soldiers[id]!)),
     lastKnown: lastKnown(m, side),
     squads: m.squads.filter((sq) => sq.side === side).map((sq, i) => squadView(m, sq, i)),
     points: m.points.map((p) => ({ id: p.id, name: p.name, x: p.x, y: p.y, radius: p.radius, owner: p.owner, progress: p.progress / stage })),

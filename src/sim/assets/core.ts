@@ -4,7 +4,9 @@ import type { Match } from '../index';
 import { inHq, insidePolygon } from '../geometry';
 import { gridRef } from '../grid-ref';
 import type { Mix } from '../state';
-import { enemyOf, SIDES, type AssetKind, type AssetView, type Command, type EffectView, type SideId, type SimEvent, type Tune } from '../types';
+import type { Soldier } from '../state';
+import { enemyOf, SIDES, type AssetKind, type AssetView, type Command, type EffectView, type SideId, type SimEvent, type Tune, type Vec2 } from '../types';
+import { barrage, type Shell } from './barrage';
 import { scan } from './scan';
 
 /** One called Asset at work. `until` is the first tick it no longer works. */
@@ -15,6 +17,7 @@ export interface Effect {
   y: number;
   until: number;
   told: boolean; // its "on effect" radio line went out
+  shells?: Shell[]; // #40 Barrage
 }
 
 export interface Assets {
@@ -29,14 +32,25 @@ export interface Kind {
   radius(t: Tune): number;
   /** Runs once a tick while the effect works. */
   work(m: Match, e: Effect, events: SimEvent[]): void;
+  /** #40: ready this long after the match starts, rather than at once. */
+  firstReadySeconds?(t: Tune): number;
+  /** #40: runs once as the Asset is called, to set up the effect (seeded draws go here). */
+  start?(m: Match, e: Effect): void;
+  /** #40: the Soldier is kept off the ground: a spot to run to, 'hold' to stand, or null when not affected. */
+  avoid?(m: Match, e: Effect, s: Soldier): Vec2 | 'hold' | null;
+  /** #40: enemies of the caller the effect shows as Contacts for as long as it lasts. */
+  contacts?(m: Match, e: Effect): Soldier[];
+  /** #40: extra fields for the effect's view. */
+  view?(m: Match, e: Effect): Partial<EffectView>;
+  hash?(e: Effect, mix: Mix): void;
 }
 
-const KINDS: Partial<Record<AssetKind, Kind>> = { scan };
+const KINDS: Partial<Record<AssetKind, Kind>> = { scan, barrage };
 const ORDER: AssetKind[] = ['scan', 'supply', 'barrage'];
 const kinds = () => ORDER.filter((k) => KINDS[k]);
 
-export function newAssets(): Assets {
-  const ready = () => Object.fromEntries(kinds().map((k) => [k, 0]));
+export function newAssets(t: Tune): Assets {
+  const ready = () => Object.fromEntries(kinds().map((k) => [k, Math.round((KINDS[k]!.firstReadySeconds?.(t) ?? 0) * t.hz)]));
   return { readyAt: { nato: ready(), pact: ready() }, effects: [] };
 }
 
@@ -61,6 +75,7 @@ export function call(m: Match, c: Extract<Command, { kind: 'asset' }>, events: S
   const t = m.tune;
   m.assets.readyAt[c.side][c.asset] = m.tick + Math.round(kind.cooldownSeconds(t) * t.hz);
   const e: Effect = { side: c.side, asset: c.asset, x: c.at.x, y: c.at.y, until: m.tick + Math.round(kind.seconds(t) * t.hz), told: false };
+  kind.start?.(m, e);
   m.assets.effects.push(e);
   assetRadio(m, e, `${kind.name} inbound`, events);
 }
@@ -69,6 +84,20 @@ export function call(m: Match, c: Extract<Command, { kind: 'asset' }>, events: S
 export function assetEffects(m: Match, events: SimEvent[]) {
   for (const e of m.assets.effects) KINDS[e.asset]!.work(m, e, events);
   m.assets.effects = m.assets.effects.filter((e) => e.until > m.tick + 1);
+}
+
+/** Where `s` must go (or 'hold') to keep clear of the Assets at work, or null. */
+export function avoid(m: Match, s: Soldier): Vec2 | 'hold' | null {
+  for (const e of m.assets.effects) {
+    const a = KINDS[e.asset]!.avoid?.(m, e, s);
+    if (a) return a;
+  }
+  return null;
+}
+
+/** Enemies of `side` its Assets show as Contacts right now. */
+export function assetContacts(m: Match, side: SideId): Soldier[] {
+  return m.assets.effects.filter((e) => e.side === side).flatMap((e) => KINDS[e.asset]!.contacts?.(m, e) ?? []);
 }
 
 export function assetViews(m: Match, side: SideId): AssetView[] {
@@ -85,7 +114,7 @@ export function effectViews(m: Match, side: SideId): EffectView[] {
   const t = m.tune;
   return m.assets.effects
     .filter((e) => e.side === side)
-    .map((e) => ({ asset: e.asset, x: e.x, y: e.y, radius: KINDS[e.asset]!.radius(t), left: (e.until - m.tick) / t.hz, total: KINDS[e.asset]!.seconds(t) }));
+    .map((e) => ({ asset: e.asset, x: e.x, y: e.y, radius: KINDS[e.asset]!.radius(t), left: (e.until - m.tick) / t.hz, total: KINDS[e.asset]!.seconds(t), ...KINDS[e.asset]!.view?.(m, e) }));
 }
 
 export function hashAssets(m: Match, mix: Mix) {
@@ -98,5 +127,6 @@ export function hashAssets(m: Match, mix: Mix) {
     mix(Math.round(e.y * 1000));
     mix(e.until);
     mix(e.told ? 1 : 0);
+    KINDS[e.asset]!.hash?.(e, mix);
   }
 }
