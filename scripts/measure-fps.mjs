@@ -26,7 +26,7 @@ for (const [width, height] of [[1366, 768], [1920, 1080]]) {
           dts.push(now - last);
           last = now;
           if (now - t0 < ms) requestAnimationFrame(f);
-          else resolve({ dts, webgl2: !!document.querySelector('canvas').getContext('webgl2') });
+          else resolve({ dts, webgl2: !!document.querySelector('canvas:not(#hud)').getContext('webgl2') });
         };
         requestAnimationFrame(f);
       }),
