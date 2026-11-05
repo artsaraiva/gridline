@@ -91,11 +91,14 @@ export function think(m: Match, sq: Squad, events: SimEvent[]) {
     const others = m.squads.filter((o) => o !== sq && o.side === sq.side && o.task === 'point' && o.goal === i).length;
     v -= p.owner === foe ? (others === 1 ? -t.pairUp : t.crowdPenalty * Math.max(0, others - 1)) : t.crowdPenalty * others;
     if (sq.task === 'point' && sq.goal === i) v += t.stickiness;
+    if (sq.order?.point === i) v += t.orderBonus;
     if (v > bestScore) {
       bestScore = v;
       best = i;
     }
   });
+
+  if (sq.order) best = sq.order.point; // an Order is never lost to a better-scoring point, whatever the distance
 
   const prevTask = sq.task;
   const prevGoal = sq.goal;

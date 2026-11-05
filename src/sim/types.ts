@@ -156,6 +156,9 @@ export interface Tune {
   hearM: number; // Soldiers this close to a shooter hear it (the target always does)
 
   // #36 Orders
+  orderBonus: number; // added to the score of the Squad's ordered point
+  orderAckMinSeconds: number; // a Squad acknowledges (and starts on) an Order after a seeded lag between these
+  orderAckMaxSeconds: number;
 
   // #37 Assets: core and Scan
   scanCooldownSeconds: number; // from the call; Scan is ready at match start
@@ -220,6 +223,12 @@ export interface SquadView {
   point?: string | null;
   /** #34: the crossing id it takes to get there, when the water is in the way. */
   route?: string | null;
+  /**
+   * #36: the Squad's standing Order, null/absent = none. `pending` until the Squad has acknowledged it (the old Order, if any,
+   * still stands until then; a pending clear has `point: null`); then `following` it, `holding` the point (own, or taken),
+   * or `delayed` by survival, with its `reason`.
+   */
+  order?: { point: string | null; state: 'pending' | 'following' | 'delayed' | 'holding'; reason?: 'retreat' | 'resupply' } | null;
 }
 
 export interface PointView {

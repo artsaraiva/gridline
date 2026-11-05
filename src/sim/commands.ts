@@ -1,7 +1,8 @@
 // Command handling: each kind is checked, then applied; a Command that fails its check becomes a `rejected` SimEvent.
-// Orders are #36's, Assets #37's: each fills in its own kind's check and apply.
+// Orders are #36's (orders.ts), Assets #37's: each fills in its own kind's check and apply.
 import { call, checkCall } from './assets/core';
 import type { Match } from './index';
+import { giveOrder } from './orders';
 import type { Command, SimEvent } from './types';
 
 type Of<K extends Command['kind']> = Extract<Command, { kind: K }>;
@@ -17,7 +18,7 @@ const order: Handler<Of<'order'>> = {
     m.squads[c.squad]?.side !== c.side ? 'unknown squad'
     : c.point !== null && !m.points.some((p) => p.id === c.point) ? 'unknown point'
     : null,
-  apply: () => {}, // not acted on yet (#36)
+  apply: giveOrder,
 };
 
 const asset: Handler<Of<'asset'>> = { check: checkCall, apply: call };

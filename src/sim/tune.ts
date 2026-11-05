@@ -102,6 +102,9 @@ export const DEFAULT_TUNE: Tune = {
   hearM: 90,
 
   // #36 Orders
+  orderBonus: 1.5,
+  orderAckMinSeconds: 1,
+  orderAckMaxSeconds: 2,
 
   // #37 Assets: core and Scan
   scanCooldownSeconds: 60,
