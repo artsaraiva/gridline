@@ -2,10 +2,12 @@
 import './input';
 import { drawAssetRail } from './chrome/assets';
 import { drawRadioLog, logRadio, showRadioLog } from './chrome/radio-log';
+import { drawRail, toastEvent } from './chrome/rail';
 import { drawSquads } from './chrome/squads';
 import { drawChevrons } from './layers/chevrons';
 import { drawLastKnown } from './layers/contacts';
 import { drawEffects, hideEffectLabels } from './layers/effects';
+import { drawGrid } from './layers/grid';
 import { addImpact, drawImpacts } from './layers/impacts';
 import { addDeathMarker, drawDeathMarkers } from './layers/markers';
 import { watchFrame } from './layers/map';
@@ -16,7 +18,6 @@ import { UNIT_PX } from './layers/symbols';
 import { addShot, drawTracers } from './layers/tracers';
 import { checkEnd } from './match-flow';
 import { renderFeed } from './post';
-import { drawReadout } from './readout';
 import { metresPerPx, pxToWorld, renderer } from './renderer';
 import { session } from './session';
 
@@ -26,10 +27,11 @@ renderer.setAnimationLoop(() => {
   const now = performance.now();
   if (!host) {
     session.view = null;
-    drawReadout(null);
+    drawRail(null);
     drawAssetRail(null);
     drawSquads(null);
     showRadioLog(false);
+    drawGrid(null, 0);
     hideEffectLabels();
     hideOrderTags();
     lastFrame = now;
@@ -45,16 +47,19 @@ renderer.setAnimationLoop(() => {
     else if (e.kind === 'impact') addImpact(e.x, e.y, now);
     else if (e.kind === 'shot' || e.kind === 'suppressive') addShot(e, view, now);
     logRadio(e, view);
+    toastEvent(e, view);
   }
   metresPerPx.value = pxToWorld();
   const scale = UNIT_PX * metresPerPx.value; // one symbol unit in metres
+  drawRail(view);
   drawAssetRail(view); // before the effects: their labels keep clear of the map Confirm button it places
-  drawImpacts(now);
-  drawEffects(view, scale, now);
-  drawOrders(view, metresPerPx.value);
   drawSquads(view);
   showRadioLog(true);
   drawRadioLog(now);
+  drawGrid(view, now);
+  drawImpacts(now);
+  drawEffects(view, scale, now);
+  drawOrders(view, metresPerPx.value);
   drawDeathMarkers(now, scale);
   drawLastKnown(view, scale);
   drawChevrons(view, scale);
@@ -63,6 +68,5 @@ renderer.setAnimationLoop(() => {
   drawSquadFrames(view, scale);
   drawTracers(now, scale);
   checkEnd(view);
-  drawReadout(view);
   renderFeed();
 });
