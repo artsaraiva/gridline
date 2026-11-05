@@ -48,4 +48,35 @@ describe('calling an Asset', () => {
     expect(rejections(events)).toEqual([]);
     expect(events).toContainEqual(expect.objectContaining({ kind: 'radio', side: 'nato', squad: null, grid: 'G6' }));
   });
+
+  it('the cooldown starts on the call: Scan is rejected for 60 s, then ready again', () => {
+    const m = scene();
+    const readyIn = () => commanderView(m, 'nato').assets!.find((a) => a.asset === 'scan')!.readyIn;
+    step(m, [scan(m, { x: 0, y: 0 })]);
+    expect(readyIn()).toBeCloseTo(60 - 1 / HZ);
+    run(m, 30 * HZ - 1);
+    expect(readyIn()).toBe(30);
+    expect(rejections(step(m, [scan(m, { x: 0, y: 0 })]))).toEqual(['cooling down']);
+    run(m, 30 * HZ - 1);
+    expect(readyIn()).toBe(0);
+    expect(rejections(step(m, [scan(m, { x: 0, y: 0 })]))).toEqual([]);
+  });
+
+  it('each Side has its own cooldown', () => {
+    const m = scene();
+    step(m, [scan(m, { x: 0, y: 0 })]);
+    expect(rejections(step(m, [{ ...scan(m, { x: 0, y: 0 }), side: 'pact' }]))).toEqual([]);
+  });
+
+  it('is rejected outside the Play Area or on the enemy HQ, and the cooldown does not start', () => {
+    const m = scene();
+    expect(rejections(step(m, [scan(m, { x: 0, y: 700 })]))).toEqual(['outside the Play Area']);
+    expect(rejections(step(m, [scan(m, { x: 550, y: 10 })]))).toEqual(['on the enemy HQ']);
+    expect(rejections(step(m, [scan(m, { x: -550, y: 10 })]))).toEqual([]); // the own HQ is fine
+  });
+
+  it('only Scan UAV can be called for now', () => {
+    const m = scene();
+    expect(rejections(step(m, [{ ...scan(m, { x: 0, y: 0 }), asset: 'supply' }]))).toEqual(['not available']);
+  });
 });
