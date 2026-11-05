@@ -4,10 +4,11 @@
 import * as THREE from 'three/webgpu';
 import { dot, float, floor, fract, fwidth, length, mix, positionWorld, screenCoordinate, smoothstep, step, texture, uv, vec2, vec3, vec4 } from 'three/tsl';
 import type { BakedMap } from '../../maps/baked';
+import { atFallback, frameBudget, playStart } from '../../maps/quality';
 import type { MapData, SideId } from '../../sim/types';
 import { SIDES } from '../../sim/types';
 import { RAILS } from '../chrome/rail';
-import { camera, COLOR, grade, layer } from '../renderer';
+import { camera, COLOR, grade, layer, renderer } from '../renderer';
 import { session } from '../session';
 import { boundarySdf, SDF_PER_M } from './boundary';
 
@@ -33,10 +34,23 @@ async function bitmap(url: string): Promise<ImageBitmap> {
 
 interface Textures {
   play: THREE.Texture;
+  /** The bitmaps of the play texture's mip chain, from the level it starts at. */
+  levels: ImageBitmap[];
   outer: THREE.Texture;
   sdf: THREE.Texture;
 }
 const loaded = new Map<string, Promise<Textures>>();
+/** Index into `images.play` the play texture starts at: 0 is the full 8192 bake, 1 the 4096 fallback (#45). */
+let start = 0;
+let active: Textures | null = null;
+let budget = frameBudget();
+
+/** The largest texture the GPU backend takes, in px (WebGPU limit, or WebGL 2's MAX_TEXTURE_SIZE in the fallback). */
+async function maxTextureSize(): Promise<number> {
+  await renderer.init();
+  const b = renderer.backend as unknown as { device?: { limits: { maxTextureDimension2D: number } }; gl?: WebGL2RenderingContext };
+  return b.device?.limits.maxTextureDimension2D ?? b.gl?.getParameter(b.gl.MAX_TEXTURE_SIZE) ?? 4096;
+}
 
 /** three's GPU mip generation came out dark at 8192 on WebGPU, so the bake ships a ready-made chain and the Texture gets it whole. */
 function textures(map: BakedMap): Promise<Textures> {
@@ -44,7 +58,8 @@ function textures(map: BakedMap): Promise<Textures> {
   if (!t) {
     const dir = `${import.meta.env.BASE_URL}maps/${map.name.toLowerCase()}/`;
     t = (async () => {
-      const [levels, outerImage] = await Promise.all([Promise.all(map.images.play.map((f) => bitmap(dir + f))), bitmap(dir + map.images.outer.file)]);
+      start = playStart(map.images.play.length, await maxTextureSize(), new URLSearchParams(location.search).get('bake') === '4096');
+      const [levels, outerImage] = await Promise.all([Promise.all(map.images.play.slice(start).map((f) => bitmap(dir + f))), bitmap(dir + map.images.outer.file)]);
       const play = new THREE.Texture(levels[0]!);
       play.mipmaps = levels as unknown as HTMLCanvasElement[]; // three takes ImageBitmaps here; its types only list canvases
       play.generateMipmaps = false;
@@ -58,7 +73,7 @@ function textures(map: BakedMap): Promise<Textures> {
         x.flipY = false; // the bitmaps are flipped on decode so row 0 (north) lands at the top
       }
       for (const x of [play, outer, sdf]) x.needsUpdate = true;
-      return { play, outer, sdf };
+      return { play, levels, outer, sdf };
     })();
     loaded.set(map.name, t);
   }
@@ -88,17 +103,21 @@ function playColour(map: BakedMap, t: Textures, commander: SideId): THREE.Node<'
   return mix(mix(c, vec3(0, 0, 0), casing.mul(0.55)), vec3(line.r, line.g, line.b), cream.mul(0.95));
 }
 
-/** Fits the Play Area between the rails and sets the zoom range from the whole surroundings down to the bake's full detail. */
+const zoomFor = (mpp: number) => (camera.top - camera.bottom) / (mpp * innerHeight);
+
+/** Zoom limits: the whole surroundings fill the screen at `min`, the current bake level's full detail is one texel per px at `max`. */
+function setZoomRange(map: BakedMap) {
+  zoomRange.min = zoomFor(map.images.outer.sizeM / innerWidth);
+  zoomRange.max = zoomFor(map.sizeM / 2 ** (map.images.play.length - 1 - start)); // the top level is a power of two px wide
+}
+
+/** Fits the Play Area between the rails and sets the zoom range. */
 export function fitView(map: MapData | BakedMap) {
   const xs = map.playArea.map((p) => p.x);
   const ys = map.playArea.map((p) => p.y);
   const w = Math.max(...xs) - Math.min(...xs);
   const h = Math.max(...ys) - Math.min(...ys);
-  const zoomFor = (mpp: number) => (camera.top - camera.bottom) / (mpp * innerHeight);
-  if ('images' in map) {
-    zoomRange.min = zoomFor(map.images.outer.sizeM / innerWidth);
-    zoomRange.max = zoomFor(map.sizeM / 2 ** (map.images.play.length - 1)); // the top level is a power of two px wide: one texel per px
-  }
+  if ('images' in map) setZoomRange(map);
   const leftPx = RAILS.margin + RAILS.left + RAILS.gap;
   const rightPx = RAILS.margin + RAILS.right + RAILS.gap;
   const freeW = Math.max(1, innerWidth - leftPx - rightPx);
@@ -111,9 +130,27 @@ export function fitView(map: MapData | BakedMap) {
   camera.updateProjectionMatrix();
 }
 
+/** Called every frame of a running match: a sustained miss of the 30 fps floor swaps the play texture to the 4096 level, once. */
+export function watchFrame(dtMs: number, map: MapData | BakedMap) {
+  if (!active || !('images' in map) || atFallback(map.images.play.length, start) || !budget.frame(dtMs)) return;
+  const t = active;
+  t.levels.shift()!.close();
+  start++;
+  t.play.image = t.levels[0]!;
+  t.play.mipmaps = t.levels as unknown as HTMLCanvasElement[];
+  t.play.dispose(); // drops the 8192 GPU texture; the next frame uploads the smaller chain
+  t.play.needsUpdate = true;
+  setZoomRange(map);
+  camera.zoom = Math.min(camera.zoom, zoomRange.max);
+  camera.updateProjectionMatrix();
+  console.info(`map: frame rate under 30 fps, play texture now ${2 ** (map.images.play.length - 1 - start)} px`);
+}
+
 export async function drawMap(map: MapData | BakedMap) {
-  fitView(map);
+  active = null;
+  budget = frameBudget();
   if (!('images' in map)) {
+    fitView(map);
     const ground = new THREE.MeshBasicNodeMaterial();
     const { r, g, b } = new THREE.Color(COLOR.ground); // linear
     ground.colorNode = grade(vec3(r, g, b));
@@ -123,6 +160,8 @@ export async function drawMap(map: MapData | BakedMap) {
     return;
   }
   const t = await textures(map);
+  active = t;
+  fitView(map);
   const outerM = map.images.outer.sizeM;
   const outerMat = new THREE.MeshBasicNodeMaterial();
   outerMat.colorNode = vec4(oob(t.outer, outerM / OOB_BLOCK_M, 1), 1);

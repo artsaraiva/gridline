@@ -10,6 +10,7 @@ import { drawEffects, hideEffectLabels } from './layers/effects';
 import { drawGrid } from './layers/grid';
 import { addImpact, drawImpacts } from './layers/impacts';
 import { addDeathMarker, drawDeathMarkers } from './layers/markers';
+import { watchFrame } from './layers/map';
 import { drawOrders, hideOrderTags } from './layers/orders';
 import { drawHqs, drawPoint } from './layers/points';
 import { drawSquadFrames } from './layers/squads';
@@ -20,8 +21,10 @@ import { renderFeed } from './post';
 import { metresPerPx, pxToWorld, renderer } from './renderer';
 import { session } from './session';
 
+let lastFrame = performance.now();
 renderer.setAnimationLoop(() => {
   const host = session.host;
+  const now = performance.now();
   if (!host) {
     session.view = null;
     drawRail(null);
@@ -31,10 +34,12 @@ renderer.setAnimationLoop(() => {
     drawGrid(null, 0);
     hideEffectLabels();
     hideOrderTags();
+    lastFrame = now;
     renderFeed();
     return;
   }
-  const now = performance.now();
+  watchFrame(now - lastFrame, host.map);
+  lastFrame = now;
   const view = host.sample(now);
   session.view = view;
   for (const e of host.takeEvents()) {
