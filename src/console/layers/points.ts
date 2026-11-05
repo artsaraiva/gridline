@@ -18,10 +18,10 @@ export function drawPoint(p: PointView) {
     r = { ring, arc, progress: NaN };
     rings.set(p.id, r);
   }
-  (r.ring.material as THREE.MeshBasicMaterial).color.setHex(sideColor(p.owner));
+  (r.ring.material as THREE.MeshBasicNodeMaterial).color.setHex(sideColor(p.owner));
   if (p.progress === r.progress) return;
   r.progress = p.progress;
   r.arc.geometry.dispose();
   r.arc.geometry = new THREE.RingGeometry(p.radius + 1, p.radius + 4, 64, 1, Math.PI / 2, -Math.abs(p.progress) * Math.PI * 2);
-  (r.arc.material as THREE.MeshBasicMaterial).color.setHex(sideColor(p.progress > 0 ? 'nato' : 'pact'));
+  (r.arc.material as THREE.MeshBasicNodeMaterial).color.setHex(sideColor(p.progress > 0 ? 'nato' : 'pact'));
 }

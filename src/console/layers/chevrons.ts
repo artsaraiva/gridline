@@ -20,14 +20,14 @@ function draw(list: (SoldierView | FriendlyView)[], kind: 'friendly' | 'hostile'
     let mesh = chevrons.get(key);
     if (!mesh) {
       mesh = new THREE.Mesh(chevronGeometry, flat(COLOR[kind]));
-      (mesh.material as THREE.MeshBasicMaterial).transparent = true;
+      (mesh.material as THREE.MeshBasicNodeMaterial).transparent = true;
       layer.add(mesh);
       chevrons.set(key, mesh);
     }
     mesh.position.set(c.x, c.y, 1);
     mesh.rotation.z = Math.atan2(c.fy, c.fx);
     mesh.scale.setScalar(scale);
-    (mesh.material as THREE.MeshBasicMaterial).opacity = 'state' in c && c.state === 'wounded' ? 0.35 : 1;
+    (mesh.material as THREE.MeshBasicNodeMaterial).opacity = 'state' in c && c.state === 'wounded' ? 0.35 : 1;
     seen.add(key);
   }
 }

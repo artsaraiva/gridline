@@ -6,7 +6,8 @@ import { addDeathMarker, drawDeathMarkers } from './layers/markers';
 import { drawPoint } from './layers/points';
 import { checkEnd } from './match-flow';
 import { drawReadout } from './readout';
-import { camera, pxToWorld, renderer, scene } from './renderer';
+import { renderFeed } from './post';
+import { metresPerPx, pxToWorld, renderer } from './renderer';
 import { session } from './session';
 
 const CHEVRON_PX = 14;
@@ -15,18 +16,19 @@ renderer.setAnimationLoop(() => {
   const host = session.host;
   if (!host) {
     drawReadout(null);
-    renderer.render(scene, camera);
+    renderFeed();
     return;
   }
   const now = performance.now();
   const view = host.sample(now);
   for (const e of host.takeEvents()) if (e.kind === 'death') addDeathMarker(e.x, e.y, e.side, now);
-  const scale = CHEVRON_PX * pxToWorld();
+  metresPerPx.value = pxToWorld();
+  const scale = CHEVRON_PX * metresPerPx.value;
   drawDeathMarkers(now, scale);
   drawLastKnown(view, scale);
   drawChevrons(view, scale);
   view.points.forEach(drawPoint);
   checkEnd(view);
   drawReadout(view);
-  renderer.render(scene, camera);
+  renderFeed();
 });

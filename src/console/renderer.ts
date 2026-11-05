@@ -1,9 +1,11 @@
 // three.js renderer, scene and orthographic map camera, plus the per-match `layer` every map layer draws into.
 import * as THREE from 'three/webgpu';
+import { dot, float, mix, mrt, uniform, vec3 } from 'three/tsl';
 import type { SideId } from '../sim/types';
 import { session } from './session';
 
-export const COLOR = { bone: 0xe8e2c8, friendly: 0x6fd0ff, hostile: 0xff4b3e, ground: 0x262c22 };
+// The feed palette; console.css carries the same values as CSS variables for the chrome.
+export const COLOR = { bone: 0xe8e2c8, friendly: 0x6fd0ff, hostile: 0xff4b3e, amber: 0xffc23d, ink: 0x05090b, ground: 0x454c3e };
 
 export const renderer = new THREE.WebGPURenderer({ antialias: true }); // falls back to WebGL 2 without WebGPU
 renderer.setPixelRatio(devicePixelRatio);
@@ -29,11 +31,31 @@ addEventListener('resize', resize);
 
 /** World metres per screen pixel at the current zoom. */
 export const pxToWorld = () => (camera.top - camera.bottom) / camera.zoom / innerHeight;
+/** `pxToWorld()` for shaders; main.ts sets it every frame. */
+export const metresPerPx = uniform(1);
 
 // Everything drawn for one match lives in `layer`, emptied whole when the next match starts.
 // ponytail: dropped objects' materials and ring geometries are not disposed; a few dozen leak per match.
 export const layer = new THREE.Group();
 scene.add(layer);
 
-export const flat = (color: number) => new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide });
+/** Symbology material: flat colour, and it glows (post.ts blooms whatever writes `glow`). */
+export function flat(color: number) {
+  const material = new THREE.MeshBasicNodeMaterial({ color, side: THREE.DoubleSide });
+  material.mrtNode = mrt({ glow: float(1) });
+  return material;
+}
+
+/**
+ * The BF4 tablet grade (approved on map look-dev) for linear colour: near-grey, cool tint, contrast 1.5 as a power
+ * curve around linear mid-grey, slight lift, soft highlight shoulder. The map, sprites and effects take it; symbology
+ * keeps the palette.
+ */
+const LUMA = vec3(0.2126, 0.7152, 0.0722);
+export function grade(c: THREE.Node<'vec3'>): THREE.Node<'vec3'> {
+  const exposed = c.mul(0.98);
+  const tinted = mix(vec3(dot(exposed, LUMA)), exposed, 0.12).mul(vec3(0.68, 0.9, 1.14));
+  const contrasted = tinted.div(0.18).pow(1.5).mul(0.18).add(0.003);
+  return mix(contrasted, contrasted.div(contrasted.add(1)).mul(2), 0.3);
+}
 export const sideColor = (s: SideId | null) => (s === null ? COLOR.bone : s === session.commanderSide ? COLOR.friendly : COLOR.hostile);

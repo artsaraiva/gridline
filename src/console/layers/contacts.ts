@@ -26,6 +26,6 @@ export function drawLastKnown(view: CommanderView, scale: number) {
     if (!lkp) continue;
     mesh.position.set(lkp.x, lkp.y, 0.9);
     mesh.scale.setScalar(scale);
-    (mesh.material as THREE.MeshBasicMaterial).opacity = lkp.fade;
+    (mesh.material as THREE.MeshBasicNodeMaterial).opacity = lkp.fade;
   }
 }
