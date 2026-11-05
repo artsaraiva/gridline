@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { commanderView, createMatch, step, type Match } from './index';
+import { commanderEvents, commanderView, createMatch, step, type Match } from './index';
 import { DEFAULT_TUNE } from './tune';
-import type { CommanderView, MapData, Tune } from './types';
+import type { CommanderView, MapData, SideId, SimEvent, Tune } from './types';
 
 const HZ = DEFAULT_TUNE.hz;
 
@@ -132,5 +132,55 @@ describe('squad memory', () => {
     expect(memory(m, 0)).toEqual([[3, 'heard']]);
     expect(memory(m, 1)).toEqual([[3, 'heard']]);
     expect(memory(m, 2)).toEqual([]);
+  });
+});
+
+describe('the enemy roster', () => {
+  it('never reaches the view: no enemy Squads, strength or redeploy timers', () => {
+    // three Squads a Side; nato 0 and pact 3 shoot each other dead, so a pact Squad is wiped and waiting to Redeploy
+    const m = scene({ 0: { x: 0, y: 0 }, 3: { x: 100, y: 0, fx: -1 } }, { tune: { hp: 100, hitChance: 1, damage: [100, 100] }, squads: 3 });
+    for (const v of play(m, 12 * HZ)) {
+      expect(Object.keys(v).sort()).toEqual(['contacts', 'friendlies', 'lastKnown', 'points', 'result', 'seconds', 'side', 'squads', 'tick', 'tickets']);
+      expect(v.squads.map((q) => q.id)).toEqual([0, 1, 2]);
+      expect(v.friendlies.every((f) => f.id < 3)).toBe(true);
+    }
+  });
+});
+
+describe('effect events', () => {
+  /** Steps `ticks` times; each Side's filtered events, with the raw ones for comparison. */
+  function watch(m: Match, ticks: number) {
+    const out: Record<SideId | 'all', SimEvent[]> = { nato: [], pact: [], all: [] };
+    for (let i = 0; i < ticks; i++) {
+      const events = step(m, []);
+      out.all.push(...events);
+      out.nato.push(...commanderEvents(m, 'nato', events));
+      out.pact.push(...commanderEvents(m, 'pact', events));
+    }
+    return out;
+  }
+  const shotsBy = (events: SimEvent[], side: SideId) => events.filter((e) => e.kind === 'shot' && e.side === side);
+
+  it("friendly fire always shows; enemy fire only while the shooter is a Contact", () => {
+    // pact 1 fires at nato 0 from behind it, unseen
+    const unseen = watch(scene({ 0: { x: 0, y: 0 }, 1: { x: -100, y: 0, fx: 1 } }), 5 * HZ);
+    expect(shotsBy(unseen.all, 'pact').length).toBeGreaterThan(0);
+    expect(shotsBy(unseen.pact, 'pact')).toEqual(shotsBy(unseen.all, 'pact'));
+    expect(shotsBy(unseen.nato, 'pact')).toEqual([]);
+
+    // face to face: both see the shooter
+    const seen = watch(scene({ 0: { x: 0, y: 0 }, 1: { x: 100, y: 0 } }), 5 * HZ);
+    expect(shotsBy(seen.nato, 'pact').length).toBeGreaterThan(0);
+    expect(shotsBy(seen.nato, 'pact')).toEqual(shotsBy(seen.all, 'pact'));
+  });
+
+  it("an enemy's Wounding shows when it is a Contact; its death and Redeploy never do", () => {
+    // two Squads of 1 a Side: nato 0 and pact 2 shoot each other on tick 0, bleed out at 8 s and Redeploy at 28 s
+    const m = scene({ 0: { x: 0, y: 0, fx: -1 }, 2: { x: -100, y: 0, fx: 1 } }, { tune: { hp: 100, hitChance: 1, damage: [100, 100] }, squads: 2 });
+    const { nato, all } = watch(m, 30 * HZ);
+    const kinds = (events: SimEvent[], side: SideId) => events.filter((e) => e.kind !== 'shot' && e.side === side).map((e) => e.kind);
+    expect(kinds(all, 'pact')).toEqual(['wounded', 'death', 'redeploy']);
+    expect(kinds(nato, 'pact')).toEqual(['wounded']);
+    expect(kinds(nato, 'nato')).toEqual(['wounded', 'death', 'redeploy']);
   });
 });

@@ -56,8 +56,11 @@ export function forget(m: Match) {
   for (const side of SIDES) m.sightings[side] = m.sightings[side].filter(fresh(t.lkpSeconds));
 }
 
-// Both read on a view, after `step` moved the tick on: the latest perception phase ran at tick - 1.
+// Read on a view, after `step` moved the tick on: the latest perception phase ran at tick - 1.
 const isContact = (m: Match, s: Sighting) => s.tick === m.tick - 1 && m.soldiers[s.id]!.state === 'alive';
+
+/** Whether a Soldier of `side` saw enemy `id` in the latest perception phase (it may have been Wounded since). */
+export const justSeen = (m: Match, side: SideId, id: number) => m.sightings[side].some((s) => s.id === id && s.tick === m.tick - 1);
 
 /** Enemies seen in the latest perception phase and still standing. */
 export function contactIds(m: Match, side: SideId): number[] {

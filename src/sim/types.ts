@@ -193,7 +193,7 @@ export interface CommanderView {
   result: MatchResult | null;
 }
 
-/** Things that happened this tick. No fog filter yet: every Side's events. */
+/** Things that happened this tick, on every Side; `commanderEvents` keeps the ones a Side's Console may show. */
 export type SimEvent =
   | { kind: 'shot'; side: SideId; from: number; to: number; hit: boolean }
   | { kind: 'wounded' | 'death' | 'respawn'; side: SideId; id: number; x: number; y: number }

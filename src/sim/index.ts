@@ -14,7 +14,7 @@ import { hashSoldiers, hashSquads, sign, stageTicks, type Point, type Soldier, t
 import { SIDES, type Command, type MapData, type MatchResult, type SideId, type SimEvent, type Tune } from './types';
 
 export * from './types';
-export { commanderView } from './view';
+export { commanderEvents, commanderView } from './view';
 export { gridRef } from './grid-ref';
 
 export interface Match {
