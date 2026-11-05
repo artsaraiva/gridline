@@ -1,0 +1,68 @@
+// Which crossing a Squad takes when the water is between it and its Capture Point.
+import type { Match } from '../index';
+import { dist2 } from '../geometry';
+import { rnd } from '../rng';
+import type { Mix, Squad } from '../state';
+import type { SideId, Vec2 } from '../types';
+import { flowDist, routeFlow } from './flow';
+
+/** A Soldier death, kept `routeLossSeconds` so Squads steer clear of crossings that cost them. */
+export interface Death {
+  side: SideId;
+  x: number;
+  y: number;
+  tick: number;
+}
+
+export function logDeath(m: Match, d: Death) {
+  const t = m.tune;
+  m.deaths = m.deaths.filter((o) => m.tick - o.tick < t.routeLossSeconds * t.hz);
+  m.deaths.push(d);
+}
+
+export function hashDeaths(m: Match, mix: Mix) {
+  mix(m.deaths.length);
+  for (const d of m.deaths) {
+    mix(Math.round(d.x * 1000));
+    mix(Math.round(d.y * 1000));
+    mix(d.tick);
+  }
+}
+
+/**
+ * Sets `sq.route` for heading from `from` to point `p`. Each crossing's route is its length, plus `routeSeenM` per enemy the Side
+ * saw near it lately, `routeLossM` per own death near it lately and `routeMateM` per other own Squad taking it to the same point,
+ * plus seeded jitter; routes more than `routeMaxDetourM` longer than the shortest are dropped. The `bridge` takes no danger.
+ * No route when the crossing makes no difference (the point is on this bank).
+ */
+export function chooseRoute(m: Match, sq: Squad, from: Vec2, p: number) {
+  const t = m.tune;
+  const crossings = m.map.crossings ?? [];
+  sq.route = -1;
+  const lengths = crossings.map((_, c) => flowDist(m, routeFlow(m, p, c), from));
+  const reachable = lengths.filter((d) => d < Infinity);
+  if (reachable.length < 2) return;
+  const shortest = Math.min(...reachable);
+  if (Math.max(...reachable) - shortest < 10) return;
+  const near = (a: Vec2, b: Vec2, r: number) => dist2(a, b) < r * r;
+  let best = Infinity;
+  crossings.forEach((c, i) => {
+    if (!(lengths[i]! <= shortest + t.routeMaxDetourM)) return;
+    const danger = c.kind !== 'bridge';
+    const seen = new Set<number>();
+    if (danger)
+      for (const o of m.squads)
+        if (o.side === sq.side)
+          for (const s of o.memory)
+            if (s.source === 'seen' && m.tick - s.tick < t.routeSeenSeconds * t.hz && near(s, c, t.routeSeenRadiusM)) seen.add(s.id);
+    const lost = danger
+      ? m.deaths.filter((d) => d.side === sq.side && m.tick - d.tick < t.routeLossSeconds * t.hz && near(d, c, t.routeLossRadiusM)).length
+      : 0;
+    const mates = m.squads.filter((o) => o !== sq && o.side === sq.side && o.task === 'point' && o.goal === p && o.route === i).length;
+    const v = lengths[i]! + t.routeSeenM * seen.size + t.routeLossM * lost + t.routeMateM * mates + t.routeJitterM * (rnd(m) * 2 - 1);
+    if (v < best) {
+      best = v;
+      sq.route = i;
+    }
+  });
+}

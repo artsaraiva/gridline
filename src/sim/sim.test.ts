@@ -24,19 +24,22 @@ function start(m: MapData, tune: Partial<Tune> = {}, squadsPerSide = 1, seed = 1
   return createMatch({ seed, map: m, tune: { ...DEFAULT_TUNE, visionM: 0, ...tune }, squadsPerSide, commanderSide: 'nato' });
 }
 
-/** Steps `ticks` times and returns the nato Commander view after every step. */
-function run(match: Match, ticks: number): CommanderView[] {
-  const views: CommanderView[] = [];
+/** The nato Commander view, plus the pact Soldiers from the pact view: ground truth the fog hides from nato. */
+type Seen = CommanderView & { pact: CommanderView['friendlies'] };
+
+/** Steps `ticks` times and returns what each Side sees after every step. */
+function run(match: Match, ticks: number): Seen[] {
+  const views: Seen[] = [];
   for (let i = 0; i < ticks; i++) {
     step(match, []);
-    views.push(commanderView(match, 'nato'));
+    views.push({ ...commanderView(match, 'nato'), pact: commanderView(match, 'pact').friendlies });
   }
   return views;
 }
 
-const inside = (v: CommanderView, p: PointView) => {
+const inside = (v: Seen, p: PointView) => {
   const n = (cs: { x: number; y: number }[]) => cs.filter((c) => (c.x - p.x) ** 2 + (c.y - p.y) ** 2 < p.radius ** 2).length;
-  return { nato: n(v.friendlies), pact: n(v.contacts) };
+  return { nato: n(v.friendlies), pact: n(v.pact) };
 };
 
 describe('capture', () => {
@@ -62,15 +65,19 @@ describe('capture', () => {
   });
 
   it('a full Squad of 4 takes a neutral point in about 8 s', () => {
+    // a Squad walks in as a wedge, a few metres apart: time the capture while all four are inside
     const views = run(start(map([{ x: 0, y: 0 }]), { speedJitter: 0, spread: 0 }), 60 * HZ);
-    const entered = views.findIndex((v) => inside(v, v.points[0]!).nato === 4);
-    const owned = views.findIndex((v) => v.points[0]!.owner === 'nato');
-    expect((owned - entered + 1) / HZ).toBe(8);
+    const secondsPerStage = views.slice(1).flatMap((v, i) => {
+      const gained = v.points[0]!.progress - views[i]!.points[0]!.progress;
+      return inside(views[i]!, v.points[0]!).nato === 4 && v.points[0]!.progress < 1 ? [Math.round(1 / gained / HZ * 1000) / 1000] : [];
+    });
+    expect(secondsPerStage.length).toBeGreaterThan(HZ);
+    expect(new Set(secondsPerStage)).toEqual(new Set([8]));
   });
 
   it('equal numbers inside freeze the progress', () => {
     const views = run(start(map([{ x: 0, y: 0 }], 100)), 60 * HZ);
-    const isContested = (v: CommanderView) => {
+    const isContested = (v: Seen) => {
       const n = inside(v, v.points[0]!);
       return n.nato > 0 && n.nato === n.pact;
     };
@@ -114,7 +121,7 @@ describe('tickets', () => {
     expect(v.tickets).toEqual({ nato: 150, pact: 150 });
   });
 
-  it('the point lead drains 1 enemy Ticket every 8 s, 5 s or 3 s for a lead of 1, 2 or 3', () => {
+  it('the point lead drains 1 enemy Ticket every `drainSeconds` entry for a lead of 1, 2 or 3', () => {
     const views = runaway();
     const intervals: Record<number, number[]> = { 0: [], 1: [], 2: [], 3: [] };
     let since = 0;
@@ -129,10 +136,22 @@ describe('tickets', () => {
       }
     }
     expect(intervals[0]).toEqual([]);
-    for (const [l, s] of [[1, 8], [2, 5], [3, 3]] as const) {
+    for (const l of [1, 2, 3] as const) {
+      const s = DEFAULT_TUNE.drainSeconds[l - 1]!;
       expect(intervals[l]!.length).toBeGreaterThan(0);
       expect(new Set(intervals[l])).toEqual(new Set([s]));
     }
+  });
+
+  it('a lead of 4 or 5 drains faster than a lead of 3, and each step up is faster', () => {
+    const lost = (lead: number) => {
+      const m = start(map([0, 1, 2, 3, 4].map((i) => ({ x: i * 10, y: 0 }))), { squadSize: 1, matchSeconds: 1e6 });
+      m.points.forEach((p, i) => (p.owner = i < lead ? 'nato' : null));
+      for (let i = 0; i < 60 * HZ; i++) step(m, []);
+      return 150 - m.tickets.pact;
+    };
+    const rates = [1, 2, 3, 4, 5].map(lost);
+    expect(rates.every((n, i) => i === 0 || n > rates[i - 1]!)).toBe(true);
   });
 
   it('a Side loses the moment its Tickets reach 0', () => {
@@ -187,8 +206,30 @@ describe('determinism', () => {
 
 describe('squads', () => {
   it('fields any number of Squads per Side', () => {
-    const v = commanderView(start(map([{ x: 0, y: 0 }]), {}, 8), 'pact');
-    expect(v.friendlies).toHaveLength(32);
-    expect(v.contacts).toHaveLength(32);
+    const m = start(map([{ x: 0, y: 0 }]), {}, 8);
+    expect(commanderView(m, 'nato').friendlies).toHaveLength(32);
+    expect(commanderView(m, 'pact').friendlies).toHaveLength(32);
+  });
+});
+
+describe('commands', () => {
+  const field = map([{ x: 0, y: 0 }]); // one Squad a Side: nato Squad 0, pact Squad 1
+  const rejected = (command: Command) => step(start(field), [command]).filter((e) => e.kind === 'rejected');
+
+  it("an Order for a Squad the Side doesn't command is rejected", () => {
+    const order: Command = { tick: 0, side: 'nato', kind: 'order', squad: 1, point: 'p0' };
+    expect(rejected(order)).toEqual([{ kind: 'rejected', side: 'nato', command: order, reason: 'unknown squad' }]);
+    expect(rejected({ ...order, squad: 9 })).toHaveLength(1);
+  });
+
+  it('an Order naming a Capture Point the map lacks is rejected', () => {
+    const order: Command = { tick: 0, side: 'nato', kind: 'order', squad: 0, point: 'Z' };
+    expect(rejected(order)).toEqual([{ kind: 'rejected', side: 'nato', command: order, reason: 'unknown point' }]);
+  });
+
+  it('an Order for an own Squad, a cleared Order and an Asset are accepted', () => {
+    expect(rejected({ tick: 0, side: 'pact', kind: 'order', squad: 1, point: 'p0' })).toEqual([]);
+    expect(rejected({ tick: 0, side: 'nato', kind: 'order', squad: 0, point: null })).toEqual([]);
+    expect(rejected({ tick: 0, side: 'nato', kind: 'asset', asset: 'scan', at: { x: 0, y: 0 } })).toEqual([]);
   });
 });

@@ -6,12 +6,16 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:replay": "playwright test",
+    "balance": "node scripts/run-balance.mjs",
+    "bench": "node scripts/run-bench.mjs"
   },
   "dependencies": {
     "three": "0.186.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@types/node": "^22.20.5",
     "@types/three": "0.186.0",
     "typescript": "^5.9.3",

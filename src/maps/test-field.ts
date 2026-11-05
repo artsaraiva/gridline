@@ -17,4 +17,5 @@ export const TEST_FIELD: MapData = {
     { id: 'B', name: 'B', x: 0, y: 0 },
     { id: 'C', name: 'C', x: 0, y: -200 },
   ],
+  grid: { cols: 8, rows: 8, squareM: 75, letters: 'ABCDEFGH' },
 };

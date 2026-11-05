@@ -1,0 +1,86 @@
+// The Soldier layer: where to step this tick (reviving, a spot its Squad sent it to, the wedge, the flow field) and the step itself.
+import type { Match } from '../index';
+import { avoid } from '../assets/core';
+import { canStand, dist2, inHq } from '../geometry';
+import { lineWalk, walkCost } from '../grid';
+import { membersOf, type Soldier } from '../state';
+import type { Vec2 } from '../types';
+import { flowLook } from './flow';
+import { flowOf, wedgeSlot } from './squad';
+
+/** One tick of walking. Faces where it walks unless it has a target. A Soldier in its own HQ gets a full load of ammo. */
+export function walk(m: Match, s: Soldier) {
+  const t = m.tune;
+  if (inHq(m, s.side, s)) s.ammo = t.ammo; // Capture Points never refill
+  const clear = avoid(m, s); // kept off the ground an Asset (the Barrage) is working
+  if (clear) {
+    if (clear !== 'hold') step(m, s, clear, s.speed * 1.23 * (1 - 0.3 * s.suppression));
+    return;
+  }
+  const w = m.soldiers[s.reviving];
+  if (w) {
+    if (dist2(s, w) > t.reviveReachM * t.reviveReachM) step(m, s, w, s.speed);
+    return;
+  }
+  const sq = m.squads[s.squad]!;
+  const alive = membersOf(m, sq).filter((o) => o.state === 'alive');
+  const L = alive[0]!;
+  const flow = flowOf(m, sq);
+  let to: Vec2 | null = null;
+  let pace = 1;
+  const spot = s.cover ?? s.dest;
+  if (spot) {
+    while (s.path.length && dist2(s, s.path[0]!) < 1.44) s.path.shift();
+    to = s.path[0] ?? (flow && !lineWalk(m, s, spot) ? flowLook(m, flow, s, 4) : null) ?? spot;
+    pace = s.cover ? 1.18 : s.regroup || s.chaseUntil ? 1.14 : sq.mode === 'bound' ? 0.91 : 0.82;
+  } else if (flow && (sq.mode === 'travel' || sq.mode === 'fallback')) {
+    if (s === L) {
+      to = flowLook(m, flow, s, 4);
+      pace = sq.slow ? 0.5 : sq.mode === 'fallback' ? 1.14 : 1;
+    } else {
+      const slot = wedgeSlot(m, L, alive.indexOf(s), s.slot);
+      if (dist2(s, L) < 22 * 22 && walkCost(m, slot.x, slot.y) && lineWalk(m, s, slot)) {
+        to = slot;
+        pace = dist2(s, slot) > 25 ? 1.23 : 1;
+      } else {
+        to = flowLook(m, flow, s, 4);
+        pace = 1.23;
+      }
+    }
+  }
+  if (!to) return;
+  const terrain = 10 / (walkCost(m, s.x, s.y) || 10);
+  if (!step(m, s, to, s.speed * pace * terrain * (1 - 0.3 * s.suppression))) return;
+  for (const o of alive) { // keep a little apart
+    const ox = s.x - o.x;
+    const oy = s.y - o.y;
+    const d = Math.sqrt(ox * ox + oy * oy);
+    if (o === s || d >= 1.3 || d < 0.01) continue;
+    const p = { x: s.x + (ox / d) * 0.06, y: s.y + (oy / d) * 0.06 };
+    if (canStand(m, s, p)) Object.assign(s, p);
+  }
+}
+
+/** Steps up to `v` metres toward `to`, sliding along whichever axis is free when blocked. False when it did not move. */
+function step(m: Match, s: Soldier, to: Vec2, v: number): boolean {
+  const dx = to.x - s.x;
+  const dy = to.y - s.y;
+  const d = Math.sqrt(dx * dx + dy * dy);
+  if (d < 0.01) return false;
+  if (s.target < 0) {
+    s.fx = dx / d;
+    s.fy = dy / d;
+  }
+  const u = Math.min(v, d);
+  const x = s.x + (dx / d) * u;
+  const y = s.y + (dy / d) * u;
+  if (canStand(m, s, { x, y })) Object.assign(s, { x, y });
+  else if (canStand(m, s, { x, y: s.y })) s.x = x;
+  else if (canStand(m, s, { x: s.x, y })) s.y = y;
+  else if (++s.blocked > 30) { // stuck on a corner: drop the spot, the Squad sends it somewhere else
+    Object.assign(s, { blocked: 0, dest: null, path: [], cover: null });
+    return false;
+  } else return false;
+  s.blocked = 0;
+  return true;
+}
