@@ -8,7 +8,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:replay": "playwright test",
-    "balance": "node scripts/run-balance.mjs"
+    "balance": "node scripts/run-balance.mjs",
+    "bench": "node scripts/run-bench.mjs"
   },
   "dependencies": {
     "three": "0.186.1"

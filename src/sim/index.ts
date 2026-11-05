@@ -20,6 +20,7 @@ import { SIDES, type Command, type MapData, type MatchResult, type SideId, type 
 export * from './types';
 export { commanderEvents, commanderView } from './view';
 export { gridCentre, gridRef } from './grid-ref';
+export { warmFlows } from './ai/flow';
 
 export interface Match {
   tick: number;

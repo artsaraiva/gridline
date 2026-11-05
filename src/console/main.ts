@@ -8,6 +8,7 @@ import { drawLastKnown } from './layers/contacts';
 import { drawEffects, hideEffectLabels } from './layers/effects';
 import { addImpact, drawImpacts } from './layers/impacts';
 import { addDeathMarker, drawDeathMarkers } from './layers/markers';
+import { watchFrame } from './layers/map';
 import { drawOrders, hideOrderTags } from './layers/orders';
 import { drawHqs, drawPoint } from './layers/points';
 import { drawSquadFrames } from './layers/squads';
@@ -19,8 +20,10 @@ import { drawReadout } from './readout';
 import { metresPerPx, pxToWorld, renderer } from './renderer';
 import { session } from './session';
 
+let lastFrame = performance.now();
 renderer.setAnimationLoop(() => {
   const host = session.host;
+  const now = performance.now();
   if (!host) {
     session.view = null;
     drawReadout(null);
@@ -29,10 +32,12 @@ renderer.setAnimationLoop(() => {
     showRadioLog(false);
     hideEffectLabels();
     hideOrderTags();
+    lastFrame = now;
     renderFeed();
     return;
   }
-  const now = performance.now();
+  watchFrame(now - lastFrame, host.map);
+  lastFrame = now;
   const view = host.sample(now);
   session.view = view;
   for (const e of host.takeEvents()) {

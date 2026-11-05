@@ -4,7 +4,7 @@ import type { Match } from '../index';
 import type { Grid } from '../grid';
 import { cellCentre, cellIndex } from '../grid';
 import { dist2 } from '../geometry';
-import type { SideId, Vec2 } from '../types';
+import { SIDES, type SideId, type Vec2 } from '../types';
 
 const DI = [1, 1, 0, -1, -1, -1, 0, 1];
 const DJ = [0, 1, 1, 1, 0, -1, -1, -1];
@@ -111,6 +111,15 @@ export const routeFlow = (m: Match, i: number, c: number) => {
   const g = m.grid;
   return cached(m, `p${i}x${c}`, () => build(m, p, Math.max(m.tune.cellM, p.radius - 6), (k) => g.crossing[k]! >= 0 && g.crossing[k] !== c));
 };
+
+/** Builds every map-derived flow field up front (Capture Points, routes over each crossing, HQs) so no tick pays for one; only Supply Drop crates stay lazy. */
+export function warmFlows(m: Match) {
+  for (let i = 0; i < m.points.length; i++) {
+    pointFlow(m, i);
+    for (let c = 0; c < (m.map.crossings?.length ?? 0); c++) routeFlow(m, i, c);
+  }
+  for (const side of SIDES) hqFlow(m, side);
+}
 
 /** Metres along the flow field from `p` to its goal; Infinity when it can't get there. */
 export function flowDist(m: Match, f: Flow, p: Vec2): number {

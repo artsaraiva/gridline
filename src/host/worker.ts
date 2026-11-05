@@ -1,5 +1,5 @@
 // Sim host, worker side: runs the Simulation on a fixed 20 Hz tick, stamps Commands, keeps the match record (seed, setup, Command log) and hands it over when the match ends.
-import { commanderEvents, commanderView, createMatch, step, type Command, type Match } from '../sim/index';
+import { commanderEvents, commanderView, createMatch, step, warmFlows, type Command, type Match } from '../sim/index';
 import { DEFAULT_TUNE } from '../sim/tune';
 import { loadBakedMap } from '../maps/load';
 import { TEST_FIELD } from '../maps/test-field';
@@ -38,6 +38,7 @@ onmessage = async (e: MessageEvent<ToHost>) => {
     const map = id === 'test' ? TEST_FIELD : await loadBakedMap(`${import.meta.env.BASE_URL}maps/kaltenbach`, DEFAULT_TUNE.cellM);
     record = { ...setup, map: map.name, log: [] };
     match = createMatch({ ...setup, map, tune: DEFAULT_TUNE });
+    warmFlows(match); // ~0.5 s once, so no tick of the match pays ~15 ms for a flow field
     post({ kind: 'started', map, hz: DEFAULT_TUNE.hz, view: commanderView(match, setup.commanderSide) });
     loop(performance.now());
   } else if (match && !match.result) {
