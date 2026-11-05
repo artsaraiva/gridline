@@ -81,14 +81,17 @@ export function fire(m: Match, events: SimEvent[]) {
     e!.suppression = Math.min(1, e!.suppression + t.suppressPerShot);
     events.push({ kind: 'shot', side: shooter.side, from: shooter.id, to: e!.id, hit });
   }
-  for (const { target: e } of shots) {
-    if (!e || e.state !== 'alive' || e.hp > 0) continue;
-    Object.assign(e, { state: 'wounded', suppression: 0, target: -1, reviving: -1, revive: 0, bleed: t.bleedOutSeconds * t.hz, ...resetSoldierAi(m), ammo: e.ammo });
-    events.push({ kind: 'wounded', side: e.side, id: e.id, x: e.x, y: e.y });
-  }
+  for (const { target: e } of shots) if (e && e.state === 'alive' && e.hp <= 0) wound(m, e, events);
 }
 
-function die(m: Match, s: Soldier, events: SimEvent[]) {
+/** Shot down: bleeding out, not dead. */
+export function wound(m: Match, e: Soldier, events: SimEvent[]) {
+  const t = m.tune;
+  Object.assign(e, { state: 'wounded', suppression: 0, target: -1, reviving: -1, revive: 0, bleed: t.bleedOutSeconds * t.hz, ...resetSoldierAi(m), ammo: e.ammo });
+  events.push({ kind: 'wounded', side: e.side, id: e.id, x: e.x, y: e.y });
+}
+
+export function die(m: Match, s: Soldier, events: SimEvent[]) {
   s.state = 'dead';
   s.deadAt = m.tick;
   m.tickets[s.side] = Math.max(0, m.tickets[s.side] - 1);

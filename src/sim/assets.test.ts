@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { commanderView, createMatch, step, type Match } from './index';
 import { DEFAULT_TUNE } from './tune';
-import type { Command, MapData, SimEvent, Tune, Vec2 } from './types';
+import type { AssetKind, Command, MapData, SimEvent, Tune, Vec2 } from './types';
 
 const HZ = DEFAULT_TUNE.hz;
 
@@ -75,9 +75,9 @@ describe('calling an Asset', () => {
     expect(rejections(step(m, [scan(m, { x: -550, y: 10 })]))).toEqual([]); // the own HQ is fine
   });
 
-  it('only Scan UAV can be called for now', () => {
+  it('an Asset that is not in the game is rejected', () => {
     const m = scene();
-    expect(rejections(step(m, [{ ...scan(m, { x: 0, y: 0 }), asset: 'supply' }]))).toEqual(['not available']);
+    expect(rejections(step(m, [{ ...scan(m, { x: 0, y: 0 }), asset: 'nope' as AssetKind }]))).toEqual(['not available']);
   });
 });
 
@@ -129,7 +129,7 @@ describe('Scan UAV', () => {
   it('radios once when it first reveals enemies, or that it found none when it leaves', () => {
     const lines = (m: Match) => {
       const out: string[] = [];
-      for (let i = 0; i < 16 * HZ; i++) for (const e of step(m, i === 0 ? [scan(m, { x: 200, y: 0 })] : [])) if (e.kind === 'radio') out.push(e.text);
+      for (let i = 0; i < 16 * HZ; i++) for (const e of step(m, i === 0 ? [scan(m, { x: 200, y: 0 })] : [])) if (e.kind === 'radio' && e.type === 'asset') out.push(e.text); // Squad Callouts are radio.test.ts's
       return out;
     };
     expect(lines(scene({ 2: { x: 200, y: 10 }, 3: { x: 210, y: 0 } }, { squads: 2 }))).toEqual(['Scan UAV inbound', 'UAV eyes on 2 hostiles']);

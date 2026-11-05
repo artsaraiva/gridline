@@ -6,7 +6,7 @@ import { session } from '../session';
 
 const DEATH_MARKER_MS = 5000;
 const barGeometry = new THREE.PlaneGeometry(1.1, 0.22);
-const deathMarkers: { mark: THREE.Group; material: THREE.MeshBasicMaterial; at: number }[] = [];
+const deathMarkers: { mark: THREE.Group; material: THREE.MeshBasicNodeMaterial; at: number }[] = [];
 
 export const resetMarkers = () => (deathMarkers.length = 0);
 

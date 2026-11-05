@@ -1,4 +1,4 @@
-import { enemyOf, type CommanderView, type SideId } from '../sim/types';
+import { enemyOf, type CommanderView, type SideId, type SimEvent, type SquadView } from '../sim/types';
 
 export const FACTION: Record<SideId, string> = { nato: 'NATO', pact: 'Warsaw Pact' };
 
@@ -16,4 +16,35 @@ export function endSummary(view: CommanderView) {
     enemy: { faction: FACTION[enemy], tickets: view.tickets[enemy] },
     time: clock(view.seconds),
   };
+}
+
+/** The Order line: "TAKE CHARLIE", "HOLD CHARLIE", "RETREATING · ORDER CHARLIE", "ORDER SENT · CHARLIE", "NO ORDER". */
+export function orderLine(q: SquadView, view: CommanderView): string {
+  const o = q.order;
+  if (!o) return 'NO ORDER';
+  const name = (view.points.find((p) => p.id === o.point)?.name ?? '').toUpperCase();
+  if (o.state === 'pending') return o.point ? `ORDER SENT · ${name}` : 'CLEAR SENT';
+  if (o.state === 'delayed') return `${o.reason === 'resupply' ? 'RESUPPLYING' : 'RETREATING'} · ORDER ${name}`;
+  return `${o.state === 'following' ? 'TAKE' : 'HOLD'} ${name}`;
+}
+
+/** "ALPHA 3/4 +7 · MOVE · FOLLOWING · SUPPRESSED" */
+export function squadTag(q: SquadView, suppressed: boolean): string {
+  const parts = [`${q.name.toUpperCase()} ${q.strength}/${q.size}${q.respawnIn.map((s) => (s > 0 ? ` +${Math.ceil(s)}` : ' +--')).join('')}`];
+  if (q.task) parts.push(q.task.toUpperCase());
+  if (q.order) parts.push(q.order.state.toUpperCase());
+  if (suppressed) parts.push('SUPPRESSED');
+  return parts.join(' · ');
+}
+
+const BAD_NEWS = new Set(['mandown', 'wiped', 'lost', 'fire']);
+
+/** One line of the radio log: who says it, what, where (a Grid Reference) and whether it is bad news. Null for events that are not for the log. */
+export function radioLine(e: SimEvent, view: CommanderView): { from: string; text: string; grid: string | null; squad: number | null; bad: boolean; onAir: boolean } | null {
+  if (e.side !== view.side) return null;
+  if (e.kind === 'rejected') return { from: 'HQ', text: `${e.command.kind} rejected, ${e.reason}`, grid: null, squad: null, bad: true, onAir: false };
+  if (e.kind !== 'radio') return null;
+  // a wiped Squad can't speak: the net reports it
+  const from = e.squad === null || e.type === 'wiped' ? 'NET' : (view.squads.find((q) => q.id === e.squad)?.name ?? '').toUpperCase();
+  return { from, text: e.text, grid: e.grid ?? null, squad: e.squad, bad: BAD_NEWS.has(e.type), onAir: true };
 }

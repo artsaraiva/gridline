@@ -133,6 +133,16 @@ describe('squad memory', () => {
     expect(memory(m, 1)).toEqual([[3, 'heard']]);
     expect(memory(m, 2)).toEqual([]);
   });
+
+  it('suppressive fire is heard by the Squad it lands on, even from beyond hearing range, and by nobody far from both ends', () => {
+    // pact 2 puts suppressive fire on nato 0's Last Known Position, 100 m off; nato 1 is 200 m north of both; nobody sees anyone
+    const m = scene({ 0: { x: 0, y: 0 }, 1: { x: -50, y: 200 }, 2: { x: -100, y: 0, fx: 1 } }, { tune: { visionM: 0 }, squads: 2 });
+    m.squads[2]!.memory.push({ id: 0, x: 0, y: 0, tick: 0, source: 'seen' });
+    const events = step(m, []);
+    expect(events.some((e) => e.kind === 'suppressive')).toBe(true);
+    expect(memory(m, 0)).toEqual([[2, 'heard']]);
+    expect(memory(m, 1)).toEqual([]);
+  });
 });
 
 describe('the enemy roster', () => {
@@ -178,7 +188,7 @@ describe('effect events', () => {
     // two Squads of 1 a Side: nato 0 and pact 2 shoot each other on tick 0, bleed out at 8 s and Redeploy at 28 s
     const m = scene({ 0: { x: 0, y: 0, fx: -1 }, 2: { x: -100, y: 0, fx: 1 } }, { tune: { hp: 100, hitChance: 1, damage: [100, 100] }, squads: 2 });
     const { nato, all } = watch(m, 30 * HZ);
-    const kinds = (events: SimEvent[], side: SideId) => events.filter((e) => e.kind !== 'shot' && e.side === side).map((e) => e.kind);
+    const kinds = (events: SimEvent[], side: SideId) => events.filter((e) => e.kind !== 'shot' && e.kind !== 'radio' && e.side === side).map((e) => e.kind);
     expect(kinds(all, 'pact')).toEqual(['wounded', 'death', 'redeploy']);
     expect(kinds(nato, 'pact')).toEqual(['wounded']);
     expect(kinds(nato, 'nato')).toEqual(['wounded', 'death', 'redeploy']);

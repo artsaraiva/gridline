@@ -174,6 +174,9 @@ export interface Tune {
   hearM: number; // Soldiers this close to a shooter hear it (the target always does)
 
   // #36 Orders
+  orderBonus: number; // added to the score of the Squad's ordered point
+  orderAckMinSeconds: number; // a Squad acknowledges (and starts on) an Order after a seeded lag between these
+  orderAckMaxSeconds: number;
 
   // #37 Assets: core and Scan
   scanCooldownSeconds: number; // from the call; Scan is ready at match start
@@ -181,10 +184,30 @@ export interface Tune {
   scanRadiusM: number; // it reveals every enemy this close to its spot
 
   // #38 Radio
+  radioGapSeconds: number; // a Squad sends at most one line this often
+  radioRepeatSeconds: number; // the same type of line from the same Squad is dropped for this long
+  radioQuietSeconds: number; // a Squad calls Contact only after this long without seeing an enemy
 
   // #39 Supply crate
+  supplyCooldownSeconds: number; // from the call; Supply Drop is ready at match start
+  supplyFallSeconds: number; // from the call to the crate landing
+  supplyStaySeconds: number; // the landed crate stays this long
+  supplyRadiusM: number; // friendly Soldiers this close to a landed crate are refilled and healed
+  supplyHealPerSecond: number; // hit points a Soldier in reach gets back each second
 
   // #40 Barrage
+  barrageCooldownSeconds: number; // from the call; the Barrage also starts the match on this cooldown
+  barrageWarningSeconds: number; // from the call to the first shell leaving
+  barrageShells: number;
+  barrageSpanSeconds: number; // from the first shell leaving to the last
+  barrageFlightSeconds: number; // a shell is in the air this long before it lands
+  barrageSpreadM: number; // shells land within this of the spot, seeded
+  barrageKillM: number; // a shell kills within this ...
+  barrageWoundM: number; // ... Wounds within this ...
+  barrageSuppressM: number; // ... and suppresses within this
+  barrageSuppression: number; // suppression (0..1) a shell leaves
+  barrageContactSeconds: number; // enemies in the zone are Contacts from the first impact until this long after the last
+  barrageHoldOutM: number; // Soldiers that stay clear of the zone are held this far outside it
 
   // #41 Requests
 }
@@ -238,6 +261,12 @@ export interface SquadView {
   point?: string | null;
   /** #34: the crossing id it takes to get there, when the water is in the way. */
   route?: string | null;
+  /**
+   * #36: the Squad's standing Order, null/absent = none. `pending` until the Squad has acknowledged it (the old Order, if any,
+   * still stands until then; a pending clear has `point: null`); then `following` it, `holding` the point (own, or taken),
+   * or `delayed` by survival, with its `reason`.
+   */
+  order?: { point: string | null; state: 'pending' | 'following' | 'delayed' | 'holding'; reason?: 'retreat' | 'resupply' } | null;
 }
 
 export interface PointView {
@@ -297,6 +326,15 @@ export interface EffectView {
   left: number;
   /** Its full working time in seconds. */
   total: number;
+  // #39 Supply Drop: the crate falls before it works
+  /** Seconds until the crate lands; 0 = on the ground. Only on a crate. */
+  landsIn?: number;
+  /** How long the fall takes in all, in seconds. Only on a crate. */
+  fall?: number;
+  /** #40 Barrage: shells in the air, each with where it lands and how far along its flight it is (0..1). */
+  shells?: { x: number; y: number; flight: number }[];
+  /** #40 Barrage: seconds until the first shell lands; 0 once it has. */
+  impactIn?: number;
 }
 
 /** Things that happened this tick, on every Side; `commanderEvents` keeps the ones a Side's Console may show. */
@@ -311,8 +349,11 @@ export type SimEvent =
    * A radio line on `side`'s net. #38 owns Callouts, spam control and the log; other tickets send lines of their own `type`
    * (e.g. 'contact', 'ack', 'flanking', 'request'). `squad` is null for a line not from a Squad (HQ, the asset net).
    * `text` is the line without the Grid Reference; `grid` is set when the line is located (see `gridRef`).
-   * A higher `priority` pre-empts a lower one; #38 sets the scale.
+   * `priority` is set by radio.ts from the `type` (RADIO_PRIORITY): a higher one pre-empts a waiting lower one. Callouts: 'contact',
+   * 'fire', 'mandown', 'capturing', 'captured', 'lost', 'redeploying', 'wiped' (a Commander-side line, sent for a Squad that is gone).
    */
   | { kind: 'radio'; side: SideId; squad: number | null; type: string; text: string; grid?: string; priority: number }
   /** #34: suppressive fire: a round at (x, y) near a Last Known Position, with no enemy in view. */
-  | { kind: 'suppressive'; side: SideId; from: number; x: number; y: number; hit: boolean };
+  | { kind: 'suppressive'; side: SideId; from: number; x: number; y: number; hit: boolean }
+  /** #40: a Barrage shell landed at (x, y); `side` called it. */
+  | { kind: 'impact'; side: SideId; x: number; y: number };

@@ -16,10 +16,10 @@ export function quiet(m: Match, sq: Squad, members: Soldier[]): boolean {
   return m.tick - sq.lastSeen >= t.quietSeconds * t.hz && !members.some((s) => s.state === 'alive' && s.suppression > t.suppressedAt);
 }
 
-/** Where a wiped Squad Redeploys: the owned, uncontested Capture Point nearest its goal (or its HQ), else its HQ. */
+/** Where a wiped Squad Redeploys: the owned, uncontested Capture Point nearest its Order's point or goal (or its HQ), else its HQ. */
 function redeployAt(m: Match, sq: Squad): Vec2 {
   const hq = m.map.hqs[sq.side];
-  const near = m.points[sq.goal] ?? hq;
+  const near = m.points[sq.order?.point ?? sq.goal] ?? hq; // an Order steers the choice
   let at: Vec2 = hq;
   let best = Infinity;
   for (const p of m.points) {

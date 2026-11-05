@@ -2,6 +2,7 @@
 // (travel in a wedge, bound under fire, flank, hold), plus the Soldier jobs it hands out (peel-off, cover when pinned, regroup).
 import type { Match } from '../index';
 import { insideCount } from '../capture';
+import { nearestCrate } from '../assets/crate';
 import { dist2 } from '../geometry';
 import { gridRef } from '../grid-ref';
 import { lineWalk } from '../grid';
@@ -9,14 +10,22 @@ import { quiet } from '../respawn';
 import { membersOf, type Soldier, type Squad } from '../state';
 import { enemyOf, type SimEvent, type Vec2 } from '../types';
 import { localPath, oct, pickCover, shelter } from './cover';
-import { flowDist, flowLook, hqFlow, pointFlow, routeFlow, type Flow } from './flow';
+import { crateFlow, flowDist, flowLook, hqFlow, pointFlow, routeFlow, type Flow } from './flow';
 import { chooseRoute } from './routes';
 
 const sq2 = (r: number) => r * r;
 
+/** The landed friendly crate a resupplying Squad heads for (nearest its leader), or null: then it goes to the HQ. */
+const crateOf = (m: Match, sq: Squad) => {
+  const L = membersOf(m, sq).find((s) => s.state === 'alive');
+  return sq.task === 'resupply' && L ? nearestCrate(m, sq.side, L) : null;
+};
+
 /** Where the Squad's task takes it, with the radius that counts as there; null = no task. */
 export function goalOf(m: Match, sq: Squad): (Vec2 & { r: number }) | null {
   if (sq.task === 'none') return null;
+  const crate = crateOf(m, sq);
+  if (crate) return { x: crate.x, y: crate.y, r: m.tune.supplyRadiusM * 0.6 };
   const p = m.points[sq.goal];
   if (p) return { x: p.x, y: p.y, r: p.radius };
   const hq = m.map.hqs[sq.side];
@@ -26,6 +35,8 @@ export function goalOf(m: Match, sq: Squad): (Vec2 & { r: number }) | null {
 /** The flow field the Squad walks on to its goal. */
 export function flowOf(m: Match, sq: Squad): Flow | null {
   if (sq.task === 'none') return null;
+  const crate = crateOf(m, sq);
+  if (crate) return crateFlow(m, crate);
   if (sq.goal < 0) return hqFlow(m, sq.side);
   return sq.task === 'point' && sq.route >= 0 ? routeFlow(m, sq.goal, sq.route) : pointFlow(m, sq.goal);
 }
@@ -91,11 +102,14 @@ export function think(m: Match, sq: Squad, events: SimEvent[]) {
     const others = m.squads.filter((o) => o !== sq && o.side === sq.side && o.task === 'point' && o.goal === i).length;
     v -= p.owner === foe ? (others === 1 ? -t.pairUp : t.crowdPenalty * Math.max(0, others - 1)) : t.crowdPenalty * others;
     if (sq.task === 'point' && sq.goal === i) v += t.stickiness;
+    if (sq.order?.point === i) v += t.orderBonus;
     if (v > bestScore) {
       bestScore = v;
       best = i;
     }
   });
+
+  if (sq.order) best = sq.order.point; // an Order is never lost to a better-scoring point, whatever the distance
 
   const prevTask = sq.task;
   const prevGoal = sq.goal;

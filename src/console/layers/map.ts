@@ -6,7 +6,7 @@ import { dot, float, floor, fract, fwidth, length, mix, positionWorld, screenCoo
 import type { BakedMap } from '../../maps/baked';
 import type { MapData, SideId } from '../../sim/types';
 import { SIDES } from '../../sim/types';
-import { camera, COLOR, flat, layer } from '../renderer';
+import { camera, COLOR, grade, layer } from '../renderer';
 import { session } from '../session';
 import { boundarySdf, SDF_PER_M } from './boundary';
 
@@ -21,13 +21,6 @@ const HQ_TINT = 0.1; // blends in linear light, where a faint fill over this dar
 export const zoomRange = { min: 0.5, max: 20 };
 
 const LUMA = vec3(0.2126, 0.7152, 0.0722);
-// The BF4 tablet grade (approved on map look-dev), copied from #43's `grade` in renderer.ts: use that one once both are merged.
-const grade = (c: THREE.Node<'vec3'>): THREE.Node<'vec3'> => {
-  const exposed = c.mul(0.98);
-  const tinted = mix(vec3(dot(exposed, LUMA)), exposed, 0.12).mul(vec3(0.68, 0.9, 1.14));
-  const contrasted = tinted.div(0.18).pow(1.5).mul(0.18).add(0.003);
-  return mix(contrasted, contrasted.div(contrasted.add(1)).mul(2), 0.3);
-};
 
 /** Out of bounds: coarse blocks of the map, graded, grey-blue, dimmed, with a faint diagonal hatch. */
 function oob(tex: THREE.Texture, blocks: number, level: number): THREE.Node<'vec3'> {
@@ -118,7 +111,10 @@ export function fitView(map: MapData | BakedMap) {
 export async function drawMap(map: MapData | BakedMap) {
   fitView(map);
   if (!('images' in map)) {
-    layer.add(new THREE.Mesh(new THREE.PlaneGeometry(640, 640), flat(COLOR.ground)));
+    const ground = new THREE.MeshBasicNodeMaterial();
+    const { r, g, b } = new THREE.Color(COLOR.ground); // linear
+    ground.colorNode = grade(vec3(r, g, b));
+    layer.add(new THREE.Mesh(new THREE.PlaneGeometry(640, 640), ground));
     const outline = [...map.playArea, map.playArea[0]!].map((p) => new THREE.Vector3(p.x, p.y, 0.1)); // WebGPURenderer has no LineLoop
     layer.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(outline), new THREE.LineBasicMaterial({ color: COLOR.bone })));
     return;

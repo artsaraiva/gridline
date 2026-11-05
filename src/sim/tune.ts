@@ -102,6 +102,9 @@ export const DEFAULT_TUNE: Tune = {
   hearM: 90,
 
   // #36 Orders
+  orderBonus: 1.5,
+  orderAckMinSeconds: 1,
+  orderAckMaxSeconds: 2,
 
   // #37 Assets: core and Scan
   scanCooldownSeconds: 60,
@@ -109,10 +112,30 @@ export const DEFAULT_TUNE: Tune = {
   scanRadiusM: 60,
 
   // #38 Radio
+  radioGapSeconds: 3,
+  radioRepeatSeconds: 15,
+  radioQuietSeconds: 10,
 
   // #39 Supply crate
+  supplyCooldownSeconds: 90,
+  supplyFallSeconds: 5,
+  supplyStaySeconds: 60,
+  supplyRadiusM: 10,
+  supplyHealPerSecond: 3,
 
   // #40 Barrage
+  barrageCooldownSeconds: 120,
+  barrageWarningSeconds: 5,
+  barrageShells: 6,
+  barrageSpanSeconds: 8,
+  barrageFlightSeconds: 1.5,
+  barrageSpreadM: 25,
+  barrageKillM: 5,
+  barrageWoundM: 8,
+  barrageSuppressM: 15,
+  barrageSuppression: 0.9,
+  barrageContactSeconds: 2,
+  barrageHoldOutM: 2,
 
   // #41 Requests
 };
