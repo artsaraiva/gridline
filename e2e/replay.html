@@ -1,0 +1,7 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>Replay</title>
+<script type="module">
+  import { REPLAY_RECORD, REPLAY_TICKS, replayHashes } from '/src/host/replay.ts';
+  window.hashes = replayHashes(REPLAY_RECORD, REPLAY_TICKS);
+</script>
