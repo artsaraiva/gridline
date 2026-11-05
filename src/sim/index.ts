@@ -13,6 +13,7 @@ import { SIDES, type Command, type MapData, type MatchResult, type SideId, type 
 
 export * from './types';
 export { commanderView } from './view';
+export { gridRef } from './grid-ref';
 
 export interface Match {
   tick: number;

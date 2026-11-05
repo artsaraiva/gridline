@@ -15,6 +15,14 @@ export interface Rect {
   y1: number;
 }
 
+/** The map's Grid Reference squares, centred on the map origin: columns A.. west to east, rows 1.. north to south. */
+export interface MapGrid {
+  cols: number;
+  rows: number;
+  squareM: number;
+  letters: string;
+}
+
 /** Metres, origin at map centre, x east, y north. */
 export interface MapData {
   name: string;
@@ -27,6 +35,8 @@ export interface MapData {
   walls?: Rect[];
   /** Cells that make a Soldier standing in them harder to hit. */
   cover?: Rect[];
+  /** Grid Reference squares; see `gridRef`. */
+  grid?: MapGrid;
 }
 
 export interface Tune {
