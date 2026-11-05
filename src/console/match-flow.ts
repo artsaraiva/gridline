@@ -9,6 +9,7 @@ import { resetEffects } from './layers/effects';
 import { resetMarkers } from './layers/markers';
 import { resetPoints } from './layers/points';
 import { resetSquads } from './layers/squads';
+import { resetTracers } from './layers/tracers';
 import { layer } from './renderer';
 import { session } from './session';
 import { disarm } from './targeting';
@@ -37,6 +38,7 @@ async function startMatch(setup: MatchSetup) {
   resetContacts();
   resetMarkers();
   resetSquads();
+  resetTracers();
   resetEffects();
   disarm();
   session.commanderSide = setup.commanderSide;

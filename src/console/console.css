@@ -37,7 +37,7 @@ canvas { display: block; touch-action: none; }
 .screen .row { display: flex; gap: 8px; }
 
 /* Asset rows (#37 behaviour; #44 restyles the rail). Ready bright, cooling dimmed, active blue, armed inverted. */
-#assets { width: 248px; display: grid; gap: 4px; font: 600 14px/1 var(--font); font-variant-numeric: tabular-nums; text-transform: uppercase; }
+#assets { width: 248px; display: grid; gap: 4px; font: 600 14px/1 var(--font); text-shadow: var(--rgb-split); font-variant-numeric: tabular-nums; text-transform: uppercase; }
 #assets[hidden] { display: none; }
 #assets button { font: inherit; text-transform: inherit; color: var(--bone); cursor: pointer; padding: 0; }
 .asset { display: grid; grid-template-columns: 30px 40px 1fr; gap: 4px; height: 40px; background: none; border: 0; text-align: left; }
@@ -52,12 +52,12 @@ canvas { display: block; touch-action: none; }
 .asset.off { cursor: default !important; }
 .asset.active .t { color: var(--fr); }
 .asset.active .bar { background: var(--fr); }
-.asset.armed > * { background: var(--bone); color: var(--ink); border-color: var(--bone); }
+.asset.armed > * { background: var(--bone); color: var(--ink); border-color: var(--bone); text-shadow: none; }
 .asset.armed .t { color: var(--ink); }
 .asset.armed .key { animation: blink 1s steps(1) infinite; }
 .cfrow { display: flex; gap: 4px; height: 36px; }
 .cfrow[hidden] { display: none; }
-#assets .cfrow button { border: 0; background: var(--ho); color: var(--ink); font-weight: 700; }
+#assets .cfrow button { border: 0; background: var(--ho); color: var(--ink); font-weight: 700; text-shadow: none; }
 #assets .cfrow .cf { flex: 1; display: flex; white-space: nowrap; gap: 8px; justify-content: space-between; align-items: center; padding: 0 12px; letter-spacing: 0.06em; }
 #assets .cfrow .cf:disabled { opacity: 0.6; cursor: default; }
 #assets .cfrow .cx { width: 36px; }
@@ -71,7 +71,7 @@ canvas { display: block; touch-action: none; }
 #labels { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
 #labels span {
   position: absolute; left: 0; top: 0; padding: 1px 5px; white-space: nowrap; background: rgba(8, 10, 8, 0.72);
-  font: 600 11px/1.3 var(--font); font-variant-numeric: tabular-nums; letter-spacing: 0.06em;
+  font: 600 11px/1.3 var(--font); text-shadow: var(--rgb-split); font-variant-numeric: tabular-nums; letter-spacing: 0.06em;
 }
 #labels span[hidden] { display: none; }
 @keyframes blink { 50% { opacity: 0; } }

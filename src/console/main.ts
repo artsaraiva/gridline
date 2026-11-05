@@ -8,6 +8,7 @@ import { addDeathMarker, drawDeathMarkers } from './layers/markers';
 import { drawHqs, drawPoint } from './layers/points';
 import { drawSquads } from './layers/squads';
 import { UNIT_PX } from './layers/symbols';
+import { addShot, drawTracers } from './layers/tracers';
 import { checkEnd } from './match-flow';
 import { drawReadout } from './readout';
 import { renderFeed } from './post';
@@ -25,7 +26,10 @@ renderer.setAnimationLoop(() => {
   }
   const now = performance.now();
   const view = host.sample(now);
-  for (const e of host.takeEvents()) if (e.kind === 'death') addDeathMarker(e.x, e.y, e.side, now);
+  for (const e of host.takeEvents()) {
+    if (e.kind === 'death') addDeathMarker(e.x, e.y, e.side, now);
+    if (e.kind === 'shot') addShot(e, view, now);
+  }
   metresPerPx.value = pxToWorld();
   const scale = UNIT_PX * metresPerPx.value; // one symbol unit in metres
   drawAssetRail(view); // before the effects: their labels keep clear of the map Confirm button it places
@@ -36,6 +40,7 @@ renderer.setAnimationLoop(() => {
   drawHqs(host.map, scale);
   for (const p of view.points) drawPoint(p, scale);
   drawSquads(view, scale);
+  drawTracers(now, scale);
   checkEnd(view);
   drawReadout(view);
   renderFeed();

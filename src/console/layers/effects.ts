@@ -4,18 +4,18 @@
 import * as THREE from 'three/webgpu';
 import { gridRef } from '../../sim/grid-ref';
 import type { CommanderView, Vec2 } from '../../sim/types';
-import { COLOR, flat, layer, toScreen } from '../renderer';
+import { COLOR, layer, toScreen } from '../renderer';
 import { session } from '../session';
 import { clock } from '../summary';
 import { overlaps, targeting, validSpot } from '../targeting';
+import { css, dashedRing, fading } from './symbols';
 
 const NAME = { scan: 'Scan UAV', supply: 'Supply Drop', barrage: 'Barrage' };
-const ringGeometry = new THREE.RingGeometry(0.97, 1, 96);
 const discGeometry = new THREE.CircleGeometry(1, 96);
 const uavGeometry = new THREE.ShapeGeometry(new THREE.Shape([new THREE.Vector2(0.6, 0), new THREE.Vector2(-0.5, 0.5), new THREE.Vector2(-0.2, 0), new THREE.Vector2(-0.5, -0.5)]));
 
 /** A ring, a faint disc and an orbiting marker, pooled: rings carry no id, so they are reused in draw order. */
-type Ring = { group: THREE.Group; ring: THREE.Mesh; disc: THREE.Mesh; uav: THREE.Mesh };
+type Ring = { group: THREE.Group; ring: ReturnType<typeof dashedRing>; radius: number; disc: THREE.Mesh; uav: THREE.Mesh };
 const pool: Ring[] = [];
 const labelBox = document.getElementById('labels')!;
 const labels: HTMLElement[] = [];
@@ -23,26 +23,27 @@ const labels: HTMLElement[] = [];
 export const resetEffects = () => (pool.length = 0);
 
 const material = (m: THREE.Mesh) => m.material as THREE.MeshBasicMaterial;
+const makeRing = (radius: number, color: number) => dashedRing(radius, color, { dash: 2, gap: 6, width: 2 });
 
 function ringAt(i: number, p: Vec2, radius: number, color: number, fill: number): Ring {
   let r = pool[i];
   if (!r) {
-    const mesh = (g: THREE.BufferGeometry) => {
-      const m = new THREE.Mesh(g, flat(color));
-      material(m).transparent = true;
-      return m;
-    };
-    r = { group: new THREE.Group(), ring: mesh(ringGeometry), disc: mesh(discGeometry), uav: mesh(uavGeometry) };
-    r.group.add(r.disc, r.ring, r.uav);
+    r = { group: new THREE.Group(), ring: makeRing(radius, color), radius, disc: new THREE.Mesh(discGeometry, fading(color, fill)), uav: new THREE.Mesh(uavGeometry, fading(color)) };
+    r.group.add(r.disc, r.ring.mesh, r.uav);
     layer.add(r.group);
     pool.push(r);
   }
+  if (r.radius !== radius) {
+    r.group.remove(r.ring.mesh);
+    r.ring.mesh.geometry.dispose();
+    r.ring = makeRing(radius, color);
+    r.radius = radius;
+    r.group.add(r.ring.mesh);
+  }
   r.group.visible = true;
   r.group.position.set(p.x, p.y, 0.5);
-  r.ring.scale.setScalar(radius);
   r.disc.scale.setScalar(radius);
-  material(r.ring).color.setHex(color);
-  material(r.ring).opacity = 0.85;
+  r.ring.tint.value.setHex(color);
   material(r.disc).color.setHex(color);
   material(r.disc).opacity = fill;
   material(r.uav).color.setHex(color);
@@ -72,8 +73,6 @@ function label(i: number, p: Vec2, dx: number, dy: number, text: string, color: 
   }
   el.style.transform = `translate(${x}px, ${y}px)`;
 }
-
-const css = (hex: number) => `#${hex.toString(16).padStart(6, '0')}`;
 
 /** `scale` is the chevron size in metres (constant on screen), used for the orbiting UAV marker. */
 export function drawEffects(view: CommanderView, scale: number, now: number) {
