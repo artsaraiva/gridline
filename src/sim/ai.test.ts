@@ -155,3 +155,68 @@ describe('loose squads', () => {
     expect(dist(at(2), at(0))).toBeLessThan(15);
   });
 });
+
+describe('Retreat', () => {
+  const ONE_SHOT: Partial<Tune> = { hitChance: 1, damage: [100, 100], reviveRangeM: 0, bleedOutSeconds: 1 / HZ };
+  // nato ids 1-3 and pact ids 5-7 shoot each other dead on tick 0; nato id 0 stands apart facing north and sees nobody.
+  // Point M, mid-field, gives both Squads something to go for; `owned` adds a nato point nearer home.
+  const downToOne = (owned: boolean) => {
+    const points = [{ id: 'M', name: 'M', x: 0, y: 200 }, ...(owned ? [{ id: 'O', name: 'O', x: -200, y: 0, owner: 'nato' as const }] : [])];
+    const place: Record<number, Placement> = { 0: { x: 0, y: 30, fx: 0, fy: 1 } };
+    for (const i of [1, 2, 3]) Object.assign(place, { [i]: { x: 0, y: i * 5, fx: -1 }, [i + 4]: { x: -100, y: i * 5, fx: 1 } });
+    return play(scene({ map: field({ points }), place, tune: ONE_SHOT }), 30 * HZ).nato;
+  };
+
+  it('a Squad down to 1 of 4 falls back to the HQ when it owns no point', () => {
+    const nato = downToOne(false);
+    expect(nato[HZ]!.squads[0]).toMatchObject({ strength: 1, task: 'retreat', point: null });
+    const lone = (s: number) => nato[s * HZ]!.friendlies.find((f) => f.id === 0)!;
+    expect(lone(8).x).toBeLessThan(lone(1).x - 20); // heading west, home
+  });
+
+  it('to the nearest owned, uncontested point when it has one', () => {
+    expect(downToOne(true)[HZ]!.squads[0]).toMatchObject({ task: 'retreat', point: 'O' });
+  });
+
+  it('ends once the Squad is quiet and back to at least 3 of 4', () => {
+    const nato = downToOne(false);
+    const back = nato.findIndex((v) => v.squads[0]!.strength >= 3);
+    const over = nato.findIndex((v, i) => i > HZ && v.squads[0]!.task !== 'retreat');
+    expect(back).toBeGreaterThan(10 * HZ); // Squad Respawn takes 10 s
+    expect(over).toBeGreaterThanOrEqual(back);
+    expect(over - back).toBeLessThanOrEqual(HZ); // at its next think
+  });
+
+  it('a Squad with most members suppressed falls back', () => {
+    // four a side trade fire 100 m apart; nobody can hit, every round pins
+    const place: Record<number, Placement> = {};
+    for (const i of [0, 1, 2, 3]) Object.assign(place, { [i]: { x: 0, y: i * 5, fx: -1 }, [i + 4]: { x: -100, y: i * 5, fx: 1 } });
+    const m = scene({ map: field({ points: [{ id: 'M', name: 'M', x: 0, y: 200 }] }), place, tune: { hitChance: 0, suppressPerShot: 1 } });
+    const { nato } = play(m, 3 * HZ);
+    expect(nato.at(-1)!.squads[0]).toMatchObject({ strength: 4, task: 'retreat' });
+  });
+});
+
+describe('Resupply', () => {
+  // a nato Squad holds its own point with 10 rounds each; nobody sees anybody
+  const P = { id: 'P', name: 'P', x: -300, y: 0, owner: 'nato' as const };
+  const place: Record<number, Placement> = {};
+  for (const i of [0, 1, 2, 3]) place[i] = { x: -300 + i * 4, y: 0, ammo: 10 };
+  const run = () => play(scene({ map: field({ points: [P] }), place, tune: { visionM: 0 } }), 150 * HZ).nato;
+
+  it('a Squad nearly out of ammo goes to the HQ for more, then back to the fight', () => {
+    const nato = run();
+    expect(nato[HZ]!.squads[0]).toMatchObject({ task: 'resupply', point: null });
+    const refilled = nato.findIndex((v) => v.friendlies.every((f) => f.ammo === 1));
+    expect(refilled).toBeGreaterThan(0);
+    expect(nato[refilled]!.friendlies.every((f) => dist(f, field().hqs.nato) < DEFAULT_TUNE.hqRadius + 1)).toBe(true);
+    expect(nato.at(-1)!.squads[0]).toMatchObject({ task: 'hold', point: 'P' });
+  });
+
+  it('Capture Points never refill ammo', () => {
+    const nato = run();
+    const left = nato.findIndex((v) => v.friendlies.every((f) => dist(f, P) > DEFAULT_TUNE.captureRadius));
+    expect(left).toBeGreaterThan(0);
+    expect(nato.slice(0, left).every((v) => v.friendlies.every((f) => f.ammo === 10 / DEFAULT_TUNE.ammo))).toBe(true);
+  });
+});
