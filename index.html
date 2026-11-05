@@ -7,7 +7,12 @@
     <link rel="stylesheet" href="/src/console/console.css" />
   </head>
   <body>
-    <div id="readout" hidden></div>
+    <div id="labels"></div>
+    <div id="rail" data-hit>
+      <div id="readout" hidden></div>
+      <div id="assets" hidden></div>
+    </div>
+    <button id="confirm" hidden><span></span><small>Tap again to call · Esc cancels</small></button>
     <form id="setup" class="screen">
       <h1>Gridline</h1>
       <fieldset>

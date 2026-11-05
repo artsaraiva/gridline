@@ -1,5 +1,6 @@
 // Command handling: each kind is checked, then applied; a Command that fails its check becomes a `rejected` SimEvent.
 // Orders are #36's, Assets #37's: each fills in its own kind's check and apply.
+import { call, checkCall } from './assets/core';
 import type { Match } from './index';
 import type { Command, SimEvent } from './types';
 
@@ -19,10 +20,7 @@ const order: Handler<Of<'order'>> = {
   apply: () => {}, // not acted on yet (#36)
 };
 
-const asset: Handler<Of<'asset'>> = {
-  check: () => null,
-  apply: () => {}, // not acted on yet (#37)
-};
+const asset: Handler<Of<'asset'>> = { check: checkCall, apply: call };
 
 const handlers: { [K in Command['kind']]: Handler<Of<K>> } = { order, asset };
 

@@ -1,4 +1,5 @@
 // What a Commander sees: the CommanderView built from the Match.
+import { assetViews, effectViews } from './assets/core';
 import type { Match } from './index';
 import { contactIds, justSeen, lastKnown } from './memory';
 import { lastDeath, membersOf, stageTicks, wiped, type Soldier, type Squad } from './state';
@@ -38,6 +39,8 @@ export function commanderView(m: Match, side: SideId): CommanderView {
     points: m.points.map((p) => ({ id: p.id, name: p.name, x: p.x, y: p.y, radius: p.radius, owner: p.owner, progress: p.progress / stage })),
     tickets: { ...m.tickets },
     result: m.result,
+    assets: assetViews(m, side),
+    effects: effectViews(m, side),
   };
 }
 

@@ -108,6 +108,9 @@ export interface Tune {
   // #36 Orders
 
   // #37 Assets: core and Scan
+  scanCooldownSeconds: number; // from the call; Scan is ready at match start
+  scanSeconds: number; // the UAV circles its spot this long
+  scanRadiusM: number; // it reveals every enemy this close to its spot
 
   // #38 Radio
 
@@ -121,6 +124,8 @@ export interface Tune {
 export type Command =
   | { tick: number; side: SideId; kind: 'order'; squad: number; point: string | null }
   | { tick: number; side: SideId; kind: 'asset'; asset: 'scan' | 'supply' | 'barrage'; at: Vec2 };
+
+export type AssetKind = Extract<Command, { kind: 'asset' }>['asset'];
 
 export interface MatchResult {
   winner: SideId | null; // null = draw
@@ -191,6 +196,31 @@ export interface CommanderView {
   points: PointView[];
   tickets: Record<SideId, number>;
   result: MatchResult | null;
+  /** The Assets this Side can call; one missing from the list is not in the game yet. */
+  assets?: AssetView[];
+  /** This Side's Assets at work on the map. */
+  effects?: EffectView[];
+}
+
+export interface AssetView {
+  asset: AssetKind;
+  /** Seconds until it can be called again; 0 = ready. */
+  readyIn: number;
+  /** The full cooldown in seconds, for a draining bar. */
+  cooldown: number;
+  /** Metres around the spot it acts on, for the preview ring. */
+  radius: number;
+}
+
+export interface EffectView {
+  asset: AssetKind;
+  x: number;
+  y: number;
+  radius: number;
+  /** Seconds it keeps working. */
+  left: number;
+  /** Its full working time in seconds. */
+  total: number;
 }
 
 /** Things that happened this tick, on every Side; `commanderEvents` keeps the ones a Side's Console may show. */
