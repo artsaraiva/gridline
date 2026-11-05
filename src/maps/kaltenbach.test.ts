@@ -2,6 +2,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { gridRef as ref } from '../sim/grid-ref';
 import type { SideId, Vec2 } from '../sim/types';
 import type { BakedMap } from './baked';
 
@@ -12,12 +13,7 @@ const DIR = process.env.MAP_DIR
   : new URL('../../public/maps/kaltenbach/', import.meta.url);
 const map: BakedMap = JSON.parse(readFileSync(new URL('map.json', DIR), 'utf8'));
 
-function gridRef(x: number, y: number): string {
-  const half = map.sizeM / 2;
-  const col = Math.floor((x + half) / map.grid.squareM);
-  const row = Math.floor((half - y) / map.grid.squareM);
-  return `${map.grid.letters[col]}${row + 1}`;
-}
+const gridRef = (x: number, y: number) => ref(map.grid, { x, y });
 
 /** Ray-casting point-in-polygon. */
 function inside(p: Vec2, poly: Vec2[]): boolean {

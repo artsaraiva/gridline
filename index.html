@@ -4,36 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Gridline</title>
-    <style>
-      html, body { margin: 0; height: 100%; overflow: hidden; background: #0d0f0c; }
-      canvas { display: block; touch-action: none; }
-      #readout {
-        position: fixed; top: 16px; left: 16px; padding: 8px 12px;
-        font: 600 14px/1.4 ui-monospace, monospace; font-variant-numeric: tabular-nums; text-transform: uppercase;
-        color: #e8e2c8; background: rgba(8, 10, 8, 0.72); border: 1px solid rgba(232, 226, 200, 0.22);
-        pointer-events: none; white-space: pre;
-      }
-      .screen {
-        position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); min-width: 280px; padding: 20px 24px;
-        font: 600 14px/1.5 ui-monospace, monospace; font-variant-numeric: tabular-nums; text-transform: uppercase;
-        color: #e8e2c8; background: rgba(8, 10, 8, 0.88); border: 1px solid rgba(232, 226, 200, 0.22);
-        display: flex; flex-direction: column; gap: 14px;
-      }
-      .screen[hidden] { display: none; }
-      .screen input { accent-color: #e8e2c8; }
-      .screen h1 { margin: 0; font-size: 28px; letter-spacing: 0.08em; }
-      .screen fieldset { margin: 0; padding: 0; border: 0; display: flex; gap: 16px; align-items: center; }
-      .screen legend { padding: 0 0 6px; opacity: 0.6; }
-      .screen dl { margin: 0; display: grid; grid-template-columns: auto auto; gap: 4px 24px; }
-      .screen dd { margin: 0; text-align: right; }
-      .screen select, .screen button {
-        font: inherit; text-transform: inherit; color: inherit; background: transparent;
-        border: 1px solid rgba(232, 226, 200, 0.4); padding: 6px 12px; cursor: pointer;
-      }
-      .screen select option { background: #0d0f0c; }
-      .screen button:hover, .screen button:focus-visible { background: rgba(232, 226, 200, 0.12); }
-      .screen .row { display: flex; gap: 8px; }
-    </style>
+    <link rel="stylesheet" href="/src/console/console.css" />
   </head>
   <body>
     <div id="readout" hidden></div>

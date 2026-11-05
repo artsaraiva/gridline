@@ -192,3 +192,25 @@ describe('squads', () => {
     expect(v.contacts).toHaveLength(32);
   });
 });
+
+describe('commands', () => {
+  const field = map([{ x: 0, y: 0 }]); // one Squad a Side: nato Squad 0, pact Squad 1
+  const rejected = (command: Command) => step(start(field), [command]).filter((e) => e.kind === 'rejected');
+
+  it("an Order for a Squad the Side doesn't command is rejected", () => {
+    const order: Command = { tick: 0, side: 'nato', kind: 'order', squad: 1, point: 'p0' };
+    expect(rejected(order)).toEqual([{ kind: 'rejected', side: 'nato', command: order, reason: 'unknown squad' }]);
+    expect(rejected({ ...order, squad: 9 })).toHaveLength(1);
+  });
+
+  it('an Order naming a Capture Point the map lacks is rejected', () => {
+    const order: Command = { tick: 0, side: 'nato', kind: 'order', squad: 0, point: 'Z' };
+    expect(rejected(order)).toEqual([{ kind: 'rejected', side: 'nato', command: order, reason: 'unknown point' }]);
+  });
+
+  it('an Order for an own Squad, a cleared Order and an Asset are accepted', () => {
+    expect(rejected({ tick: 0, side: 'pact', kind: 'order', squad: 1, point: 'p0' })).toEqual([]);
+    expect(rejected({ tick: 0, side: 'nato', kind: 'order', squad: 0, point: null })).toEqual([]);
+    expect(rejected({ tick: 0, side: 'nato', kind: 'asset', asset: 'scan', at: { x: 0, y: 0 } })).toEqual([]);
+  });
+});
