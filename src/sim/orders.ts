@@ -20,12 +20,10 @@ export interface Pending {
 }
 
 const PHONETIC: Record<string, string> = { A: 'Alpha', B: 'Bravo', C: 'Charlie', D: 'Delta', E: 'Echo', F: 'Foxtrot', G: 'Golf', H: 'Hotel' };
-const callName = (name: string) => PHONETIC[name] ?? name;
+export const callName = (name: string) => PHONETIC[name] ?? name;
 
-// Radio priority: below "Man down", above Contact (#38 owns the scale).
-const ACK_PRIORITY = 3;
-
-const say = (sq: Squad, type: string, text: string, events: SimEvent[]) => events.push({ kind: 'radio', side: sq.side, squad: sq.id, type, text, priority: ACK_PRIORITY });
+// radio.ts sets the priority of every line by its type, so the 0 here is never heard.
+const say = (sq: Squad, type: string, text: string, events: SimEvent[]) => events.push({ kind: 'radio', side: sq.side, squad: sq.id, type, text, priority: 0 });
 
 /** Takes an Order Command (already checked): replaces any pending one, so only the latest is acknowledged. */
 export function giveOrder(m: Match, c: Extract<Command, { kind: 'order' }>) {

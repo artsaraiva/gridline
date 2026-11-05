@@ -8,6 +8,12 @@ import type { CommanderView, SideId, SimEvent, SquadView } from './types';
 
 const SQUAD_NAMES = ['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo', 'Foxtrot', 'Golf', 'Hotel'];
 
+/** The call sign of `sq`: Alpha, Bravo... in the order of its Side's Squads. */
+export const squadName = (m: Match, sq: Squad) => {
+  const i = m.squads.filter((o) => o.side === sq.side).indexOf(sq);
+  return SQUAD_NAMES[i] ?? `Squad ${i + 1}`;
+};
+
 function squadView(m: Match, sq: Squad, i: number): SquadView {
   const t = m.tune;
   const members = membersOf(m, sq);

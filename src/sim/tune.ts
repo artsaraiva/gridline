@@ -112,6 +112,9 @@ export const DEFAULT_TUNE: Tune = {
   scanRadiusM: 60,
 
   // #38 Radio
+  radioGapSeconds: 3,
+  radioRepeatSeconds: 15,
+  radioQuietSeconds: 10,
 
   // #39 Supply crate
   supplyCooldownSeconds: 90,

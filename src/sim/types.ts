@@ -166,6 +166,9 @@ export interface Tune {
   scanRadiusM: number; // it reveals every enemy this close to its spot
 
   // #38 Radio
+  radioGapSeconds: number; // a Squad sends at most one line this often
+  radioRepeatSeconds: number; // the same type of line from the same Squad is dropped for this long
+  radioQuietSeconds: number; // a Squad calls Contact only after this long without seeing an enemy
 
   // #39 Supply crate
   supplyCooldownSeconds: number; // from the call; Supply Drop is ready at match start
@@ -328,7 +331,8 @@ export type SimEvent =
    * A radio line on `side`'s net. #38 owns Callouts, spam control and the log; other tickets send lines of their own `type`
    * (e.g. 'contact', 'ack', 'flanking', 'request'). `squad` is null for a line not from a Squad (HQ, the asset net).
    * `text` is the line without the Grid Reference; `grid` is set when the line is located (see `gridRef`).
-   * A higher `priority` pre-empts a lower one; #38 sets the scale.
+   * `priority` is set by radio.ts from the `type` (RADIO_PRIORITY): a higher one pre-empts a waiting lower one. Callouts: 'contact',
+   * 'fire', 'mandown', 'capturing', 'captured', 'lost', 'redeploying', 'wiped' (a Commander-side line, sent for a Squad that is gone).
    */
   | { kind: 'radio'; side: SideId; squad: number | null; type: string; text: string; grid?: string; priority: number }
   /** #34: suppressive fire: a round at (x, y) near a Last Known Position, with no enemy in view. */
