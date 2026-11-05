@@ -1,16 +1,17 @@
 // Squad Respawn and Redeploy.
 import type { Match } from './index';
+import { resetSoldierAi } from './ai';
 import { insideCount } from './capture';
 import { canStand, dist2 } from './geometry';
 import { lastDeath, membersOf, wiped, type Soldier, type Squad } from './state';
 import { enemyOf, type SimEvent, type Vec2 } from './types';
 
 function bringBack(m: Match, s: Soldier, at: Vec2) {
-  Object.assign(s, { x: at.x, y: at.y, state: 'alive', hp: m.tune.hp, suppression: 0, target: -1, reviving: -1, nextFire: m.tick });
+  Object.assign(s, { x: at.x, y: at.y, state: 'alive', hp: m.tune.hp, suppression: 0, target: -1, reviving: -1, nextFire: m.tick, ...resetSoldierAi(m) });
 }
 
 /** A Squad is quiet when no member saw an enemy for `quietSeconds` and no living member is suppressed. */
-function quiet(m: Match, sq: Squad, members: Soldier[]): boolean {
+export function quiet(m: Match, sq: Squad, members: Soldier[]): boolean {
   const t = m.tune;
   return m.tick - sq.lastSeen >= t.quietSeconds * t.hz && !members.some((s) => s.state === 'alive' && s.suppression > t.suppressedAt);
 }
