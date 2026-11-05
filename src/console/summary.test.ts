@@ -49,6 +49,8 @@ describe('Order line and Squad tag', () => {
   it('the Squad tag shows name, strength with respawn timers, task, Order state and alerts', () => {
     expect(squadTag(squad({ task: 'move', order: { point: 'C', state: 'delayed', reason: 'retreat' } }), true)).toBe('BRAVO 3/4 +8 · MOVE · DELAYED · SUPPRESSED');
     expect(squadTag(squad({ respawnIn: [] }), false)).toBe('BRAVO 3/4');
+    expect(squadTag(squad({ respawnIn: [], takingFire: true }), false)).toBe('BRAVO 3/4 · TAKING FIRE');
+    expect(squadTag(squad({ respawnIn: [], takingFire: true }), true)).toBe('BRAVO 3/4 · SUPPRESSED');
   });
 });
 

@@ -36,12 +36,16 @@ const REQUEST_WORDS = { supply: 'SUPPLIES', barrage: 'FIRE SUPPORT', scan: 'RECO
 /** The open Request on a Squad card: "FIRE SUPPORT · E5 · 0:24". */
 export const requestLine = (r: NonNullable<SquadView['request']>) => [REQUEST_WORDS[r.asset], r.grid, clock(Math.ceil(r.left))].filter(Boolean).join(' · ');
 
+/** A Squad's alert: SUPPRESSED (some member is) outranks TAKING FIRE. */
+export const squadAlert = (q: SquadView, suppressed: boolean) => (suppressed ? 'SUPPRESSED' : q.takingFire ? 'TAKING FIRE' : null);
+
 /** "ALPHA 3/4 +7 · MOVE · FOLLOWING · SUPPRESSED" */
 export function squadTag(q: SquadView, suppressed: boolean): string {
   const parts = [`${q.name.toUpperCase()} ${q.strength}/${q.size}${q.respawnIn.map((s) => (s > 0 ? ` +${Math.ceil(s)}` : ' +--')).join('')}`];
   if (q.task) parts.push(q.task.toUpperCase());
   if (q.order) parts.push(q.order.state.toUpperCase());
-  if (suppressed) parts.push('SUPPRESSED');
+  const alert = squadAlert(q, suppressed);
+  if (alert) parts.push(alert);
   return parts.join(' · ');
 }
 

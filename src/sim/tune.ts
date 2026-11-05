@@ -41,6 +41,7 @@ export const DEFAULT_TUNE: Tune = {
   suppressPerShot: 0.2, // single rounds: the sandbox's 0.08 was per round of a 3-round burst
   suppressDecayPerSecond: 0.24,
   suppressAccuracyLoss: 0.55,
+  takingFireSeconds: 3,
   suppressedAt: 0.15,
   pinnedAt: 0.6,
 

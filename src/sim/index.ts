@@ -70,7 +70,7 @@ export function createMatch(opts: {
   for (const side of SIDES) {
     const hq = map.hqs[side];
     for (let q = 0; q < opts.squadsPerSide; q++) {
-      const squad: Squad = { id: m.squads.length, side, members: [], goal: -1, lastSeen: -1e9, memory: [], order: null, pending: null, request: null, requestNext: 0, ...newSquadAi() };
+      const squad: Squad = { id: m.squads.length, side, members: [], goal: -1, lastSeen: -1e9, lastHit: -1e9, memory: [], order: null, pending: null, request: null, requestNext: 0, ...newSquadAi() };
       m.squads.push(squad);
       for (let i = 0; i < tune.squadSize; i++) {
         const ox = (rnd(m) * 2 - 1) * tune.spread;

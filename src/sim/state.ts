@@ -44,6 +44,7 @@ export interface Squad {
   members: number[];
   goal: number; // index of the Capture Point it is heading for, -1 = not picked yet
   lastSeen: number; // tick a member last saw an enemy
+  lastHit: number; // tick a member was last shot at, or suppressive fire landed near one
   memory: Sighting[]; // this Squad's own sightings, one per enemy id; see memory.ts
   // #34 Squad AI
   task: 'none' | 'point' | 'retreat' | 'resupply'; // `goal` is its Capture Point (-1 = the HQ)
@@ -123,5 +124,6 @@ export function hashSquads(m: Match, mix: Mix) {
   for (const sq of m.squads) {
     mix(sq.goal);
     mix(sq.lastSeen);
+    mix(sq.lastHit);
   }
 }

@@ -113,6 +113,7 @@ export interface Tune {
   suppressPerShot: number; // added to the target's suppression (0..1) per shot fired at it
   suppressDecayPerSecond: number;
   suppressAccuracyLoss: number; // hit chance x (1 - this x suppression)
+  takingFireSeconds: number; // a Squad is taking fire this long after any member was shot at, or suppressive fire landed near one
   suppressedAt: number; // suppression above this counts as suppressed
   pinnedAt: number; // suppression above this counts as pinned: no reviving
 
@@ -258,6 +259,8 @@ export interface SquadView {
   respawnIn: number[];
   /** Seconds until the wiped Squad Redeploys; null unless wiped. */
   redeployIn: number | null;
+  /** Shot at, or near suppressive fire, within `takingFireSeconds`. False when wiped. */
+  takingFire?: boolean;
   /** The Capture Point id the wiped Squad would Redeploy at now; null = its HQ. Set only when wiped. */
   redeployAt?: string | null;
   /** #34: what the Squad does on its own: heads for `point`, holds it, falls back to it (or the HQ), or fetches ammo at the HQ. */
