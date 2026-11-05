@@ -8,7 +8,7 @@ import { burst } from '../post';
 import { camera } from '../renderer';
 import { session } from '../session';
 import { radioLine } from '../summary';
-import { select } from '../targeting';
+import { answer, select } from '../targeting';
 
 const KEPT = 8; // lines in the log
 const CPS = 45; // characters typed per second; faster when lines are queued up
@@ -64,7 +64,7 @@ addEventListener('pointerdown', () => panning++, { capture: true });
 
 function open(line: Line, now: number) {
   const row = list.appendChild(document.createElement('div'));
-  row.className = `ln${line.bad ? ' bad' : ''}`;
+  row.className = `ln${line.bad ? ' bad' : ''}${line.request ? ' req' : ''}`;
   row.innerHTML = '<b></b><span class="tx"></span><i class="chip"></i>';
   row.querySelector('b')!.textContent = `${line.from}:`;
   const chip = row.querySelector<HTMLElement>('.chip')!;
@@ -75,7 +75,7 @@ function open(line: Line, now: number) {
     row.tabIndex = 0;
     row.setAttribute('role', 'button');
     row.onclick = () => {
-      if (line.squad !== null) select(line.squad);
+      if (line.squad !== null) (line.request ? answer : select)(line.squad); // a Request arms its Asset at the grid
       if (centre) panTo(centre);
     };
     row.onkeydown = (e) => (e.key === 'Enter' || e.key === ' ') && row.click();

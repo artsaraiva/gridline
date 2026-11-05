@@ -4,7 +4,7 @@ import type { UnstampedCommand } from '../host/protocol';
 import { TEST_FIELD } from '../maps/test-field';
 import { session } from './session';
 import type { CommanderView } from '../sim/types';
-import { arm, clearOrder, confirm, disarm, escape, placeConfirm, select, tap, targeting } from './targeting';
+import { answer, arm, clearOrder, confirm, disarm, escape, placeConfirm, select, tap, targeting } from './targeting';
 
 // The Sim host is the boundary: a fake one records what the Console sends.
 let sent: UnstampedCommand[];
@@ -147,5 +147,40 @@ describe('Order targeting', () => {
     expect([targeting.armed, targeting.selected]).toEqual([null, 0]);
     escape();
     expect(targeting.selected).toBeNull();
+  });
+});
+
+describe('Answering a Request', () => {
+  const ask = (readyIn: number, grid = true) => {
+    session.view = {
+      ...view,
+      result: null,
+      assets: [{ asset: 'barrage', readyIn, cooldown: 120, radius: 40 }],
+      squads: [{ id: 1, request: { asset: 'barrage', at: grid ? { x: 50, y: 50 } : { x: 277, y: 0 }, grid: 'G6', left: 20 } }],
+    } as unknown as CommanderView;
+  };
+
+  it('selects the Squad and arms the matching Asset with the ring pinned at the grid; the confirm is still needed', () => {
+    ask(0);
+    answer(1);
+    expect(targeting).toMatchObject({ selected: 1, armed: 'barrage', spot: { x: 50, y: 50 } });
+    expect(sent).toEqual([]);
+    tap({ x: 52, y: 50 }, 5);
+    expect(sent).toEqual([{ side: 'nato', kind: 'asset', asset: 'barrage', at: { x: 50, y: 50 } }]);
+  });
+
+  it('an Asset that is cooling down only selects the Squad', () => {
+    ask(30);
+    answer(1);
+    expect(targeting).toMatchObject({ selected: 1, armed: null, spot: null });
+  });
+
+  it('a Squad with no open Request only selects, and a grid on the enemy HQ arms without pinning', () => {
+    ask(0);
+    answer(0);
+    expect(targeting).toMatchObject({ selected: 0, armed: null });
+    ask(0, false);
+    answer(1);
+    expect(targeting).toMatchObject({ armed: 'barrage', spot: null });
   });
 });

@@ -28,6 +28,11 @@ export function orderLine(q: SquadView, view: CommanderView): string {
   return `${o.state === 'following' ? 'TAKE' : 'HOLD'} ${name}`;
 }
 
+const REQUEST_WORDS = { supply: 'SUPPLIES', barrage: 'FIRE SUPPORT', scan: 'RECON' };
+
+/** The open Request on a Squad card: "FIRE SUPPORT · E5 · 0:24". */
+export const requestLine = (r: NonNullable<SquadView['request']>) => [REQUEST_WORDS[r.asset], r.grid, clock(Math.ceil(r.left))].filter(Boolean).join(' · ');
+
 /** "ALPHA 3/4 +7 · MOVE · FOLLOWING · SUPPRESSED" */
 export function squadTag(q: SquadView, suppressed: boolean): string {
   const parts = [`${q.name.toUpperCase()} ${q.strength}/${q.size}${q.respawnIn.map((s) => (s > 0 ? ` +${Math.ceil(s)}` : ' +--')).join('')}`];
@@ -40,11 +45,11 @@ export function squadTag(q: SquadView, suppressed: boolean): string {
 const BAD_NEWS = new Set(['mandown', 'wiped', 'lost', 'fire']);
 
 /** One line of the radio log: who says it, what, where (a Grid Reference) and whether it is bad news. Null for events that are not for the log. */
-export function radioLine(e: SimEvent, view: CommanderView): { from: string; text: string; grid: string | null; squad: number | null; bad: boolean; onAir: boolean } | null {
+export function radioLine(e: SimEvent, view: CommanderView): { from: string; text: string; grid: string | null; squad: number | null; bad: boolean; request: boolean; onAir: boolean } | null {
   if (e.side !== view.side) return null;
-  if (e.kind === 'rejected') return { from: 'HQ', text: `${e.command.kind} rejected, ${e.reason}`, grid: null, squad: null, bad: true, onAir: false };
+  if (e.kind === 'rejected') return { from: 'HQ', text: `${e.command.kind} rejected, ${e.reason}`, grid: null, squad: null, bad: true, request: false, onAir: false };
   if (e.kind !== 'radio') return null;
   // a wiped Squad can't speak: the net reports it
   const from = e.squad === null || e.type === 'wiped' ? 'NET' : (view.squads.find((q) => q.id === e.squad)?.name ?? '').toUpperCase();
-  return { from, text: e.text, grid: e.grid ?? null, squad: e.squad, bad: BAD_NEWS.has(e.type), onAir: true };
+  return { from, text: e.text, grid: e.grid ?? null, squad: e.squad, bad: BAD_NEWS.has(e.type), request: e.type === 'request', onAir: true };
 }

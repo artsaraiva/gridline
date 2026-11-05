@@ -2,6 +2,7 @@
 import { assetContacts, assetViews, effectViews } from './assets/core';
 import type { Match } from './index';
 import { orderView } from './orders';
+import { requestView } from './requests';
 import { contactIds, justSeen, lastKnown } from './memory';
 import { lastDeath, membersOf, stageTicks, wiped, type Soldier, type Squad } from './state';
 import type { CommanderView, SideId, SimEvent, SquadView } from './types';
@@ -31,6 +32,7 @@ function squadView(m: Match, sq: Squad, i: number): SquadView {
     point: sq.task === 'none' ? null : (m.points[sq.goal]?.id ?? null),
     route: m.map.crossings?.[sq.route]?.id ?? null,
     order: orderView(m, sq),
+    request: requestView(m, sq),
   };
 }
 

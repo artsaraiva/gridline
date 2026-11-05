@@ -41,6 +41,19 @@ export function escape() {
   else select(null);
 }
 
+/**
+ * Answers a Squad's open Request (#41): selects the Squad and arms the matching Asset with its ring pinned at the requested
+ * grid. The confirm is still the Commander's. An Asset that is cooling down, or a Request that has closed, only selects.
+ */
+export function answer(squad: number) {
+  select(squad);
+  const view = session.view;
+  const r = view?.squads.find((q) => q.id === squad)?.request;
+  if (!view || view.result || !r || view.assets?.find((a) => a.asset === r.asset)?.readyIn !== 0) return;
+  targeting.armed = r.asset;
+  targeting.spot = validSpot(r.at) ? { ...r.at } : null;
+}
+
 /** Clears the selected Squad's Order. */
 export function clearOrder() {
   const { selected } = targeting;

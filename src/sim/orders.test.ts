@@ -160,7 +160,7 @@ describe('Delayed and resumed', () => {
     const m = scene({ place: { 0: { x: -480, y: 0 }, 1: { x: -480, y: 0 }, 2: { x: -480, y: 0 }, 3: { x: -480, y: 0 } } });
     m.soldiers.slice(0, 4).forEach((s) => (s.ammo = 0));
     const { events } = play(m, 60 * HZ, sendAt(0, 'C'));
-    expect(radio(events).map((e) => e.type)).toEqual(['delayed', 'resuming']);
+    expect(radio(events).map((e) => e.type).filter((t) => t !== 'request')).toEqual(['delayed', 'resuming']); // out of ammo, it also asks for Supplies (#41)
   });
 });
 

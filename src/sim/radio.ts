@@ -25,6 +25,7 @@ export const RADIO_PRIORITY: Record<string, number> = {
   lost: 1,
   redeploying: 1,
   flanking: 1,
+  request: 1, // the open Request on the tile and card is the loud part; the line is just "the rest"
 };
 
 // An Order's acks answer the Commander, so the same type twice in a row is still news.

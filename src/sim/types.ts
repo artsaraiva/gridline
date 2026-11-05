@@ -192,6 +192,9 @@ export interface Tune {
   barrageHoldOutM: number; // Soldiers that stay clear of the zone are held this far outside it
 
   // #41 Requests
+  requestSeconds: number; // an open Request expires after this long
+  requestGapSeconds: number; // a Squad whose Request closed asks again after this long
+  requestCloseM: number; // a matching Asset that has landed this close to a Request's grid answers it
 }
 
 export type Command =
@@ -249,6 +252,11 @@ export interface SquadView {
    * or `delayed` by survival, with its `reason`.
    */
   order?: { point: string | null; state: 'pending' | 'following' | 'delayed' | 'holding'; reason?: 'retreat' | 'resupply' } | null;
+  /**
+   * #41: the Squad's open Request, null/absent = none: the Asset it asks for, the centre of the Grid Reference it names
+   * (`at`, null `grid` only on a map without one) and the seconds left before it expires.
+   */
+  request?: { asset: AssetKind; at: Vec2; grid: string | null; left: number } | null;
 }
 
 export interface PointView {
