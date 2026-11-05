@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Gridline / Asset review (#60)</title>
+    <link rel="stylesheet" href="/src/console/console.css" />
+  </head>
+  <body>
+    <canvas id="hud"></canvas>
+    <div id="labels"></div>
+    <div id="rail" data-hit hidden>
+      <div id="faction" class="faction flicker">
+        <div id="faction-cell" class="cell"></div>
+        <div class="name"><b>Commander</b><small id="faction-sub"></small></div>
+      </div>
+      <div id="assets" hidden></div>
+      <div id="score" class="score panel"></div>
+    </div>
+    <div id="squads" hidden><div class="tiles"></div><div class="card" hidden></div></div>
+    <div id="radio" data-hit hidden>
+      <div class="head"><i id="net"></i><span>Squad net</span><button id="radio-fold" type="button" aria-expanded="true" title="Fold the log to its newest line">▾</button></div>
+      <div class="lines"></div>
+    </div>
+    <div id="dtg" class="dtg" hidden></div>
+    <div id="cur" class="cur" hidden></div>
+    <div id="toast" hidden><div></div><small></small></div>
+    <button id="confirm" hidden><span></span><small>Tap again to call · Esc cancels</small></button>
+    <form id="setup" class="screen" hidden>
+      <h1>Gridline</h1>
+      <fieldset>
+        <legend>Faction</legend>
+        <label><input type="radio" name="side" value="nato" checked /> NATO</label>
+        <label><input type="radio" name="side" value="pact" /> Warsaw Pact</label>
+      </fieldset>
+      <label>Squads per Side <select name="squads"></select></label>
+      <button type="submit">Start match</button>
+    </form>
+    <div id="end" class="screen" hidden>
+      <h1 id="end-result"></h1>
+      <div id="end-reason"></div>
+      <dl>
+        <dt>Tickets</dt><dd id="end-friendly"></dd>
+        <dt></dt><dd id="end-enemy"></dd>
+        <dt>Match time</dt><dd id="end-time"></dd>
+        <dt>Seed</dt><dd id="end-seed"></dd>
+      </dl>
+      <div class="row">
+        <button id="end-copy" type="button">Copy match record</button>
+        <button id="end-new" type="button">New match</button>
+      </div>
+    </div>
+    <script type="module" src="/src/console/dev/asset-review.ts"></script>
+  </body>
+</html>
