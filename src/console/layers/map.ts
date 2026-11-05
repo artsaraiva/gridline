@@ -6,14 +6,12 @@ import { dot, float, floor, fract, fwidth, length, mix, positionWorld, screenCoo
 import type { BakedMap } from '../../maps/baked';
 import type { MapData, SideId } from '../../sim/types';
 import { SIDES } from '../../sim/types';
+import { RAILS } from '../chrome/rail';
 import { camera, COLOR, grade, layer } from '../renderer';
 import { session } from '../session';
 import { boundarySdf, SDF_PER_M } from './boundary';
 
 const SDF_RES = 512;
-/** Screen space the rails take either side of the map, and the margin above and below: the default view fits the Play Area between them. */
-const RAILS_PX = 264;
-const MARGIN_PX = 32;
 const OOB_BLOCK_M = 4;
 const HQ_TINT = 0.1; // blends in linear light, where a faint fill over this dark map reads stronger than in CSS
 
@@ -101,9 +99,14 @@ export function fitView(map: MapData | BakedMap) {
     zoomRange.min = zoomFor(map.images.outer.sizeM / innerWidth);
     zoomRange.max = zoomFor(map.sizeM / 2 ** (map.images.play.length - 1)); // the top level is a power of two px wide: one texel per px
   }
-  const fit = zoomFor(Math.max(w / Math.max(1, innerWidth - 2 * RAILS_PX), h / (innerHeight - 2 * MARGIN_PX)));
-  camera.zoom = fit;
-  camera.position.x = (Math.min(...xs) + Math.max(...xs)) / 2;
+  const leftPx = RAILS.margin + RAILS.left + RAILS.gap;
+  const rightPx = RAILS.margin + RAILS.right + RAILS.gap;
+  const freeW = Math.max(1, innerWidth - leftPx - rightPx);
+  const freeH = Math.max(1, innerHeight - 2 * RAILS.vMargin);
+  const mpp = Math.max(w / freeW, h / freeH);
+  camera.zoom = zoomFor(mpp);
+  const fx = leftPx + freeW / 2;
+  camera.position.x = (Math.min(...xs) + Math.max(...xs)) / 2 - (fx - innerWidth / 2) * mpp;
   camera.position.y = (Math.min(...ys) + Math.max(...ys)) / 2;
   camera.updateProjectionMatrix();
 }

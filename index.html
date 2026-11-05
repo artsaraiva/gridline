@@ -7,15 +7,27 @@
     <link rel="stylesheet" href="/src/console/console.css" />
   </head>
   <body>
+    <canvas id="hud"></canvas>
     <div id="labels"></div>
-    <div id="rail" data-hit>
-      <div id="readout" hidden></div>
+    <div id="rail" data-hit hidden>
+      <div id="faction" class="faction flicker">
+        <div id="faction-cell" class="cell"></div>
+        <div class="name"><b>Commander</b><small id="faction-sub"></small></div>
+      </div>
       <div id="assets" hidden></div>
+      <div id="score" class="score panel"></div>
     </div>
-    <div id="squads" data-hit hidden><div class="tiles"></div><div class="card" hidden></div></div>
+    <div id="squads" hidden><div class="tiles"></div><div class="card" hidden></div></div>
     <div id="radio" data-hit hidden>
       <div class="head"><i id="net"></i><span>Squad net</span><button id="radio-fold" type="button" aria-expanded="true" title="Fold the log to its newest line">▾</button></div>
       <div class="lines"></div>
+    </div>
+    <div id="dtg" class="dtg" hidden></div>
+    <div id="cur" class="cur" hidden></div>
+    <div id="toast" hidden><div></div><small></small></div>
+    <div id="monitor" class="monitor panel" hidden>
+      <div class="hdr"><span>Helmet cam</span><span>after slice</span></div>
+      <div class="scr"><span>NO FEED</span></div>
     </div>
     <button id="confirm" hidden><span></span><small>Tap again to call · Esc cancels</small></button>
     <form id="setup" class="screen">
