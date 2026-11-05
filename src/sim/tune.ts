@@ -62,6 +62,8 @@ export const DEFAULT_TUNE: Tune = {
   // #34 Squad AI: movement, routes, cover, fire model, ammo
 
   // #35 Fog of war: memory, Last Known Positions
+  memorySeconds: 8,
+  lkpSeconds: 3.5,
 
   // #36 Orders
 

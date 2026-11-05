@@ -101,6 +101,8 @@ export interface Tune {
   // #34 Squad AI: movement, routes, cover, fire model, ammo
 
   // #35 Fog of war: memory, Last Known Positions
+  memorySeconds: number; // a Squad forgets an enemy it has not seen or heard for this long
+  lkpSeconds: number; // a lost Contact shows as a Last Known Position, fading, for this long
 
   // #36 Orders
 

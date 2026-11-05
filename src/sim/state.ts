@@ -1,5 +1,6 @@
 // Internal state the rule modules share, plus the tiny helpers every one of them uses. Not part of the public surface.
 import type { Match } from './index';
+import type { Sighting } from './memory';
 import type { SideId, SoldierState, Tune } from './types';
 
 export interface Soldier {
@@ -30,6 +31,7 @@ export interface Squad {
   members: number[];
   goal: number; // index of the Capture Point it is heading for, -1 = not picked yet
   lastSeen: number; // tick a member last saw an enemy
+  memory: Sighting[]; // this Squad's own sightings, one per enemy id; see memory.ts
 }
 
 export interface Point {

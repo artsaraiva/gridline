@@ -1,5 +1,6 @@
 // What a Commander sees: the CommanderView built from the Match.
 import type { Match } from './index';
+import { contactIds } from './memory';
 import { lastDeath, membersOf, stageTicks, wiped, type Soldier, type Squad } from './state';
 import type { CommanderView, SideId, SquadView } from './types';
 
@@ -31,7 +32,7 @@ export function commanderView(m: Match, side: SideId): CommanderView {
     friendlies: m.soldiers
       .filter((s) => s.side === side && s.state !== 'dead')
       .map((s) => ({ ...soldierView(s), squad: s.squad, state: s.state as 'alive' | 'wounded', suppressed: s.suppression > m.tune.suppressedAt })),
-    contacts: m.soldiers.filter((s) => s.side !== side && s.state === 'alive').map(soldierView),
+    contacts: contactIds(m, side).map((id) => soldierView(m.soldiers[id]!)),
     squads: m.squads.filter((sq) => sq.side === side).map((sq, i) => squadView(m, sq, i)),
     points: m.points.map((p) => ({ id: p.id, name: p.name, x: p.x, y: p.y, radius: p.radius, owner: p.owner, progress: p.progress / stage })),
     tickets: { ...m.tickets },
