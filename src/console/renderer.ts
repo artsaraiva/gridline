@@ -1,6 +1,6 @@
 // three.js renderer, scene and orthographic map camera, plus the per-match `layer` every map layer draws into.
 import * as THREE from 'three/webgpu';
-import type { SideId } from '../sim/types';
+import type { SideId, Vec2 } from '../sim/types';
 import { session } from './session';
 
 export const COLOR = { bone: 0xe8e2c8, friendly: 0x6fd0ff, hostile: 0xff4b3e, ground: 0x262c22 };
@@ -29,6 +29,9 @@ addEventListener('resize', resize);
 
 /** World metres per screen pixel at the current zoom. */
 export const pxToWorld = () => (camera.top - camera.bottom) / camera.zoom / innerHeight;
+/** Screen px (client coordinates) to world metres, and back. */
+export const toWorld = (sx: number, sy: number): Vec2 => ({ x: camera.position.x + (sx - innerWidth / 2) * pxToWorld(), y: camera.position.y - (sy - innerHeight / 2) * pxToWorld() });
+export const toScreen = (p: Vec2): Vec2 => ({ x: innerWidth / 2 + (p.x - camera.position.x) / pxToWorld(), y: innerHeight / 2 - (p.y - camera.position.y) / pxToWorld() });
 
 // Everything drawn for one match lives in `layer`, emptied whole when the next match starts.
 // ponytail: dropped objects' materials and ring geometries are not disposed; a few dozen leak per match.
