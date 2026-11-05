@@ -58,7 +58,7 @@ export function createMatch(opts: {
     drainTicks: 0,
     sightings: { nato: [], pact: [] },
     deaths: [],
-    assets: newAssets(),
+    assets: newAssets(tune),
     result: null,
   };
   for (const side of SIDES) {

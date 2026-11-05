@@ -30,17 +30,19 @@ export function see(m: Match, sq: Squad, e: Soldier) {
 
 /**
  * Gunfire phase, right after the shots: the target's Squad, and every living enemy of the shooter within `hearM` of
- * it, hears where the shot came from. A sighting from this tick's perception is not replaced by a heard one.
+ * it, hears where the shot came from. Suppressive fire has no target: the enemies it lands near (`suppressiveRadiusM`
+ * of the aim point) hear it instead. A sighting from this tick's perception is not replaced by a heard one.
  */
 export function hear(m: Match, events: SimEvent[]) {
   const t = m.tune;
   for (const e of events) {
-    if (e.kind !== 'shot') continue;
+    if (e.kind !== 'shot' && e.kind !== 'suppressive') continue;
     const shooter = m.soldiers[e.from]!;
     const heard: Sighting = { id: shooter.id, x: shooter.x, y: shooter.y, tick: m.tick, source: 'heard' };
+    const hit = (s: Soldier) => (e.kind === 'shot' ? s.id === e.to : s.state === 'alive' && dist2(s, e) <= t.suppressiveRadiusM * t.suppressiveRadiusM);
     for (const sq of m.squads) {
       if (sq.side === shooter.side) continue;
-      const near = (s: Soldier) => s.id === e.to || (s.state === 'alive' && dist2(s, shooter) <= t.hearM * t.hearM);
+      const near = (s: Soldier) => hit(s) || (s.state === 'alive' && dist2(s, shooter) <= t.hearM * t.hearM);
       if (!sq.members.some((id) => near(m.soldiers[id]!))) continue;
       if (sq.memory.some((o) => o.id === shooter.id && o.tick === m.tick)) continue;
       note(sq.memory, { ...heard });
