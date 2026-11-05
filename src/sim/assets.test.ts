@@ -129,7 +129,7 @@ describe('Scan UAV', () => {
   it('radios once when it first reveals enemies, or that it found none when it leaves', () => {
     const lines = (m: Match) => {
       const out: string[] = [];
-      for (let i = 0; i < 16 * HZ; i++) for (const e of step(m, i === 0 ? [scan(m, { x: 200, y: 0 })] : [])) if (e.kind === 'radio') out.push(e.text);
+      for (let i = 0; i < 16 * HZ; i++) for (const e of step(m, i === 0 ? [scan(m, { x: 200, y: 0 })] : [])) if (e.kind === 'radio' && e.type === 'asset') out.push(e.text); // Squad Callouts are radio.test.ts's
       return out;
     };
     expect(lines(scene({ 2: { x: 200, y: 10 }, 3: { x: 210, y: 0 } }, { squads: 2 }))).toEqual(['Scan UAV inbound', 'UAV eyes on 2 hostiles']);

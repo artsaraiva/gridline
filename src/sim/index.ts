@@ -10,6 +10,7 @@ import { buildGrid, type Grid } from './grid';
 import { hashMemory, hear, type Sighting } from './memory';
 import { hashOrders, orders } from './orders';
 import { perceive } from './perception';
+import { hashRadio, newRadio, radio, type Radio } from './radio';
 import { returnToFight } from './respawn';
 import { rnd } from './rng';
 import { hashSoldiers, hashSquads, sign, stageTicks, type Point, type Soldier, type Squad } from './state';
@@ -17,7 +18,7 @@ import { SIDES, type Command, type MapData, type MatchResult, type SideId, type 
 
 export * from './types';
 export { commanderEvents, commanderView } from './view';
-export { gridRef } from './grid-ref';
+export { gridCentre, gridRef } from './grid-ref';
 
 export interface Match {
   tick: number;
@@ -34,6 +35,7 @@ export interface Match {
   sightings: Record<SideId, Sighting[]>; // what each Side's Soldiers saw lately, one per enemy id; see memory.ts
   deaths: Death[]; // recent deaths, for route choice
   assets: Assets; // cooldowns and effects at work; see assets/core.ts
+  radio: Radio; // what each Squad may say next; see radio.ts
   result: MatchResult | null;
 }
 
@@ -60,6 +62,7 @@ export function createMatch(opts: {
     sightings: { nato: [], pact: [] },
     deaths: [],
     assets: newAssets(tune),
+    radio: newRadio(opts.squadsPerSide * SIDES.length, opts.squadsPerSide * SIDES.length * tune.squadSize, map.points.map((p) => p.owner ?? null)),
     result: null,
   };
   for (const side of SIDES) {
@@ -101,6 +104,7 @@ export function step(m: Match, commands: Command[]): SimEvent[] {
   for (const p of m.points) capture(m, p);
   orders(m, events);
   drain(m);
+  radio(m, events);
   m.tick++;
   end(m);
   return events;
@@ -122,5 +126,6 @@ export function stateHash(m: Match): string {
   hashAi(m, mix);
   hashAssets(m, mix);
   hashOrders(m, mix);
+  hashRadio(m, mix);
   return h.toString(16).padStart(8, '0');
 }
