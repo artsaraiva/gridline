@@ -121,7 +121,7 @@ describe('tickets', () => {
     expect(v.tickets).toEqual({ nato: 150, pact: 150 });
   });
 
-  it('the point lead drains 1 enemy Ticket every 8 s, 5 s or 3 s for a lead of 1, 2 or 3', () => {
+  it('the point lead drains 1 enemy Ticket every `drainSeconds` entry for a lead of 1, 2 or 3', () => {
     const views = runaway();
     const intervals: Record<number, number[]> = { 0: [], 1: [], 2: [], 3: [] };
     let since = 0;
@@ -136,7 +136,8 @@ describe('tickets', () => {
       }
     }
     expect(intervals[0]).toEqual([]);
-    for (const [l, s] of [[1, 8], [2, 5], [3, 3]] as const) {
+    for (const l of [1, 2, 3] as const) {
+      const s = DEFAULT_TUNE.drainSeconds[l - 1]!;
       expect(intervals[l]!.length).toBeGreaterThan(0);
       expect(new Set(intervals[l])).toEqual(new Set([s]));
     }
