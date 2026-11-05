@@ -96,6 +96,9 @@ export const pointFlow = (m: Match, i: number) => {
   return cached(m, `p${i}`, () => build(m, p, Math.max(m.tune.cellM, p.radius - 6)));
 };
 
+/** To a Supply Drop crate at `at`. */
+export const crateFlow = (m: Match, at: Vec2) => cached(m, `c${at.x},${at.y}`, () => build(m, at, m.tune.supplyRadiusM * 0.6));
+
 /** To `side`'s HQ. */
 export const hqFlow = (m: Match, side: SideId) => {
   const hq = m.map.hqs[side];

@@ -111,6 +111,11 @@ export const DEFAULT_TUNE: Tune = {
   // #38 Radio
 
   // #39 Supply crate
+  supplyCooldownSeconds: 90,
+  supplyFallSeconds: 5,
+  supplyStaySeconds: 60,
+  supplyRadiusM: 10,
+  supplyHealPerSecond: 3,
 
   // #40 Barrage
   barrageCooldownSeconds: 120,

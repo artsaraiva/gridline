@@ -8,6 +8,7 @@ import type { Soldier } from '../state';
 import { enemyOf, SIDES, type AssetKind, type AssetView, type Command, type EffectView, type SideId, type SimEvent, type Tune, type Vec2 } from '../types';
 import { barrage, type Shell } from './barrage';
 import { scan } from './scan';
+import { supply } from './supply';
 
 /** One called Asset at work. `until` is the first tick it no longer works. */
 export interface Effect {
@@ -43,9 +44,12 @@ export interface Kind {
   /** #40: extra fields for the effect's view. */
   view?(m: Match, e: Effect): Partial<EffectView>;
   hash?(e: Effect, mix: Mix): void;
+  // #39: a kind that falls before it works says how long the fall has left and takes in all
+  landsIn?(m: Match, e: Effect): number;
+  fall?(t: Tune): number;
 }
 
-const KINDS: Partial<Record<AssetKind, Kind>> = { scan, barrage };
+const KINDS: Partial<Record<AssetKind, Kind>> = { scan, supply, barrage };
 const ORDER: AssetKind[] = ['scan', 'supply', 'barrage'];
 const kinds = () => ORDER.filter((k) => KINDS[k]);
 
@@ -110,11 +114,16 @@ export function assetViews(m: Match, side: SideId): AssetView[] {
   }));
 }
 
+const fallView = (m: Match, e: Effect) => {
+  const k = KINDS[e.asset]!;
+  return k.landsIn && k.fall ? { landsIn: k.landsIn(m, e), fall: k.fall(m.tune) } : {};
+};
+
 export function effectViews(m: Match, side: SideId): EffectView[] {
   const t = m.tune;
   return m.assets.effects
     .filter((e) => e.side === side)
-    .map((e) => ({ asset: e.asset, x: e.x, y: e.y, radius: KINDS[e.asset]!.radius(t), left: (e.until - m.tick) / t.hz, total: KINDS[e.asset]!.seconds(t), ...KINDS[e.asset]!.view?.(m, e) }));
+    .map((e) => ({ asset: e.asset, x: e.x, y: e.y, radius: KINDS[e.asset]!.radius(t), left: (e.until - m.tick) / t.hz, total: KINDS[e.asset]!.seconds(t), ...fallView(m, e), ...KINDS[e.asset]!.view?.(m, e) }));
 }
 
 export function hashAssets(m: Match, mix: Mix) {

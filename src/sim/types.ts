@@ -165,6 +165,11 @@ export interface Tune {
   // #38 Radio
 
   // #39 Supply crate
+  supplyCooldownSeconds: number; // from the call; Supply Drop is ready at match start
+  supplyFallSeconds: number; // from the call to the crate landing
+  supplyStaySeconds: number; // the landed crate stays this long
+  supplyRadiusM: number; // friendly Soldiers this close to a landed crate are refilled and healed
+  supplyHealPerSecond: number; // hit points a Soldier in reach gets back each second
 
   // #40 Barrage
   barrageCooldownSeconds: number; // from the call; the Barrage also starts the match on this cooldown
@@ -291,6 +296,11 @@ export interface EffectView {
   left: number;
   /** Its full working time in seconds. */
   total: number;
+  // #39 Supply Drop: the crate falls before it works
+  /** Seconds until the crate lands; 0 = on the ground. Only on a crate. */
+  landsIn?: number;
+  /** How long the fall takes in all, in seconds. Only on a crate. */
+  fall?: number;
   /** #40 Barrage: shells in the air, each with where it lands and how far along its flight it is (0..1). */
   shells?: { x: number; y: number; flight: number }[];
   /** #40 Barrage: seconds until the first shell lands; 0 once it has. */
