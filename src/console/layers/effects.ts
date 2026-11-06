@@ -283,9 +283,9 @@ export function drawEffects(view: CommanderView, scale: number, now: number) {
       m.shadow.scale.setScalar(s.shadow.size);
       m.shadowMat.opacity = s.shadow.opacity;
       m.body.position.set(s.x, s.y, 0.72);
-      m.body.rotation.z = s.rotation;
+      m.body.rotation.z = s.bodyRotation;
       m.body.scale.setScalar(s.size);
-      m.frame.value = s.pitchFrame;
+      m.frame.value = s.frame;
       const nx = -Math.sin(s.heading);
       const ny = Math.cos(s.heading);
       m.icon.position.set(s.x + nx * scale * 0.75, s.y + ny * scale * 0.75, 0.92);

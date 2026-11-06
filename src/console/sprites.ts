@@ -15,7 +15,9 @@ export interface SpriteSheetSpec {
 }
 
 export const SHELL_PITCH_FRAMES = 8;
-export const SHELL_SHADOW_FRAME = SHELL_PITCH_FRAMES;
+/** Headings baked per pitch (frame = pitch * SHELL_HEADINGS + heading, heading k at k * 360 / SHELL_HEADINGS deg from east). */
+export const SHELL_HEADINGS = 16;
+export const SHELL_SHADOW_FRAME = SHELL_PITCH_FRAMES * SHELL_HEADINGS;
 /** True world size in metres of the baked artillery shell sprite quad (camera ortho_scale in build.py). */
 export const SHELL_WORLD_M = 1.55;
 /** Tunable exaggeration factor on the shell's world scale so the 3D object reads clearly at close tactical zoom. */
@@ -36,8 +38,13 @@ export interface ShellInFlight {
   y: number;
   altitude: number;
   heading: number;
+  /** Full turn from the baked nose-north pose: used by the shadow and the tactical icon. */
   rotation: number;
   pitchFrame: number;
+  /** Body sheet frame: the pitch row at the nearest baked heading, so the baked sun stays north-east. */
+  frame: number;
+  /** Remaining turn (within half a heading step) applied to the body frame. */
+  bodyRotation: number;
   size: number;
   shadow: { x: number; y: number; size: number; opacity: number };
 }
@@ -57,6 +64,9 @@ export function shellInFlight(from: Vec2, to: Vec2, flight: number, exaggeration
   const heading = Math.atan2(dy, dx);
   const rotation = heading - Math.PI / 2;
   const pitchFrame = Math.min(SHELL_PITCH_FRAMES - 1, Math.floor(u * SHELL_PITCH_FRAMES));
+  const step = (2 * Math.PI) / SHELL_HEADINGS;
+  const k = Math.round(heading / step);
+  const frame = pitchFrame * SHELL_HEADINGS + (((k % SHELL_HEADINGS) + SHELL_HEADINGS) % SHELL_HEADINGS);
   const baseSize = SHELL_WORLD_M * exaggeration;
   const size = baseSize * (1 + altitude * ALTITUDE_SCALE_PER_M);
   const shadowOff = altitude * SHADOW_OFFSET_PER_M;
@@ -70,6 +80,8 @@ export function shellInFlight(from: Vec2, to: Vec2, flight: number, exaggeration
     heading,
     rotation,
     pitchFrame,
+    frame,
+    bodyRotation: heading - k * step,
     size,
     shadow: {
       x: x + SHADOW_DIR.x * shadowOff,
@@ -261,11 +273,11 @@ const EXPLOSION_WORLD_M = 36;
 export const CRATER_VARIANTS = 3;
 /** World size in metres of the baked crater decal quad (1 bake unit = 5 m). */
 const CRATER_WORLD_M = 10;
-/** Tune: craters kept on the map; past this the oldest is removed. */
+/** Console constant: craters kept on the map; past this the oldest is removed. */
 export const CRATER_CAP = 60;
-/** Tune: time from impact until its smoke plume has drifted off and faded out. */
+/** Console constant: time from impact until its smoke plume has drifted off and faded out. */
 export const SMOKE_FADE_MS = 20000;
-/** Tune: wind the plume drifts with, in m/s (east-north-east). */
+/** Console constant: wind the plume drifts with, in m/s (east-north-east). */
 const WIND = { x: 0.7, y: 0.25 };
 const PLUME_PUFFS = 4;
 /** The plume fades in over the explosion's last frames, which fade out under it. */
@@ -341,12 +353,13 @@ export function impactLook(i: ImpactRecord, now: number): ImpactLook {
   return { crater, explosion, plume };
 }
 
-/** Committed baked Asset sprite sheets under `public/`. Later tickets (#62-#65) add their sheets here. */
+/** Committed baked Asset sprite sheets under `public/`, each built by its Blender script under `assets/`. */
 export const SPRITE_SHEETS = {
   'artillery-shell': {
     file: 'munitions/artillery-shell.png',
-    frames: SHELL_PITCH_FRAMES + 1,
+    frames: SHELL_SHADOW_FRAME + 1,
     framePx: 128,
+    cols: SHELL_HEADINGS,
   },
   'smoke-puff': {
     file: 'munitions/smoke-puff.png',
@@ -413,14 +426,17 @@ export function spriteSheetTexture(id: SpriteSheetId): THREE.Texture {
   if (typeof fetch === 'function' && typeof createImageBitmap === 'function') {
     const url = `${import.meta.env?.BASE_URL ?? '/'}${spec.file}`;
     void fetch(url)
-      .then((r) => r.blob())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.blob();
+      })
       .then((b) => createImageBitmap(b, { imageOrientation: 'flipY' }))
       .then((bitmap) => {
         tex!.dispose();
         tex!.image = bitmap as unknown as HTMLImageElement;
         tex!.needsUpdate = true;
       })
-      .catch(() => {});
+      .catch((err) => console.error(`Sprite sheet ${spec.file} failed to load; ${id} draws blank.`, err));
   }
   return tex;
 }

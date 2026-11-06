@@ -17,6 +17,7 @@ import {
   type ImpactRecord,
   SHELL_EXAGGERATION,
   SHELL_PITCH_FRAMES,
+  SHELL_HEADINGS,
   SHELL_SHADOW_FRAME,
   SHELL_WORLD_M,
   shellInFlight,
@@ -139,20 +140,23 @@ function checkSheet(spec: SpriteSheetSpec) {
 }
 
 describe('committed Asset sprite sheets', () => {
-  it('registers the artillery shell sheet with 8 pitch frames plus 1 unclipped shadow frame', () => {
+  it('registers the artillery shell sheet: 8 pitch rows of 16 baked headings plus 1 unclipped shadow frame', () => {
     expect(SHELL_PITCH_FRAMES).toBe(8);
-    expect(SHELL_SHADOW_FRAME).toBe(8);
-    expect(SPRITE_SHEETS['artillery-shell'].frames).toBe(9);
+    expect(SHELL_HEADINGS).toBe(16);
+    expect(SHELL_SHADOW_FRAME).toBe(SHELL_PITCH_FRAMES * SHELL_HEADINGS);
+    expect(SPRITE_SHEETS['artillery-shell'].frames).toBe(SHELL_PITCH_FRAMES * SHELL_HEADINGS + 1);
 
     const spec = SPRITE_SHEETS['artillery-shell'];
+    const { cols } = sheetDimensions(spec);
     const { width, pixels } = decodePngRgba(readFileSync(new URL(spec.file, PUBLIC_DIR)));
     const spanY = (frame: number) => {
-      const x0 = frame * spec.framePx;
+      const x0 = (frame % cols) * spec.framePx;
+      const y0 = Math.floor(frame / cols) * spec.framePx;
       let minY: number = spec.framePx;
       let maxY = -1;
       for (let y = 0; y < spec.framePx; y++) {
         for (let x = 0; x < spec.framePx; x++) {
-          if (pixels[(y * width + x0 + x) * 4 + 3]! > 32) {
+          if (pixels[((y0 + y) * width + x0 + x) * 4 + 3]! > 32) {
             if (y < minY) minY = y;
             if (y > maxY) maxY = y;
           }
@@ -160,8 +164,9 @@ describe('committed Asset sprite sheets', () => {
       }
       return maxY - minY + 1;
     };
-    // Level shell (frame 3) and full-length shadow (frame 8) must both span the unclipped nose-to-fin length (~100 px).
-    expect(spanY(3)).toBeGreaterThanOrEqual(96);
+    // Level shell flying north (pitch 3, heading 4 = 90 deg) and the full-length shadow both span the unclipped
+    // nose-to-fin length (~100 px).
+    expect(spanY(3 * SHELL_HEADINGS + 4)).toBeGreaterThanOrEqual(96);
     expect(spanY(SHELL_SHADOW_FRAME)).toBeGreaterThanOrEqual(96);
   });
 
@@ -199,6 +204,22 @@ describe('artillery shell flight arc, shadow and fog', () => {
     const expectedHeading = Math.atan2(to.y - from.y, to.x - from.x);
     expect(mid.heading).toBeCloseTo(expectedHeading);
     expect(mid.rotation).toBeCloseTo(expectedHeading - Math.PI / 2);
+  });
+
+  it('keeps the baked sun north-east in any flight direction: nearest baked heading frame, only the remainder rotated', () => {
+    const step = (2 * Math.PI) / SHELL_HEADINGS;
+    const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
+    for (let a = -Math.PI; a < Math.PI; a += 0.29) {
+      const s = shellInFlight({ x: 0, y: 0 }, { x: Math.cos(a) * 300, y: Math.sin(a) * 300 }, 0.4);
+      const heading = s.frame % SHELL_HEADINGS;
+      expect(Math.floor(s.frame / SHELL_HEADINGS)).toBe(s.pitchFrame);
+      expect(Math.abs(s.bodyRotation)).toBeLessThanOrEqual(step / 2 + 1e-9);
+      expect(wrap(heading * step + s.bodyRotation - s.heading)).toBeCloseTo(0);
+    }
+    // A Pact shell flying west uses the west-facing frames rather than the east-facing frames turned half a circle.
+    const west = shellInFlight({ x: 415, y: 0 }, { x: -50, y: 0 }, 0.4);
+    expect(west.frame % SHELL_HEADINGS).toBe(SHELL_HEADINGS / 2);
+    expect(west.bodyRotation).toBeCloseTo(0);
   });
 
   it('draws at world scale with an exaggeration tune value and scales slightly with altitude', () => {

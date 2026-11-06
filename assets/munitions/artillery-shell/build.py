@@ -1,8 +1,10 @@
 """Build the artillery shell 3D asset and its top-down sprite sheet (#53, #61).
 
-Headless Blender script (ADR 0001, ADR 0002). Renders 8 top-down pitch frames (climb, level, dive)
-plus 1 soft shadow frame, lit with Kaltenbach's exact sun direction (azimuth 45 deg NE, elevation
-24 deg) and sky fill, and packs them into `public/munitions/artillery-shell.png`.
+Headless Blender script (ADR 0001, ADR 0002). Renders 8 top-down pitch rows (climb, level, dive) of
+16 headings each plus 1 soft shadow frame, lit with Kaltenbach's exact sun direction (azimuth 45 deg
+NE, elevation 24 deg) and sky fill, and packs them into `public/munitions/artillery-shell.png`
+(16 columns; frame = pitch * 16 + heading). Baking every heading keeps the lit side north-east
+whichever way a shell flies: the Console only rotates the remainder of half a heading step.
 
 Run from the repository root:
   /Applications/Blender.app/Contents/MacOS/Blender -b --factory-startup --python-exit-code 1 -P assets/munitions/artillery-shell/build.py
@@ -23,6 +25,7 @@ OUT_GLB = os.path.join(HERE, "artillery-shell.glb")
 os.makedirs(os.path.dirname(OUT_SHEET), exist_ok=True)
 
 FRAME_PX = 128
+HEADINGS = 16  # SHELL_HEADINGS in src/console/sprites.ts
 # In Blender, rotating +Y around +X by angle a maps (0, y, 0) -> (0, y*cos(a), y*sin(a)):
 # positive pitch = nose (+Y) tilted up toward +Z (climb); 0 = level at apex; negative = nose tilted down toward -Z (dive).
 PITCH_ANGLES = (52, 34, 16, 0, -16, -34, -50, -66)
@@ -149,16 +152,15 @@ bpy.ops.export_scene.gltf(filepath=OUT_GLB, export_format="GLB", use_selection=T
 # Top-down orthographic camera matching the map view
 cam_d = bpy.data.cameras.new("TopDownCamera")
 cam_d.type = "ORTHO"
-cam_d.ortho_scale = 1.55
+cam_d.ortho_scale = 1.55  # SHELL_WORLD_M in src/console/sprites.ts
 cam_d.clip_end = 50.0
 cam = bpy.data.objects.new("TopDownCamera", cam_d)
 cam.location = (0, 0, 5.0)
 scene.collection.objects.link(cam)
 scene.camera = cam
 
-# Sun and sky matching assets/maps/kaltenbach/build.py (SUN_ELEV = 24 deg, azimuth = 45 deg NE).
-# Because the sprite nose is baked along +Y and rotates ~-90 deg for west-to-east flight, placing the
-# sun in (-X, +Y) in sprite space puts the lit edge on the world north-east (top-front) side in flight.
+# Sun and sky matching assets/maps/kaltenbach/build.py (SUN_ELEV = 24 deg, azimuth = 45 deg NE), in world
+# space: +X east, +Y north. The shell is yawed to each baked heading, so the light never turns with it.
 sun_d = bpy.data.lights.new("sun", "SUN")
 sun_d.energy = 4.2
 sun_d.angle = math.radians(0.6)
@@ -166,7 +168,7 @@ sun_d.color = (1.0, 0.95, 0.88)
 sun = bpy.data.objects.new("sun", sun_d)
 el = math.radians(SUN_ELEV)
 az = math.radians(SUN_AZ)
-sun_dir = Vector((math.cos(el) * math.sin(az), -math.cos(el) * math.cos(az), -math.sin(el)))
+sun_dir = Vector((-math.cos(el) * math.sin(az), -math.cos(el) * math.cos(az), -math.sin(el)))
 sun.rotation_euler = sun_dir.to_track_quat("-Z", "Y").to_euler()
 scene.collection.objects.link(sun)
 
@@ -220,11 +222,13 @@ def save_sheet(path, rgba):
 frames = []
 with tempfile.TemporaryDirectory() as tmp:
     for idx, pitch in enumerate(PITCH_ANGLES):
-        shell.rotation_euler = (math.radians(pitch), 0, 0)
-        frame_path = os.path.join(tmp, f"pitch-{idx}.png")
-        scene.render.filepath = frame_path
-        bpy.ops.render.render(write_still=True)
-        frames.append(load_pixels(frame_path))
+        for k in range(HEADINGS):
+            # Pitch about X (nose +Y), then yaw so the nose flies at k * 360 / HEADINGS deg from east.
+            shell.rotation_euler = (math.radians(pitch), 0, 2 * math.pi * k / HEADINGS - math.pi / 2)
+            frame_path = os.path.join(tmp, f"pitch-{idx}-heading-{k}.png")
+            scene.render.filepath = frame_path
+            bpy.ops.render.render(write_still=True)
+            frames.append(load_pixels(frame_path))
 
     # Render the soft shadow frame via a Cycles shadow-catcher plane directly under the shell
     shell.rotation_euler = (0, 0, 0)
@@ -245,6 +249,9 @@ with tempfile.TemporaryDirectory() as tmp:
     shadow_px[..., 3] = np.where(shadow_px[..., 3] < 0.08, 0.0, np.clip(shadow_px[..., 3] * 1.75, 0.0, 0.95))
     frames.append(shadow_px)
 
-sheet = np.concatenate(frames, axis=1)
+# Pad the last row with empty cells, then stack rows top-down (Blender pixel rows run bottom-up).
+frames += [np.zeros_like(frames[0])] * (-len(frames) % HEADINGS)
+rows = [np.concatenate(frames[r:r + HEADINGS], axis=1) for r in range(0, len(frames), HEADINGS)]
+sheet = np.concatenate(rows[::-1], axis=0)
 save_sheet(OUT_SHEET, sheet)
-print(f"Wrote {OUT_GLB} and {len(frames)}-frame sprite sheet ({sheet.shape[1]}x{sheet.shape[0]}) to {OUT_SHEET}")
+print(f"Wrote {OUT_GLB} and {len(PITCH_ANGLES) * HEADINGS + 1}-frame sprite sheet ({sheet.shape[1]}x{sheet.shape[0]}) to {OUT_SHEET}")

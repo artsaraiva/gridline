@@ -1,6 +1,7 @@
 // Barrage impacts as baked sprites (#62): the explosion flipbook, then a smoke plume that drifts and fades, and a
 // crater decal that stays for the match. Fed by `impact` events; the sim says where, `impactLook` says how it looks.
-// Crater cap and smoke fade are tune values in sprites.ts.
+// Crater cap and smoke fade are Console constants in sprites.ts, not Simulation Tune values: they only change the
+// look, and the Console has no Tune of its own.
 import * as THREE from 'three/webgpu';
 import { layer } from '../renderer';
 import { type ImpactRecord, type ImpactSprite, impactLook, recordImpact, type SpriteSheetId, spriteMaterial } from '../sprites';

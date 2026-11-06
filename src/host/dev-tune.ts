@@ -1,4 +1,5 @@
-// DEV-only tune override for review scenes. Production builds never reach this file.
+// DEV-only tune override for review scenes. The worker imports it in every build, but only passes
+// `freeAssets: true` under `import.meta.env.DEV`, so production tunes are never changed.
 import { DEFAULT_TUNE } from '../sim/tune';
 import type { Tune } from '../sim/types';
 
