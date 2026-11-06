@@ -150,10 +150,10 @@ export function spatialise(sx: number, sy: number, w: number, h: number, zoom: n
   return { pan, gain: (near / (1 + d * d * 0.5)) * (off ? OFF_SCREEN_GAIN : 1), cutoff: off ? OFF_SCREEN_CUTOFF : FULL_BAND };
 }
 
-/** Seconds until the next Chatter, drawn from the idle or combat gap with `random` (0 <= r < 1). */
+/** Seconds until the next Chatter, drawn from the idle or combat gap with `random` (0 <= r < 1); a max below the min reads as the min. */
 export function chatterGap(combat: boolean, random: () => number = Math.random): number {
   const [lo, hi] = combat ? TUNING.chatterCombat : TUNING.chatterIdle;
-  return lo + (hi - lo) * random();
+  return lo + Math.max(0, hi - lo) * random();
 }
 
 /** Linear gain of a bus at `level` (0..1): zero when the master is muted, `TUNING.duckDb` lower while ducked. */

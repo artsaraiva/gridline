@@ -42,6 +42,12 @@ describe('Chatter gap selection (#84)', () => {
     expect(chatterGap(true, () => 0)).toBe(3);
     expect(chatterGap(true, () => 0.5)).toBe(5.5);
   });
+
+  it('a max slid below the min (the audition sliders allow it) gives the min, never a shorter or negative gap', () => {
+    TUNING.chatterIdle = [20, 10];
+    expect(chatterGap(false, () => 0.5)).toBe(20);
+    expect(chatterGap(false, () => 0.999)).toBe(20);
+  });
 });
 
 describe('repetition control (#84)', () => {
