@@ -1,8 +1,10 @@
 // Chevrons: one per Soldier (friendly blue, Contacts hostile red) on a dark halo, pointing +x before rotation,
-// constant size on screen.
+// constant size on screen. They rest desaturated and pulse to full colour when their Soldier fires (#70, tune in pulse.ts).
 import * as THREE from 'three/webgpu';
-import type { CommanderView, FriendlyView, SoldierView } from '../../sim/types';
+import type { CommanderView, FriendlyView, SideId, SoldierView } from '../../sim/types';
 import { COLOR, layer } from '../renderer';
+import { session } from '../session';
+import { pulseAt, pulseColor } from './pulse';
 import { fading, shade } from './symbols';
 
 const chevronShape = new THREE.Shape([
@@ -15,10 +17,19 @@ const chevronGeometry = new THREE.ShapeGeometry(chevronShape);
 const haloGeometry = chevronGeometry.clone().scale(1.3, 1.35, 1).translate(-0.02, 0, -0.05);
 const HALO = 0.75;
 const chevrons = new Map<string, { mesh: THREE.Mesh; halo: THREE.MeshBasicNodeMaterial }>();
+const firedAt = new Map<string, number>(); // chevron key -> time of its Soldier's last shot (#70)
 
-export const resetChevrons = () => chevrons.clear();
+export const resetChevrons = () => {
+  chevrons.clear();
+  firedAt.clear();
+};
 
-function draw(list: (SoldierView | FriendlyView)[], kind: 'friendly' | 'hostile', seen: Set<string>, scale: number) {
+/** Soldier `id` of `side` fired at `now`: its chevron pulses. Harmless for a Soldier with no chevron (an unseen enemy). */
+export function pulse(id: number, side: SideId, now: number) {
+  firedAt.set(`${side === session.commanderSide ? 'friendly' : 'hostile'}${id}`, now);
+}
+
+function draw(list: (SoldierView | FriendlyView)[], kind: 'friendly' | 'hostile', seen: Set<string>, scale: number, now: number) {
   for (const c of list) {
     const key = `${kind}${c.id}`;
     let chevron = chevrons.get(key);
@@ -33,16 +44,21 @@ function draw(list: (SoldierView | FriendlyView)[], kind: 'friendly' | 'hostile'
     mesh.rotation.z = Math.atan2(c.fy, c.fx);
     mesh.scale.setScalar(scale);
     const alpha = 'state' in c && c.state === 'wounded' ? 0.35 : 1;
-    (mesh.material as THREE.MeshBasicNodeMaterial).opacity = alpha;
+    const material = mesh.material as THREE.MeshBasicNodeMaterial;
+    material.opacity = alpha;
+    material.color.setHex(pulseColor(COLOR[kind], pulseAt(now - (firedAt.get(key) ?? -Infinity))));
     halo.opacity = HALO * alpha;
     seen.add(key);
   }
 }
 
-/** Friendlies and Contacts; chevrons of Soldiers missing from the view are hidden. `scale` is the chevron size in metres. */
-export function drawChevrons(view: CommanderView, scale: number) {
+/**
+ * Friendlies and Contacts; chevrons of Soldiers missing from the view are hidden. `scale` is the chevron size in metres,
+ * `now` the frame time for the firing pulse.
+ */
+export function drawChevrons(view: CommanderView, scale: number, now: number) {
   const seen = new Set<string>();
-  draw(view.friendlies, 'friendly', seen, scale);
-  draw(view.contacts, 'hostile', seen, scale);
+  draw(view.friendlies, 'friendly', seen, scale, now);
+  draw(view.contacts, 'hostile', seen, scale, now);
   for (const [key, { mesh }] of chevrons) mesh.visible = seen.has(key);
 }
