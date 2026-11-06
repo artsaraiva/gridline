@@ -160,10 +160,9 @@ canvas { display: block; touch-action: none; }
 }
 #squads .card > * { background: var(--panel); border: 1px solid var(--faint); box-sizing: border-box; }
 #squads .card.sel > * { border-color: var(--amber); }
-#squads .card .frame { display: grid; place-items: center; color: var(--fr); }
-#squads .card.sel .frame, #squads .card.sel .top b { color: var(--amber); }
-#squads .card.wiped .frame, #squads .card.wiped .top b { color: var(--faint); }
-#squads .card .frame svg { width: 30px; height: 22px; overflow: visible; }
+#squads .card .letter { display: grid; place-items: center; font-size: 22px; font-weight: 700; line-height: 1; color: var(--fr); }
+#squads .card.sel .letter, #squads .card.sel .top b { color: var(--amber); }
+#squads .card.wiped .letter, #squads .card.wiped .top b { color: var(--faint); }
 #squads .card .body { padding: 6px 10px; display: grid; gap: 4px; min-width: 0; }
 #squads .card .top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 2px 8px; }
 #squads .card .top b { font-size: 15px; font-weight: 700; letter-spacing: 0.1em; color: var(--fr); }
