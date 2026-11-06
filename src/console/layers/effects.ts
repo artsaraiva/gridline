@@ -6,22 +6,53 @@ import { gridRef } from '../../sim/grid-ref';
 import type { CommanderView, Vec2 } from '../../sim/types';
 import { COLOR, layer, toScreen } from '../renderer';
 import { session } from '../session';
+import { barrageShells, SHELL_SHADOW_FRAME, spriteMaterial } from '../sprites';
 import { clock } from '../summary';
 import { overlaps, targeting, validSpot } from '../targeting';
-import { css, dashedRing, fading } from './symbols';
+import { css, dashedRing, fading, shade } from './symbols';
 
 const crateGeometry = new THREE.PlaneGeometry(1, 1);
 const NAME = { scan: 'Scan UAV', supply: 'Supply Drop', barrage: 'Barrage' };
 const discGeometry = new THREE.CircleGeometry(1, 96);
 const uavGeometry = new THREE.ShapeGeometry(new THREE.Shape([new THREE.Vector2(0.6, 0), new THREE.Vector2(-0.5, 0.5), new THREE.Vector2(-0.2, 0), new THREE.Vector2(-0.5, -0.5)]));
+// Tactical shell symbol (pointed warhead + cylindrical casing + flared tail fins, pointing +y before rotation).
+const shellIconShape = new THREE.Shape([
+  new THREE.Vector2(0, 0.62),
+  new THREE.Vector2(0.15, 0.34),
+  new THREE.Vector2(0.18, 0.14),
+  new THREE.Vector2(0.18, -0.26),
+  new THREE.Vector2(0.32, -0.44),
+  new THREE.Vector2(0.32, -0.56),
+  new THREE.Vector2(0.12, -0.46),
+  new THREE.Vector2(0, -0.56),
+  new THREE.Vector2(-0.12, -0.46),
+  new THREE.Vector2(-0.32, -0.56),
+  new THREE.Vector2(-0.32, -0.44),
+  new THREE.Vector2(-0.18, -0.26),
+  new THREE.Vector2(-0.18, 0.14),
+  new THREE.Vector2(-0.15, 0.34),
+]);
+const shellIconGeometry = new THREE.ShapeGeometry(shellIconShape);
+const shellHaloGeometry = shellIconGeometry.clone().scale(1.32, 1.24, 1).translate(0, 0, -0.02);
 
 /** A ring, a faint disc and markers, pooled: rings carry no id, so they are reused in draw order. */
 type Ring = { group: THREE.Group; ring: ReturnType<typeof dashedRing>; disc: THREE.Mesh; uav: THREE.Mesh; crate: THREE.Mesh };
+type ShellMark = {
+  shadow: THREE.Mesh;
+  shadowMat: THREE.MeshBasicNodeMaterial;
+  body: THREE.Mesh;
+  frame: ReturnType<typeof spriteMaterial>['frame'];
+  icon: THREE.Mesh;
+};
 const pool: Ring[] = [];
+const shellPool: ShellMark[] = [];
 const labelBox = document.getElementById('labels')!;
 const labels: HTMLElement[] = [];
 
-export const resetEffects = () => (pool.length = 0);
+export const resetEffects = () => {
+  pool.length = 0;
+  shellPool.length = 0;
+};
 
 const material = (m: THREE.Mesh) => m.material as THREE.MeshBasicMaterial;
 
@@ -54,6 +85,29 @@ function ringAt(i: number, p: Vec2, radius: number, color: number, fill: number)
   return r;
 }
 
+function shellAt(i: number): ShellMark {
+  let s = shellPool[i];
+  if (!s) {
+    const shadow = spriteMaterial('artillery-shell', { frame: SHELL_SHADOW_FRAME, shadow: true });
+    const body = spriteMaterial('artillery-shell');
+    const icon = new THREE.Mesh(shellIconGeometry, fading(COLOR.hostile));
+    icon.add(new THREE.Mesh(shellHaloGeometry, shade(0x000000, 0.75)));
+    s = {
+      shadow: new THREE.Mesh(crateGeometry, shadow.material),
+      shadowMat: shadow.material,
+      body: new THREE.Mesh(crateGeometry, body.material),
+      frame: body.frame,
+      icon,
+    };
+    layer.add(s.shadow, s.body, s.icon);
+    shellPool.push(s);
+  }
+  s.shadow.visible = true;
+  s.body.visible = true;
+  s.icon.visible = true;
+  return s;
+}
+
 /** Places tag `i` at the world spot `p`, offset in px; moved above the map Confirm button if it would sit under it. */
 function label(i: number, p: Vec2, dx: number, dy: number, text: string, color: string) {
   let el = labels[i];
@@ -77,14 +131,14 @@ function label(i: number, p: Vec2, dx: number, dy: number, text: string, color: 
   el.style.transform = `translate(${x}px, ${y}px)`;
 }
 
-/** `scale` is the chevron size in metres (constant on screen), used for the orbiting UAV marker. */
+/** `scale` is the chevron size in metres (constant on screen), used for the orbiting UAV marker and shell icons. */
 export function drawEffects(view: CommanderView, scale: number, now: number) {
   let rings = 0;
+  let shells = 0;
   let tags = 0;
   for (const e of view.effects ?? []) {
     const danger = e.asset === 'barrage';
     const r = ringAt(rings++, e, e.radius, danger ? COLOR.hostile : COLOR.friendly, danger ? 0.1 : 0.06);
-    for (const shell of e.shells ?? []) ringAt(rings++, shell, 2 + 10 * (1 - shell.flight), COLOR.hostile, 0.2); // a shell coming down
     if (e.asset === 'scan') {
       const a = (now / 1000) * 0.35;
       r.uav.visible = true;
@@ -105,6 +159,25 @@ export function drawEffects(view: CommanderView, scale: number, now: number) {
     if (e.impactIn) time = `IMPACT ${clock(Math.ceil(e.impactIn))}`; // the Barrage counts down to its first shell
     label(tags++, { x: e.x + e.radius * 0.72, y: e.y + e.radius * 0.72 }, 6, -18, `${NAME[e.asset].toUpperCase()} ${time}`, css(danger ? COLOR.hostile : COLOR.friendly));
   }
+  const map = session.host?.map;
+  if (map) {
+    for (const s of barrageShells(view, map)) {
+      const m = shellAt(shells++);
+      m.shadow.position.set(s.shadow.x, s.shadow.y, 0.42);
+      m.shadow.rotation.z = s.rotation;
+      m.shadow.scale.setScalar(s.shadow.size);
+      m.shadowMat.opacity = s.shadow.opacity;
+      m.body.position.set(s.x, s.y, 0.72);
+      m.body.rotation.z = s.rotation;
+      m.body.scale.setScalar(s.size);
+      m.frame.value = s.pitchFrame;
+      const nx = -Math.sin(s.heading);
+      const ny = Math.cos(s.heading);
+      m.icon.position.set(s.x + nx * scale * 0.75, s.y + ny * scale * 0.75, 0.92);
+      m.icon.rotation.z = s.rotation;
+      m.icon.scale.setScalar(scale * 0.85);
+    }
+  }
   const at = targeting.armed && (targeting.spot ?? targeting.pointer);
   const radius = targeting.armed && view.assets?.find((a) => a.asset === targeting.armed)?.radius;
   if (at && radius) {
@@ -117,6 +190,12 @@ export function drawEffects(view: CommanderView, scale: number, now: number) {
     if (near) label(tags++, edge, 6, 2, `${near.name.toUpperCase()} ${Math.round(near.d)} M`, css(color));
   }
   for (let i = rings; i < pool.length; i++) pool[i]!.group.visible = false;
+  for (let i = shells; i < shellPool.length; i++) {
+    const m = shellPool[i]!;
+    m.shadow.visible = false;
+    m.body.visible = false;
+    m.icon.visible = false;
+  }
   for (let i = tags; i < labels.length; i++) labels[i]!.hidden = true;
 }
 
