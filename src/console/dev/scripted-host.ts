@@ -15,10 +15,6 @@ export interface ScriptedTimeline {
   length: number;
   viewAt(t: number): CommanderView;
   eventsBetween(t0: number, t1: number): SimEvent[];
-  /** After each frame's view is sampled; `now` is the frame's clock in ms. */
-  onSample?(view: CommanderView, now: number): void;
-  /** With each frame's crossed events and that frame's view. */
-  onEvents?(events: SimEvent[], view: CommanderView): void;
   /** When the clock jumps to `to` (a scrub, a chapter button, the loop back to 0). */
   onJump?(to: number): void;
 }
@@ -36,7 +32,6 @@ export async function startScriptedHost(map: MapData, prefix: string, timeline: 
   let playing = true;
   let lastNow: number | null = null;
   let eventsFrom = 0;
-  let view: CommanderView;
   const jump = (to: number) => {
     t = eventsFrom = Math.max(0, Math.min(timeline.length, to));
     timeline.onJump?.(t);
@@ -54,14 +49,11 @@ export async function startScriptedHost(map: MapData, prefix: string, timeline: 
       lastNow = now;
       scrub.value = String(t);
       time.textContent = `${t.toFixed(1)} s`;
-      view = timeline.viewAt(t);
-      timeline.onSample?.(view, now);
-      return view;
+      return timeline.viewAt(t);
     },
     takeEvents() {
       const events = timeline.eventsBetween(eventsFrom, t);
       eventsFrom = t;
-      timeline.onEvents?.(events, view);
       return events;
     },
   };
