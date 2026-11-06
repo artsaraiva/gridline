@@ -122,6 +122,33 @@ describe('Commander Score: Artillery', () => {
     m.score.nato.artillery = 0;
     expect(stateHash(m)).not.toBe(scored);
   });
+
+  it('an enemy Wounded by rifle fire that bleeds out lying in the Wound ring is no Barrage kill', () => {
+    const at = landing();
+    // nato 0 stands 100 m west of pact 6 (facing away) and shoots it down as the Barrage is called; the shell lands 6 m from it while it bleeds
+    const m = scene({ 6: { x: at.x + 6, y: at.y, fx: 1 }, 0: { x: at.x - 94, y: at.y } }, { hitChance: 1, damage: [100, 100], fireRangeM: 140 });
+    expect(play(m, 2).some((e) => e.kind === 'wounded' && e.id === 6)).toBe(true);
+    const rest = play(m, LAND_TICK + DEFAULT_TUNE.bleedOutSeconds * HZ, []);
+    expect(rest.some((e) => e.kind === 'impact')).toBe(true);
+    expect(rest.some((e) => e.kind === 'death' && e.id === 6)).toBe(true);
+    expect(awards(rest)).toEqual([]);
+  });
+
+  it("a Soldier Wounded by the enemy's Barrage and killed by its own Side's earns the enemy nothing", () => {
+    const at = landing();
+    const victim = { x: at.x + 6, y: at.y };
+    // dry run: nato's shell Wounds 6, then pact calls a Barrage on the same spot; learn where its shell lands
+    const dry = scene({ 6: victim });
+    play(dry, LAND_TICK + 1);
+    const l2 = play(dry, LAND_TICK + 1, [{ ...barrage(dry), side: 'pact' }]).find((e): e is Extract<SimEvent, { kind: 'impact' }> => e.kind === 'impact')!;
+    // the same again, pact's Barrage aimed so its shell lands on 6
+    const m = scene({ 6: victim });
+    const before = play(m, LAND_TICK + 1);
+    expect(before.some((e) => e.kind === 'wounded' && e.id === 6)).toBe(true);
+    const after = play(m, LAND_TICK + 1, [{ ...barrage(m), side: 'pact', at: { x: AT.x + (victim.x - l2.x), y: AT.y + (victim.y - l2.y) } }]);
+    expect(after.filter((e) => e.kind === 'death')).toEqual([{ kind: 'death', side: 'pact', id: 6, x: victim.x, y: victim.y }]);
+    expect(awards([...before, ...after])).toEqual([]);
+  });
 });
 
 describe('Commander Score: UAV assist', () => {
