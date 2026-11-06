@@ -1,6 +1,6 @@
 // DEV-only audition page (#84): the real Kaltenbach bake and the real Console layers, driven by the scripted scenarios
-// in audio-review-timeline.ts instead of a Simulation, with the sound engine hooked to the scripted host here (the
-// Console wiring is #85's), so the mix is judged by ear first. Only reachable through dev-audio-review.html.
+// in audio-review-timeline.ts instead of a Simulation, with the sound engine hooked to the scripted host here (the live
+// Console hooks it in main.ts, #85), so the mix is judged by ear first. Only reachable through dev-audio-review.html.
 import { loadBakedMap } from '../../maps/load';
 import { DEFAULT_TUNE } from '../../sim/tune';
 import { applyMix, silence, soundEvents, soundFrame } from '../audio';
@@ -83,8 +83,8 @@ export async function startAudioReview() {
     applyMix();
   };
 
-  // The scripted host over the chosen scenario, with the sound engine on its frame and event hooks (the Console wiring
-  // is #85's). A jump silences the engine; the start of a scenario (a chapter button, the loop) also clears the log.
+  // The scripted host over the chosen scenario, with the sound engine on its frame and event hooks (as main.ts does for a
+  // live Match). A jump silences the engine; the start of a scenario (a chapter button, the loop) also clears the log.
   let scenario: ScenarioId = SCENARIOS[0]!.id;
   const map = await loadBakedMap(`${import.meta.env.BASE_URL}maps/kaltenbach`, DEFAULT_TUNE.cellM);
   const timeline: ScriptedTimeline = {
