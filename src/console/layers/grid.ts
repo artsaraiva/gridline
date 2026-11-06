@@ -1,11 +1,10 @@
-// HUD frame and grid overlay (#44): map grid lines, selected Squad screen-wide crosshair with grid intersection tags,
-// top-edge grid letters on a pinned line (skipping those under a panel) and left-rail inner-edge grid numbers, bottom
-// and right UTM ticks, corner lat/long, compass (grid/true/magnetic north), scale bar, DTG strip and cursor readout.
-import { gridRef } from '../../sim/grid-ref';
+// HUD frame and grid overlay (#44): map grid lines, top-edge grid letters on a pinned line (skipping those under a
+// panel) and left-rail inner-edge grid numbers, bottom and right UTM ticks, corner lat/long, compass (grid/true/magnetic
+// north), scale bar, DTG strip and cursor readout. The selected Squad crosshair went with #92: the leader's bracket marks it.
 import type { CommanderView } from '../../sim/types';
 import { pxToWorld, toScreen, toWorld } from '../renderer';
 import { session } from '../session';
-import { cursorReadout, dtg, edgeLine, GEO, latlon, squadCentroid } from '../summary';
+import { cursorReadout, dtg, edgeLine, GEO, latlon } from '../summary';
 import { targeting, type Box } from '../targeting';
 
 const canvas = document.getElementById('hud') as HTMLCanvasElement;
@@ -83,42 +82,7 @@ export function drawGrid(view: CommanderView | null, now: number) {
     }
     ctx.stroke();
 
-    // 2. Selected Squad crosshair + grid intersection tags
-    const selC = targeting.selected !== null ? squadCentroid(view, targeting.selected) : null;
-    if (selC) {
-      const { x: csx, y: csy } = toScreen(selC);
-      ctx.strokeStyle = CHROME(0.42);
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(0, csy);
-      ctx.lineTo(W, csy);
-      ctx.moveTo(csx, 0);
-      ctx.lineTo(csx, H);
-      ctx.stroke();
-
-      ctx.font = FONT(600, 12);
-      ctx.textBaseline = 'middle';
-      for (let i = 1; i < g.cols; i++) {
-        const wx = -halfW + i * g.squareM;
-        const sx = toScreen({ x: wx, y: 0 }).x;
-        ctx.fillStyle = CHROME(0.9);
-        ctx.fillRect(sx - 3, csy - 3, 6, 6);
-        ctx.fillStyle = CHROME(0.75);
-        ctx.textAlign = 'left';
-        ctx.fillText(gridRef(g, { x: wx + 1, y: selC.y }), sx + 6, csy - 10);
-      }
-      for (let j = 1; j < g.rows; j++) {
-        const wy = halfH - j * g.squareM;
-        const sy = toScreen({ x: 0, y: wy }).y;
-        ctx.fillStyle = CHROME(0.9);
-        ctx.fillRect(csx - 3, sy - 3, 6, 6);
-        ctx.fillStyle = CHROME(0.75);
-        ctx.textAlign = 'right';
-        ctx.fillText(gridRef(g, { x: selC.x, y: wy - 1 }), csx - 7, sy + 10);
-      }
-    }
-
-    // 3. Top-edge grid letters and left-rail inner-edge grid numbers
+    // 2. Top-edge grid letters and left-rail inner-edge grid numbers
     const xs: number[] = [];
     for (let i = 0; i <= g.cols; i++) {
       const sx = toScreen({ x: -halfW + i * g.squareM, y: 0 }).x;
@@ -191,7 +155,7 @@ export function drawGrid(view: CommanderView | null, now: number) {
     ctx.restore();
   }
 
-  // 4. Bottom and right UTM ticks + corner lat/long + compass + scale bar
+  // 3. Bottom and right UTM ticks + corner lat/long + compass + scale bar
   const w0 = toWorld(0, 0);
   const w1 = toWorld(W, H);
   const mpp = pxToWorld();
