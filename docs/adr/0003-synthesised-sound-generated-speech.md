@@ -13,5 +13,5 @@ Every sound the Console plays (radio squelch and buzz, Chatter, distant guns, ex
 
 - The radio band-limiting of a Voice Line happens at runtime, so the WAV is a clean take and the radio treatment lives in one place.
 - Adding a Voice Line means editing the script, re-running it and committing the WAV with it. CI never runs Kokoro.
-- One HQ voice speaks every Voice Line. Squad Callouts stay buzz plus typed text, so speech always means HQ or the Asset net.
+- One HQ voice speaks every Voice Line, the two NET warnings ("<Point> lost", "<Squad> wiped") among them. Squad Callouts stay buzz plus typed text, so speech always means HQ or the Asset net.
 - The HQ voice is Kokoro's `af_heart` (American English, the only voice graded A in its VOICES.md; the best male voices there are C+). The Kokoro-82M weights are Apache 2.0, and its model card states the model was trained only on permissive or non-copyrighted audio (Apache- and MIT-licensed audio and synthetic audio from closed TTS providers). VOICES.md attaches CC BY attributions only to its Japanese and French voices, so the English voice carries no attribution requirement. `assets/voice/build.py` names the voice; the phrase list is `assets/voice/lines.json`.
