@@ -17,7 +17,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
-      - run: pnpm test
+      - run: pnpm test --testTimeout=20000 # sim-heavy tests take ~2s locally and 2–3× that on the runner
       - run: pnpm build
       - run: pnpm exec playwright install --with-deps
       - run: pnpm test:replay
