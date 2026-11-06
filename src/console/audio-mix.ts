@@ -1,5 +1,7 @@
 // The pure side of the sound engine (#84): the mixer's numbers and the rules audio.ts applies before it touches Web
 // Audio. Nothing here needs a browser, so all of it is unit-tested; audio.ts (the Web Audio graph) is judged by ear.
+import type { CommanderView, Vec2 } from '../sim/types';
+import { scanUav, shellInFlight } from './sprites';
 
 /** Every tuning knob in one place; the audition page's sliders mutate it live. */
 export const TUNING = {
@@ -51,6 +53,89 @@ export function admit(g: Gate, id: string, now: number, until: number): string[]
   while (g.live.length >= TUNING.maxConcurrent) evicted.push(g.live.shift()!.id);
   g.live.push({ id, at: now, until });
   return evicted;
+}
+
+// The observability rule: a combat sound plays if and only if its source is drawn on the map at that moment. The
+// Simulation's fog filter already drops unseen enemy shooters; these say what the layers would draw from the view.
+
+/** A shot sounds when its shooter is a friendly or a drawn Contact (tracers.ts draws nothing otherwise). */
+export const shooterDrawn = (view: CommanderView, id: number) => view.friendlies.some((s) => s.id === id) || view.contacts.some((s) => s.id === id);
+
+/** A looping combat sound tied to something drawn: the key names its source, (x, y) is where it is this frame. */
+export interface Loop {
+  key: string;
+  kind: 'uav' | 'crate' | 'shell';
+  x: number;
+  y: number;
+}
+
+/** The loops the effects layer draws from `view` at `seconds`: the UAV in orbit, the crate in the air, every shell in flight from `hq`. */
+export function drawnLoops(view: CommanderView, hq: Vec2, seconds: number): Loop[] {
+  const out: Loop[] = [];
+  for (const e of view.effects ?? []) {
+    if (e.asset === 'scan') {
+      const u = scanUav(e, e.radius, seconds);
+      out.push({ key: `uav:${e.x}:${e.y}`, kind: 'uav', x: u.x, y: u.y });
+    }
+    if (e.landsIn !== undefined && e.fall && e.landsIn > 0) out.push({ key: `crate:${e.x}:${e.y}`, kind: 'crate', x: e.x, y: e.y });
+    for (const s of e.shells ?? []) {
+      const p = shellInFlight(hq, s, s.flight);
+      out.push({ key: `shell:${s.x}:${s.y}`, kind: 'shell', x: p.x, y: p.y });
+    }
+  }
+  return out;
+}
+
+/** Combat, from visible information only: a friendly Squad is taking fire. */
+export const inCombat = (view: CommanderView) => view.squads.some((q) => q.takingFire);
+
+// Voice Lines (#83 generates `assets/voice/<id>.wav` for each): HQ speaks these and nothing else.
+const POINT_NAMES = ['alpha', 'bravo', 'charlie', 'delta', 'echo', 'foxtrot', 'golf', 'hotel'] as const;
+export const VOICE_IDS = [
+  'uav-inbound',
+  'uav-on-station',
+  'uav-has-contacts',
+  'uav-off-station',
+  'supplies-inbound',
+  'supplies-on-the-ground',
+  'fire-mission-shot',
+  'splash',
+  'artillery-incoming',
+  'squad-wiped',
+  ...POINT_NAMES.map((n) => `point-lost-${n}` as const),
+] as const;
+export type VoiceId = (typeof VOICE_IDS)[number];
+
+const VOICE: [RegExp, VoiceId][] = [
+  [/^Scan UAV inbound$/, 'uav-inbound'],
+  [/^UAV on station$/, 'uav-on-station'],
+  [/^UAV eyes on \d+ hostile/, 'uav-has-contacts'],
+  [/^UAV off station/, 'uav-off-station'],
+  [/^Supply Drop inbound$/, 'supplies-inbound'],
+  [/^Supply Drop landed$/, 'supplies-on-the-ground'],
+  [/^Barrage inbound$/, 'fire-mission-shot'],
+  [/^Splash$/, 'splash'],
+  [/^Artillery incoming$/, 'artillery-incoming'],
+  [/ wiped$/, 'squad-wiped'],
+  ...POINT_NAMES.map((n): [RegExp, VoiceId] => [new RegExp(`^${n} lost$`, 'i'), `point-lost-${n}`]),
+];
+
+/** The Voice Line that speaks radio log line `text` (the typed line keeps its full text), or null for buzz plus text. */
+export const voiceFor = (text: string): VoiceId | null => VOICE.find(([re]) => re.test(text))?.[1] ?? null;
+
+// Spatial: combat sounds sit where their source is drawn. Radio, Voice Lines and Chatter come from the Console and never pan.
+const PAN_WIDTH = 0.8; // full left/right is harsh on a tablet
+const OFF_SCREEN_GAIN = 0.4;
+const OFF_SCREEN_CUTOFF = 900; // Hz
+const FULL_BAND = 20000;
+
+/** Pan, gain and low-pass cutoff for a source at screen (sx, sy) in a `w` x `h` viewport at `zoom`. */
+export function spatialise(sx: number, sy: number, w: number, h: number, zoom: number): { pan: number; gain: number; cutoff: number } {
+  const pan = Math.max(-1, Math.min(1, (sx - w / 2) / (w / 2))) * PAN_WIDTH;
+  const d = Math.hypot(sx - w / 2, sy - h / 2) / (h / 2); // 1 at the top or bottom edge
+  const off = sx < 0 || sx > w || sy < 0 || sy > h;
+  const near = Math.min(1, 0.4 + 0.15 * zoom); // the overview hears the battle from far away
+  return { pan, gain: (near / (1 + d * d * 0.5)) * (off ? OFF_SCREEN_GAIN : 1), cutoff: off ? OFF_SCREEN_CUTOFF : FULL_BAND };
 }
 
 /** Seconds until the next Chatter, drawn from the idle or combat gap with `random` (0 <= r < 1). */
