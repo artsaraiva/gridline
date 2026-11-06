@@ -77,6 +77,15 @@ describe('repetition control (#84)', () => {
     admit(g, 'a', 0, 0.5);
     expect(admit(g, 'b', 1, 2)).toEqual([]);
   });
+
+  it('loops sit outside the cap: they never fill it and a one-shot never evicts one', () => {
+    TUNING.maxConcurrent = 1;
+    const g = newGate();
+    expect(admit(g, 'uav', 0, Infinity)).toEqual([]);
+    expect(admit(g, 'shell', 0, Infinity)).toEqual([]);
+    expect(admit(g, 'shot:1', 1, 2)).toEqual([]);
+    expect(admit(g, 'shot:2', 1.1, 2)).toEqual(['shot:1']);
+  });
 });
 
 describe('observability rule: a combat sound plays only when its source is drawn (#84)', () => {

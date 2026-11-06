@@ -12,7 +12,7 @@ export const TUNING = {
   chatterCombat: [3, 8] as [number, number],
   /** Shots from one Squad make one burst per window. */
   coalesceSeconds: 0.5,
-  /** Combat sounds playing at once; the newest wins. */
+  /** One-shot combat sounds (bursts, explosions) playing at once; the newest wins. Loops sit outside the cap. */
   maxConcurrent: 6,
   /** Two explosions never land closer than this. */
   impactGapSeconds: 0.2,
@@ -46,11 +46,17 @@ export function admitImpact(g: Gate, now: number): boolean {
   return true;
 }
 
-/** Books combat sound `id` playing from `now` to `until` and returns the ids evicted to keep within the cap (oldest first). */
+/** Books combat sound `id` playing from `now` to `until` and returns the one-shots evicted to keep within the cap (oldest first). */
 export function admit(g: Gate, id: string, now: number, until: number): string[] {
   g.live = g.live.filter((s) => s.until > now);
   const evicted: string[] = [];
-  while (g.live.length >= TUNING.maxConcurrent) evicted.push(g.live.shift()!.id);
+  // ponytail: loops (until Infinity) neither count nor get evicted; an evicted loop that is still drawn would only
+  // restart next frame with its fade-in. Only the one-shots race for the cap.
+  if (until !== Infinity) {
+    const oneShots = g.live.filter((s) => s.until !== Infinity);
+    for (const s of oneShots.slice(0, Math.max(0, oneShots.length + 1 - TUNING.maxConcurrent))) evicted.push(s.id);
+    g.live = g.live.filter((s) => !evicted.includes(s.id));
+  }
   g.live.push({ id, at: now, until });
   return evicted;
 }
