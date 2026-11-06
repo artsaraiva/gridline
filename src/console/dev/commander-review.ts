@@ -8,7 +8,7 @@ import { drawMap, fitView } from '../layers/map';
 import { camera } from '../renderer';
 import { session } from '../session';
 import { CHAPTERS, CLOSE_AT, eventsBetween, LENGTH, viewAt } from './commander-review-timeline';
-import './commander-review.css';
+import './review-controls.css';
 
 function $(id: string) {
   return document.getElementById(id)!;
@@ -25,6 +25,7 @@ export async function startCommanderReview() {
 
   const controls = document.createElement('div');
   controls.id = 'commander-review-controls';
+  controls.className = 'review-controls';
   controls.innerHTML = `
     <div class="eyebrow">DEV review / #69</div>
     <h2>Commander look review</h2>

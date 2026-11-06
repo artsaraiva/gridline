@@ -81,10 +81,10 @@ function open(line: Line, now: number) {
     row.onkeydown = (e) => (e.key === 'Enter' || e.key === ' ') && row.click();
   }
   while (list.childElementCount > KEPT) list.firstElementChild!.remove();
-  const cps = CPS * (1 + queue.length);
   const full = line.text;
-  if (line.onAir) transmit(full.length / cps);
-  typing = { text: row.querySelector<HTMLElement>('.tx')!, chip: line.grid ? chip : null, full, start: now, cps, onAir: line.onAir };
+  let seconds = full.length / (CPS * (1 + queue.length));
+  if (line.onAir) seconds = transmit(seconds, full); // a Voice Line is on air for its sample's length, and the line types for as long
+  typing = { text: row.querySelector<HTMLElement>('.tx')!, chip: line.grid ? chip : null, full, start: now, cps: full.length / seconds, onAir: line.onAir };
   chip.style.visibility = 'hidden'; // shown once the line is out, so nothing jumps while it types
 }
 
