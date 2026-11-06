@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { CommanderView, EffectView, SimEvent } from '../sim/types';
-import { admit, admitImpact, admitShot, busGain, chatterGap, drawnLoops, inCombat, newGate, sourceDrawn, spatialise, TUNING, voiceFor } from './audio-mix';
+import { admit, admitImpact, admitShot, busGain, chatterGap, drawnLoops, inCombat, newGate, release, sourceDrawn, spatialise, TUNING, voiceFor } from './audio-mix';
 
 const HQ = { x: -415, y: 0 };
 const view = (over: Partial<CommanderView> = {}): CommanderView => ({
@@ -85,6 +85,18 @@ describe('repetition control (#84)', () => {
     const g = newGate();
     admit(g, 'a', 0, 0.5);
     expect(admit(g, 'b', 1, 2)).toEqual([]);
+  });
+
+  it('a released loop leaves the gate; a new gate forgets every booking', () => {
+    const g = newGate();
+    admit(g, 'uav', 0, Infinity);
+    admit(g, 'shot:1', 0, 1);
+    release(g, 'uav');
+    expect(g.live.map((s) => s.id)).toEqual(['shot:1']);
+    admitShot(g, 'alpha', 0);
+    const fresh = newGate();
+    expect(fresh.live).toEqual([]);
+    expect(admitShot(fresh, 'alpha', 0)).toBe(true);
   });
 
   it('loops sit outside the cap: they never fill it and a one-shot never evicts one', () => {

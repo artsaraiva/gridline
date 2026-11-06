@@ -7,7 +7,7 @@
 // Browsers keep audio locked until a user gesture, so the context is only made on the first press or key; until then
 // everything is silent.
 import type { CommanderView, SimEvent, Vec2 } from '../sim/types';
-import { admit, admitImpact, admitShot, busGain, chatterGap, drawnLoops, inCombat, type Loop, newGate, sourceDrawn, spatialise, TUNING, type VoiceId, voiceFor } from './audio-mix';
+import { admit, admitImpact, admitShot, busGain, chatterGap, drawnLoops, inCombat, type Loop, newGate, release, sourceDrawn, spatialise, TUNING, type VoiceId, voiceFor } from './audio-mix';
 import { camera, toScreen } from './renderer';
 
 let ctx: AudioContext | null = null;
@@ -423,15 +423,19 @@ function parachuteFlutter(x: number, y: number): Handle {
 
 const LOOP: Record<Loop['kind'], (x: number, y: number) => Handle> = { shell: shellWhistle, uav: uavHum, crate: parachuteFlutter };
 
-const gate = newGate();
+let gate = newGate();
 const sounds = new Map<string, Handle>();
 let serial = 0;
 
-/** Books `id` with the concurrent cap, stopping what it evicts. */
+/** Books `id` with the concurrent cap, stopping what it evicts and forgetting what has ended. */
 function play(id: string, handle: Handle) {
-  for (const old of admit(gate, id, ctx!.currentTime, handle.until)) sounds.get(old)?.stop();
+  const now = ctx!.currentTime;
+  for (const old of admit(gate, id, now, handle.until)) {
+    sounds.get(old)?.stop();
+    sounds.delete(old);
+  }
+  for (const [key, h] of sounds) if (h.until <= now) sounds.delete(key);
   sounds.set(id, handle);
-  for (const key of sounds.keys()) if (!gate.live.some((s) => s.id === key)) sounds.delete(key);
 }
 
 /** The combat sounds `events` call for, for sources drawn in `view`: a burst per Squad per window, an explosion per spaced impact. */
@@ -463,7 +467,7 @@ export function soundFrame(view: CommanderView, hq: Vec2, seconds: number) {
     if (h.until !== Infinity || keys.has(key)) continue;
     h.stop();
     sounds.delete(key);
-    gate.live = gate.live.filter((s) => s.id !== key);
+    release(gate, key);
   }
   for (const l of drawn) {
     const h = sounds.get(l.key);
@@ -476,8 +480,6 @@ export function soundFrame(view: CommanderView, hq: Vec2, seconds: number) {
 export function silence() {
   for (const h of sounds.values()) h.stop();
   sounds.clear();
-  gate.live = [];
-  gate.bursts.clear();
-  gate.lastImpact = -Infinity;
+  gate = newGate();
   nextChatter = 0;
 }

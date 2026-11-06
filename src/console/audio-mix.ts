@@ -62,6 +62,11 @@ export function admit(g: Gate, id: string, now: number, until: number): string[]
   return evicted;
 }
 
+/** Forgets `id`: a loop whose source is no longer drawn. */
+export function release(g: Gate, id: string) {
+  g.live = g.live.filter((s) => s.id !== id);
+}
+
 // The observability rule: a combat sound plays if and only if its source is drawn on the map at that moment. The
 // Simulation's fog filter already drops unseen enemy shooters; these say what the layers would draw from the view.
 
