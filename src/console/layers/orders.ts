@@ -5,7 +5,7 @@
 import * as THREE from 'three/webgpu';
 import type { CommanderView, Vec2 } from '../../sim/types';
 import { BRIGHT, COLOR, GLOW, layer, toScreen } from '../renderer';
-import { squadTag } from '../summary';
+import { leaderOf, squadTag } from '../summary';
 import { targeting } from '../targeting';
 import { css } from './symbols';
 
@@ -70,7 +70,7 @@ function tag(i: number, p: Vec2, dx: number, dy: number, text: string, color: st
 export function drawOrders(view: CommanderView, px: number) {
   let n = 0;
   for (const q of view.squads) {
-    const lead = view.friendlies.find((f) => f.id === q.leader);
+    const lead = leaderOf(view, q);
     const point = q.order?.point ? view.points.find((p) => p.id === q.order!.point) : undefined;
     const line = lineFor(q.id);
     const o = q.order;

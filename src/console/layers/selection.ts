@@ -7,7 +7,7 @@
 import * as THREE from 'three/webgpu';
 import type { CommanderView } from '../../sim/types';
 import { COLOR, layer } from '../renderer';
-import { selectionMarks } from '../summary';
+import { leaderOf, selectionMarks } from '../summary';
 import { targeting } from '../targeting';
 import { bar, fading, px } from './symbols';
 
@@ -35,7 +35,7 @@ function ringFor(id: number) {
 
 /** `scale` is the symbol unit in metres. */
 export function drawSelection(view: CommanderView, scale: number) {
-  const { members, leader } = selectionMarks(view, targeting.selected);
+  const { members } = selectionMarks(view, targeting.selected);
   for (const m of rings.values()) m.visible = false;
   for (const id of members) {
     const f = view.friendlies.find((s) => s.id === id)!;
@@ -45,7 +45,8 @@ export function drawSelection(view: CommanderView, scale: number) {
     ring.scale.setScalar(scale);
   }
   if (!leaderBar) layer.add((leaderBar = new THREE.Mesh(barGeometry, fading(COLOR.amber))));
-  const lead = leader === null ? undefined : view.friendlies.find((f) => f.id === leader);
+  const q = view.squads.find((s) => s.id === targeting.selected);
+  const lead = q && leaderOf(view, q);
   leaderBar.visible = !!lead;
   if (!lead) return;
   leaderBar.position.set(lead.x, lead.y, 1.05);

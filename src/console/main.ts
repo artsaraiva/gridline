@@ -46,8 +46,10 @@ renderer.setAnimationLoop(() => {
   for (const e of host.takeEvents()) {
     if (e.kind === 'death') addDeathMarker(e.x, e.y, e.side, now);
     else if (e.kind === 'impact') addImpact(e.x, e.y, now);
-    else if (e.kind === 'shot' || e.kind === 'suppressive') addShot(e, view, now);
-    if (e.kind === 'shot' || e.kind === 'suppressive') pulse(e.from, e.side, now);
+    else if (e.kind === 'shot' || e.kind === 'suppressive') {
+      addShot(e, view, now);
+      pulse(e.from, e.side, now);
+    }
     logRadio(e, view);
     toastEvent(e, view);
   }

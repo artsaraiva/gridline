@@ -1,6 +1,7 @@
 // DEV-only Commander look review timeline (#69): a hand-written, deterministic script of CommanderViews and Events on
 // Kaltenbach coordinates, so the Console's readability treatments (#70 firing pulse, #71 selection and Squad Leader
 // markers) are judged on every Squad Leader state without a Simulation. `viewAt` and `eventsBetween` are pure.
+import { DEFAULT_TUNE } from '../../sim/tune';
 import type { CommanderView, FriendlyView, SimEvent, SoldierView, SquadView } from '../../sim/types';
 
 export const LENGTH = 72;
@@ -20,7 +21,7 @@ export const CHAPTERS = [
 export const CLOSE_AT = { x: -66, y: 18 };
 
 const HQ = { x: -415, y: 0 };
-const HZ = 20;
+const HZ = DEFAULT_TUNE.hz;
 
 type Span = [number, number];
 type Key = [t: number, x: number, y: number];
@@ -152,7 +153,7 @@ export function eventsBetween(t0: number, t1: number): SimEvent[] {
 /** Fit to fire at `t`: not down, and not going down within the next second (so the shooter is still drawn when the tracer lands). */
 const fit = (m: Man, t: number) => !inSpan(m.dead, t) && !inSpan(m.wounded, t) && !inSpan(m.dead, t + 1) && !inSpan(m.wounded, t + 1);
 
-/** The firefight: from the Firing chapter on, Alpha and Bravo trade fire with the Contacts, who also fire suppressive at the Squads' ground. */
+/** The firefight: from the Firing chapter on, Alpha and Bravo trade fire with the Contacts; both sides also fire suppressive at the other's ground. */
 function firefight(): [number, SimEvent][] {
   const events: [number, SimEvent][] = [];
   const squads = MEN.filter((m) => m.squad < 2);
@@ -173,6 +174,12 @@ function firefight(): [number, SimEvent][] {
   for (let t = start + 0.5; t < LENGTH; t += 1.5, i++) {
     const { x, y } = at(MEN[(i * 3) % 8]!.path, t);
     events.push([t, { kind: 'suppressive', side: 'pact', from: CONTACTS[2]!.id, x: x + ((i % 5) - 2) * 2, y: y + ((i % 3) - 1) * 2, hit: false }]);
+  }
+  i = 0;
+  for (let t = start + 0.8; t < LENGTH; t += 1.8, i++) {
+    const from = squads.filter((m) => fit(m, t))[(i * 7) % 8];
+    const { x, y } = at(CONTACTS[i % CONTACTS.length]!.path, t);
+    if (from) events.push([t, { kind: 'suppressive', side: 'nato', from: from.id, x: x + ((i % 3) - 1) * 3, y: y + ((i % 5) - 2) * 2, hit: false }]);
   }
   return events;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cursorReadout, drainLine, dtg, edgeLine, endSummary, latlon, mgrs, orderLine, radioLine, requestLine, selectionMarks, squadTag } from './summary';
+import { cursorReadout, drainLine, dtg, edgeLine, endSummary, latlon, leaderOf, mgrs, orderLine, radioLine, requestLine, selectionMarks, squadTag } from './summary';
 import type { CommanderView, MapGrid, MatchResult, SideId, SimEvent, SquadView } from '../sim/types';
 
 function ended(side: SideId, result: MatchResult, tickets: Record<SideId, number>, seconds: number): CommanderView {
@@ -150,5 +150,10 @@ describe('selection marks (#71)', () => {
   it('marks no leader for a leaderless Squad and nothing with no selection', () => {
     expect(selectionMarks(view, 1)).toEqual({ members: [4, 5], leader: null });
     expect(selectionMarks(view, null)).toEqual({ members: [], leader: null });
+  });
+
+  it('leaderOf finds the Squad Leader among the friendlies, Wounded or not, and nothing for a leaderless Squad', () => {
+    expect(leaderOf(view, view.squads[0]!)).toBe(view.friendlies[0]);
+    expect(leaderOf(view, view.squads[1]!)).toBeUndefined();
   });
 });

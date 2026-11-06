@@ -4,6 +4,7 @@
 import * as THREE from 'three/webgpu';
 import type { CommanderView } from '../../sim/types';
 import { COLOR, layer } from '../renderer';
+import { leaderOf } from '../summary';
 import { targeting } from '../targeting';
 import { bar, fading, px } from './symbols';
 
@@ -41,7 +42,7 @@ function makeFrame(): FrameMesh {
 /** `scale` is the symbol unit in metres. */
 export function drawSquadFrames(view: CommanderView, scale: number) {
   for (const q of view.squads) {
-    const lead = view.friendlies.find((f) => f.id === q.leader);
+    const lead = leaderOf(view, q);
     let f = frames.get(q.id);
     if (!f) frames.set(q.id, (f = makeFrame()));
     f.group.visible = !!lead;

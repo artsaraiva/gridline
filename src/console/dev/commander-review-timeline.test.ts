@@ -36,8 +36,7 @@ describe('commander review timeline (#69)', () => {
     expect(kinds).toContain('shot');
     expect(kinds).toContain('suppressive');
     const fire = events.filter((e): e is Extract<SimEvent, { kind: 'shot' | 'suppressive' }> => e.kind === 'shot' || e.kind === 'suppressive');
-    expect(fire.some((e) => e.side === 'nato')).toBe(true);
-    expect(fire.some((e) => e.side === 'pact')).toBe(true);
+    for (const side of ['nato', 'pact'] as const) for (const kind of ['shot', 'suppressive'] as const) expect(fire.some((e) => e.side === side && e.kind === kind), `${side} ${kind}`).toBe(true);
   });
 
   const squad = (view: ReturnType<typeof viewAt>, name: string) => view.squads.find((q) => q.name === name)!;

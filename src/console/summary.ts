@@ -1,6 +1,6 @@
 import { gridRef } from '../sim/grid-ref';
 import { DEFAULT_TUNE } from '../sim/tune';
-import { enemyOf, type CommanderView, type MapGrid, type SideId, type SimEvent, type SquadView, type Vec2 } from '../sim/types';
+import { enemyOf, type CommanderView, type FriendlyView, type MapGrid, type SideId, type SimEvent, type SquadView, type Vec2 } from '../sim/types';
 import type { Box } from './targeting';
 
 export const FACTION: Record<SideId, string> = { nato: 'NATO', pact: 'Warsaw Pact' };
@@ -120,6 +120,9 @@ export function selectionMarks(view: CommanderView, selectedId: number | null): 
   if (!q) return { members: [], leader: null };
   return { members: view.friendlies.filter((f) => f.squad === q.id).map((f) => f.id), leader: q.leader ?? null };
 }
+
+/** The Squad Leader's FriendlyView (#68: Wounded or not), or undefined while the Squad has none. */
+export const leaderOf = (view: CommanderView, q: SquadView): FriendlyView | undefined => view.friendlies.find((f) => f.id === q.leader);
 
 /** Bottom-centre cursor readout: grid · MGRS · bearing and range from the selected Squad. */
 export function cursorReadout(pointer: Vec2 | null, view: CommanderView, grid: MapGrid | undefined, selectedId: number | null): string {

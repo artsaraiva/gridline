@@ -18,6 +18,7 @@ const haloGeometry = chevronGeometry.clone().scale(1.3, 1.35, 1).translate(-0.02
 const HALO = 0.75;
 const chevrons = new Map<string, { mesh: THREE.Mesh; halo: THREE.MeshBasicNodeMaterial }>();
 const firedAt = new Map<string, number>(); // chevron key -> time of its Soldier's last shot (#70)
+const keyOf = (kind: 'friendly' | 'hostile', id: number) => `${kind}${id}`;
 
 export const resetChevrons = () => {
   chevrons.clear();
@@ -26,12 +27,12 @@ export const resetChevrons = () => {
 
 /** Soldier `id` of `side` fired at `now`: its chevron pulses. Harmless for a Soldier with no chevron (an unseen enemy). */
 export function pulse(id: number, side: SideId, now: number) {
-  firedAt.set(`${side === session.commanderSide ? 'friendly' : 'hostile'}${id}`, now);
+  firedAt.set(keyOf(side === session.commanderSide ? 'friendly' : 'hostile', id), now);
 }
 
 function draw(list: (SoldierView | FriendlyView)[], kind: 'friendly' | 'hostile', seen: Set<string>, scale: number, now: number) {
   for (const c of list) {
-    const key = `${kind}${c.id}`;
+    const key = keyOf(kind, c.id);
     let chevron = chevrons.get(key);
     if (!chevron) {
       chevron = { mesh: new THREE.Mesh(chevronGeometry, fading(COLOR[kind])), halo: shade(0x000000, HALO) };
