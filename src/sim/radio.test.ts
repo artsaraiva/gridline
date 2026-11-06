@@ -57,7 +57,7 @@ function play(m: Match, ticks: number, at: Record<number, (m: Match) => Command[
   return { events, raw };
 }
 
-const lines = (events: Logged[], side: SideId, squad?: number, type?: string) =>
+const lines = (events: Logged[], side: SideId, squad?: number | null, type?: string) =>
   events.filter((e): e is Radio => e.kind === 'radio' && e.side === side && (squad === undefined || e.squad === squad) && (!type || e.type === type));
 
 /** Nato Squad 0 (ids 0, 1) faces pact Squad 1 (ids 2, 3) across 100 m; nobody can hit, so only sight and noise happen. */
@@ -198,14 +198,21 @@ describe('Callouts: points', () => {
     expect(said[1]!.tick).toBeGreaterThanOrEqual(5 * HZ) // 4 Soldiers in the ring take it in about 8 s;
   });
 
-  it('point lost is called by the Squad standing in it', () => {
+  it('point lost is a NET line for the losing Side, said once whether or not a Squad is there (#85); captured stays a Callout', () => {
     const own = [{ id: 'P', name: 'C', x: 0, y: 0, owner: 'nato' as const }];
-    const place = { 0: { x: 0, y: 0 }, 4: { x: 2, y: 0 }, 5: { x: 0, y: 2 }, 6: { x: 2, y: 2 }, 7: { x: 4, y: 2 } };
-    const { events } = play(scene({ tune: { visionM: 0 }, points: own, place, squads: 1 }), 60 * HZ);
-    expect(lines(events, 'nato', 0, 'capturing')).toEqual([]);
-    const lost = lines(events, 'nato', 0, 'lost');
+    // nobody from nato near C (its Squad sits at the HQ): pact 4-7 take it
+    const far = play(scene({ tune: { visionM: 0 }, points: own, place: { 4: { x: 2, y: 0 }, 5: { x: 0, y: 2 }, 6: { x: 2, y: 2 }, 7: { x: 4, y: 2 } }, squads: 1 }), 60 * HZ).events;
+    const lost = lines(far, 'nato', null, 'lost');
     expect(lost).toHaveLength(1);
-    expect(lost[0]).toMatchObject({ text: 'Charlie lost', grid: 'G7' });
+    expect(lost[0]).toMatchObject({ squad: null, text: 'Charlie lost', grid: 'G7', priority: RADIO_PRIORITY.lost });
+    expect(lines(far, 'nato', 0, 'lost')).toEqual([]);
+    expect(lines(far, 'pact', undefined, 'lost')).toEqual([]);
+    const captured = lines(far, 'pact', 1, 'captured');
+    expect(captured).toHaveLength(1);
+    expect(captured[0]).toMatchObject({ text: 'Charlie captured', grid: 'G7' });
+    // two nato Squads standing in C hear it once, not once each
+    const inside = play(scene({ tune: { visionM: 0 }, points: own, place: { 0: { x: 0, y: 0 }, 4: { x: 1, y: 0 }, 8: { x: 2, y: 0 }, 9: { x: 0, y: 2 }, 10: { x: 2, y: 2 }, 11: { x: 4, y: 2 } }, squads: 2 }), 60 * HZ).events;
+    expect(lines(inside, 'nato', undefined, 'lost').map((e) => e.squad)).toEqual([null]);
   });
 });
 

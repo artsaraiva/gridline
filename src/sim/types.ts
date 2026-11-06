@@ -379,7 +379,8 @@ export type SimEvent =
    * (e.g. 'contact', 'ack', 'flanking', 'request'). `squad` is null for a line not from a Squad (HQ, the asset net).
    * `text` is the line without the Grid Reference; `grid` is set when the line is located (see `gridRef`).
    * `priority` is set by radio.ts from the `type` (RADIO_PRIORITY): a higher one pre-empts a waiting lower one. Callouts: 'contact',
-   * 'fire', 'mandown', 'capturing', 'captured', 'lost', 'redeploying', 'wiped' (a Commander-side line, sent for a Squad that is gone).
+   * 'fire', 'mandown', 'capturing', 'captured', 'redeploying'. Commander-side lines (`squad` null): 'lost' (a Capture Point the Side
+   * held, #85) and 'wiped' (sent for a Squad that is gone, with its `squad`).
    */
   | { kind: 'radio'; side: SideId; squad: number | null; type: string; text: string; grid?: string; priority: number }
   /** #34: suppressive fire: a round at (x, y) near a Last Known Position, with no enemy in view. */

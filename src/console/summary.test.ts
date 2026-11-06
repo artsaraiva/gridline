@@ -98,6 +98,7 @@ describe('radio log line', () => {
   it('a wiped Squad is reported by the net, a rejected Command by HQ, and the other Side is never shown', () => {
     expect(radioLine(say('wiped'), view)!.from).toBe('NET');
     expect(radioLine(say('asset', 'nato', null), view)!.from).toBe('NET');
+    expect(radioLine(say('lost', 'nato', null), view)).toMatchObject({ from: 'NET', bad: true }); // #85: a lost Point is the net's
     expect(radioLine({ kind: 'rejected', side: 'nato', command: { tick: 0, side: 'nato', kind: 'order', squad: 9, point: null }, reason: 'unknown squad' }, view)).toMatchObject({ from: 'HQ', bad: true, onAir: false });
     expect(radioLine(say('contact', 'pact'), view)).toBeNull();
   });

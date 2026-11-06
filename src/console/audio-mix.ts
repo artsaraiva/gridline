@@ -130,7 +130,7 @@ export function voiceFor(line: { type: string; text: string }): VoiceId | null {
     case 'asset':
       return VOICE_FOR_LINE[line.text] ?? (/^UAV eyes on \d+ hostile/.test(line.text) ? 'uav-has-contacts' : null);
     case 'lost': {
-      const name = POINT_NAMES.find((n) => line.text.toLowerCase() === `${n} lost`); // "<Point> lost", a Squad Callout (src/sim/radio.ts)
+      const name = POINT_NAMES.find((n) => line.text.toLowerCase() === `${n} lost`); // "<Point> lost", the losing Side's NET line (src/sim/radio.ts)
       return name ? `point-lost-${name}` : null;
     }
     case 'wiped':
