@@ -1,7 +1,7 @@
 // Orders on the map (#36): a line from each ordered Squad's Squad Leader to its point, and DOM tags: the Squad tag on the
 // Squad Leader (#68: `leader` in the view, Wounded or not; #54: while the leader is dead, on the point man, the first
 // alive member, else any present member; none once wiped) (name, strength, task, Order state, alerts), and a Holding
-// tag on the point. Line: solid while Following, amber dashed with a reason glyph while Delayed, faint dashes while pending.
+// tag on the point. Line (#95, as BF4 Commander): white dots, fainter while pending, amber with a reason glyph while Delayed.
 import * as THREE from 'three/webgpu';
 import type { CommanderView, Vec2 } from '../../sim/types';
 import { BRIGHT, COLOR, GLOW, layer, toScreen } from '../renderer';
@@ -11,8 +11,8 @@ import { css } from './symbols';
 
 export const AMBER = COLOR.amber;
 const MAX_DASHES = 300;
-const DASH_PX = 7;
-const GAP_PX = 5;
+const DASH_PX = 3;
+const GAP_PX = 6;
 const GLYPH = { retreat: '↩ RETREATING', resupply: '⟲ RESUPPLYING' };
 
 const lines = new Map<number, THREE.LineSegments>();
@@ -78,10 +78,9 @@ export function drawOrders(view: CommanderView, px: number) {
     line.visible = !!(lead && point && o && !(o.state === 'holding' && there));
     if (lead && point && o) {
       const m = line.material as THREE.LineBasicNodeMaterial;
-      m.color.setHex(o.state === 'delayed' ? AMBER : COLOR.friendly);
-      m.opacity = o.state === 'pending' ? 0.55 : 0.85;
-      if (o.state === 'following' || o.state === 'holding') segments(line, lead, point, 1e9, 0);
-      else segments(line, lead, point, DASH_PX * px, GAP_PX * px);
+      m.color.setHex(o.state === 'delayed' ? AMBER : COLOR.bone);
+      m.opacity = o.state === 'pending' ? 0.45 : 0.9;
+      segments(line, lead, point, DASH_PX * px, GAP_PX * px);
       if (o.state === 'delayed') tag(n++, { x: (lead.x + point.x) / 2, y: (lead.y + point.y) / 2 }, 6, -8, GLYPH[o.reason ?? 'retreat'], css(AMBER));
       if (o.state === 'holding') tag(n++, point, 4, 6, `HOLD · ${q.name.toUpperCase()}`, css(COLOR.friendly));
     }
