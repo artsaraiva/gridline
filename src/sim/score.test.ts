@@ -198,16 +198,28 @@ describe('Commander Score: UAV assist', () => {
     expect(awards(untilDead(m))).toEqual([UAV_ASSIST]);
   });
 
-  it('shot down within the grace after the UAV left awards; after the grace ran out it does not', () => {
+  it('watched by a Soldier from the UAV on, shot down within the grace after the UAV left awards; after the grace ran out it does not', () => {
     const downedAt = (tick: number) => {
+      // nato 1 comes to watch 6 from 145 m, out of rifle range, while the UAV still has it: sight takes over with no gap
       const m = uavScene();
-      play(m, tick, [scan(m)]);
+      play(m, HZ / 2, [scan(m)]);
+      Object.assign(m.soldiers[1]!, { x: V.x - 145, y: V.y });
+      play(m, tick - HZ / 2, []);
       expect(m.assets.effects).toEqual([]);
       shooterIn(m);
       return awards(untilDead(m));
     };
     expect(downedAt(WINDOW - 2 * HZ)).toEqual([UAV_ASSIST]);
     expect(downedAt(WINDOW + 2 * HZ)).toEqual([]);
+  });
+
+  it('out of all eyes for a moment after the UAV left and found again by a Soldier alone, it awards nothing even within the grace', () => {
+    const m = uavScene();
+    play(m, 2 * HZ, [scan(m)]); // the 1 s Scan is over, nobody has seen 6 for a second
+    expect(m.assets.effects).toEqual([]);
+    shooterIn(m);
+    expect(m.tick).toBeLessThan(WINDOW - HZ);
+    expect(awards(untilDead(m))).toEqual([]);
   });
 
   it('a Revive clears the eligibility: shot down again after the window and bleeding out, the Soldier awards nothing', () => {
