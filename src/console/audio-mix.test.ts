@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import type { CommanderView, EffectView } from '../sim/types';
-import { admit, admitImpact, admitShot, busGain, chatterGap, drawnLoops, inCombat, newGate, shooterDrawn, spatialise, TUNING, VOICE_IDS, voiceFor } from './audio-mix';
+import type { CommanderView, EffectView, SimEvent } from '../sim/types';
+import { admit, admitImpact, admitShot, busGain, chatterGap, drawnLoops, inCombat, newGate, sourceDrawn, spatialise, TUNING, VOICE_IDS, voiceFor } from './audio-mix';
 
 const HQ = { x: -415, y: 0 };
 const view = (over: Partial<CommanderView> = {}): CommanderView => ({
@@ -91,9 +91,15 @@ describe('repetition control (#84)', () => {
 describe('observability rule: a combat sound plays only when its source is drawn (#84)', () => {
   it('a shot sounds for a friendly or a drawn Contact, and is silent for an unseen shooter', () => {
     const v = view();
-    expect(shooterDrawn(v, 1)).toBe(true);
-    expect(shooterDrawn(v, 20)).toBe(true);
-    expect(shooterDrawn(v, 99)).toBe(false);
+    const shot = (from: number): SimEvent => ({ kind: 'shot', side: 'nato', from, to: 20, hit: false });
+    expect(sourceDrawn(v, shot(1))).toBe(true);
+    expect(sourceDrawn(v, shot(20))).toBe(true);
+    expect(sourceDrawn(v, shot(99))).toBe(false);
+    expect(sourceDrawn(v, { kind: 'suppressive', side: 'pact', from: 99, x: 0, y: 0, hit: false })).toBe(false);
+  });
+
+  it('an impact the Console receives is drawn by the impacts layer, so it always sounds', () => {
+    expect(sourceDrawn(view(), { kind: 'impact', side: 'pact', x: 0, y: 0 })).toBe(true);
   });
 
   it('a Scan UAV on station hums at its orbit; nothing loops on an empty map', () => {

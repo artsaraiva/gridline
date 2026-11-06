@@ -7,7 +7,7 @@
 // Browsers keep audio locked until a user gesture, so the context is only made on the first press or key; until then
 // everything is silent.
 import type { CommanderView, SimEvent, Vec2 } from '../sim/types';
-import { admit, admitImpact, admitShot, busGain, chatterGap, drawnLoops, inCombat, type Loop, newGate, shooterDrawn, spatialise, TUNING, type VoiceId, voiceFor } from './audio-mix';
+import { admit, admitImpact, admitShot, busGain, chatterGap, drawnLoops, inCombat, type Loop, newGate, sourceDrawn, spatialise, TUNING, type VoiceId, voiceFor } from './audio-mix';
 import { camera, toScreen } from './renderer';
 
 let ctx: AudioContext | null = null;
@@ -439,7 +439,8 @@ export function soundEvents(events: SimEvent[], view: CommanderView) {
   if (!ready()) return;
   const now = ctx!.currentTime;
   for (const e of events) {
-    if ((e.kind === 'shot' || e.kind === 'suppressive') && shooterDrawn(view, e.from)) {
+    if (!sourceDrawn(view, e)) continue;
+    if (e.kind === 'shot' || e.kind === 'suppressive') {
       const shooter = view.friendlies.find((s) => s.id === e.from);
       // ponytail: drawn Contacts coalesce as one group; the view carries no enemy Squad id to split them by.
       const squad = shooter ? `squad:${shooter.squad}` : 'contacts';

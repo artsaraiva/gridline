@@ -1,6 +1,6 @@
 // The pure side of the sound engine (#84): the mixer's numbers and the rules audio.ts applies before it touches Web
 // Audio. Nothing here needs a browser, so all of it is unit-tested; audio.ts (the Web Audio graph) is judged by ear.
-import type { CommanderView, Vec2 } from '../sim/types';
+import type { CommanderView, SimEvent, Vec2 } from '../sim/types';
 import { scanUav, shellInFlight } from './sprites';
 
 /** Every tuning knob in one place; the audition page's sliders mutate it live. */
@@ -64,8 +64,14 @@ export function admit(g: Gate, id: string, now: number, until: number): string[]
 // The observability rule: a combat sound plays if and only if its source is drawn on the map at that moment. The
 // Simulation's fog filter already drops unseen enemy shooters; these say what the layers would draw from the view.
 
-/** A shot sounds when its shooter is a friendly or a drawn Contact (tracers.ts draws nothing otherwise). */
-export const shooterDrawn = (view: CommanderView, id: number) => view.friendlies.some((s) => s.id === id) || view.contacts.some((s) => s.id === id);
+/**
+ * True when combat event `e` has a drawn source: a shot's shooter is a friendly or a drawn Contact (tracers.ts draws
+ * nothing otherwise); an impact always, since impacts.ts draws every impact event the Console receives.
+ */
+export function sourceDrawn(view: CommanderView, e: SimEvent): boolean {
+  if (e.kind === 'shot' || e.kind === 'suppressive') return view.friendlies.some((s) => s.id === e.from) || view.contacts.some((s) => s.id === e.from);
+  return e.kind === 'impact';
+}
 
 /** A looping combat sound tied to something drawn: the key names its source, (x, y) is where it is this frame. */
 export interface Loop {
