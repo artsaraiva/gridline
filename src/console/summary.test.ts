@@ -34,12 +34,12 @@ describe('end summary', () => {
   });
 
   it('shows the Commander Score with a row per category, zero rows included (#72)', () => {
-    const view = { ...ended('nato', { winner: 'nato', reason: 'time' }, { nato: 40, pact: 30 }, 1500), score: { total: 350, uav: 50, supply: 0, artillery: 300, orders: 0 } };
+    const view = { ...ended('nato', { winner: 'nato', reason: 'time' }, { nato: 40, pact: 30 }, 1500), score: { total: 365.52, uav: 50, supply: 15.52, artillery: 300, orders: 0 } }; // #74: Supply earns fractions, shown whole
     expect(endSummary(view).score).toEqual({
-      total: 350,
+      total: 366,
       rows: [
         { label: 'Scan UAV', points: 50 },
-        { label: 'Supply Drop', points: 0 },
+        { label: 'Supply Drop', points: 16 },
         { label: 'Artillery Barrage', points: 300 },
         { label: 'Orders', points: 0 },
       ],
@@ -54,6 +54,7 @@ describe('contribution message (#72)', () => {
 
   it('shows the points and the reason for an own-Side award, nothing for the enemy or other events', () => {
     expect(awardLine(award('nato'), view)).toBe('+100 · Barrage kill');
+    expect(awardLine({ kind: 'award', side: 'nato', category: 'supply', points: 15.52, reason: 'Supply Drop resupplied Alpha' }, view)).toBe('+16 · Supply Drop resupplied Alpha'); // #74: Supply points are fractional
     expect(awardLine(award('pact'), view)).toBeNull();
     expect(awardLine({ kind: 'impact', side: 'nato', x: 0, y: 0 }, view)).toBeNull();
   });

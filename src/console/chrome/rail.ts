@@ -96,6 +96,6 @@ export function drawRail(view: CommanderView | null) {
     `<div class="side ho"><small>${FACTION[them]}</small><b>${view.tickets[them]}</b><div class="tbar"><i style="width:${themPct.toFixed(1)}%"></i></div></div>` +
     `</div>` +
     `<div class="drain">${drainLine(view)}</div>` +
-    `<div class="cscore"><small>Commander Score</small><b>${view.score?.total ?? 0}</b></div>`;
+    `<div class="cscore"><small>Commander Score</small><b>${Math.round(view.score?.total ?? 0)}</b></div>`;
   if (score.dataset.h !== html) score.innerHTML = score.dataset.h = html;
 }

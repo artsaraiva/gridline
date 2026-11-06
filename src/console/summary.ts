@@ -26,12 +26,12 @@ export function endSummary(view: CommanderView) {
     friendly: { faction: FACTION[view.side], tickets: view.tickets[view.side] },
     enemy: { faction: FACTION[enemy], tickets: view.tickets[enemy] },
     time: clock(view.seconds),
-    score: { total: view.score?.total ?? 0, rows: SCORE_ROWS.map(([key, label]) => ({ label, points: view.score?.[key] ?? 0 })) },
+    score: { total: Math.round(view.score?.total ?? 0), rows: SCORE_ROWS.map(([key, label]) => ({ label, points: Math.round(view.score?.[key] ?? 0) })) }, // #74: Supply earns fractions
   };
 }
 
-/** #72: the contribution message for an own-Side award: "+100 · Barrage kill". Null for anything else. */
-export const awardLine = (e: SimEvent, view: CommanderView) => (e.kind === 'award' && e.side === view.side ? `+${e.points} · ${e.reason}` : null);
+/** #72: the contribution message for an own-Side award: "+100 · Barrage kill". Null for anything else. Whole points (#74 Supply earns fractions). */
+export const awardLine = (e: SimEvent, view: CommanderView) => (e.kind === 'award' && e.side === view.side ? `+${Math.round(e.points)} · ${e.reason}` : null);
 
 /** The Order line: "TAKE CHARLIE", "HOLD CHARLIE", "RETREATING · ORDER CHARLIE", "ORDER SENT · CHARLIE", "NO ORDER". */
 export function orderLine(q: SquadView, view: CommanderView): string {
