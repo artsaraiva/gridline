@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import type { CommanderView, EffectView, SimEvent } from '../sim/types';
 import { admit, admitImpact, admitShot, busGain, chatterGap, drawnLoops, inCombat, newGate, sourceDrawn, spatialise, TUNING, VOICE_IDS, voiceFor } from './audio-mix';
 
@@ -19,6 +19,10 @@ const view = (over: Partial<CommanderView> = {}): CommanderView => ({
   ...over,
 });
 const effect = (over: Partial<EffectView>): EffectView => ({ asset: 'scan', x: 0, y: 0, radius: 60, left: 10, total: 15, ...over });
+
+// Cases set TUNING knobs; each gets the defaults back so the order of the cases does not matter.
+const DEFAULTS = structuredClone(TUNING);
+afterEach(() => Object.assign(TUNING, structuredClone(DEFAULTS)));
 
 describe('bus and ducking gains (#84)', () => {
   it('a bus at its level plays at that level; the master mute silences it', () => {
