@@ -6,7 +6,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run --exclude '.claude/**'",
     "test:replay": "playwright test",
     "balance": "node scripts/run-balance.mjs",
     "bench": "node scripts/run-bench.mjs",

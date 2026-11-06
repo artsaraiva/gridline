@@ -7,3 +7,4 @@ playwright-report/
 .playwright-mcp/
 .vitest/
 review-capture/
+.codegraph/

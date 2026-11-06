@@ -58,7 +58,8 @@ export const DEFAULT_TUNE: Tune = {
   quietSeconds: 5,
   redeploySeconds: 20,
 
-  // Each ticket appends its keys under its own heading below, so parallel tickets do not touch the same lines.
+  // Each ticket appends its keys under its own heading below, so parallel tickets do not touch the same lines. A spec's tracer
+  // ticket may add the whole spec's keys under the spec's heading, so its sibling tickets touch none.
 
   // #34 Squad AI: movement, routes, cover, fire model, ammo
   pairUp: 0.15,
