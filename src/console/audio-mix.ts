@@ -108,23 +108,39 @@ export const inCombat = (view: CommanderView) => view.squads.some((q) => q.takin
 // Voice Lines: the ids are the keys of assets/voice/lines.json, the script #83's build.py speaks into one WAV each.
 export type VoiceId = keyof typeof lines;
 
+/** The Asset net lines (`type: 'asset'`, src/sim/assets) by their exact text; "UAV eyes on N hostile(s)" is matched below. */
+const VOICE_FOR_LINE: Record<string, VoiceId> = {
+  'Scan UAV inbound': 'uav-inbound',
+  'UAV on station': 'uav-on-station',
+  'UAV off station': 'uav-off-station',
+  'UAV off station, no contacts': 'uav-off-station',
+  'Supply Drop inbound': 'supplies-inbound',
+  'Supply Drop landed': 'supplies-on-the-ground',
+  'Barrage inbound': 'fire-mission-shot',
+  Splash: 'splash',
+};
+// "Artillery incoming" (the first enemy shell drawn) has no Simulation source until an enemy Commander exists: enemy shells
+// and impacts never reach the Console (#85). The audition page scripts it as a `warning` NET line, which is what plays it.
+const VOICE_FOR_WARNING: Record<string, VoiceId> = { 'Artillery incoming': 'artillery-incoming' };
 const POINT_NAMES = ['alpha', 'bravo', 'charlie', 'delta', 'echo', 'foxtrot', 'golf', 'hotel'] as const;
-const VOICE_FOR_LINE: [RegExp, VoiceId][] = [
-  [/^Scan UAV inbound$/, 'uav-inbound'],
-  [/^UAV on station$/, 'uav-on-station'],
-  [/^UAV eyes on \d+ hostile/, 'uav-has-contacts'],
-  [/^UAV off station/, 'uav-off-station'],
-  [/^Supply Drop inbound$/, 'supplies-inbound'],
-  [/^Supply Drop landed$/, 'supplies-on-the-ground'],
-  [/^Barrage inbound$/, 'fire-mission-shot'],
-  [/^Splash$/, 'splash'],
-  [/^Artillery incoming$/, 'artillery-incoming'],
-  [/ wiped$/, 'squad-wiped'],
-  ...POINT_NAMES.map((n): [RegExp, VoiceId] => [new RegExp(`^${n} lost$`, 'i'), `point-lost-${n}`]),
-];
 
-/** The Voice Line that speaks radio log line `text` (the typed line keeps its full text), or null for buzz plus text. */
-export const voiceFor = (text: string): VoiceId | null => VOICE_FOR_LINE.find(([re]) => re.test(text))?.[1] ?? null;
+/** The Voice Line that speaks radio `line` (the typed log line keeps its full text), or null for buzz plus text. */
+export function voiceFor(line: { type: string; text: string }): VoiceId | null {
+  switch (line.type) {
+    case 'asset':
+      return VOICE_FOR_LINE[line.text] ?? (/^UAV eyes on \d+ hostile/.test(line.text) ? 'uav-has-contacts' : null);
+    case 'lost': {
+      const name = POINT_NAMES.find((n) => line.text.toLowerCase() === `${n} lost`); // "<Point> lost", a Squad Callout (src/sim/radio.ts)
+      return name ? `point-lost-${name}` : null;
+    }
+    case 'wiped':
+      return 'squad-wiped'; // "<Squad> wiped" (src/sim/radio.ts)
+    case 'warning':
+      return VOICE_FOR_WARNING[line.text] ?? null;
+    default:
+      return null;
+  }
+}
 
 // Spatial: combat sounds sit where their source is drawn. Radio, Voice Lines and Chatter come from the Console and never pan.
 const PAN_WIDTH = 0.8; // full left/right is harsh on a tablet

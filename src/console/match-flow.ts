@@ -2,6 +2,7 @@
 import { startSimHost } from '../host/host';
 import type { MatchSetup } from '../host/protocol';
 import { enemyOf, type CommanderView } from '../sim/types';
+import { silence } from './audio';
 import { drawMap } from './layers/map';
 import { resetChevrons } from './layers/chevrons';
 import { resetContacts } from './layers/contacts';
@@ -47,6 +48,7 @@ async function startMatch(setup: MatchSetup) {
   resetOrders();
   resetSquads();
   resetRadioLog();
+  silence();
   disarm();
   select(null);
   session.commanderSide = setup.commanderSide;
@@ -89,6 +91,7 @@ function showEnd(summary: ReturnType<typeof endSummary>) {
 export function checkEnd(view: CommanderView) {
   if (!view.result || !session.host?.record() || session.ended) return;
   session.ended = true;
+  silence();
   showEnd(endSummary(view));
 }
 

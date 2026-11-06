@@ -7,7 +7,7 @@
 // Browsers keep audio locked until a user gesture, so the context is only made on the first press or key; until then
 // everything is silent.
 import type { CommanderView, SimEvent, Vec2 } from '../sim/types';
-import { admit, admitImpact, admitShot, busGain, chatterGap, drawnLoops, inCombat, type Loop, newGate, release, sourceDrawn, spatialise, TUNING, type VoiceId, voiceFor } from './audio-mix';
+import { admit, admitImpact, admitShot, busGain, chatterGap, drawnLoops, inCombat, type Loop, newGate, release, sourceDrawn, spatialise, TUNING, type VoiceId } from './audio-mix';
 import { camera, toScreen } from './renderer';
 
 let ctx: AudioContext | null = null;
@@ -172,14 +172,13 @@ function radio(seconds: number, voicing: Voicing): number {
 }
 
 /**
- * Plays one radio transmission of `seconds` from now, or, when `text` is a radio log line a Voice Line speaks, that
- * Voice Line (ADR 0003) for the sample's length instead. Returns the seconds on air, so the log types for as long.
+ * Plays one radio transmission of `seconds` from now, or, given the Voice Line that speaks the log line (`voiceFor`),
+ * that Voice Line (ADR 0003) for the sample's length instead. Returns the seconds on air, so the log types for as long.
  * Silent until a gesture unlocked audio.
  */
-export function transmit(seconds: number, text?: string): number {
+export function transmit(seconds: number, voice: VoiceId | null = null): number {
   if (!ready()) return seconds;
-  const id = text === undefined ? null : voiceFor(text);
-  return id ? speak(id, seconds) : radio(seconds, buzz);
+  return voice ? speak(voice, seconds) : radio(seconds, buzz);
 }
 
 /** Plays Voice Line `id` as a transmission and returns its length in seconds; the buzz for `fallbackSeconds` while its file is missing or still loading. */
