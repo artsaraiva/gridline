@@ -112,6 +112,21 @@ describe('Squad Leader', () => {
     expect(leaderAt(views, redeploy)).toBe(0);
   });
 
+  it('with only Wounded members left, the first member back on their feet leads on the next step', () => {
+    // as above: the leader bleeds out at 8 s while the mate id 1 lies Wounded, so the Squad has no leader. No mate is
+    // left to Revive id 1, so it is staged back alive, as a map script would, and the next step appoints it.
+    const m = scene({
+      place: { 0: { x: 0, y: 0, fx: -1 }, 1: { x: 0, y: 200, fx: -1, hp: 200 }, 2: { x: -100, y: 0, fx: 1 }, 3: { x: -100, y: 200, fx: 1, hp: 1e9 } },
+      tune: { ...ONE_SHOT, squadSize: 2 },
+    });
+    const { events, views } = play(m, 8 * HZ + 1);
+    expect(of(events, 'death').map((e) => e.id)).toEqual([0]);
+    expect(views.at(-1)!.friendlies.find((f) => f.id === 1)!.state).toBe('wounded');
+    expect(views.at(-1)!.squads[0]!.leader).toBeNull();
+    Object.assign(m.soldiers[1]!, { state: 'alive', hp: 1e9 });
+    expect(leaderAt(play(m, 1).views, 0)).toBe(1);
+  });
+
   it('leadership is in the state hash: the same seed hashes the same, a different leader differently', () => {
     const twin = () => {
       const m = exchange();

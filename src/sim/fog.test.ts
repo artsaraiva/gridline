@@ -184,6 +184,23 @@ describe('effect events', () => {
     expect(shotsBy(seen.nato, 'pact')).toEqual(shotsBy(seen.all, 'pact'));
   });
 
+  it('enemy suppressive fire shows only while the shooter is a Contact (#54)', () => {
+    const suppressiveBy = (events: SimEvent[]) => events.filter((e) => e.kind === 'suppressive' && e.side === 'pact');
+    // pact 1 puts suppressive fire on nato 0's Last Known Position from 100 m behind it; nobody sees anyone
+    const unseen = scene({ 0: { x: 0, y: 0 }, 1: { x: -100, y: 0, fx: 1 } }, { tune: { visionM: 0 } });
+    unseen.squads[1]!.memory.push({ id: 0, x: 0, y: 0, tick: 0, source: 'seen' });
+    const hidden = watch(unseen, HZ);
+    expect(suppressiveBy(hidden.all).length).toBeGreaterThan(0);
+    expect(suppressiveBy(hidden.nato)).toEqual([]);
+
+    // pact 1 faces away 100 m east of nato 0, which sees it, and fires at the same Last Known Position
+    const seen = scene({ 0: { x: 0, y: 0 }, 1: { x: 100, y: 0, fx: 1 } });
+    seen.squads[1]!.memory.push({ id: 0, x: 0, y: 0, tick: 0, source: 'seen' });
+    const shown = watch(seen, HZ);
+    expect(suppressiveBy(shown.all).length).toBeGreaterThan(0);
+    expect(suppressiveBy(shown.nato)).toEqual(suppressiveBy(shown.all));
+  });
+
   it("an enemy's Wounding shows when it is a Contact; its death and Redeploy never do", () => {
     // two Squads of 1 a Side: nato 0 and pact 2 shoot each other on tick 0, bleed out at 8 s and Redeploy at 28 s
     const m = scene({ 0: { x: 0, y: 0, fx: -1 }, 2: { x: -100, y: 0, fx: 1 } }, { tune: { hp: 100, hitChance: 1, damage: [100, 100] }, squads: 2 });
