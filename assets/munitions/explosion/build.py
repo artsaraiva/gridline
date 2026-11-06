@@ -10,6 +10,7 @@ the ground. Renders 32 top-down frames at 16 fps and packs them into an 8x4 grid
 Run from the repository root:
   /Applications/Blender.app/Contents/MacOS/Blender -b --factory-startup --python-exit-code 1 -P assets/munitions/explosion/build.py
 """
+import json
 import math
 import os
 import random
@@ -326,4 +327,8 @@ with tempfile.TemporaryDirectory() as tmp:
 rows = [np.concatenate(frames[r * COLS:(r + 1) * COLS], axis=1) for r in range(FRAMES // COLS)]
 sheet = np.concatenate(rows[::-1], axis=0)
 save_sheet(OUT_SHEET, sheet)
+# Layout and the src/console/sprites.ts constants this bake fixes; sprites.test.ts checks they match.
+with open(os.path.splitext(OUT_SHEET)[0] + ".json", "w") as f:
+    json.dump({"frames": FRAMES, "framePx": FRAME_PX, "cols": COLS, "constants": {"EXPLOSION_FRAMES": FRAMES, "EXPLOSION_FPS": FPS}}, f, indent=2)
+    f.write("\n")
 print(f"Wrote {FRAMES}-frame explosion sheet ({sheet.shape[1]}x{sheet.shape[0]}) to {OUT_SHEET}")

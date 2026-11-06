@@ -1,0 +1,10 @@
+{
+  "frames": 10,
+  "framePx": 256,
+  "cols": 10,
+  "constants": {
+    "SUPPLY_SWING_FRAMES": 8,
+    "SUPPLY_WORLD_M": 9.0,
+    "SUPPLY_CRATE_OFFSET_M": 1.516
+  }
+}

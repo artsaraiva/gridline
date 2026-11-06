@@ -9,6 +9,7 @@ through a noisy ejecta mask so it sits on any ground. Renders 3 variants top-dow
 Run from the repository root:
   /Applications/Blender.app/Contents/MacOS/Blender -b --factory-startup --python-exit-code 1 -P assets/munitions/crater/build.py
 """
+import json
 import math
 import os
 import random
@@ -218,4 +219,8 @@ with tempfile.TemporaryDirectory() as tmp:
 
 sheet = np.concatenate(frames, axis=1)
 save_sheet(OUT_SHEET, sheet)
+# Layout and the src/console/sprites.ts constants this bake fixes; sprites.test.ts checks they match.
+with open(os.path.splitext(OUT_SHEET)[0] + ".json", "w") as f:
+    json.dump({"frames": len(frames), "framePx": FRAME_PX, "cols": len(frames), "constants": {"CRATER_VARIANTS": VARIANTS}}, f, indent=2)
+    f.write("\n")
 print(f"Wrote {len(frames)}-frame crater sheet ({sheet.shape[1]}x{sheet.shape[0]}) to {OUT_SHEET}")

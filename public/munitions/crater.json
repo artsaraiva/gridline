@@ -1,0 +1,8 @@
+{
+  "frames": 3,
+  "framePx": 128,
+  "cols": 3,
+  "constants": {
+    "CRATER_VARIANTS": 3
+  }
+}
