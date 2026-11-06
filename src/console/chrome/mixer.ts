@@ -1,5 +1,5 @@
 // #85: the mixer behind the speaker button in the radio head: Radio, Chatter and Combat levels and a master Mute, kept in
-// localStorage; M toggles mute. The buses are separate (audio.ts), so a silenced Chatter bus never silences a Voice Line
+// localStorage; M toggles mute. The buses are separate (audio.ts), so a silenced Chatter bus never silences a radio line
 // or a Callout: both sit on the radio bus. The kept mix (`parseMix`) is pure and tested; the panel's DOM is thin and not.
 import { TUNING } from '../audio-mix';
 

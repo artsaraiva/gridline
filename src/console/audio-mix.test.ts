@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { callName } from '../sim/state';
 import type { CommanderView, EffectView, SimEvent } from '../sim/types';
-import { admit, admitImpact, admitShot, busGain, chatterGap, drawnLoops, inCombat, newGate, release, sourceDrawn, spatialise, TUNING, voiceFor } from './audio-mix';
+import { admit, admitImpact, admitShot, busGain, drawnLoops, newGate, release, sourceDrawn, spatialise, TUNING } from './audio-mix';
 
 const HQ = { x: -415, y: 0 };
 const view = (over: Partial<CommanderView> = {}): CommanderView => ({
@@ -33,24 +32,6 @@ describe('bus and ducking gains (#84)', () => {
   it('a ducked bus drops by TUNING.duckDb: 6 dB is half the amplitude', () => {
     TUNING.duckDb = 6;
     expect(busGain(0.8, { ducked: true, muted: false })).toBeCloseTo(0.4, 2);
-  });
-});
-
-describe('Chatter gap selection (#84)', () => {
-  it('idle: 8 s at the bottom of the draw, 25 s at the top', () => {
-    expect(chatterGap(false, () => 0)).toBe(8);
-    expect(chatterGap(false, () => 0.999999)).toBeCloseTo(25, 3);
-  });
-
-  it('in combat: 3 to 8 s', () => {
-    expect(chatterGap(true, () => 0)).toBe(3);
-    expect(chatterGap(true, () => 0.5)).toBe(5.5);
-  });
-
-  it('a max slid below the min (the audition sliders allow it) gives the min, never a shorter or negative gap', () => {
-    TUNING.chatterIdle = [20, 10];
-    expect(chatterGap(false, () => 0.5)).toBe(20);
-    expect(chatterGap(false, () => 0.999)).toBe(20);
   });
 });
 
@@ -144,45 +125,6 @@ describe('observability rule: a combat sound plays only when its source is drawn
     expect(loops[0]!.kind).toBe('shell');
     expect(loops[0]!.x).toBeGreaterThan(HQ.x); // half way along, so well east of the HQ
     expect(loops[1]!.x).toBeLessThan(loops[0]!.x); // just launched: still near the HQ
-  });
-
-  it('inCombat: a friendly Squad taking fire, from the view alone; it counts Squads, not Soldiers (#85)', () => {
-    expect(inCombat(view())).toBe(false);
-    const v = view();
-    v.friendlies[0]!.suppressed = true;
-    expect(inCombat(v)).toBe(false);
-    v.squads[0]!.takingFire = true;
-    expect(inCombat(v)).toBe(true);
-  });
-});
-
-describe('Voice Lines: which file speaks a radio line (#84, #85)', () => {
-  // The Asset net lines by their exact text, as the Simulation's tests pin them (assets, supply and barrage .test.ts).
-  const spoken = (texts: string[]): string[] => texts.map((text) => voiceFor({ type: 'asset', text }) ?? `buzz: ${text}`);
-
-  it('every Asset net line the Simulation says is spoken by its Voice Line', () => {
-    expect(spoken(['Scan UAV inbound', 'UAV eyes on 2 hostiles', 'UAV off station'])).toEqual(['uav-inbound', 'uav-has-contacts', 'uav-off-station']);
-    expect(spoken(['Scan UAV inbound', 'UAV off station, no contacts'])).toEqual(['uav-inbound', 'uav-off-station']);
-    expect(spoken(['Supply Drop inbound', 'Supply Drop landed'])).toEqual(['supplies-inbound', 'supplies-on-the-ground']);
-    expect(spoken(['Barrage inbound', 'Splash'])).toEqual(['fire-mission-shot', 'splash']);
-    expect(spoken(['UAV eyes on 1 hostile'])).toEqual(['uav-has-contacts']);
-  });
-
-  it('"<Point> lost" is spoken per NATO name as the Simulation says it (callName), "<Squad> wiped" as Squad wiped', () => {
-    const names = { A: 'alpha', B: 'bravo', C: 'charlie', D: 'delta', E: 'echo', F: 'foxtrot', G: 'golf', H: 'hotel' };
-    for (const [letter, name] of Object.entries(names)) expect(voiceFor({ type: 'lost', text: `${callName(letter)} lost` })).toBe(`point-lost-${name}`);
-    expect(voiceFor({ type: 'wiped', text: 'Bravo wiped' })).toBe('squad-wiped');
-  });
-
-  it('"Artillery incoming" is a warning line; nothing in the Simulation says it until an enemy Commander exists', () => {
-    expect(voiceFor({ type: 'warning', text: 'Artillery incoming' })).toBe('artillery-incoming');
-  });
-
-  it('Squad Callouts, captures and lines of another type stay buzz plus text', () => {
-    expect(voiceFor({ type: 'contact', text: 'contact, infantry' })).toBeNull();
-    expect(voiceFor({ type: 'captured', text: 'Alpha captured' })).toBeNull();
-    expect(voiceFor({ type: 'lost', text: 'Zulu lost' })).toBeNull();
-    expect(voiceFor({ type: 'fire', text: 'Splash' })).toBeNull(); // keyed on the type, not the text alone
   });
 });
 

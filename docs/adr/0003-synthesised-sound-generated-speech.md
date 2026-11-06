@@ -1,3 +1,7 @@
+---
+status: superseded by ADR-0004
+---
+
 # Sound is synthesised at runtime, except speech, which a committed script generates offline
 
 Every sound the Console plays (radio squelch and buzz, Chatter, distant guns, explosions, shell whistle, UAV hum, parachute) is synthesised with Web Audio at runtime, so variants are free and nothing is licensed. The one exception is Voice Lines: a script in `assets/voice/` generates them with Kokoro-82M (weights under Apache 2.0, voice checked against its VOICES.md) and commits the WAV files next to it, the same shape as ADR 0001's Blender scripts and GLBs. This replaces the "Web Audio synthesis only, no samples" rule from [the Skirmish slice spec](https://github.com/artsaraiva/gridline/issues/28). See [Audio rework](https://github.com/artsaraiva/gridline/issues/56).

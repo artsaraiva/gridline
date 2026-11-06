@@ -1,6 +1,6 @@
 // DEV-only audition page (#84): the real Kaltenbach bake and the real Console layers, driven by the scripted scenarios
 // in audio-review-timeline.ts instead of a Simulation, so the mix is judged by ear first. The sound engine and the mixer
-// panel are main.ts's (#85), here as on a live Match; this page adds the repetition and Chatter knobs. Only reachable
+// panel are main.ts's (#85), here as on a live Match; this page adds the repetition knobs. Only reachable
 // through dev-audio-review.html.
 import { loadBakedMap } from '../../maps/load';
 import { DEFAULT_TUNE } from '../../sim/tune';
@@ -56,7 +56,7 @@ export async function startAudioReview() {
       <button id="ar-close" type="button">Close zoom (2)</button>
     </div>
     <div id="ar-tuning"></div>
-    <small>Tap once to unlock audio. Scripted timelines, no Simulation. Levels and Mute are the speaker button in the radio head (M mutes). Voice Lines load from assets/voice (#83); a missing file plays as buzz and says so in the console.</small>
+    <small>Tap once to unlock audio. Scripted timelines, no Simulation. Levels and Mute are the speaker button in the radio head (M mutes). Every cue is silent until its sample lands (#88).</small>
   `;
   document.body.appendChild(controls);
   const scrub = $('ar-scrub') as HTMLInputElement;
@@ -66,10 +66,6 @@ export async function startAudioReview() {
     slider('Coalesce window', 0.1, 2, 0.1, () => TUNING.coalesceSeconds, (v) => (TUNING.coalesceSeconds = v), ' s'),
     slider('Concurrent cap', 1, 12, 1, () => TUNING.maxConcurrent, (v) => (TUNING.maxConcurrent = v)),
     slider('Impact spacing', 0, 1, 0.05, () => TUNING.impactGapSeconds, (v) => (TUNING.impactGapSeconds = v), ' s'),
-    slider('Chatter idle min', 1, 30, 1, () => TUNING.chatterIdle[0], (v) => (TUNING.chatterIdle[0] = v), ' s'),
-    slider('Chatter idle max', 1, 40, 1, () => TUNING.chatterIdle[1], (v) => (TUNING.chatterIdle[1] = v), ' s'),
-    slider('Chatter combat min', 1, 10, 1, () => TUNING.chatterCombat[0], (v) => (TUNING.chatterCombat[0] = v), ' s'),
-    slider('Chatter combat max', 1, 15, 1, () => TUNING.chatterCombat[1], (v) => (TUNING.chatterCombat[1] = v), ' s'),
     slider('Duck', 0, 20, 1, () => TUNING.duckDb, (v) => (TUNING.duckDb = v), ' dB'),
   );
 
