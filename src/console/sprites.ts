@@ -80,6 +80,56 @@ export function shellInFlight(from: Vec2, to: Vec2, flight: number, exaggeration
   };
 }
 
+export const SMOKE_PUFF_VARIANTS = 4;
+/** Ground distance between trail puffs, so the trail is equally dense for near and far targets. */
+const PUFF_SPACING_M = 1.5;
+/** Flight fraction the newest puff trails behind the shell, so it starts at the tail fins. */
+const TRAIL_GAP = 0.008;
+/** Flight fraction each puff lives before it has fully faded (~0.9 s at the 4 s flight). */
+export const TRAIL_PUFF_LIFE = 0.22;
+const PUFF_START_M = 4.5;
+const PUFF_END_M = 9;
+const PUFF_OPACITY = 0.9;
+
+export interface TrailPuff {
+  id: number;
+  emitted: number;
+  x: number;
+  y: number;
+  size: number;
+  opacity: number;
+  frame: number;
+}
+
+/**
+ * Smoke puffs left along the path a shell has already flown, oldest first. Stateless: each puff is
+ * emitted at a fixed flight fraction, stays where the shell was then, and swells and fades with age.
+ */
+export function shellTrail(from: Vec2, to: Vec2, flight: number): TrailPuff[] {
+  const u = Math.max(0, Math.min(1, flight));
+  const out: TrailPuff[] = [];
+  const step = PUFF_SPACING_M / Math.max(PUFF_SPACING_M, Math.hypot(to.x - from.x, to.y - from.y));
+  const first = Math.max(1, Math.ceil((u - TRAIL_PUFF_LIFE) / step));
+  for (let k = first; k * step <= u - TRAIL_GAP; k++) {
+    const emitted = k * step;
+    const age = (u - emitted) / TRAIL_PUFF_LIFE;
+    if (age >= 1) continue;
+    const at = shellInFlight(from, to, emitted);
+    // Deterministic per-puff jitter so the trail reads as billowing smoke, not a row of beads.
+    const r = Math.abs(Math.sin(k * 12.9898) * 43758.5453) % 1;
+    out.push({
+      id: k,
+      emitted,
+      x: at.x,
+      y: at.y,
+      size: (PUFF_START_M + (PUFF_END_M - PUFF_START_M) * Math.sqrt(age)) * (0.8 + 0.4 * r),
+      opacity: PUFF_OPACITY * (1 - age ** 1.5),
+      frame: k % SMOKE_PUFF_VARIANTS,
+    });
+  }
+  return out;
+}
+
 /** Friendly barrage shells currently in flight in `view`, arcing from the Commander's own HQ. */
 export function barrageShells(view: CommanderView, map: MapData, exaggeration = SHELL_EXAGGERATION): ShellInFlight[] {
   const hq = map.hqs[view.side];
@@ -99,6 +149,11 @@ export const SPRITE_SHEETS = {
   'artillery-shell': {
     file: 'munitions/artillery-shell.png',
     frames: SHELL_PITCH_FRAMES + 1,
+    framePx: 128,
+  },
+  'smoke-puff': {
+    file: 'munitions/smoke-puff.png',
+    frames: SMOKE_PUFF_VARIANTS,
     framePx: 128,
   },
 } as const satisfies Record<string, SpriteSheetSpec>;
