@@ -1,0 +1,20 @@
+{
+  "uav-inbound": "UAV inbound",
+  "uav-on-station": "UAV on station",
+  "uav-has-contacts": "UAV has contacts",
+  "uav-off-station": "UAV off station",
+  "supplies-inbound": "Supplies inbound",
+  "supplies-on-the-ground": "Supplies on the ground",
+  "fire-mission-shot": "Fire mission, shot",
+  "splash": "Splash",
+  "artillery-incoming": "Artillery incoming",
+  "point-lost-alpha": "Alpha lost",
+  "point-lost-bravo": "Bravo lost",
+  "point-lost-charlie": "Charlie lost",
+  "point-lost-delta": "Delta lost",
+  "point-lost-echo": "Echo lost",
+  "point-lost-foxtrot": "Foxtrot lost",
+  "point-lost-golf": "Golf lost",
+  "point-lost-hotel": "Hotel lost",
+  "squad-wiped": "Squad wiped"
+}
