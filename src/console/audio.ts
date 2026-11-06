@@ -14,7 +14,8 @@ let ctx: AudioContext | null = null;
 let noise: AudioBuffer | null = null;
 let master: GainNode;
 let duck: GainNode; // chatter and combat pass through it; it drops while a radio line is on air
-const bus = {} as Record<'radio' | 'chatter' | 'combat', GainNode>;
+type Bus = keyof typeof TUNING.bus;
+const bus = {} as Record<Bus, GainNode>;
 
 function unlock() {
   if (!ctx) {
@@ -33,7 +34,7 @@ function unlock() {
     bus.combat = ctx.createGain();
     bus.combat.connect(duck);
     applyMix();
-    void loadVoices();
+    void loadSamples();
   }
   void ctx.resume();
 }
@@ -46,7 +47,7 @@ export function applyMix() {
   if (!ctx) return;
   const t = ctx.currentTime;
   master.gain.setTargetAtTime(busGain(1, { ducked: false, muted: TUNING.mute }), t, 0.02);
-  for (const k of ['radio', 'chatter', 'combat'] as const) bus[k].gain.setTargetAtTime(busGain(TUNING.bus[k], { ducked: false, muted: false }), t, 0.02);
+  for (const k of Object.keys(bus) as Bus[]) bus[k].gain.setTargetAtTime(busGain(TUNING.bus[k], { ducked: false, muted: false }), t, 0.02);
 }
 
 let airUntil = 0;
@@ -60,7 +61,8 @@ function duckUntil(t0: number, until: number) {
 
 // --- transmissions -------------------------------------------------------------------------------------------------
 
-type Voice = (t0: number, t1: number, out: GainNode) => void;
+/** What is on air between key-open `t0` and key-close `t1`: the buzz, or a Voice Line's sample. */
+type Voicing = (t0: number, t1: number, out: GainNode) => void;
 
 /** Band-limited noise into `out` from `at` for `len` seconds. */
 function hiss(out: GainNode, at: number, len: number, hz: number, q: number, level: number, loop = false) {
@@ -83,7 +85,7 @@ function hiss(out: GainNode, at: number, len: number, hz: number, q: number, lev
 }
 
 /** The #38 voice: a band-limited buzz (a voice-like saw, 300 Hz to 2.8 kHz) whose level swells and dips at syllable rate. */
-const buzz: Voice = (t0, t1, out) => {
+const buzz: Voicing = (t0, t1, out) => {
   const saw = ctx!.createOscillator();
   saw.type = 'sawtooth';
   saw.frequency.value = 110 + Math.random() * 40;
@@ -115,7 +117,7 @@ function radioBand(src: AudioNode): AudioNode {
 
 let clip: Float32Array<ArrayBuffer> | null = null;
 /** A Voice Line's sample through the radio band-limit, a little drive and compression, so it sits in the same net as the buzz. */
-const voiced = (sample: AudioBuffer): Voice => (t0, t1, out) => {
+const spoken = (sample: AudioBuffer): Voicing => (t0, t1, out) => {
   const src = ctx!.createBufferSource();
   src.buffer = sample;
   const drive = ctx!.createWaveShaper();
@@ -136,8 +138,8 @@ const voiced = (sample: AudioBuffer): Voice => (t0, t1, out) => {
   src.stop(t1);
 };
 
-/** One transmission on `to` from now: click, bed and `voice` for `seconds`, tail, roger beep (unless `plain`). Returns when it is off air. */
-function transmission(to: GainNode, seconds: number, level: number, voice: Voice, plain = false): number {
+/** One transmission on `to` from now: click, bed and `voicing` for `seconds`, tail, roger beep (unless `plain`). Returns when it is off air. */
+function transmission(to: GainNode, seconds: number, level: number, voicing: Voicing, plain = false): number {
   const t0 = ctx!.currentTime;
   const t1 = t0 + 0.03 + seconds;
   const out = ctx!.createGain();
@@ -146,7 +148,7 @@ function transmission(to: GainNode, seconds: number, level: number, voice: Voice
   hiss(out, t0, 0.02, 2400, 0.8, 0.5); // squelch click: the key opens
   hiss(out, t0 + 0.02, seconds + 0.02, 1800, 0.6, 0.07, true); // static bed
   hiss(out, t1, 0.06, 1500, 0.6, 0.35); // squelch tail: the key closes
-  voice(t0 + 0.03, t1, out);
+  voicing(t0 + 0.03, t1, out);
   if (plain) return t1 + 0.06;
   const beep = ctx!.createOscillator();
   beep.frequency.value = 1250;
@@ -163,9 +165,9 @@ function transmission(to: GainNode, seconds: number, level: number, voice: Voice
 }
 
 /** A line on the radio bus, ducking the rest while it is on air. Returns `seconds`. */
-function radio(seconds: number, voice: Voice): number {
+function radio(seconds: number, voicing: Voicing): number {
   const t0 = ctx!.currentTime;
-  duckUntil(t0, transmission(bus.radio, seconds, 0.5, voice));
+  duckUntil(t0, transmission(bus.radio, seconds, 0.5, voicing));
   return seconds;
 }
 
@@ -183,33 +185,33 @@ export function transmit(seconds: number, text?: string): number {
 /** Plays Voice Line `id` as a transmission and returns its length in seconds; the buzz for `fallbackSeconds` while its file is missing or still loading. */
 export function speak(id: VoiceId, fallbackSeconds = 1.2): number {
   if (!ready()) return fallbackSeconds;
-  const sample = voices.get(id);
+  const sample = samples.get(id);
   if (!sample) {
-    if (!VOICE_URLS[voicePath(id)] && !warned.has(id)) {
+    if (!SAMPLE_URLS[samplePath(id)] && !warned.has(id)) {
       warned.add(id);
       console.warn(`Voice Line ${id}: no assets/voice/${id}.wav (#83); it plays as buzz.`);
     }
     return radio(fallbackSeconds, buzz);
   }
-  return radio(sample.duration, voiced(sample));
+  return radio(sample.duration, spoken(sample));
 }
 
-// Voice Line files, lazily: a missing one logs a warning once and plays as buzz. Vite bundles the ones that exist.
-const VOICE_URLS = import.meta.glob('../../assets/voice/*.wav', { query: '?url', import: 'default' }) as Record<string, () => Promise<string>>;
-const voicePath = (id: VoiceId) => `../../assets/voice/${id}.wav`;
-const voices = new Map<VoiceId, AudioBuffer>();
+// Voice Line samples, lazily: a missing one logs a warning once and plays as buzz. Vite bundles the files that exist.
+const SAMPLE_URLS = import.meta.glob('../../assets/voice/*.wav', { query: '?url', import: 'default' }) as Record<string, () => Promise<string>>;
+const samplePath = (id: VoiceId) => `../../assets/voice/${id}.wav`;
+const samples = new Map<VoiceId, AudioBuffer>();
 const warned = new Set<VoiceId>();
 let loading: Promise<void> | null = null;
 
 /** Decodes every Voice Line file there is; needs the unlocked context. Resolves once they are all ready (or warned about). */
-export function loadVoices(): Promise<void> {
+export function loadSamples(): Promise<void> {
   if (!ctx) return Promise.resolve();
   loading ??= Promise.all(
-    Object.entries(VOICE_URLS).map(async ([path, load]) => {
+    Object.entries(SAMPLE_URLS).map(async ([path, load]) => {
       const id = path.slice(path.lastIndexOf('/') + 1, -4) as VoiceId;
       try {
         const bytes = await (await fetch(await load())).arrayBuffer();
-        voices.set(id, await ctx!.decodeAudioData(bytes));
+        samples.set(id, await ctx!.decodeAudioData(bytes));
       } catch (err) {
         console.warn(`Voice Line ${id} failed to load; it plays as buzz.`, err);
       }
@@ -242,25 +244,25 @@ export function chatterTick(combat: boolean) {
 interface Handle {
   until: number;
   stop(): void;
-  at?(x: number, y: number): void;
+  at?(p: Vec2): void;
 }
 
 /** A spatial chain into the combat bus: `input` is panned by screen x and faded and low-passed by distance; `at` moves it. */
-function placed(x: number, y: number) {
+function placed(from: Vec2) {
   const input = ctx!.createGain();
   const lp = ctx!.createBiquadFilter();
   lp.type = 'lowpass';
   const pan = ctx!.createStereoPanner();
   input.connect(lp).connect(pan).connect(bus.combat);
-  const at = (px: number, py: number) => {
-    const s = toScreen({ x: px, y: py });
-    const { pan: p, gain, cutoff } = spatialise(s.x, s.y, innerWidth, innerHeight, camera.zoom);
+  const at = (p: Vec2) => {
+    const s = toScreen(p);
+    const { pan: side, gain, cutoff } = spatialise(s.x, s.y, innerWidth, innerHeight, camera.zoom);
     const t = ctx!.currentTime;
-    pan.pan.setTargetAtTime(p, t, 0.05);
+    pan.pan.setTargetAtTime(side, t, 0.05);
     lp.frequency.setTargetAtTime(cutoff, t, 0.05);
     input.gain.setTargetAtTime(gain, t, 0.05);
   };
-  at(x, y);
+  at(from);
   return { input, at, release: () => setTimeout(() => input.disconnect(), 500) };
 }
 
@@ -271,9 +273,9 @@ function decay(g: GainNode, at: number, peak: number, len: number) {
 }
 
 /** A burst of distant small-arms fire: a few noise hits with a low thump each, pitch, count and spacing randomised. */
-function shotBurst(x: number, y: number): Handle {
+function shotBurst(at: Vec2): Handle {
   const t0 = ctx!.currentTime;
-  const out = placed(x, y);
+  const out = placed(at);
   const n = 3 + Math.floor(Math.random() * 4);
   const gap = 0.07 + Math.random() * 0.05;
   const hz = 500 + Math.random() * 700;
@@ -304,9 +306,9 @@ function shotBurst(x: number, y: number): Handle {
 }
 
 /** An explosion: a noise blast whose low-pass sweeps down over a randomised length, under a sub thump. */
-function explosion(x: number, y: number): Handle {
+function explosion(at: Vec2): Handle {
   const t0 = ctx!.currentTime;
-  const out = placed(x, y);
+  const out = placed(at);
   const len = 0.8 + Math.random() * 0.6;
   const src = ctx!.createBufferSource();
   src.buffer = noise;
@@ -344,9 +346,9 @@ function fadeOut(g: GainNode, sources: AudioScheduledSourceNode[], release: () =
 }
 
 /** A shell's whistle while it is drawn in flight: a sine that falls in pitch with a light vibrato, start pitch randomised. */
-function shellWhistle(x: number, y: number): Handle {
+function shellWhistle(at: Vec2): Handle {
   const t0 = ctx!.currentTime;
-  const out = placed(x, y);
+  const out = placed(at);
   const osc = ctx!.createOscillator();
   const start = 1800 + Math.random() * 800;
   osc.frequency.setValueAtTime(start, t0);
@@ -366,9 +368,9 @@ function shellWhistle(x: number, y: number): Handle {
 }
 
 /** The Scan UAV's hum while it is drawn on station: two detuned saws through a low-pass, with a slow throb. */
-function uavHum(x: number, y: number): Handle {
+function uavHum(at: Vec2): Handle {
   const t0 = ctx!.currentTime;
-  const out = placed(x, y);
+  const out = placed(at);
   const base = 88 + Math.random() * 16;
   const lp = ctx!.createBiquadFilter();
   lp.type = 'lowpass';
@@ -395,9 +397,9 @@ function uavHum(x: number, y: number): Handle {
 }
 
 /** The parachute's flutter while the crate is drawn falling: band-passed noise chopped at a randomised flap rate. */
-function parachuteFlutter(x: number, y: number): Handle {
+function parachuteFlutter(at: Vec2): Handle {
   const t0 = ctx!.currentTime;
-  const out = placed(x, y);
+  const out = placed(at);
   const src = ctx!.createBufferSource();
   src.buffer = noise;
   src.loop = true;
@@ -421,7 +423,7 @@ function parachuteFlutter(x: number, y: number): Handle {
   return { until: Infinity, at: out.at, stop: fadeOut(g, [src, lfo], out.release) };
 }
 
-const LOOP: Record<Loop['kind'], (x: number, y: number) => Handle> = { shell: shellWhistle, uav: uavHum, crate: parachuteFlutter };
+const LOOP: Record<Loop['kind'], (at: Vec2) => Handle> = { shell: shellWhistle, uav: uavHum, crate: parachuteFlutter };
 
 let gate = newGate();
 const sounds = new Map<string, Handle>();
@@ -450,9 +452,9 @@ export function soundEvents(events: SimEvent[], view: CommanderView) {
       const squad = shooter ? `squad:${shooter.squad}` : 'contacts';
       if (!admitShot(gate, squad, now)) continue;
       const at = shooter ?? view.contacts.find((s) => s.id === e.from)!;
-      play(`shot:${serial++}`, shotBurst(at.x, at.y));
+      play(`shot:${serial++}`, shotBurst(at));
     } else if (e.kind === 'impact' && admitImpact(gate, now)) {
-      play(`impact:${serial++}`, explosion(e.x, e.y));
+      play(`impact:${serial++}`, explosion(e));
     }
   }
 }
@@ -471,8 +473,8 @@ export function soundFrame(view: CommanderView, hq: Vec2, seconds: number) {
   }
   for (const l of drawn) {
     const h = sounds.get(l.key);
-    if (h) h.at!(l.x, l.y);
-    else play(l.key, LOOP[l.kind](l.x, l.y));
+    if (h) h.at!(l);
+    else play(l.key, LOOP[l.kind](l));
   }
 }
 

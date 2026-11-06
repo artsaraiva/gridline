@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { SimEvent } from '../../sim/types';
-import { eventsBetween, SCENARIOS, viewAt } from './audio-review-timeline';
+import { eventsBetween, SCENARIOS, type ScenarioId, viewAt } from './audio-review-timeline';
 
-const length = (id: string) => SCENARIOS.find((s) => s.id === id)!.length;
+const length = (id: ScenarioId) => SCENARIOS.find((s) => s.id === id)!.length;
 const radio = (events: SimEvent[]) => events.filter((e): e is Extract<SimEvent, { kind: 'radio' }> => e.kind === 'radio');
-const texts = (id: 'quiet' | 'uav' | 'artillery') => radio(eventsBetween(id, 0, length(id))).map((e) => e.text);
-const at = (id: 'quiet' | 'uav' | 'artillery', text: string) => eventsBetween(id, 0, length(id)).findIndex((e) => e.kind === 'radio' && e.text === text);
+const texts = (id: ScenarioId) => radio(eventsBetween(id, 0, length(id))).map((e) => e.text);
+const at = (id: ScenarioId, text: string) => eventsBetween(id, 0, length(id)).findIndex((e) => e.kind === 'radio' && e.text === text);
 
 describe('audio review timeline (#84)', () => {
   it('quiet observation: no Squad takes fire, only a few friendly shots, a Supply Drop comes down', () => {
@@ -30,7 +30,7 @@ describe('audio review timeline (#84)', () => {
     const uav = texts('uav').filter((t) => t.includes('UAV'));
     expect(uav).toEqual(['Scan UAV inbound', 'UAV on station', 'UAV eyes on 3 hostiles', 'UAV off station, no contacts']);
     const drawn = (t: number) => viewAt('uav', t).effects!.some((e) => e.asset === 'scan');
-    const when = (text: string) => SCENARIO_TIME('uav', text);
+    const when = (text: string) => secondOf('uav', text);
     expect(drawn(when('Scan UAV inbound'))).toBe(false);
     expect(drawn(when('UAV on station'))).toBe(true);
     expect(drawn(when('UAV eyes on 3 hostiles'))).toBe(true);
@@ -42,7 +42,7 @@ describe('audio review timeline (#84)', () => {
     const all = eventsBetween('artillery', 0, length('artillery'));
     const impacts = all.filter((e) => e.kind === 'impact');
     expect(impacts.length).toBeGreaterThanOrEqual(8);
-    const first = SCENARIO_TIME('artillery', 'Splash');
+    const first = secondOf('artillery', 'Splash');
     const shells = viewAt('artillery', first - 1).effects!.find((e) => e.asset === 'barrage')!.shells!;
     expect(shells.length).toBeGreaterThan(0);
     for (const s of shells) expect(s.flight).toBeGreaterThan(0);
@@ -54,7 +54,7 @@ describe('audio review timeline (#84)', () => {
     const order = ['Barrage inbound', 'Splash', 'Artillery incoming', 'Charlie lost', 'Bravo wiped'].map((t) => at('artillery', t));
     expect(order.every((i) => i >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
-    const wiped = viewAt('artillery', SCENARIO_TIME('artillery', 'Bravo wiped') + 0.5);
+    const wiped = viewAt('artillery', secondOf('artillery', 'Bravo wiped') + 0.5);
     expect(wiped.friendlies.some((f) => f.squad === 1)).toBe(false);
     expect(wiped.squads.find((q) => q.name === 'Bravo')!.redeployIn).toBeGreaterThan(0);
   });
@@ -82,12 +82,12 @@ describe('audio review timeline (#84)', () => {
 });
 
 /** The second a radio line goes out in a scenario, found by walking the timeline in small steps. */
-function SCENARIO_TIME(id: 'quiet' | 'uav' | 'artillery', text: string): number {
+function secondOf(id: ScenarioId, text: string): number {
   for (let t = 0; t < length(id); t += 0.1) if (eventsBetween(id, t, t + 0.1).some((e) => e.kind === 'radio' && e.text === text)) return t + 0.1;
   throw new Error(`${text} never goes out in ${id}`);
 }
 
-function impactTimes(id: 'quiet' | 'uav' | 'artillery'): number[] {
+function impactTimes(id: ScenarioId): number[] {
   const out: number[] = [];
   for (let t = 0; t < length(id); t += 0.05) for (const e of eventsBetween(id, t, t + 0.05)) if (e.kind === 'impact') out.push(t + 0.05);
   return out;

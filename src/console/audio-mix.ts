@@ -80,11 +80,9 @@ export function sourceDrawn(view: CommanderView, e: SimEvent): boolean {
 }
 
 /** A looping combat sound tied to something drawn: the key names its source, (x, y) is where it is this frame. */
-export interface Loop {
+export interface Loop extends Vec2 {
   key: string;
   kind: 'uav' | 'crate' | 'shell';
-  x: number;
-  y: number;
 }
 
 /** The loops the effects layer draws from `view` at `seconds`: the UAV in orbit, the crate in the air, every shell in flight from `hq`. */
@@ -111,7 +109,7 @@ export const inCombat = (view: CommanderView) => view.squads.some((q) => q.takin
 export type VoiceId = keyof typeof lines;
 
 const POINT_NAMES = ['alpha', 'bravo', 'charlie', 'delta', 'echo', 'foxtrot', 'golf', 'hotel'] as const;
-const VOICE: [RegExp, VoiceId][] = [
+const VOICE_FOR_LINE: [RegExp, VoiceId][] = [
   [/^Scan UAV inbound$/, 'uav-inbound'],
   [/^UAV on station$/, 'uav-on-station'],
   [/^UAV eyes on \d+ hostile/, 'uav-has-contacts'],
@@ -126,7 +124,7 @@ const VOICE: [RegExp, VoiceId][] = [
 ];
 
 /** The Voice Line that speaks radio log line `text` (the typed line keeps its full text), or null for buzz plus text. */
-export const voiceFor = (text: string): VoiceId | null => VOICE.find(([re]) => re.test(text))?.[1] ?? null;
+export const voiceFor = (text: string): VoiceId | null => VOICE_FOR_LINE.find(([re]) => re.test(text))?.[1] ?? null;
 
 // Spatial: combat sounds sit where their source is drawn. Radio, Voice Lines and Chatter come from the Console and never pan.
 const PAN_WIDTH = 0.8; // full left/right is harsh on a tablet
