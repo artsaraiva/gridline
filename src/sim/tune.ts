@@ -126,10 +126,10 @@ export const DEFAULT_TUNE: Tune = {
 
   // #40 Barrage
   barrageCooldownSeconds: 120,
-  barrageWarningSeconds: 5,
+  barrageWarningSeconds: 2.5,
   barrageShells: 6,
   barrageSpanSeconds: 8,
-  barrageFlightSeconds: 1.5,
+  barrageFlightSeconds: 4,
   barrageSpreadM: 25,
   barrageKillM: 5,
   barrageWoundM: 8,

@@ -95,7 +95,7 @@ describe('Artillery Barrage: the call', () => {
 });
 
 describe('Artillery Barrage: the shells', () => {
-  it('six shells, seeded within 25 m of the spot: the first lands 5 s + 1.5 s after the call, the rest over 8 s', () => {
+  it('six shells, seeded within 25 m of the spot: the first lands 2.5 s + 4 s after the call, the rest over 8 s', () => {
     const hits = landings();
     expect(hits).toHaveLength(6);
     expect(hits[0]!.tick).toBe(6.5 * HZ);
@@ -110,17 +110,17 @@ describe('Artillery Barrage: the shells', () => {
     expect(spots(2)).not.toEqual(spots(1));
   });
 
-  it('are projectiles: in the air for 1.5 s with their landing spot in the view, and harmless until they land', () => {
+  it('are projectiles: in the air for 4 s with their landing spot in the view, and harmless until they land', () => {
     const [first] = landings();
     const m = scene({ 6: { x: first!.x, y: first!.y } }); // pact Soldier 6, on the first landing spot
     const run = play(m, 8 * HZ);
     const air = (i: number) => run.views[i]!.effects![0]!.shells!;
-    expect(air(4 * HZ)).toEqual([]); // 4 s: nothing has left yet
-    expect(air(5 * HZ + 1)).toMatchObject([{ x: first!.x, y: first!.y }]); // launched
-    expect(air(5 * HZ + 1)[0]!.flight).toBeGreaterThan(0);
-    expect(air(5 * HZ + 15)[0]!.flight).toBeGreaterThan(air(5 * HZ + 1)[0]!.flight);
+    expect(air(2 * HZ)).toEqual([]); // 2 s: nothing has left yet
+    expect(air(3 * HZ)).toMatchObject([{ x: first!.x, y: first!.y }]); // launched
+    expect(air(3 * HZ)[0]!.flight).toBeGreaterThan(0);
+    expect(air(3 * HZ + 15)[0]!.flight).toBeGreaterThan(air(3 * HZ)[0]!.flight);
     const hit = first!.tick;
-    for (let i = 5 * HZ; i < hit; i++) expect(run.pact[i]!.friendlies.find((f) => f.id === 6)).toMatchObject({ state: 'alive', suppressed: false });
+    for (let i = 3 * HZ; i < hit; i++) expect(run.pact[i]!.friendlies.find((f) => f.id === 6)).toMatchObject({ state: 'alive', suppressed: false });
     expect(run.pact[hit]!.friendlies.find((f) => f.id === 6)).toBeUndefined(); // dead on the landing tick
   });
 
