@@ -11,6 +11,7 @@ export interface Order {
   point: number; // index of the Capture Point
   hold: boolean; // hold it: set when the point is the Side's own, or once taken; kept until the Commander changes it
   delayed: 'retreat' | 'resupply' | null; // survival has the Squad for now
+  since: number; // #73: tick it was acknowledged; a capture scores only for a Squad that began contributing after it
 }
 
 /** An Order sent and not yet acknowledged; `point` -1 = clear. The standing Order stands until `due`. */
@@ -38,7 +39,7 @@ export function orders(m: Match, events: SimEvent[]) {
     if (sq.pending && m.tick >= sq.pending.due) {
       const { point } = sq.pending;
       sq.pending = null;
-      const o: Order | null = point < 0 ? null : { point, hold: m.points[point]!.owner === sq.side, delayed: survival(sq) };
+      const o: Order | null = point < 0 ? null : { point, hold: m.points[point]!.owner === sq.side, delayed: survival(sq), since: m.tick };
       sq.order = o;
       if (wiped(membersOf(m, sq))) continue; // a wiped Squad can't answer
       if (!o) say(sq, 'ack', 'copy, free to engage', events);
@@ -71,6 +72,7 @@ export function hashOrders(m: Match, mix: Mix) {
     mix(o ? o.point + 1 : 0);
     mix(o ? +o.hold : 0);
     mix(o?.delayed ? (o.delayed === 'retreat' ? 1 : 2) : 0);
+    mix(o ? o.since : 0); // #73
     mix(sq.pending ? sq.pending.point + 2 : 0);
     mix(sq.pending?.due ?? 0);
   }
