@@ -83,7 +83,7 @@ export function createMatch(opts: {
         m.soldiers.push({
           id: m.soldiers.length, side, squad: squad.id, x: hq.x + ox, y: hq.y + oy, fx: sign(side), fy: 0, speed, ox, oy,
           state: 'alive', hp: tune.hp, suppression: 0, target: -1, nextFire: 0, bleed: 0, revive: 0, reviving: -1, deadAt: 0,
-          ...newSoldierAi(m), cause: null,
+          ...newSoldierAi(m), cause: null, uavUntil: -1, uavAssist: false,
         });
       }
     }

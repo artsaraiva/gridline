@@ -38,6 +38,8 @@ export interface Soldier {
   blocked: number; // ticks it has been stuck
   // #55 Commander Score
   cause: 'barrage' | null; // what an enemy Asset did to it: scores for the enemy Commander on death; cleared by Revive
+  uavUntil: number; // #75 last tick it counts as UAV-discovered by the enemy Side (the Scan found it unseen, then the grace); see assets/scan.ts
+  uavAssist: boolean; // #75 the shot that downed it landed while UAV-discovered: scores for the enemy Commander on death; cleared by Revive
 }
 
 export interface Squad {
@@ -119,6 +121,8 @@ export function hashSoldiers(m: Match, mix: Mix) {
     mix(s.deadAt);
     mix(s.ammo);
     mix(s.cause === 'barrage' ? 1 : 0);
+    mix(s.uavUntil); // #75
+    mix(+s.uavAssist);
   }
 }
 
