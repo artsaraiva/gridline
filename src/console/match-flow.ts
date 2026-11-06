@@ -9,7 +9,6 @@ import { resetRadioLog } from './chrome/radio-log';
 import { resetSquads } from './chrome/squads';
 import { resetEffects } from './layers/effects';
 import { resetImpacts } from './layers/impacts';
-import { resetLeaders } from './layers/leaders';
 import { resetOrders } from './layers/orders';
 import { resetMarkers } from './layers/markers';
 import { resetPoints } from './layers/points';
@@ -42,7 +41,6 @@ async function startMatch(setup: MatchSetup) {
   resetChevrons();
   resetContacts();
   resetMarkers();
-  resetLeaders();
   resetTracers();
   resetEffects();
   resetImpacts();

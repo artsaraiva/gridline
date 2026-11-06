@@ -12,7 +12,6 @@ import { addImpact, drawImpacts } from './layers/impacts';
 import { addDeathMarker, drawDeathMarkers } from './layers/markers';
 import { watchFrame } from './layers/map';
 import { drawOrders, hideOrderTags } from './layers/orders';
-import { drawLeaders } from './layers/leaders';
 import { drawHqs, drawPoint } from './layers/points';
 import { UNIT_PX } from './layers/symbols';
 import { addShot, drawTracers } from './layers/tracers';
@@ -66,7 +65,6 @@ renderer.setAnimationLoop(() => {
   drawDeathMarkers(now, scale);
   drawLastKnown(view, scale);
   drawChevrons(view, scale, now);
-  drawLeaders(view, scale);
   drawHqs(host.map, scale);
   for (const p of view.points) drawPoint(p, scale);
   drawTracers(now, scale);
