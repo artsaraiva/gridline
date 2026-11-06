@@ -115,3 +115,11 @@ _Avoid_: Call-in, ask
 **Grid Reference**:
 The name of one square of the map grid, a letter column plus a number row, such as E5.
 _Avoid_: Coordinate, sector
+
+**Voice Line**:
+An intelligible spoken radio line from HQ that confirms an Asset or warns the Commander; it is always also a line in the radio log.
+_Avoid_: Voice over, speech sample, announcement
+
+**Chatter**:
+Indistinct, unlogged radio texture on the Squad net that carries no information.
+_Avoid_: Ambient, background voice, gibberish
