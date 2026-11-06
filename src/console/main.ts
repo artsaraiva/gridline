@@ -4,7 +4,7 @@ import { drawAssetRail } from './chrome/assets';
 import { drawRadioLog, logRadio, showRadioLog } from './chrome/radio-log';
 import { drawRail, toastEvent } from './chrome/rail';
 import { drawSquads } from './chrome/squads';
-import { drawChevrons } from './layers/chevrons';
+import { drawChevrons, pulse } from './layers/chevrons';
 import { drawLastKnown } from './layers/contacts';
 import { drawEffects, hideEffectLabels } from './layers/effects';
 import { drawGrid } from './layers/grid';
@@ -46,6 +46,7 @@ renderer.setAnimationLoop(() => {
     if (e.kind === 'death') addDeathMarker(e.x, e.y, e.side, now);
     else if (e.kind === 'impact') addImpact(e.x, e.y, now);
     else if (e.kind === 'shot' || e.kind === 'suppressive') addShot(e, view, now);
+    if (e.kind === 'shot' || e.kind === 'suppressive') pulse(e.from, e.side, now);
     logRadio(e, view);
     toastEvent(e, view);
   }
@@ -62,7 +63,7 @@ renderer.setAnimationLoop(() => {
   drawOrders(view, metresPerPx.value);
   drawDeathMarkers(now, scale);
   drawLastKnown(view, scale);
-  drawChevrons(view, scale);
+  drawChevrons(view, scale, now);
   drawHqs(host.map, scale);
   for (const p of view.points) drawPoint(p, scale);
   drawSquadFrames(view, scale);
