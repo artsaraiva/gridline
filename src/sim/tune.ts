@@ -103,6 +103,11 @@ export const DEFAULT_TUNE: Tune = {
   lkpSeconds: 3.5,
   hearM: 90,
 
+  // #93 Squad mates stray
+  strayChance: 0.1,
+  straySeconds: [8, 20],
+  strayM: [10, 30],
+
   // #36 Orders
   orderBonus: 1.5,
   orderAckMinSeconds: 1,

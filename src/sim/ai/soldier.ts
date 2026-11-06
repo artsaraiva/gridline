@@ -1,4 +1,5 @@
-// The Soldier layer: where to step this tick (reviving, a spot its Squad sent it to, the wedge, the flow field) and the step itself.
+// The Soldier layer: where to step this tick (reviving, a spot its Squad sent it to, the wedge, its own line while straying
+// (#93), the flow field) and the step itself.
 import type { Match } from '../index';
 import { avoid } from '../assets/core';
 import { canStand, dist2, inHq } from '../geometry';
@@ -6,7 +7,7 @@ import { lineWalk, walkCost } from '../grid';
 import { membersOf, type Soldier } from '../state';
 import type { Vec2 } from '../types';
 import { flowLook } from './flow';
-import { flowOf, wedgeSlot } from './squad';
+import { flowOf, setDest, wedgeSlot } from './squad';
 
 /** One tick of walking. Faces where it walks unless it has a target. A Soldier in its own HQ gets a full load of ammo. */
 export function walk(m: Match, s: Soldier) {
@@ -28,15 +29,19 @@ export function walk(m: Match, s: Soldier) {
   const flow = flowOf(m, sq);
   let to: Vec2 | null = null;
   let pace = 1;
+  if (s.strayUntil && s.dest && !s.cover && dist2(s, s.dest) < 1.44) setDest(m, s, null); // #93: at its stray spot; from here it walks its own line
   const spot = s.cover ?? s.dest;
   if (spot) {
     while (s.path.length && dist2(s, s.path[0]!) < 1.44) s.path.shift();
     to = s.path[0] ?? (flow && !lineWalk(m, s, spot) ? flowLook(m, flow, s, 4) : null) ?? spot;
-    pace = s.cover ? 1.18 : s.regroup || s.chaseUntil ? 1.14 : sq.mode === 'bound' ? 0.91 : 0.82;
+    pace = s.cover ? 1.18 : s.regroup || s.chaseUntil ? 1.14 : s.strayUntil ? (sq.slow ? 0.5 : 1) : sq.mode === 'bound' ? 0.91 : 0.82; // #93: a stray never outruns a waiting leader
   } else if (flow && (sq.mode === 'travel' || sq.mode === 'fallback')) {
     if (s === L) {
       to = flowLook(m, flow, s, 4);
       pace = sq.slow ? 0.5 : sq.mode === 'fallback' ? 1.14 : 1;
+    } else if (m.tick < s.strayUntil) {
+      to = flowLook(m, flow, s, 4); // #93: its own line to the goal, a little behind the leader's pace; once the stray ends it catches up to its slot below
+      pace = sq.slow ? 0.5 : 0.95;
     } else {
       const slot = wedgeSlot(m, L, alive.indexOf(s), s.slot);
       if (dist2(s, L) < 22 * 22 && walkCost(m, slot.x, slot.y) && lineWalk(m, s, slot)) {

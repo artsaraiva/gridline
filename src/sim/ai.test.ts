@@ -136,7 +136,7 @@ describe('point choice', () => {
 
 describe('loose squads', () => {
   it('a travelling Squad moves as a wedge: the leader in front, the others behind on both sides, spaced out', () => {
-    const m = scene({ map: field({ points: [{ id: 'P', name: 'P', x: 300, y: 0 }] }), tune: { visionM: 0 } });
+    const m = scene({ map: field({ points: [{ id: 'P', name: 'P', x: 300, y: 0 }] }), tune: { visionM: 0, strayChance: 0 } });
     const { nato } = play(m, 30 * HZ);
     const v = nato.at(-1)!;
     const lead = v.friendlies.reduce((a, b) => (b.x > a.x ? b : a));
@@ -144,6 +144,24 @@ describe('loose squads', () => {
     expect(rest.every((f) => lead.x - f.x > 3 && dist(f, lead) < 25)).toBe(true);
     expect(rest.some((f) => f.y > lead.y + 2) && rest.some((f) => f.y < lead.y - 2)).toBe(true);
     for (const a of v.friendlies) for (const b of v.friendlies) if (a !== b) expect(dist(a, b)).toBeGreaterThan(2.5);
+  });
+
+  it('#93: a travelling mate strays from the wedge when the chance says so, never past the leash, and not at all at 0', () => {
+    const far = { map: field({ points: [{ id: 'P', name: 'P', x: 500, y: 0 }] }) };
+    const offWedge = (v: CommanderView) => {
+      const lead = v.friendlies.reduce((a, b) => (b.x > a.x ? b : a));
+      return v.friendlies.filter((f) => f !== lead && Math.abs(f.y - lead.y) > 9); // a rank-one wedge slot sits at most 7 m out
+    };
+    const { nato: still } = play(scene({ ...far, tune: { visionM: 0, strayChance: 0 } }), 60 * HZ);
+    expect(still.slice(10 * HZ).every((v) => offWedge(v).length === 0)).toBe(true); // once the spawn spread has closed into the wedge
+
+    const { nato: loose } = play(scene({ ...far, tune: { visionM: 0, strayChance: 1 } }), 60 * HZ);
+    expect(loose.some((v) => offWedge(v).length > 0)).toBe(true);
+    for (const v of loose) {
+      const lead = v.friendlies.reduce((a, b) => (b.x > a.x ? b : a));
+      for (const f of v.friendlies) expect(dist(f, lead)).toBeLessThan(DEFAULT_TUNE.leashM + 20);
+    }
+    expect(loose.at(-1)!.friendlies.reduce((a, b) => (b.x > a.x ? b : a)).x).toBeGreaterThan(still.at(0)!.friendlies[0]!.x + 50); // the leader still gets on
   });
 
   it('a Soldier more than 60 m from its leader regroups; one within 60 m stays put', () => {
