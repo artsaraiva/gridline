@@ -33,6 +33,7 @@ canvas { display: block; touch-action: none; }
 .screen legend { padding: 0 0 6px; opacity: 0.6; }
 .screen dl { margin: 0; display: grid; grid-template-columns: auto auto; gap: 4px 24px; }
 .screen dd { margin: 0; text-align: right; }
+.screen .sub { font-size: 12px; color: var(--bone-dim); } /* #72: the Commander Score breakdown rows */
 .screen select, .screen button {
   font: inherit; text-transform: inherit; color: inherit; background: transparent;
   border: 1px solid rgba(232, 226, 200, 0.4); padding: 6px 12px; min-height: 36px; cursor: pointer;
@@ -98,6 +99,13 @@ canvas { display: block; touch-action: none; }
 .fr .tbar i { left: 0; background: var(--fr); }
 .ho .tbar i { right: 0; background: var(--ho); }
 .drain { font-size: 11px; color: var(--bone-dim); margin-top: 8px; text-align: center; text-transform: none; letter-spacing: 0.04em; }
+/* #72: Commander Score running total, and the contribution messages that briefly stack under the block */
+.cscore { display: flex; justify-content: space-between; align-items: baseline; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--faint); }
+.cscore small { font-size: 11px; font-weight: 600; letter-spacing: 0.14em; color: var(--bone-dim); }
+.cscore b { font-size: 18px; font-weight: 600; line-height: 1; color: var(--amber); }
+#awards { display: grid; gap: 4px; pointer-events: none; }
+.award { padding: 5px 12px; font-size: 13px; letter-spacing: 0.06em; color: var(--amber); background: var(--panel); border: 1px solid var(--faint); text-transform: none; animation: toast 4.5s forwards; }
+@media (prefers-reduced-motion: reduce) { .award { animation-duration: 0.01s; animation-delay: 4.5s; } }
 
 #confirm {
   position: fixed; left: 0; top: 0; min-height: 36px; padding: 7px 14px; border: 0; cursor: pointer; white-space: nowrap;

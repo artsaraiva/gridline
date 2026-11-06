@@ -7,6 +7,14 @@ export const FACTION: Record<SideId, string> = { nato: 'NATO', pact: 'Warsaw Pac
 
 export const clock = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
+/** #72: the Commander Score categories in end-screen order, by their GLOSSARY names. */
+const SCORE_ROWS = [
+  ['uav', 'Scan UAV'],
+  ['supply', 'Supply Drop'],
+  ['artillery', 'Artillery Barrage'],
+  ['orders', 'Orders'],
+] as const;
+
 /** What the end screen shows, from the chosen Side's point of view. Call only once `view.result` is set. */
 export function endSummary(view: CommanderView) {
   const { winner, reason } = view.result!;
@@ -18,8 +26,12 @@ export function endSummary(view: CommanderView) {
     friendly: { faction: FACTION[view.side], tickets: view.tickets[view.side] },
     enemy: { faction: FACTION[enemy], tickets: view.tickets[enemy] },
     time: clock(view.seconds),
+    score: { total: view.score?.total ?? 0, rows: SCORE_ROWS.map(([key, label]) => ({ label, points: view.score?.[key] ?? 0 })) },
   };
 }
+
+/** #72: the contribution message for an own-Side award: "+100 · Barrage kill". Null for anything else. */
+export const awardLine = (e: SimEvent, view: CommanderView) => (e.kind === 'award' && e.side === view.side ? `+${e.points} · ${e.reason}` : null);
 
 /** The Order line: "TAKE CHARLIE", "HOLD CHARLIE", "RETREATING · ORDER CHARLIE", "ORDER SENT · CHARLIE", "NO ORDER". */
 export function orderLine(q: SquadView, view: CommanderView): string {

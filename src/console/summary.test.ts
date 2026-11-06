@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cursorReadout, drainLine, dtg, edgeLine, endSummary, latlon, leaderOf, mgrs, orderLine, radioLine, requestLine, squadTag } from './summary';
+import { awardLine, cursorReadout, drainLine, dtg, edgeLine, endSummary, latlon, leaderOf, mgrs, orderLine, radioLine, requestLine, squadTag } from './summary';
 import type { CommanderView, MapGrid, MatchResult, SideId, SimEvent, SquadView } from '../sim/types';
 
 function ended(side: SideId, result: MatchResult, tickets: Record<SideId, number>, seconds: number): CommanderView {
@@ -15,6 +15,7 @@ describe('end summary', () => {
       friendly: { faction: 'Warsaw Pact', tickets: 37 },
       enemy: { faction: 'NATO', tickets: 0 },
       time: '12:34',
+      score: { total: 0, rows: [{ label: 'Scan UAV', points: 0 }, { label: 'Supply Drop', points: 0 }, { label: 'Artillery Barrage', points: 0 }, { label: 'Orders', points: 0 }] },
     });
   });
 
@@ -30,6 +31,31 @@ describe('end summary', () => {
     expect(s.result).toBe('DRAW');
     expect(s.reason).toBe('Time ran out');
     expect(s.time).toBe('25:00');
+  });
+
+  it('shows the Commander Score with a row per category, zero rows included (#72)', () => {
+    const view = { ...ended('nato', { winner: 'nato', reason: 'time' }, { nato: 40, pact: 30 }, 1500), score: { total: 350, uav: 50, supply: 0, artillery: 300, orders: 0 } };
+    expect(endSummary(view).score).toEqual({
+      total: 350,
+      rows: [
+        { label: 'Scan UAV', points: 50 },
+        { label: 'Supply Drop', points: 0 },
+        { label: 'Artillery Barrage', points: 300 },
+        { label: 'Orders', points: 0 },
+      ],
+    });
+    expect(endSummary(ended('nato', { winner: 'nato', reason: 'time' }, { nato: 40, pact: 30 }, 1500)).score.total).toBe(0);
+  });
+});
+
+describe('contribution message (#72)', () => {
+  const view = ended('nato', null as never, { nato: 1, pact: 1 }, 0);
+  const award = (side: SideId): SimEvent => ({ kind: 'award', side, category: 'artillery', points: 100, reason: 'Barrage kill' });
+
+  it('shows the points and the reason for an own-Side award, nothing for the enemy or other events', () => {
+    expect(awardLine(award('nato'), view)).toBe('+100 · Barrage kill');
+    expect(awardLine(award('pact'), view)).toBeNull();
+    expect(awardLine({ kind: 'impact', side: 'nato', x: 0, y: 0 }, view)).toBeNull();
   });
 });
 
