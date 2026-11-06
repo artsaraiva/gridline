@@ -123,3 +123,114 @@ describe('Commander Score: Artillery', () => {
     expect(stateHash(m)).not.toBe(scored);
   });
 });
+
+describe('Commander Score: Supply', () => {
+  const { hp: HP, ammo: AMMO, scoreSupplyPerFraction: PER, scoreSupplyCapPerRecipient: CAP } = DEFAULT_TUNE;
+  const low = { ammo: 10, hp: 40 };
+  const drop = (m: Match, side: 'nato' | 'pact' = 'nato'): Command => ({ tick: m.tick, side, kind: 'asset', asset: 'supply', at: AT });
+  const supplyOf = (m: Match) => commanderView(m, 'nato').score!.supply;
+  /** nato 0 stands 3 m from the drop spot, low on both; nato 1 full on the other side of it; the rest 100 m off. The crate can be called again at once. */
+  const crateScene = (tune: Partial<Tune> = {}) => scene({ 0: { x: AT.x + 3, y: AT.y, ...low }, 1: { x: AT.x - 3, y: AT.y }, 2: { x: AT.x + 100, y: AT.y + 3 }, 3: { x: AT.x + 100, y: AT.y + 6 }, 4: { x: AT.x + 100, y: AT.y + 9 }, 5: { x: AT.x + 100, y: AT.y + 12 } }, { supplyCooldownSeconds: 0, ...tune });
+  const run = (m: Match, ticks: number, cmds: Command[] = []) => {
+    const events: SimEvent[] = [];
+    for (let i = 0; i < ticks; i++) events.push(...step(m, i === 0 ? cmds : []));
+    return events;
+  };
+  const LANDED = DEFAULT_TUNE.supplyFallSeconds * HZ;
+  /** nato 0 steps out of the crate, runs low again and steps back in, `n` times: each visit is worth about a third of the cap. */
+  const revisit = (m: Match, n: number) => {
+    const events: SimEvent[] = [];
+    for (let i = 0; i < n; i++) {
+      Object.assign(m.soldiers[0]!, { x: AT.x + 100 });
+      events.push(...run(m, 1));
+      Object.assign(m.soldiers[0]!, { x: AT.x + 3, ...low });
+      events.push(...run(m, 1));
+    }
+    return events;
+  };
+
+  it('awards the per-fraction value times the health and ammo fractions the crate actually restores', () => {
+    const m = crateScene();
+    run(m, LANDED + HZ, [drop(m)]); // lands, then heals for a second
+    const healed = m.soldiers[0]!.hp - low.hp;
+    expect(healed).toBeGreaterThan(0);
+    expect(supplyOf(m)).toBeCloseTo(PER * (healed / HP + (AMMO - low.ammo) / AMMO), 6);
+    expect(commanderView(m, 'pact').score!.supply).toBe(0);
+  });
+
+  it('a full-health, full-ammo recipient earns nothing', () => {
+    const m = crateScene();
+    Object.assign(m.soldiers[0]!, { hp: HP, ammo: AMMO });
+    run(m, LANDED + 10 * HZ, [drop(m)]);
+    expect(supplyOf(m)).toBe(0);
+  });
+
+  it('caps per recipient per drop across leaving, returning and respawning; restoration goes on past the cap', () => {
+    const m = crateScene();
+    const s = m.soldiers[0]!;
+    const refill = PER * (1 - low.ammo / AMMO); // one visit's ammo refill alone is a good part of the cap
+    run(m, LANDED + 1, [drop(m)]);
+    expect(supplyOf(m)).toBeCloseTo(refill + PER * (DEFAULT_TUNE.supplyHealPerSecond / HZ / HP), 6);
+    // leaves, spends and bleeds, comes back: the same allowance carries on
+    Object.assign(s, { x: AT.x + 100 });
+    run(m, HZ);
+    Object.assign(s, { x: AT.x + 3, ...low });
+    run(m, HZ);
+    expect(supplyOf(m)).toBeGreaterThan(2 * refill);
+    // two more visits reach the cap; the crate keeps healing and refilling
+    revisit(m, 2);
+    run(m, 2 * HZ);
+    expect(supplyOf(m)).toBe(CAP);
+    expect(s.ammo).toBe(AMMO);
+    expect(s.hp).toBeGreaterThan(low.hp);
+    // dies and respawns next to Soldier 1 at the crate, wounded again: still nothing past the cap
+    Object.assign(s, { state: 'dead', deadAt: m.tick });
+    const events = run(m, 12 * HZ);
+    expect(events.some((e) => e.kind === 'respawn' && e.id === 0)).toBe(true);
+    Object.assign(s, low);
+    run(m, 5 * HZ);
+    expect(s.ammo).toBe(AMMO);
+    expect(supplyOf(m)).toBe(CAP);
+  });
+
+  it('a second drop has a fresh allowance', () => {
+    const m = crateScene();
+    run(m, LANDED + 1, [drop(m)]);
+    revisit(m, 4);
+    expect(supplyOf(m)).toBe(CAP);
+    run(m, DEFAULT_TUNE.supplyStaySeconds * HZ); // the first crate is gone
+    Object.assign(m.soldiers[0]!, low);
+    run(m, LANDED + 1, [drop(m)]);
+    expect(supplyOf(m)).toBeGreaterThan(CAP + PER * (1 - low.ammo / AMMO));
+  });
+
+  it('tells the Console once per recipient per drop: at the cap, or with the crate\'s last tick, naming the Squad', () => {
+    const m = crateScene();
+    const early = run(m, LANDED + 1, [drop(m)]);
+    expect(awards(early)).toEqual([]); // the ledger moves, the Console waits
+    expect(supplyOf(m)).toBeGreaterThan(0);
+    const visits = revisit(m, 4);
+    expect(supplyOf(m)).toBe(CAP);
+    const rest = run(m, DEFAULT_TUNE.supplyStaySeconds * HZ);
+    expect(awards([...early, ...visits, ...rest])).toEqual([{ kind: 'award', side: 'nato', category: 'supply', points: CAP, reason: 'Supply Drop resupplied Alpha' }]);
+  });
+
+  it('a recipient short of the cap hears its total when the crate goes', () => {
+    const m = crateScene();
+    const events = run(m, LANDED + DEFAULT_TUNE.supplyStaySeconds * HZ + 1, [drop(m)]);
+    const [a, ...more] = awards(events);
+    expect(more).toEqual([]);
+    expect(a).toMatchObject({ side: 'nato', category: 'supply', reason: 'Supply Drop resupplied Alpha' });
+    expect(a!.points).toBeCloseTo(supplyOf(m), 6);
+    expect(commanderView(m, 'nato').effects).toEqual([]);
+  });
+
+  it('the allowance is part of the state hash', () => {
+    const m = crateScene();
+    run(m, LANDED + HZ, [drop(m)]);
+    const drawn = stateHash(m);
+    const crate = m.assets.effects.find((e) => e.asset === 'supply')!;
+    crate.given![0] = 0;
+    expect(stateHash(m)).not.toBe(drawn);
+  });
+});

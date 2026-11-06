@@ -19,6 +19,7 @@ export interface Effect {
   until: number;
   told: boolean; // its "on effect" radio line went out
   shells?: Shell[]; // #40 Barrage
+  given?: Record<number, number>; // #74 Supply Drop: Commander Score points each Soldier (by id) drew from this crate
 }
 
 export interface Assets {
