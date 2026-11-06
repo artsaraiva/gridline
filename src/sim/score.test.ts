@@ -339,20 +339,36 @@ describe('Commander Score: Supply', () => {
     expect(supplyOf(m)).toBeGreaterThan(CAP + PER * (1 - low.ammo / AMMO));
   });
 
-  it('tells the Console once per recipient per drop: at the cap, or with the crate\'s last tick, naming the Squad', () => {
+  it('tells the Console each time a recipient stops drawing and at the cap, naming the Squad: the messages add up to the cap, then stop', () => {
     const m = crateScene();
     const early = run(m, LANDED + 1, [drop(m)]);
     expect(awards(early)).toEqual([]); // the ledger moves, the Console waits
     expect(supplyOf(m)).toBeGreaterThan(0);
-    const visits = revisit(m, 4);
+    const visits = awards(revisit(m, 4));
     expect(supplyOf(m)).toBe(CAP);
-    const rest = run(m, DEFAULT_TUNE.supplyStaySeconds * HZ);
-    expect(awards([...early, ...visits, ...rest])).toEqual([{ kind: 'award', side: 'nato', category: 'supply', points: CAP, reason: 'Supply Drop resupplied Alpha' }]);
+    expect(visits.length).toBeGreaterThan(1);
+    for (const a of visits) expect(a).toMatchObject({ kind: 'award', side: 'nato', category: 'supply', reason: 'Supply Drop resupplied Alpha' });
+    expect(visits.reduce((n, a) => n + a.points, 0)).toBeCloseTo(CAP, 6);
+    expect(awards(run(m, DEFAULT_TUNE.supplyStaySeconds * HZ))).toEqual([]);
   });
 
-  it('a recipient short of the cap hears its total when the crate goes', () => {
+  it('a recipient that leaves before the cap hears what it drew the tick after it stops drawing, and nothing more until it draws again', () => {
     const m = crateScene();
-    const events = run(m, LANDED + DEFAULT_TUNE.supplyStaySeconds * HZ + 1, [drop(m)]);
+    expect(awards(run(m, LANDED + HZ, [drop(m)]))).toEqual([]);
+    const drawn = supplyOf(m);
+    expect(drawn).toBeGreaterThan(0);
+    Object.assign(m.soldiers[0]!, { x: AT.x + 100 });
+    const [a, ...more] = awards(run(m, 1));
+    expect(more).toEqual([]);
+    expect(a).toMatchObject({ side: 'nato', category: 'supply', reason: 'Supply Drop resupplied Alpha' });
+    expect(a!.points).toBeCloseTo(drawn, 6);
+    expect(awards(run(m, 2 * HZ))).toEqual([]);
+  });
+
+  it('a recipient short of the cap still drawing when the crate goes hears its total then', () => {
+    const m = crateScene({ supplyHealPerSecond: 0.5 }); // nato 0 is still healing when the crate goes
+    expect(awards(run(m, LANDED + DEFAULT_TUNE.supplyStaySeconds * HZ - 1, [drop(m)]))).toEqual([]);
+    const events = run(m, 2);
     const [a, ...more] = awards(events);
     expect(more).toEqual([]);
     expect(a).toMatchObject({ side: 'nato', category: 'supply', reason: 'Supply Drop resupplied Alpha' });
