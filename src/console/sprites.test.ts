@@ -12,6 +12,9 @@ import {
   SHELL_SHADOW_FRAME,
   SHELL_WORLD_M,
   shellInFlight,
+  shellTrail,
+  SMOKE_PUFF_VARIANTS,
+  TRAIL_PUFF_LIFE,
   sheetDimensions,
   SPRITE_SHEETS,
   type SpriteSheetSpec,
@@ -237,5 +240,45 @@ describe('artillery shell flight arc, shadow and fog', () => {
     step(mEnemyOnly, [{ tick: mEnemyOnly.tick, side: 'pact', kind: 'asset', asset: 'barrage', at: { x: -40, y: -20 } }]);
     for (let i = 0; i < ticks; i++) step(mEnemyOnly, []);
     expect(barrageShells(commanderView(mEnemyOnly, 'nato'), TEST_FIELD)).toEqual([]);
+  });
+});
+
+describe('shell smoke trail', () => {
+  const from = { x: -415, y: 0 };
+  const to = { x: 50, y: -50 };
+
+  it('registers the baked smoke puff sheet', () => {
+    expect(SPRITE_SHEETS['smoke-puff'].frames).toBe(SMOKE_PUFF_VARIANTS);
+  });
+
+  it('has no puffs before the shell leaves and grows as it flies', () => {
+    expect(shellTrail(from, to, 0)).toEqual([]);
+    expect(shellTrail(from, to, 0.2).length).toBeGreaterThan(3);
+  });
+
+  it('never draws a puff ahead of the shell', () => {
+    for (const u of [0.05, 0.3, 0.5, 0.7, 0.95, 1]) {
+      const shell = shellInFlight(from, to, u);
+      const hx = Math.cos(shell.heading);
+      const hy = Math.sin(shell.heading);
+      for (const p of shellTrail(from, to, u)) {
+        expect((p.x - shell.x) * hx + (p.y - shell.y) * hy, `puff ahead of shell at flight ${u}`).toBeLessThan(0);
+      }
+    }
+  });
+
+  it('leaves each puff where it was emitted, fading and swelling on its own until it is gone', () => {
+    const early = shellTrail(from, to, 0.3);
+    const later = shellTrail(from, to, 0.35);
+    const newest = early.at(-1)!;
+    const same = later.find((p) => p.id === newest.id)!;
+    expect({ x: same.x, y: same.y, frame: same.frame }).toEqual({ x: newest.x, y: newest.y, frame: newest.frame });
+    expect(same.opacity).toBeLessThan(newest.opacity);
+    expect(same.size).toBeGreaterThan(newest.size);
+
+    // Puffs older than their lifetime are gone, so the trail is a fading tail, not a route back to the HQ.
+    const oldest = shellTrail(from, to, 0.9)[0]!;
+    expect(oldest.emitted).toBeGreaterThanOrEqual(0.9 - TRAIL_PUFF_LIFE);
+    for (const p of shellTrail(from, to, 0.9)) expect(p.frame).toBeLessThan(SMOKE_PUFF_VARIANTS);
   });
 });

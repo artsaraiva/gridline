@@ -6,7 +6,7 @@ import { gridRef } from '../../sim/grid-ref';
 import type { CommanderView, Vec2 } from '../../sim/types';
 import { COLOR, layer, toScreen } from '../renderer';
 import { session } from '../session';
-import { barrageShells, SHELL_SHADOW_FRAME, spriteMaterial } from '../sprites';
+import { barrageShells, SHELL_SHADOW_FRAME, shellTrail, spriteMaterial } from '../sprites';
 import { clock } from '../summary';
 import { overlaps, targeting, validSpot } from '../targeting';
 import { css, dashedRing, fading, shade } from './symbols';
@@ -46,12 +46,15 @@ type ShellMark = {
 };
 const pool: Ring[] = [];
 const shellPool: ShellMark[] = [];
+type Puff = { mesh: THREE.Mesh; material: THREE.MeshBasicNodeMaterial; frame: ReturnType<typeof spriteMaterial>['frame'] };
+const puffPool: Puff[] = [];
 const labelBox = document.getElementById('labels')!;
 const labels: HTMLElement[] = [];
 
 export const resetEffects = () => {
   pool.length = 0;
   shellPool.length = 0;
+  puffPool.length = 0;
 };
 
 const material = (m: THREE.Mesh) => m.material as THREE.MeshBasicMaterial;
@@ -108,6 +111,18 @@ function shellAt(i: number): ShellMark {
   return s;
 }
 
+function puffAt(i: number): Puff {
+  let p = puffPool[i];
+  if (!p) {
+    const { material, frame } = spriteMaterial('smoke-puff');
+    p = { mesh: new THREE.Mesh(crateGeometry, material), material, frame };
+    layer.add(p.mesh);
+    puffPool.push(p);
+  }
+  p.mesh.visible = true;
+  return p;
+}
+
 /** Places tag `i` at the world spot `p`, offset in px; moved above the map Confirm button if it would sit under it. */
 function label(i: number, p: Vec2, dx: number, dy: number, text: string, color: string) {
   let el = labels[i];
@@ -135,6 +150,7 @@ function label(i: number, p: Vec2, dx: number, dy: number, text: string, color: 
 export function drawEffects(view: CommanderView, scale: number, now: number) {
   let rings = 0;
   let shells = 0;
+  let puffs = 0;
   let tags = 0;
   for (const e of view.effects ?? []) {
     const danger = e.asset === 'barrage';
@@ -162,6 +178,13 @@ export function drawEffects(view: CommanderView, scale: number, now: number) {
   const map = session.host?.map;
   if (map) {
     for (const s of barrageShells(view, map)) {
+      for (const t of shellTrail(s.from, s.to, s.flight)) {
+        const p = puffAt(puffs++);
+        p.mesh.position.set(t.x, t.y, 0.6);
+        p.mesh.scale.setScalar(t.size);
+        p.material.opacity = t.opacity;
+        p.frame.value = t.frame;
+      }
       const m = shellAt(shells++);
       m.shadow.position.set(s.shadow.x, s.shadow.y, 0.42);
       m.shadow.rotation.z = s.rotation;
@@ -190,6 +213,7 @@ export function drawEffects(view: CommanderView, scale: number, now: number) {
     if (near) label(tags++, edge, 6, 2, `${near.name.toUpperCase()} ${Math.round(near.d)} M`, css(color));
   }
   for (let i = rings; i < pool.length; i++) pool[i]!.group.visible = false;
+  for (let i = puffs; i < puffPool.length; i++) puffPool[i]!.mesh.visible = false;
   for (let i = shells; i < shellPool.length; i++) {
     const m = shellPool[i]!;
     m.shadow.visible = false;
