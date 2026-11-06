@@ -66,6 +66,9 @@ export interface Squad {
   // #41 Requests
   request: Request | null; // its open Request; see requests.ts
   requestNext: number; // first tick it may ask again
+  // #73 Ordered capture
+  taking: number; // index of the Capture Point it is contributing to taking, -1 = none; see capture.ts
+  takingSince: number; // tick it began
 }
 
 export interface Point {
@@ -128,5 +131,7 @@ export function hashSquads(m: Match, mix: Mix) {
     mix(sq.goal);
     mix(sq.lastSeen);
     mix(sq.lastHit);
+    mix(sq.taking + 1); // #73
+    mix(sq.takingSince);
   }
 }

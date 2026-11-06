@@ -8,7 +8,7 @@ export { think } from './squad';
 export { walk } from './soldier';
 export { logDeath, type Death } from './routes';
 
-type SquadAi = Omit<Squad, 'id' | 'side' | 'members' | 'goal' | 'lastSeen' | 'lastHit' | 'memory' | 'order' | 'pending' | 'request' | 'requestNext'>;
+type SquadAi = Omit<Squad, 'id' | 'side' | 'members' | 'goal' | 'lastSeen' | 'lastHit' | 'memory' | 'order' | 'pending' | 'request' | 'requestNext' | 'taking' | 'takingSince'>;
 type SoldierAi = Pick<Soldier, 'ammo' | 'lastTarget' | 'dest' | 'path' | 'cover' | 'chaseUntil' | 'role' | 'regroup' | 'slot' | 'blocked'>;
 
 export const newSquadAi = (): SquadAi => ({
