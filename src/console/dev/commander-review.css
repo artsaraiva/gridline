@@ -1,0 +1,80 @@
+/* DEV-only controls for the Commander look review scene (#69). Not bundled in production. */
+#commander-review-controls {
+  position: fixed;
+  bottom: 16px;
+  right: 88px;
+  width: 300px;
+  padding: 12px 14px;
+  display: grid;
+  gap: 10px;
+  font: 600 13px/1.3 'Chakra Petch', ui-monospace, monospace;
+  text-transform: uppercase;
+  color: var(--bone);
+  text-shadow: var(--rgb-split);
+  background: rgba(5, 9, 11, 0.6);
+  z-index: 10;
+}
+#commander-review-controls h2 {
+  margin: 0;
+  font-size: 16px;
+  letter-spacing: 0.08em;
+  color: var(--fr);
+}
+#commander-review-controls small {
+  margin: 0;
+  text-transform: none;
+  color: var(--bone-dim);
+  font-size: 12px;
+}
+#commander-review-controls .row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+#commander-review-controls button {
+  flex: 1;
+  font: inherit;
+  text-transform: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid var(--bone-faint);
+  padding: 6px 8px;
+  cursor: pointer;
+}
+#commander-review-controls button:hover,
+#commander-review-controls button:focus-visible {
+  background: rgba(232, 226, 200, 0.12);
+}
+#commander-review-controls input[type='range'] {
+  flex: 3;
+  accent-color: var(--fr);
+}
+#commander-review-controls output {
+  min-width: 52px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+#commander-review-controls .chapters {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+#commander-review-controls .chapters button {
+  width: 100%;
+  text-align: left;
+  font-size: 11px;
+  padding: 4px 6px;
+}
+#commander-review-controls .chapters span {
+  display: inline-block;
+  min-width: 30px;
+  color: var(--bone-dim);
+}
+#commander-review-controls .eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--bone-dim);
+}
