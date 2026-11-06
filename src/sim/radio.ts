@@ -94,10 +94,11 @@ export function radio(m: Match, events: SimEvent[]) {
     const was = r.owners[i];
     r.owners[i] = p.owner;
     if (p.owner === was) return;
+    // #85: a loss is the losing Side's net's to report, once and not held back by spam control: the Squad that held the
+    // point may be gone, elsewhere, or have something louder waiting, and the Commander must hear it either way
+    if (was) out.push({ kind: 'radio', side: was, squad: null, type: 'lost', text: `${callName(p.name)} lost`, ...(m.map.grid && { grid: gridRef(m.map.grid, p) }), priority: RADIO_PRIORITY.lost! });
     for (const sq of m.squads) {
-      if (wiped(membersOf(m, sq))) continue;
-      if (p.owner === sq.side && inside(sq, p)) say(sq, 'captured', `${callName(p.name)} captured`, p);
-      else if (was === sq.side && (inside(sq, p) || sq.goal === i)) say(sq, 'lost', `${callName(p.name)} lost`, p);
+      if (p.owner === sq.side && inside(sq, p) && !wiped(membersOf(m, sq))) say(sq, 'captured', `${callName(p.name)} captured`, p);
     }
   });
 

@@ -1,5 +1,5 @@
-/* DEV-only controls for the Commander look review scene (#69). Not bundled in production. */
-#commander-review-controls {
+/* DEV-only controls panel of the review scenes (#69 Commander look, #84 audio). Not bundled in production. */
+.review-controls {
   position: fixed;
   bottom: 16px;
   right: 88px;
@@ -14,24 +14,24 @@
   background: rgba(5, 9, 11, 0.6);
   z-index: 10;
 }
-#commander-review-controls h2 {
+.review-controls h2 {
   margin: 0;
   font-size: 16px;
   letter-spacing: 0.08em;
   color: var(--fr);
 }
-#commander-review-controls small {
+.review-controls small {
   margin: 0;
   text-transform: none;
   color: var(--bone-dim);
   font-size: 12px;
 }
-#commander-review-controls .row {
+.review-controls .row {
   display: flex;
   gap: 8px;
   align-items: center;
 }
-#commander-review-controls button {
+.review-controls button {
   flex: 1;
   font: inherit;
   text-transform: inherit;
@@ -41,20 +41,20 @@
   padding: 6px 8px;
   cursor: pointer;
 }
-#commander-review-controls button:hover,
-#commander-review-controls button:focus-visible {
+.review-controls button:hover,
+.review-controls button:focus-visible {
   background: rgba(232, 226, 200, 0.12);
 }
-#commander-review-controls input[type='range'] {
+.review-controls input[type='range'] {
   flex: 3;
   accent-color: var(--fr);
 }
-#commander-review-controls output {
+.review-controls output {
   min-width: 52px;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
-#commander-review-controls .chapters {
+.review-controls .chapters {
   margin: 0;
   padding: 0;
   list-style: none;
@@ -62,19 +62,27 @@
   grid-template-columns: 1fr 1fr;
   gap: 4px;
 }
-#commander-review-controls .chapters button {
+.review-controls .chapters button {
   width: 100%;
   text-align: left;
   font-size: 11px;
   padding: 4px 6px;
 }
-#commander-review-controls .chapters span {
+.review-controls .chapters span {
   display: inline-block;
   min-width: 30px;
   color: var(--bone-dim);
 }
-#commander-review-controls .eyebrow {
+.review-controls .eyebrow {
   font-size: 10px;
   letter-spacing: 0.14em;
   color: var(--bone-dim);
+}
+.review-controls .chapters button.on {
+  border-color: var(--fr);
+  color: var(--fr);
+}
+.review-controls label.row span {
+  flex: 2;
+  font-size: 11px;
 }

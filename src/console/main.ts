@@ -1,6 +1,8 @@
 // Bare Console entry: wires the modules and runs the render loop, one line per layer.
 import './input';
+import { applyMix, soundEvents, soundFrame } from './audio';
 import { drawAssetRail } from './chrome/assets';
+import { bindMixer } from './chrome/mixer';
 import { drawRadioLog, logRadio, showRadioLog } from './chrome/radio-log';
 import { drawRail, showAward, toastEvent } from './chrome/rail';
 import { drawSquads } from './chrome/squads';
@@ -19,6 +21,8 @@ import { checkEnd } from './match-flow';
 import { renderFeed } from './post';
 import { metresPerPx, pxToWorld, renderer } from './renderer';
 import { session } from './session';
+
+bindMixer(applyMix);
 
 let lastFrame = performance.now();
 renderer.setAnimationLoop(() => {
@@ -41,7 +45,8 @@ renderer.setAnimationLoop(() => {
   lastFrame = now;
   const view = host.sample(now);
   session.view = view;
-  for (const e of host.takeEvents()) {
+  const events = host.takeEvents();
+  for (const e of events) {
     if (e.kind === 'death') addDeathMarker(e.x, e.y, e.side, now);
     else if (e.kind === 'impact') addImpact(e.x, e.y, now);
     else if (e.kind === 'shot' || e.kind === 'suppressive') {
@@ -69,6 +74,10 @@ renderer.setAnimationLoop(() => {
   drawHqs(host.map, scale);
   for (const p of view.points) drawPoint(p, scale);
   drawTracers(now, scale);
+  if (!view.result) {
+    soundEvents(events, view); // #85: combat sounds for the sources the layers drew this frame, Voice Lines go through the radio log
+    soundFrame(view, host.map.hqs[view.side], now / 1000); // the loops (UAV hum, shell whistle, parachute) follow drawEffects; Chatter ticks
+  }
   checkEnd(view);
   renderFeed();
 });

@@ -4,6 +4,7 @@
 import { gridCentre } from '../../sim/grid-ref';
 import type { CommanderView, SimEvent } from '../../sim/types';
 import { transmit } from '../audio';
+import { type VoiceId, voiceFor } from '../audio-mix';
 import { burst } from '../post';
 import { camera } from '../renderer';
 import { session } from '../session';
@@ -14,7 +15,8 @@ const KEPT = 8; // lines in the log
 const CPS = 45; // characters typed per second; faster when lines are queued up
 const PAN_MS = 250;
 
-type Line = NonNullable<ReturnType<typeof radioLine>>;
+/** A log line, and the Voice Line that speaks it (#85: its caption is the typed line, so nothing is lost with audio off). */
+type Line = NonNullable<ReturnType<typeof radioLine>> & { voice: VoiceId | null };
 
 const box = document.getElementById('radio')!;
 const list = box.querySelector<HTMLElement>('.lines')!;
@@ -40,7 +42,7 @@ export function resetRadioLog() {
 /** Queues the log line for `e`, if it has one. */
 export function logRadio(e: SimEvent, view: CommanderView) {
   const line = radioLine(e, view);
-  if (line) queue.push(line);
+  if (line) queue.push({ ...line, voice: e.kind === 'radio' ? voiceFor(e) : null });
 }
 
 let panning = 0;
@@ -81,10 +83,10 @@ function open(line: Line, now: number) {
     row.onkeydown = (e) => (e.key === 'Enter' || e.key === ' ') && row.click();
   }
   while (list.childElementCount > KEPT) list.firstElementChild!.remove();
-  const cps = CPS * (1 + queue.length);
   const full = line.text;
-  if (line.onAir) transmit(full.length / cps);
-  typing = { text: row.querySelector<HTMLElement>('.tx')!, chip: line.grid ? chip : null, full, start: now, cps, onAir: line.onAir };
+  let seconds = full.length / (CPS * (1 + queue.length));
+  if (line.onAir) seconds = transmit(seconds, line.voice); // a Voice Line is on air for its sample's length, and the line types for as long
+  typing = { text: row.querySelector<HTMLElement>('.tx')!, chip: line.grid ? chip : null, full, start: now, cps: full.length / seconds, onAir: line.onAir };
   chip.style.visibility = 'hidden'; // shown once the line is out, so nothing jumps while it types
 }
 

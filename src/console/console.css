@@ -202,12 +202,24 @@ canvas { display: block; touch-action: none; }
 #radio .head span::after { content: 'Ch 2 · 41.250 MHz'; float: right; margin-right: 4px; color: var(--bone-dim); }
 #net { width: 7px; height: 7px; background: var(--fr); box-sizing: border-box; }
 #net.on { animation: blink 0.25s steps(1) infinite; box-shadow: 0 0 6px var(--fr); }
-#radio-fold {
+#radio-fold, #mixer-toggle, #mixer button {
   font: inherit; color: var(--bone-dim); background: transparent; border: 1px solid var(--faint);
   min-width: 36px; min-height: 36px; padding: 0 8px; cursor: pointer;
 }
-#radio-fold:hover, #radio-fold:focus-visible { background: rgba(232, 226, 200, 0.12); }
+#radio-fold:hover, #radio-fold:focus-visible, #mixer-toggle:hover, #mixer-toggle:focus-visible, #mixer-toggle[aria-expanded=true], #mixer button:hover, #mixer button:focus-visible { background: rgba(232, 226, 200, 0.12); }
 #radio.folded #radio-fold { transform: rotate(180deg); }
+/* #85: the mixer behind the speaker button; it floats above the log so no line moves while it is open. M mutes. */
+#mixer-toggle svg { width: 18px; height: 18px; display: block; margin: auto; }
+#mixer-toggle.muted { color: var(--ho); }
+#mixer {
+  position: absolute; left: -1px; right: -1px; bottom: 100%; margin-bottom: 4px; padding: 8px 10px; display: grid; gap: 6px;
+  background: var(--panel); border: 1px solid var(--faint); font-size: 11px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--bone-dim);
+}
+#mixer[hidden] { display: none; }
+#mixer label { display: grid; grid-template-columns: 64px 1fr 40px; align-items: center; gap: 8px; cursor: pointer; }
+#mixer input { margin: 0; accent-color: var(--bone); }
+#mixer output { text-align: right; color: var(--bone); }
+#mixer button { justify-self: start; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; }
 #radio .lines { padding: 4px 10px 6px; height: 98px; display: flex; flex-direction: column; gap: 2px; justify-content: flex-end; overflow: hidden; }
 #radio.folded .lines { height: auto; }
 #radio .ln { display: flex; gap: 8px; align-items: baseline; white-space: nowrap; overflow: hidden; line-height: 18px; }
