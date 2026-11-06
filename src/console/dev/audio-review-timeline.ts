@@ -100,7 +100,6 @@ const uav: Script = {
   events: [
     [3, { ...NET, type: 'asset', text: 'Scan UAV inbound', grid: 'E5' }],
     [5, { kind: 'radio', side: SIDE, squad: 0, type: 'contact', text: 'Contact', grid: 'E5', priority: 3 }],
-    [SCAN.at, { ...NET, type: 'asset', text: 'UAV on station', grid: 'E5' }],
     [SCAN.at + 4, { ...NET, type: 'asset', text: 'UAV eyes on 3 hostiles', grid: 'E5' }],
     [18, { kind: 'radio', side: SIDE, squad: 1, type: 'fire', text: 'Taking fire', grid: 'D5', priority: 2 }],
     [SCAN.at + SCAN.seconds, { ...NET, type: 'asset', text: 'UAV off station, no contacts', grid: 'E5' }],

@@ -126,22 +126,20 @@ describe('Scan UAV', () => {
     expect(vs[15 * HZ - 1]!.effects).toEqual([]);
   });
 
-  it('radios on station as it arrives, once when it first reveals enemies, and off station as it leaves (#85)', () => {
+  it('radios inbound at the call, once when it first reveals enemies, and off station as it leaves, found or not (#85)', () => {
     const lines = (m: Match) => {
       const out: [number, string][] = [];
       for (let i = 0; i < 16 * HZ; i++) for (const e of step(m, i === 0 ? [scan(m, { x: 200, y: 0 })] : [])) if (e.kind === 'radio' && e.type === 'asset') out.push([i, e.text]); // Squad Callouts are radio.test.ts's
       return out;
     };
-    // on station from the call: the Console draws it in orbit from its first tick
+    // no "UAV on station": the UAV has no fly-in (the Console draws it in orbit from its first tick), so inbound is that moment
     expect(lines(scene({ 2: { x: 200, y: 10 }, 3: { x: 210, y: 0 } }, { squads: 2 }))).toEqual([
       [0, 'Scan UAV inbound'],
-      [0, 'UAV on station'],
       [0, 'UAV eyes on 2 hostiles'],
       [15 * HZ - 1, 'UAV off station'],
     ]);
     expect(lines(scene())).toEqual([
       [0, 'Scan UAV inbound'],
-      [0, 'UAV on station'],
       [15 * HZ - 1, 'UAV off station, no contacts'],
     ]);
   });

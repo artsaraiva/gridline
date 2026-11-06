@@ -20,8 +20,7 @@ export const scan: Kind = {
     const seen = (s: { id: number }) => m.sightings[e.side].some((o) => o.id === s.id && o.tick === m.tick);
     for (const s of found) if (m.tick <= s.uavUntil || !seen(s)) s.uavUntil = m.tick + t.scoreUavGraceSeconds * t.hz; // #75
     for (const sq of m.squads) if (sq.side === e.side) for (const s of found) see(m, sq, s);
-    // #85: the UAV is on station from the call (the Console draws it in orbit from its first tick), so it says so on that tick
-    if (e.until - m.tick === Math.round(t.scanSeconds * t.hz)) assetRadio(m, e, 'UAV on station', events);
+    // #85: no "UAV on station" line: the UAV has no fly-in (the Console draws it in orbit from its first tick), so inbound is that moment
     if (found.length && !e.told) {
       assetRadio(m, e, `UAV eyes on ${found.length} hostile${found.length > 1 ? 's' : ''}`, events);
       e.told = true;

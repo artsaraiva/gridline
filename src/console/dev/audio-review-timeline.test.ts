@@ -28,11 +28,10 @@ describe('audio review timeline (#84)', () => {
     expect(all.some((e) => e.kind === 'suppressive')).toBe(true);
     expect(viewAt('uav', 10).squads.some((q) => q.takingFire)).toBe(true);
     const uav = texts('uav').filter((t) => t.includes('UAV'));
-    expect(uav).toEqual(['Scan UAV inbound', 'UAV on station', 'UAV eyes on 3 hostiles', 'UAV off station, no contacts']);
+    expect(uav).toEqual(['Scan UAV inbound', 'UAV eyes on 3 hostiles', 'UAV off station, no contacts']);
     const drawn = (t: number) => viewAt('uav', t).effects!.some((e) => e.asset === 'scan');
     const when = (text: string) => secondOf('uav', text);
     expect(drawn(when('Scan UAV inbound'))).toBe(false);
-    expect(drawn(when('UAV on station'))).toBe(true);
     expect(drawn(when('UAV eyes on 3 hostiles'))).toBe(true);
     expect(drawn(when('UAV off station, no contacts') + 0.5)).toBe(false);
     expect(radio(all).some((e) => e.squad !== null)).toBe(true); // Squad Callouts stay buzz plus text, heard beside the Voice Lines

@@ -111,7 +111,7 @@ export type VoiceId = keyof typeof lines;
 /** The Asset net lines (`type: 'asset'`, src/sim/assets) by their exact text; "UAV eyes on N hostile(s)" is matched below. */
 const VOICE_FOR_LINE: Record<string, VoiceId> = {
   'Scan UAV inbound': 'uav-inbound',
-  'UAV on station': 'uav-on-station',
+  // no 'UAV on station': the Simulation does not say it while the UAV has no fly-in (#85); the uav-on-station WAV waits for one
   'UAV off station': 'uav-off-station',
   'UAV off station, no contacts': 'uav-off-station',
   'Supply Drop inbound': 'supplies-inbound',

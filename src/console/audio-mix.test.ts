@@ -181,8 +181,8 @@ describe('Voice Lines: which file speaks a radio line (#84, #85)', () => {
   };
 
   it('every Asset net line the Simulation says is spoken by its Voice Line, in order', () => {
-    expect(assetLines('scan', 16, { x: 200, y: 10 })).toEqual(['uav-inbound', 'uav-on-station', 'uav-has-contacts', 'uav-off-station']);
-    expect(assetLines('scan', 16)).toEqual(['uav-inbound', 'uav-on-station', 'uav-off-station']);
+    expect(assetLines('scan', 16, { x: 200, y: 10 })).toEqual(['uav-inbound', 'uav-has-contacts', 'uav-off-station']);
+    expect(assetLines('scan', 16)).toEqual(['uav-inbound', 'uav-off-station']);
     expect(assetLines('supply', 6)).toEqual(['supplies-inbound', 'supplies-on-the-ground']);
     expect(assetLines('barrage', 8)).toEqual(['fire-mission-shot', 'splash']);
     expect(voiceFor({ type: 'asset', text: 'UAV eyes on 3 hostiles' })).toBe('uav-has-contacts');
