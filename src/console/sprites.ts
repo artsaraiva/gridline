@@ -206,8 +206,8 @@ export const SUPPLY_LANDED_FRAME = SUPPLY_SWING_FRAMES + 1;
 export const SUPPLY_WORLD_M = 9;
 /** Tunable exaggeration on the Supply Drop's world scale so crate and canopy read at close tactical zoom. */
 export const SUPPLY_EXAGGERATION = 2.2;
-/** In the falling frames the crate hangs this far west and south of the frame centre, in frame metres (build.py prints it). */
-const SUPPLY_CRATE_OFFSET_M = 1.516;
+/** In the falling frames the crate hangs this far west and south of the frame centre, in frame metres (from the bake's sheet .json). */
+export const SUPPLY_CRATE_OFFSET_M = 1.516;
 /** Height the crate starts falling from; the canopy comes down at a steady rate. */
 const SUPPLY_DROP_HEIGHT_M = 30;
 /** One full pendulum swing under the canopy. */
@@ -266,7 +266,7 @@ export function supplyDrop(e: { x: number; y: number; landsIn: number; fall: num
 }
 
 export const EXPLOSION_FRAMES = 32;
-const EXPLOSION_FPS = 16;
+export const EXPLOSION_FPS = 16;
 export const EXPLOSION_MS = (EXPLOSION_FRAMES / EXPLOSION_FPS) * 1000;
 /** World size in metres of the baked explosion quad (1 bake unit = 18 m). */
 const EXPLOSION_WORLD_M = 36;

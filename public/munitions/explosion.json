@@ -1,0 +1,9 @@
+{
+  "frames": 32,
+  "framePx": 256,
+  "cols": 8,
+  "constants": {
+    "EXPLOSION_FRAMES": 32,
+    "EXPLOSION_FPS": 16
+  }
+}

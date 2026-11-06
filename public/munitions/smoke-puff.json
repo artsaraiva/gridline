@@ -1,0 +1,8 @@
+{
+  "frames": 4,
+  "framePx": 128,
+  "cols": 4,
+  "constants": {
+    "SMOKE_PUFF_VARIANTS": 4
+  }
+}

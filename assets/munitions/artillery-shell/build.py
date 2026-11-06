@@ -9,6 +9,7 @@ whichever way a shell flies: the Console only rotates the remainder of half a he
 Run from the repository root:
   /Applications/Blender.app/Contents/MacOS/Blender -b --factory-startup --python-exit-code 1 -P assets/munitions/artillery-shell/build.py
 """
+import json
 import math
 import os
 import tempfile
@@ -254,4 +255,8 @@ frames += [np.zeros_like(frames[0])] * (-len(frames) % HEADINGS)
 rows = [np.concatenate(frames[r:r + HEADINGS], axis=1) for r in range(0, len(frames), HEADINGS)]
 sheet = np.concatenate(rows[::-1], axis=0)
 save_sheet(OUT_SHEET, sheet)
+# Layout and the src/console/sprites.ts constants this bake fixes; sprites.test.ts checks they match.
+with open(os.path.splitext(OUT_SHEET)[0] + ".json", "w") as f:
+    json.dump({"frames": len(PITCH_ANGLES) * HEADINGS + 1, "framePx": FRAME_PX, "cols": HEADINGS, "constants": {"SHELL_PITCH_FRAMES": len(PITCH_ANGLES), "SHELL_HEADINGS": HEADINGS, "SHELL_WORLD_M": cam_d.ortho_scale}}, f, indent=2)
+    f.write("\n")
 print(f"Wrote {OUT_GLB} and {len(PITCH_ANGLES) * HEADINGS + 1}-frame sprite sheet ({sheet.shape[1]}x{sheet.shape[0]}) to {OUT_SHEET}")

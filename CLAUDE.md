@@ -11,3 +11,7 @@ Default five-role vocabulary: needs-triage, needs-info, ready-for-agent, ready-f
 ### Domain docs
 
 Single-context: one `GLOSSARY.md` + `docs/adr/` at repo root. See `docs/agents/domain.md`.
+
+### Visual checks
+
+To check baked Assets by eye, run `pnpm review:capture` (screenshots the DEV Asset review scene per Asset; options in `scripts/review-capture.mjs`).

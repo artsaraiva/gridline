@@ -1,0 +1,9 @@
+{
+  "frames": 17,
+  "framePx": 160,
+  "cols": 17,
+  "constants": {
+    "UAV_HEADINGS": 16,
+    "UAV_WORLD_M": 5.0
+  }
+}

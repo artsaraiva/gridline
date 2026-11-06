@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { commanderView, createMatch, step } from '../sim';
 import { TEST_FIELD } from '../maps/test-field';
 import { DEFAULT_TUNE } from '../sim/tune';
+import * as sprites from './sprites';
 import {
   barrageShells,
   CRATER_CAP,
@@ -173,6 +174,27 @@ describe('committed Asset sprite sheets', () => {
   for (const [id, spec] of Object.entries(SPRITE_SHEETS)) {
     it(`${id} (${spec.file}) exists, matches expected frame count and dimensions, and has a transparent background`, () => {
       checkSheet(spec);
+    });
+
+    it(`${id} matches the layout and constants its Blender script baked (sheet .json beside the PNG)`, () => {
+      const url = new URL(spec.file.replace(/\.png$/, '.json'), PUBLIC_DIR);
+      expect(existsSync(url), `${spec.file}: rerun its build.py to write the sheet .json`).toBe(true);
+      const baked = JSON.parse(readFileSync(url, 'utf8')) as {
+        frames: number;
+        framePx: number;
+        cols: number;
+        constants?: Record<string, number>;
+      };
+      expect({ frames: spec.frames, framePx: spec.framePx, cols: sheetDimensions(spec).cols }).toEqual({
+        frames: baked.frames,
+        framePx: baked.framePx,
+        cols: baked.cols,
+      });
+      for (const [name, value] of Object.entries(baked.constants ?? {})) {
+        const actual = (sprites as unknown as Record<string, unknown>)[name];
+        expect(typeof actual, `sprites.ts exports ${name}`).toBe('number');
+        expect(actual as number, `${name} in sprites.ts matches the bake`).toBeCloseTo(value, 3);
+      }
     });
   }
 });
