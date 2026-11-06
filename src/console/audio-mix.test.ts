@@ -1,6 +1,7 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { CommanderView, EffectView } from '../sim/types';
-import { admit, admitImpact, admitShot, busGain, chatterGap, drawnLoops, inCombat, newGate, shooterDrawn, spatialise, TUNING, voiceFor } from './audio-mix';
+import { admit, admitImpact, admitShot, busGain, chatterGap, drawnLoops, inCombat, newGate, shooterDrawn, spatialise, TUNING, VOICE_IDS, voiceFor } from './audio-mix';
 
 const HQ = { x: -415, y: 0 };
 const view = (over: Partial<CommanderView> = {}): CommanderView => ({
@@ -137,6 +138,11 @@ describe('Voice Lines: which file speaks a radio log line (#84)', () => {
     expect(voiceFor('Contact')).toBeNull();
     expect(voiceFor('Alpha captured')).toBeNull();
     expect(voiceFor('Taking fire')).toBeNull();
+  });
+
+  it('the engine knows exactly the Voice Lines the voice pipeline (#83) generates', () => {
+    const lines = JSON.parse(readFileSync(new URL('../../assets/voice/lines.json', import.meta.url), 'utf8')) as Record<string, string>;
+    expect([...VOICE_IDS].sort()).toEqual(Object.keys(lines).sort());
   });
 });
 
