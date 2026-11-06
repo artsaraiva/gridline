@@ -142,4 +142,12 @@ export const DEFAULT_TUNE: Tune = {
   requestSeconds: 30,
   requestGapSeconds: 15,
   requestCloseM: 75,
+
+  // #55 Commander Score
+  scoreArtilleryKill: 100,
+  scoreUavAssist: 50,
+  scoreOrderedCapture: 200,
+  scoreSupplyPerFraction: 10,
+  scoreSupplyCapPerRecipient: 30,
+  scoreUavGraceSeconds: 5,
 };

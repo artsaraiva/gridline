@@ -14,6 +14,7 @@ import { hashRadio, newRadio, radio, type Radio } from './radio';
 import { hashRequests, requests } from './requests';
 import { returnToFight } from './respawn';
 import { rnd } from './rng';
+import { hashScore, newScore, type Score } from './score';
 import { hashSoldiers, hashSquads, sign, stageTicks, type Point, type Soldier, type Squad } from './state';
 import { SIDES, type Command, type MapData, type MatchResult, type SideId, type SimEvent, type Tune } from './types';
 
@@ -38,6 +39,7 @@ export interface Match {
   deaths: Death[]; // recent deaths, for route choice
   assets: Assets; // cooldowns and effects at work; see assets/core.ts
   radio: Radio; // what each Squad may say next; see radio.ts
+  score: Score; // each Side's Commander Score by category; see score.ts
   result: MatchResult | null;
 }
 
@@ -65,6 +67,7 @@ export function createMatch(opts: {
     deaths: [],
     assets: newAssets(tune),
     radio: newRadio(opts.squadsPerSide * SIDES.length, opts.squadsPerSide * SIDES.length * tune.squadSize, map.points.map((p) => p.owner ?? null)),
+    score: newScore(),
     result: null,
   };
   for (const side of SIDES) {
@@ -80,7 +83,7 @@ export function createMatch(opts: {
         m.soldiers.push({
           id: m.soldiers.length, side, squad: squad.id, x: hq.x + ox, y: hq.y + oy, fx: sign(side), fy: 0, speed, ox, oy,
           state: 'alive', hp: tune.hp, suppression: 0, target: -1, nextFire: 0, bleed: 0, revive: 0, reviving: -1, deadAt: 0,
-          ...newSoldierAi(m),
+          ...newSoldierAi(m), cause: null,
         });
       }
     }
@@ -131,5 +134,6 @@ export function stateHash(m: Match): string {
   hashOrders(m, mix);
   hashRadio(m, mix);
   hashRequests(m, mix);
+  hashScore(m, mix);
   return h.toString(16).padStart(8, '0');
 }

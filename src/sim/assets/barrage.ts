@@ -58,6 +58,7 @@ export const barrage: Kind = {
       for (const s of m.soldiers) {
         if (s.state === 'dead') continue;
         const d2 = dist2(s, shell);
+        if (s.side !== e.side && d2 <= t.barrageWoundM * t.barrageWoundM) s.cause = 'barrage'; // #55: an enemy it kills or Wounds scores for the caller
         if (d2 <= t.barrageKillM * t.barrageKillM) {
           Object.assign(s, { suppression: 0, target: -1, reviving: -1 }); // a killed reviver must not keep a job
           die(m, s, events);

@@ -4,6 +4,7 @@ import type { Match } from './index';
 import { orderView } from './orders';
 import { requestView } from './requests';
 import { redeployPoint } from './respawn';
+import { scoreView } from './score';
 import { contactIds, justSeen, lastKnown } from './memory';
 import { lastDeath, membersOf, squadName, stageTicks, wiped, type Soldier, type Squad } from './state';
 import type { CommanderView, SideId, SimEvent, SquadView } from './types';
@@ -50,6 +51,7 @@ export function commanderView(m: Match, side: SideId): CommanderView {
     result: m.result,
     assets: assetViews(m, side),
     effects: effectViews(m, side),
+    score: scoreView(m, side),
   };
 }
 

@@ -36,6 +36,8 @@ export interface Soldier {
   regroup: boolean; // walking back to the leader
   slot: number; // seeded scale of its wedge slot
   blocked: number; // ticks it has been stuck
+  // #55 Commander Score
+  cause: 'barrage' | null; // what an enemy Asset did to it: scores for the enemy Commander on death; cleared by Revive
 }
 
 export interface Squad {
@@ -116,6 +118,7 @@ export function hashSoldiers(m: Match, mix: Mix) {
     mix(s.reviving);
     mix(s.deadAt);
     mix(s.ammo);
+    mix(s.cause === 'barrage' ? 1 : 0);
   }
 }
 

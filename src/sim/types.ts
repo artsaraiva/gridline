@@ -214,7 +214,18 @@ export interface Tune {
   requestSeconds: number; // an open Request expires after this long
   requestGapSeconds: number; // a Squad whose Request closed asks again after this long
   requestCloseM: number; // a matching Asset that has landed this close to a Request's grid answers it
+
+  // #55 Commander Score
+  scoreArtilleryKill: number; // per enemy a Barrage kills, or Wounds and who then bleeds out
+  scoreUavAssist: number; // per enemy killed while UAV-discovered
+  scoreOrderedCapture: number; // per Capture Point taken by a Squad under an attack Order
+  scoreSupplyPerFraction: number; // x (health fraction + ammo fraction) a Supply Drop restores ...
+  scoreSupplyCapPerRecipient: number; // ... capped at this per Soldier per drop
+  scoreUavGraceSeconds: number; // a UAV discovery lasts this long after the UAV stops seeing the enemy
 }
+
+/** #55: what a Commander Score award is for. */
+export type ScoreCategory = 'uav' | 'supply' | 'artillery' | 'orders';
 
 export type Command =
   | { tick: number; side: SideId; kind: 'order'; squad: number; point: string | null }
@@ -320,6 +331,8 @@ export interface CommanderView {
   assets?: AssetView[];
   /** This Side's Assets at work on the map. */
   effects?: EffectView[];
+  /** #55: the Commander Score so far, in all and by category. */
+  score?: { total: number; uav: number; supply: number; artillery: number; orders: number };
 }
 
 export interface AssetView {
@@ -371,4 +384,6 @@ export type SimEvent =
   /** #34: suppressive fire: a round at (x, y) near a Last Known Position, with no enemy in view. */
   | { kind: 'suppressive'; side: SideId; from: number; x: number; y: number; hit: boolean }
   /** #40: a Barrage shell landed at (x, y); `side` called it. */
-  | { kind: 'impact'; side: SideId; x: number; y: number };
+  | { kind: 'impact'; side: SideId; x: number; y: number }
+  /** #55: `side`'s Commander earned `points` of Commander Score. `reason` is safe to show: it never names a position or an unseen enemy. */
+  | { kind: 'award'; side: SideId; category: ScoreCategory; points: number; reason: string };

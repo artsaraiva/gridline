@@ -4,8 +4,9 @@ import { logDeath, resetSoldierAi } from './ai';
 import { dist2 } from './geometry';
 import { cellAt, COVER, los } from './grid';
 import { rnd } from './rng';
+import { award } from './score';
 import { membersOf, type Soldier } from './state';
-import type { SimEvent, Vec2 } from './types';
+import { enemyOf, type SimEvent, type Vec2 } from './types';
 
 interface Shot {
   shooter: Soldier;
@@ -102,6 +103,8 @@ export function die(m: Match, s: Soldier, events: SimEvent[]) {
   m.tickets[s.side] = Math.max(0, m.tickets[s.side] - 1);
   logDeath(m, { side: s.side, x: s.x, y: s.y, tick: m.tick });
   events.push({ kind: 'death', side: s.side, id: s.id, x: s.x, y: s.y });
+  if (s.cause === 'barrage') award(m, enemyOf(s.side), 'artillery', m.tune.scoreArtilleryKill, 'Barrage kill', events); // #55: the enemy Commander's strike
+  s.cause = null;
 }
 
 /**
@@ -134,7 +137,7 @@ export function casualties(m: Match, events: SimEvent[]) {
       die(m, w, events);
     } else if (++w.revive >= t.reviveSeconds * t.hz) {
       r.reviving = -1;
-      Object.assign(w, { state: 'alive', hp: t.reviveHp, nextFire: m.tick });
+      Object.assign(w, { state: 'alive', hp: t.reviveHp, nextFire: m.tick, cause: null }); // #55: a Revive clears what Wounded them
       events.push({ kind: 'revived', side: w.side, id: w.id, by: r.id });
     }
   }
