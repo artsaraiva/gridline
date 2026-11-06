@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cursorReadout, drainLine, dtg, edgeLine, endSummary, latlon, mgrs, orderLine, radioLine, requestLine, squadTag } from './summary';
+import { cursorReadout, drainLine, dtg, edgeLine, endSummary, latlon, mgrs, orderLine, radioLine, requestLine, selectionMarks, squadTag } from './summary';
 import type { CommanderView, MapGrid, MatchResult, SideId, SimEvent, SquadView } from '../sim/types';
 
 function ended(side: SideId, result: MatchResult, tickets: Record<SideId, number>, seconds: number): CommanderView {
@@ -128,5 +128,27 @@ describe('Rails score drain, HUD readouts and edge hugging', () => {
     expect(topAt(100)).toBeNull();
     expect(topAt(400)).toBe(0);
     expect(topAt(800)).toBe(0);
+  });
+});
+
+describe('selection marks (#71)', () => {
+  const base = ended('nato', null as never, { nato: 150, pact: 150 }, 0);
+  const soldier = (id: number, squad: number, state: 'alive' | 'wounded' = 'alive') => ({ id, squad, x: 0, y: 0, fx: 1, fy: 0, state, suppressed: false });
+  const view: CommanderView = {
+    ...base,
+    squads: [
+      { id: 0, name: 'Alpha', size: 4, strength: 3, respawnIn: [], redeployIn: null, leader: 0 },
+      { id: 1, name: 'Bravo', size: 4, strength: 2, respawnIn: [], redeployIn: null, leader: null },
+    ],
+    friendlies: [soldier(0, 0, 'wounded'), soldier(1, 0), soldier(2, 0), soldier(4, 1), soldier(5, 1)],
+  };
+
+  it('marks every present member of the selected Squad, Wounded included, and its leader', () => {
+    expect(selectionMarks(view, 0)).toEqual({ members: [0, 1, 2], leader: 0 });
+  });
+
+  it('marks no leader for a leaderless Squad and nothing with no selection', () => {
+    expect(selectionMarks(view, 1)).toEqual({ members: [4, 5], leader: null });
+    expect(selectionMarks(view, null)).toEqual({ members: [], leader: null });
   });
 });
