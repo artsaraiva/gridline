@@ -1,8 +1,9 @@
-// Orders on the map (#36): a line from each ordered Squad's leader to its point, and DOM tags: the Squad tag on the leader
-// (name, strength, task, Order state, alerts) beside layers/squads.ts's APP-6 frame, and a Holding tag on the point. Line:
-// solid while Following, amber dashed with a reason glyph while Delayed, faint dashes while pending.
+// Orders on the map (#36): a line from each ordered Squad's Squad Leader to its point, and DOM tags: the Squad tag on the
+// Squad Leader (#68: `leader` in the view, Wounded or not; none while the Squad has no leader) (name, strength, task,
+// Order state, alerts) beside layers/squads.ts's APP-6 frame, and a Holding tag on the point. Line: solid while
+// Following, amber dashed with a reason glyph while Delayed, faint dashes while pending.
 import * as THREE from 'three/webgpu';
-import type { CommanderView, FriendlyView, Vec2 } from '../../sim/types';
+import type { CommanderView, Vec2 } from '../../sim/types';
 import { BRIGHT, COLOR, GLOW, layer, toScreen } from '../renderer';
 import { squadTag } from '../summary';
 import { targeting } from '../targeting';
@@ -68,10 +69,8 @@ function tag(i: number, p: Vec2, dx: number, dy: number, text: string, color: st
 /** `px` is world metres per screen pixel. */
 export function drawOrders(view: CommanderView, px: number) {
   let n = 0;
-  const leaders = new Map<number, FriendlyView>();
-  for (const f of view.friendlies) if (f.state === 'alive' && !leaders.has(f.squad)) leaders.set(f.squad, f);
   for (const q of view.squads) {
-    const lead = leaders.get(q.id);
+    const lead = view.friendlies.find((f) => f.id === q.leader);
     const point = q.order?.point ? view.points.find((p) => p.id === q.order!.point) : undefined;
     const line = lineFor(q.id);
     const o = q.order;

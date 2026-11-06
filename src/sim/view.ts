@@ -28,6 +28,7 @@ function squadView(m: Match, sq: Squad): SquadView {
     route: m.map.crossings?.[sq.route]?.id ?? null,
     order: orderView(m, sq),
     request: requestView(m, sq),
+    leader: sq.leader < 0 ? null : sq.leader,
   };
 }
 
