@@ -37,6 +37,7 @@ const usable = (asset: AssetKind) => !!last && !last.result && last.assets?.find
 
 document.addEventListener('keydown', (e) => {
   if (!last || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+  if ((e.target as HTMLElement).closest('input, textarea, select, [contenteditable]')) return; // a mixer slider has focus
   if (e.key === 'Escape') return escape();
   const r = ROWS.find((r) => r.key === e.key.toUpperCase());
   if (r && usable(r.asset)) arm(r.asset);
