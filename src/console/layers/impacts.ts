@@ -1,62 +1,52 @@
-// Barrage impacts as 2D marks: a flash, smoke fading over SMOKE_MS and a crater that stays for the match. Past
-// MAX_CRATERS the oldest is removed. Fed by `impact` events; the sim says where, this says how long.
-// shortcut: durations and the cap are constants here, not Tune (the Console has no Tune); move them when one is wanted.
+// Barrage impacts as baked sprites (#62): the explosion flipbook, then a smoke plume that drifts and fades, and a
+// crater decal that stays for the match. Fed by `impact` events; the sim says where, `impactLook` says how it looks.
+// Crater cap and smoke fade are tune values in sprites.ts.
 import * as THREE from 'three/webgpu';
-import { vec3 } from 'three/tsl';
-import { BRIGHT, DARK, grade, layer } from '../renderer';
-import { fading } from './symbols';
+import { layer } from '../renderer';
+import { type ImpactRecord, type ImpactSprite, impactLook, recordImpact, type SpriteSheetId, spriteMaterial } from '../sprites';
 
-const FLASH_MS = 250;
-const SMOKE_MS = 20000;
-const MAX_CRATERS = 60;
-const disc = new THREE.CircleGeometry(1, 32);
+const quad = new THREE.PlaneGeometry(1, 1);
 
-interface Impact {
-  at: number;
-  crater: THREE.Mesh;
-  smoke: THREE.Mesh;
-  flash: THREE.Mesh;
-}
-const impacts: Impact[] = [];
+type Sprite = { mesh: THREE.Mesh; material: THREE.MeshBasicNodeMaterial; frame: ReturnType<typeof spriteMaterial>['frame'] };
+const pools: Record<'crater' | 'explosion' | 'plume', Sprite[]> = { crater: [], explosion: [], plume: [] };
+const SHEET: Record<keyof typeof pools, SpriteSheetId> = { crater: 'crater', explosion: 'explosion', plume: 'smoke-puff' };
+const Z = { crater: 0.3, plume: 0.62, explosion: 0.66 };
 
-export const resetImpacts = () => (impacts.length = 0);
+const impacts: ImpactRecord[] = [];
 
-const material = (m: THREE.Mesh) => m.material as THREE.MeshBasicNodeMaterial;
+export const resetImpacts = () => {
+  impacts.length = 0;
+  for (const pool of Object.values(pools)) pool.length = 0;
+};
 
-function graded(color: number, dark = false) {
-  const { r, g, b } = new THREE.Color(color);
-  const m = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false });
-  m.colorNode = grade(vec3(r, g, b));
-  m.opacityNode = dark ? DARK : BRIGHT;
-  return m;
-}
+export const addImpact = (x: number, y: number, now: number) => recordImpact(impacts, x, y, now);
 
-export function addImpact(x: number, y: number, now: number) {
-  const mark = (mat: THREE.MeshBasicNodeMaterial, z: number, radius: number) => {
-    const m = new THREE.Mesh(disc, mat);
-    m.position.set(x, y, z);
-    m.scale.setScalar(radius);
-    layer.add(m);
-    return m;
-  };
-  impacts.push({ at: now, crater: mark(graded(0x120f0b, true), 0.3, 3.2), smoke: mark(graded(0x8a8678), 0.6, 4), flash: mark(fading(0xfff0c0), 0.7, 7) });
-  if (impacts.length > MAX_CRATERS) {
-    const old = impacts.shift()!;
-    for (const m of [old.crater, old.smoke, old.flash]) {
-      layer.remove(m);
-      material(m).dispose();
-    }
+function place(kind: keyof typeof pools, i: number, s: ImpactSprite) {
+  let p = pools[kind][i];
+  if (!p) {
+    const { material, frame } = spriteMaterial(SHEET[kind]);
+    p = { mesh: new THREE.Mesh(quad, material), material, frame };
+    layer.add(p.mesh);
+    pools[kind].push(p);
   }
+  p.mesh.visible = true;
+  p.mesh.position.set(s.x, s.y, Z[kind]);
+  // Mirror across the NE-SW diagonal (flip x, turn a quarter): keeps the baked north-east sun where it is.
+  p.mesh.scale.set(s.flip ? -s.size : s.size, s.size, 1);
+  p.mesh.rotation.z = s.flip ? -Math.PI / 2 : 0;
+  p.material.opacity = s.opacity;
+  p.frame.value = s.frame;
 }
 
 export function drawImpacts(now: number) {
+  const n = { crater: 0, explosion: 0, plume: 0 };
   for (const i of impacts) {
-    const age = now - i.at;
-    material(i.crater).opacity = 0.75;
-    i.flash.visible = age < FLASH_MS;
-    material(i.flash).opacity = 1 - age / FLASH_MS;
-    i.smoke.visible = age < SMOKE_MS;
-    material(i.smoke).opacity = 0.5 * Math.max(0, 1 - age / SMOKE_MS);
-    i.smoke.scale.setScalar(4 + 6 * Math.min(1, age / 4000)); // puffs out, then thins
+    const look = impactLook(i, now);
+    place('crater', n.crater++, look.crater);
+    if (look.explosion) place('explosion', n.explosion++, look.explosion);
+    for (const p of look.plume) if (p.opacity > 0) place('plume', n.plume++, p);
+  }
+  for (const kind of ['crater', 'explosion', 'plume'] as const) {
+    for (let i = n[kind]; i < pools[kind].length; i++) pools[kind][i]!.mesh.visible = false;
   }
 }
