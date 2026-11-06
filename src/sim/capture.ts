@@ -41,10 +41,14 @@ function contribute(m: Match, p: Point, side: SideId) {
   }
 }
 
-/** #73: the point is just taken. The Commander scores once if any contributing Squad holds an Order on it acknowledged before it began contributing. */
+/**
+ * #73: the point is just taken. The Commander scores once if any contributing Squad holds an Order on it given before it began
+ * contributing, with no Command (a clear or any new Order) still awaiting acknowledgement. Orders have no attack/hold kind: hold
+ * is derived from ownership, so a hold Order on a point since lost counts when the Squad retakes it.
+ */
 function taken(m: Match, p: Point, events: SimEvent[]) {
   const i = m.points.indexOf(p);
-  const ordered = m.squads.some((sq) => sq.side === p.owner && sq.taking === i && sq.order?.point === i && sq.order.since < sq.takingSince);
+  const ordered = m.squads.some((sq) => sq.side === p.owner && sq.taking === i && !sq.pending && sq.order?.point === i && sq.order.since < sq.takingSince);
   for (const sq of m.squads) if (sq.taking === i) sq.taking = -1;
   if (ordered) award(m, p.owner!, 'orders', m.tune.scoreOrderedCapture, `Ordered capture of ${callName(p.name)}`, events);
 }

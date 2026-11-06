@@ -85,6 +85,21 @@ describe('Commander Score: ordered capture', () => {
     return awards(events);
   };
 
+  it('an Order given while the Squad walks in, still unacknowledged as it begins taking the point, scores the capture', () => {
+    const m = scene({ frozen: true });
+    const { events, views } = play(m, TAKE + 2 * HZ, { 0: (m) => [order(m, 'C')], 1: (m) => enter(m, 0) });
+    expect(owner(views.at(-1)!, 'C')).toBe('nato');
+    expect(awards(events)).toEqual([ORDERED_C]);
+  });
+
+  it('a clear sent and not yet acknowledged when the point is taken earns nothing', () => {
+    const m = scene({ frozen: true });
+    const { events, views } = play(m, 3 * HZ + TAKE + HZ, { 0: (m) => [order(m, 'C')], [3 * HZ]: (m) => enter(m, 0), [3 * HZ + TAKE - 5]: (m) => [order(m, null)] });
+    expect(owner(views.at(-1)!, 'C')).toBe('nato');
+    expect(views[3 * HZ + TAKE - 1]!.squads[0]!.order).toEqual({ point: null, state: 'pending' }); // still pending at the capture
+    expect(awards(events)).toEqual([]);
+  });
+
   it('left alone, that Order scores the capture', () => expect(changed()).toEqual([ORDERED_C]));
   it('clearing the Order before the point is taken earns nothing', () => expect(changed(null)).toEqual([]));
   it('replacing it with an Order elsewhere earns nothing', () => expect(changed('A')).toEqual([]));
@@ -124,7 +139,7 @@ describe('Commander Score: ordered capture', () => {
     expect(awards(events)).toEqual([ORDERED_C]);
   });
 
-  it('eligibility is in the state hash: when the Order was acknowledged, and what the Squad is taking since when', () => {
+  it('eligibility is in the state hash: when the Order was given, and what the Squad is taking since when', () => {
     const m = scene({ frozen: true });
     play(m, 4 * HZ, { 0: (m) => [order(m, 'C')], [3 * HZ]: (m) => enter(m, 0) });
     const h = stateHash(m);
