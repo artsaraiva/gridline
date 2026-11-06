@@ -3,7 +3,7 @@
 // or a Callout: both sit on the radio bus. The kept mix (`parseMix`) is pure and tested; the panel's DOM is thin and not.
 import { TUNING } from '../audio-mix';
 
-export const MIX_KEY = 'gridline.mix';
+const MIX_KEY = 'gridline.mix';
 const BUSES = ['radio', 'chatter', 'combat'] as const;
 export interface Mix {
   radio: number;
@@ -29,19 +29,27 @@ export function parseMix(json: string | null): Mix {
 }
 
 /**
- * Wires `#mixer-toggle` and the `#mixer` panel: the kept mix goes into TUNING now, the sliders, Mute and the M key
- * change it, and every change is kept. `apply` pushes TUNING to the buses (audio.ts `applyMix`).
+ * Builds the speaker button (`#mixer-toggle`, before the fold button in the radio head) and fills the `#mixer` panel:
+ * the kept mix goes into TUNING now, the sliders, Mute and the M key change it, and every change is kept. `apply`
+ * pushes TUNING to the buses (audio.ts `applyMix`).
  */
 export function bindMixer(apply: () => void) {
-  const toggle = document.getElementById('mixer-toggle')!;
   const panel = document.getElementById('mixer')!;
+  const toggle = document.createElement('button');
+  toggle.id = 'mixer-toggle';
+  toggle.type = 'button';
+  toggle.title = 'Mixer · M mutes';
+  toggle.setAttribute('aria-expanded', 'false');
+  toggle.setAttribute('aria-controls', 'mixer');
+  toggle.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"><path d="M4 9.5v5h3.5l4.5 4v-13l-4.5 4z"/><path d="M15.5 9.2a4 4 0 0 1 0 5.6M18.2 6.5a7.8 7.8 0 0 1 0 11"/></svg>';
+  document.getElementById('radio-fold')!.before(toggle);
   let kept: string | null = null;
   try {
     kept = localStorage.getItem(MIX_KEY);
   } catch {}
   const mix = parseMix(kept);
 
-  panel.innerHTML = BUSES.map((k) => `<label><span>${k}</span><input type="range" name="${k}" min="0" max="100" step="1" /><output></output></label>`).join('') + '<button type="button" aria-pressed="false">Mute</button>';
+  panel.innerHTML = BUSES.map((k) => `<label><span>${k[0]!.toUpperCase()}${k.slice(1)}</span><input type="range" name="${k}" min="0" max="100" step="1" /><output></output></label>`).join('') + '<button type="button" aria-pressed="false">Mute</button>';
   const sliders = BUSES.map((k) => [k, panel.querySelector<HTMLInputElement>(`input[name=${k}]`)!] as const);
   const mute = panel.querySelector('button')!;
 

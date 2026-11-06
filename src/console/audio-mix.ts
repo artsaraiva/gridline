@@ -109,7 +109,7 @@ export const inCombat = (view: CommanderView) => view.squads.some((q) => q.takin
 export type VoiceId = keyof typeof lines;
 
 /** The Asset net lines (`type: 'asset'`, src/sim/assets) by their exact text; "UAV eyes on N hostile(s)" is matched below. */
-const VOICE_FOR_LINE: Record<string, VoiceId> = {
+const VOICE_FOR_ASSET_LINE: Record<string, VoiceId> = {
   'Scan UAV inbound': 'uav-inbound',
   // no 'UAV on station': the Simulation does not say it while the UAV has no fly-in (#85); the uav-on-station WAV waits for one
   'UAV off station': 'uav-off-station',
@@ -128,7 +128,7 @@ const POINT_NAMES = ['alpha', 'bravo', 'charlie', 'delta', 'echo', 'foxtrot', 'g
 export function voiceFor(line: { type: string; text: string }): VoiceId | null {
   switch (line.type) {
     case 'asset':
-      return VOICE_FOR_LINE[line.text] ?? (/^UAV eyes on \d+ hostile/.test(line.text) ? 'uav-has-contacts' : null);
+      return VOICE_FOR_ASSET_LINE[line.text] ?? (/^UAV eyes on \d+ hostile/.test(line.text) ? 'uav-has-contacts' : null);
     case 'lost': {
       const name = POINT_NAMES.find((n) => line.text.toLowerCase() === `${n} lost`); // "<Point> lost", the losing Side's NET line (src/sim/radio.ts)
       return name ? `point-lost-${name}` : null;
