@@ -28,6 +28,7 @@ function squadView(m: Match, sq: Squad): SquadView {
     route: m.map.crossings?.[sq.route]?.id ?? null,
     order: orderView(m, sq),
     request: requestView(m, sq),
+    leader: members[0]!.state === 'dead' ? null : members[0]!.id, // #68/#54: the first roster member, for the whole Match
   };
 }
 
@@ -53,13 +54,14 @@ export function commanderView(m: Match, side: SideId): CommanderView {
 }
 
 /**
- * The tick's events a Side's Console may show: all of its own, and an enemy's shot or Wounding only when that enemy
- * Soldier was in sight. Enemy deaths (of the unseen Wounded), Squad Respawns and Redeploys never pass. Call after `step`.
+ * The tick's events a Side's Console may show: all of its own, and an enemy's shot, suppressive fire or Wounding only
+ * when that enemy Soldier was in sight. Enemy deaths (of the unseen Wounded), Squad Respawns and Redeploys never pass.
+ * Call after `step`.
  */
 export function commanderEvents(m: Match, side: SideId, events: SimEvent[]): SimEvent[] {
   return events.filter((e) => {
     if (e.side === side) return true;
-    if (e.kind === 'shot') return justSeen(m, side, e.from);
+    if (e.kind === 'shot' || e.kind === 'suppressive') return justSeen(m, side, e.from);
     return e.kind === 'wounded' && justSeen(m, side, e.id);
   });
 }

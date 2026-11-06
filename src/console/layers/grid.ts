@@ -1,5 +1,5 @@
-// HUD frame and grid overlay (#44): map grid lines, selected Squad amber corner brackets and screen-wide crosshair with
-// grid intersection tags, top-edge grid letters and left-rail inner-edge grid numbers on the first clear edge, bottom
+// HUD frame and grid overlay (#44): map grid lines, selected Squad screen-wide crosshair with grid intersection tags,
+// top-edge grid letters on a pinned line (skipping those under a panel) and left-rail inner-edge grid numbers, bottom
 // and right UTM ticks, corner lat/long, compass (grid/true/magnetic north), scale bar, DTG strip and cursor readout.
 import { gridRef } from '../../sim/grid-ref';
 import type { CommanderView } from '../../sim/types';
@@ -15,7 +15,6 @@ const curEl = document.getElementById('cur')!;
 
 const FONT = (weight: number, px: number) => `${weight} ${px}px 'Chakra Petch', ui-monospace, monospace`;
 const CHROME = (a: number) => `rgba(232, 226, 200, ${a})`;
-const AMBER = '#ffc23d';
 const HOSTILE = '#ff4b3e';
 
 let cw = 0;
@@ -37,23 +36,6 @@ function syncCanvas() {
   }
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
-}
-
-function brackets(sx: number, sy: number, s: number, col: string) {
-  ctx.strokeStyle = col;
-  ctx.lineWidth = 2;
-  for (const [ax, ay] of [
-    [-1, -1],
-    [1, -1],
-    [1, 1],
-    [-1, 1],
-  ] as const) {
-    ctx.beginPath();
-    ctx.moveTo(sx + ax * s, sy + ay * s * 0.55);
-    ctx.lineTo(sx + ax * s, sy + ay * s);
-    ctx.lineTo(sx + ax * s * 0.55, sy + ay * s);
-    ctx.stroke();
-  }
 }
 
 function readRects(): Box[] {
@@ -101,7 +83,7 @@ export function drawGrid(view: CommanderView | null, now: number) {
     }
     ctx.stroke();
 
-    // 2. Selected Squad crosshair + grid intersection tags + amber corner brackets
+    // 2. Selected Squad crosshair + grid intersection tags
     const selC = targeting.selected !== null ? squadCentroid(view, targeting.selected) : null;
     if (selC) {
       const { x: csx, y: csy } = toScreen(selC);
@@ -134,7 +116,6 @@ export function drawGrid(view: CommanderView | null, now: number) {
         ctx.textAlign = 'right';
         ctx.fillText(gridRef(g, { x: selC.x, y: wy - 1 }), csx - 7, sy + 10);
       }
-      brackets(csx, csy, 26, AMBER);
     }
 
     // 3. Top-edge grid letters and left-rail inner-edge grid numbers
@@ -156,7 +137,7 @@ export function drawGrid(view: CommanderView | null, now: number) {
         if (cy > 8 && cy < H - 8) ys.push(cy);
       }
     }
-    const topAt = edgeLine(rects, 'top', 140, xs, screen);
+    const topAt = edgeLine(rects, 'top', 0, xs, screen); // #54: pinned to the edge, so the row never jumps; covered letters are skipped
     const leftAt = edgeLine(rects, 'left', 300, ys, screen);
 
     ctx.save();

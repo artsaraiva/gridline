@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cursorReadout, drainLine, dtg, edgeLine, endSummary, latlon, mgrs, orderLine, radioLine, requestLine, squadTag } from './summary';
+import { cursorReadout, drainLine, dtg, edgeLine, endSummary, latlon, leaderOf, mgrs, orderLine, radioLine, requestLine, squadTag } from './summary';
 import type { CommanderView, MapGrid, MatchResult, SideId, SimEvent, SquadView } from '../sim/types';
 
 function ended(side: SideId, result: MatchResult, tickets: Record<SideId, number>, seconds: number): CommanderView {
@@ -128,5 +128,29 @@ describe('Rails score drain, HUD readouts and edge hugging', () => {
     expect(topAt(100)).toBeNull();
     expect(topAt(400)).toBe(0);
     expect(topAt(800)).toBe(0);
+
+    // #54: with no depth allowed the line is pinned to the edge and only the covered positions drop out
+    const pinned = edgeLine([rail, { left: 1100, top: 16, right: 1350, bottom: 140 }], 'top', 0, [100, 400, 1200], screen);
+    expect(pinned(100)).toBeNull();
+    expect(pinned(400)).toBe(0);
+    expect(pinned(1200)).toBeNull();
+  });
+});
+
+describe('Squad Leader lookup (#71)', () => {
+  const base = ended('nato', null as never, { nato: 150, pact: 150 }, 0);
+  const soldier = (id: number, squad: number, state: 'alive' | 'wounded' = 'alive') => ({ id, squad, x: 0, y: 0, fx: 1, fy: 0, state, suppressed: false });
+  const view: CommanderView = {
+    ...base,
+    squads: [
+      { id: 0, name: 'Alpha', size: 4, strength: 3, respawnIn: [], redeployIn: null, leader: 0 },
+      { id: 1, name: 'Bravo', size: 4, strength: 2, respawnIn: [], redeployIn: null, leader: null },
+    ],
+    friendlies: [soldier(0, 0, 'wounded'), soldier(1, 0), soldier(2, 0), soldier(4, 1), soldier(5, 1)],
+  };
+
+  it('leaderOf finds the Squad Leader among the friendlies, Wounded or not, and nothing for a leaderless Squad', () => {
+    expect(leaderOf(view, view.squads[0]!)).toBe(view.friendlies[0]);
+    expect(leaderOf(view, view.squads[1]!)).toBeUndefined();
   });
 });
