@@ -11,8 +11,7 @@ export const CHAPTERS = [
   { at: 0, title: 'Overlap' },
   { at: 10, title: 'Firing' },
   { at: 20, title: 'Wounded leader' },
-  { at: 30, title: 'Succession' },
-  { at: 40, title: 'No leader' },
+  { at: 30, title: 'Leader down' },
   { at: 50, title: 'Wipe' },
   { at: 62, title: 'Redeploy' },
 ];
@@ -51,7 +50,8 @@ function at(path: Key[], t: number): { x: number; y: number } {
 }
 
 // Alpha (0..3) and Bravo (4..7) sit on the same ground west of the centre bridge, members interleaved along x.
-// Charlie (8..11) holds south-west. Contacts (20..22) are 50 m east, facing them.
+// Charlie (8..11) holds south-west. Contacts (20..22) are 50 m east, facing them. #54: the Squad Leader is the first
+// roster member for the whole Match, so Alpha's leader id 0 is Wounded, then dies and Squad Respawns at 40 s.
 const east = { fx: 1, fy: 0 };
 const MEN: Man[] = [
   { id: 0, squad: 0, path: [[0, -78, 22], [LENGTH, -74, 24]], wounded: [[20, 30]], dead: [[30, 40]], ...east },
@@ -62,10 +62,10 @@ const MEN: Man[] = [
   { id: 5, squad: 1, path: [[0, -62, 20], [50, -60, 21], [62, -404, -4], [LENGTH, -366, 0]], dead: [[50, 62]], ...east },
   { id: 6, squad: 1, path: [[0, -54, 24], [50, -52, 25], [62, -410, 10], [LENGTH, -372, 14]], dead: [[50, 62]], ...east },
   { id: 7, squad: 1, path: [[0, -64, 8], [50, -62, 9], [62, -412, -8], [LENGTH, -374, -4]], dead: [[50, 62]], ...east },
-  { id: 8, squad: 2, path: [[0, -150, -118]], wounded: [[40, 52]], fx: 0.7, fy: 0.7 },
-  { id: 9, squad: 2, path: [[0, -142, -126]], wounded: [[40, 47]], fx: 0.7, fy: 0.7 },
-  { id: 10, squad: 2, path: [[0, -158, -128]], wounded: [[40, 52]], fx: 0.7, fy: 0.7 },
-  { id: 11, squad: 2, path: [[0, -146, -136]], wounded: [[40, 52]], fx: 0.7, fy: 0.7 },
+  { id: 8, squad: 2, path: [[0, -150, -118]], fx: 0.7, fy: 0.7 },
+  { id: 9, squad: 2, path: [[0, -142, -126]], fx: 0.7, fy: 0.7 },
+  { id: 10, squad: 2, path: [[0, -158, -128]], fx: 0.7, fy: 0.7 },
+  { id: 11, squad: 2, path: [[0, -146, -136]], fx: 0.7, fy: 0.7 },
 ];
 const CONTACTS: Man[] = [
   { id: 20, squad: -1, path: [[0, -14, 30], [LENGTH, -18, 28]], fx: -1, fy: 0 },
@@ -77,14 +77,12 @@ interface Sq {
   id: number;
   name: string;
   members: number[];
-  /** Squad Leader as a step function of time, following the Simulation's rule by hand (#68). */
-  leader: [t: number, id: number | null][];
   wiped?: Span;
 }
 const SQUADS: Sq[] = [
-  { id: 0, name: 'Alpha', members: [0, 1, 2, 3], leader: [[0, 0], [30, 1]] },
-  { id: 1, name: 'Bravo', members: [4, 5, 6, 7], leader: [[0, 4], [50, null], [62, 4]], wiped: [50, 62] },
-  { id: 2, name: 'Charlie', members: [8, 9, 10, 11], leader: [[0, 8], [40, null], [47, 9]] },
+  { id: 0, name: 'Alpha', members: [0, 1, 2, 3] },
+  { id: 1, name: 'Bravo', members: [4, 5, 6, 7], wiped: [50, 62] },
+  { id: 2, name: 'Charlie', members: [8, 9, 10, 11] },
 ];
 
 const POINTS = [
@@ -101,7 +99,7 @@ function squadView(q: Sq, t: number): SquadView {
   const men = MEN.filter((m) => q.members.includes(m.id));
   const gone = inSpan(q.wiped && [q.wiped], t);
   const deadUntil = (m: Man) => m.dead?.find(([a, b]) => t >= a && t < b)?.[1];
-  const leader = [...q.leader].reverse().find(([a]) => t >= a)![1];
+  const leader = inSpan(men[0]!.dead, t) ? null : men[0]!.id; // the first roster member, as the Simulation's rule (#68, #54)
   return {
     id: q.id,
     name: q.name,

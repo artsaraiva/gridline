@@ -275,7 +275,7 @@ export interface SquadView {
    * or `delayed` by survival, with its `reason`.
    */
   order?: { point: string | null; state: 'pending' | 'following' | 'delayed' | 'holding'; reason?: 'retreat' | 'resupply' } | null;
-  /** #68: the Squad Leader's Soldier id (a Wounded leader still leads); null = no leader until a member is alive again. */
+  /** #68: the Squad Leader's Soldier id: the first roster member for the whole Match (Wounded still leads); null while they are dead. */
   leader?: number | null;
   /**
    * #41: the Squad's open Request, null/absent = none: the Asset it asks for, the centre of the Grid Reference it names

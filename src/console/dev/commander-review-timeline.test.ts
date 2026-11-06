@@ -50,32 +50,19 @@ describe('commander review timeline (#69)', () => {
     expect(eventsBetween(chapter('Wounded leader') - 1.5, chapter('Wounded leader'))).toContainEqual(expect.objectContaining({ kind: 'wounded', side: 'nato', id: q.leader }));
   });
 
-  it('Succession: the leader dies and the next roster member leads; the dead one respawns later without reclaiming it', () => {
-    const before = squad(viewAt(chapter('Succession') - 2), 'Alpha');
-    const view = viewAt(chapter('Succession'));
+  it('Leader down: the dead leader leaves the Squad without one; their Squad Respawn brings them back as leader', () => {
+    const before = squad(viewAt(chapter('Leader down') - 2), 'Alpha');
+    const view = viewAt(chapter('Leader down'));
     const q = squad(view, 'Alpha');
     expect(friendly(view, before.leader!)).toBeUndefined();
-    expect(q.leader).toBe(view.friendlies.filter((f) => f.squad === q.id)[0]!.id);
-    expect(q.leader).not.toBe(before.leader);
-    expect(q.respawnIn).toHaveLength(1);
-    expect(eventsBetween(chapter('Succession') - 1.5, chapter('Succession'))).toContainEqual(expect.objectContaining({ kind: 'death', side: 'nato', id: before.leader }));
-    const later = viewAt(chapter('No leader'));
-    expect(friendly(later, before.leader!)?.state).toBe('alive');
-    expect(squad(later, 'Alpha').leader).toBe(q.leader);
-    expect(eventsBetween(chapter('Succession'), chapter('No leader'))).toContainEqual(expect.objectContaining({ kind: 'respawn', side: 'nato', id: before.leader }));
-  });
-
-  it('No leader: a Squad with only Wounded members has no leader until one is Revived', () => {
-    const view = viewAt(chapter('No leader'));
-    const q = squad(view, 'Charlie');
     expect(q.leader).toBeNull();
-    expect(q.strength).toBe(0);
-    expect(view.friendlies.filter((f) => f.squad === q.id).every((f) => f.state === 'wounded')).toBe(true);
-    const resolved = viewAt(chapter('Wipe'));
-    const r = squad(resolved, 'Charlie');
-    expect(r.leader).not.toBeNull();
-    expect(friendly(resolved, r.leader!)?.state).toBe('alive');
-    expect(eventsBetween(chapter('No leader'), chapter('Wipe'))).toContainEqual(expect.objectContaining({ kind: 'revived', side: 'nato', id: r.leader }));
+    expect(q.respawnIn).toHaveLength(1);
+    expect(view.friendlies.filter((f) => f.squad === q.id).length).toBe(q.size - 1);
+    expect(eventsBetween(chapter('Leader down') - 1.5, chapter('Leader down'))).toContainEqual(expect.objectContaining({ kind: 'death', side: 'nato', id: before.leader }));
+    const later = viewAt(chapter('Leader down') + 10);
+    expect(friendly(later, before.leader!)?.state).toBe('alive');
+    expect(squad(later, 'Alpha').leader).toBe(before.leader);
+    expect(eventsBetween(chapter('Leader down'), chapter('Leader down') + 10)).toContainEqual(expect.objectContaining({ kind: 'respawn', side: 'nato', id: before.leader }));
   });
 
   it('Wipe and Redeploy: a wiped Squad counts down with no friendlies and no leader, then Redeploys at the HQ with roster member 0 leading', () => {

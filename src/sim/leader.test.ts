@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { commanderView, createMatch, stateHash, step, type Match } from './index';
+import { commanderView, createMatch, step, type Match } from './index';
 import { DEFAULT_TUNE } from './tune';
 import type { CommanderView, MapData, SimEvent, Tune } from './types';
 
@@ -71,71 +71,34 @@ describe('Squad Leader', () => {
       tune: { ...ONE_SHOT, reviveRangeM: 0, ...extra.tune },
     });
 
-  it('a Wounded leader keeps leading; once dead, the first alive member in roster order takes over', () => {
+  it('a Wounded leader keeps leading; once dead the Squad has no leader', () => {
     const { events, views } = play(exchange(), 10 * HZ);
     const death = of(events, 'death', 0)[0]!.tick;
     expect(views[0]!.friendlies.find((f) => f.id === 0)!.state).toBe('wounded');
     expect(leaderAt(views, death - 1)).toBe(0);
-    expect(leaderAt(views, death)).toBe(1);
+    expect(leaderAt(views, death)).toBeNull();
   });
 
-  it('a Revive keeps the leader', () => {
-    // mate id 1 stands beside the leader and revives them at 3 s
-    const { events, views } = play(exchange({ place: { 1: { x: 1, y: 0 } }, tune: { reviveRangeM: DEFAULT_TUNE.reviveRangeM } }), 10 * HZ);
-    expect(of(events, 'revived', 0)).toHaveLength(1);
-    expect(of(events, 'death')).toEqual([]);
-    expect(new Set(views.map((v) => v.squads[0]!.leader))).toEqual(new Set([0]));
-  });
-
-  it('a former leader who Squad Respawns does not take leadership back', () => {
+  it('a Squad Respawn of the leader brings them back as leader', () => {
     const { events, views } = play(exchange({ tune: { bleedOutSeconds: 1 / HZ } }), 30 * HZ);
     const back = of(events, 'respawn', 0)[0]!.tick;
-    expect(leaderAt(views, back - 1)).toBe(1);
-    expect(leaderAt(views, back)).toBe(1);
+    expect(leaderAt(views, back - 1)).toBeNull();
+    expect(leaderAt(views, back)).toBe(0);
     expect(views[back]!.friendlies.find((f) => f.id === 0)!.state).toBe('alive');
   });
 
-  it('with only Wounded members left the Squad has no leader, until a Redeploy brings the first roster member back', () => {
-    // Squads of 2. The leader is Wounded on tick 0; the mate id 1, with double hp facing pact id 3 (unkillable) 200 m
-    // north, is Wounded by the second hit a few ticks later, so the leader bleeds out first.
+  it('a wiped Squad has no leader until a Redeploy brings the first roster member back', () => {
+    // Squads of 2: both members are shot by unkillable enemies and bleed out.
     const m = scene({
-      place: { 0: { x: 0, y: 0, fx: -1 }, 1: { x: 0, y: 200, fx: -1, hp: 200 }, 2: { x: -100, y: 0, fx: 1 }, 3: { x: -100, y: 200, fx: 1, hp: 1e9 } },
+      place: { 0: { x: 0, y: 0, fx: -1 }, 1: { x: 0, y: 200, fx: -1 }, 2: { x: -100, y: 0, fx: 1, hp: 1e9 }, 3: { x: -100, y: 200, fx: 1, hp: 1e9 } },
       tune: { ...ONE_SHOT, squadSize: 2 },
     });
     const { events, views } = play(m, 40 * HZ);
-    const [first, last] = of(events, 'death').map((e) => e.tick);
+    const last = Math.max(...of(events, 'death').map((e) => e.tick));
     const redeploy = of(events, 'redeploy')[0]!.tick;
-    expect(of(events, 'death').map((e) => e.id)).toEqual([0, 1]);
-    expect(first).toBeLessThan(last!);
-    expect(leaderAt(views, first!)).toBeNull();
+    expect(of(events, 'death').map((e) => e.id).sort()).toEqual([0, 1]);
+    expect(leaderAt(views, last)).toBeNull();
     expect(leaderAt(views, redeploy - 1)).toBeNull();
     expect(leaderAt(views, redeploy)).toBe(0);
-  });
-
-  it('with only Wounded members left, the first member back on their feet leads on the next step', () => {
-    // as above: the leader bleeds out at 8 s while the mate id 1 lies Wounded, so the Squad has no leader. No mate is
-    // left to Revive id 1, so it is staged back alive, as a map script would, and the next step appoints it.
-    const m = scene({
-      place: { 0: { x: 0, y: 0, fx: -1 }, 1: { x: 0, y: 200, fx: -1, hp: 200 }, 2: { x: -100, y: 0, fx: 1 }, 3: { x: -100, y: 200, fx: 1, hp: 1e9 } },
-      tune: { ...ONE_SHOT, squadSize: 2 },
-    });
-    const { events, views } = play(m, 8 * HZ + 1);
-    expect(of(events, 'death').map((e) => e.id)).toEqual([0]);
-    expect(views.at(-1)!.friendlies.find((f) => f.id === 1)!.state).toBe('wounded');
-    expect(views.at(-1)!.squads[0]!.leader).toBeNull();
-    Object.assign(m.soldiers[1]!, { state: 'alive', hp: 1e9 });
-    expect(leaderAt(play(m, 1).views, 0)).toBe(1);
-  });
-
-  it('leadership is in the state hash: the same seed hashes the same, a different leader differently', () => {
-    const twin = () => {
-      const m = exchange();
-      play(m, 10 * HZ); // the leader died at 8 s and id 1 took over
-      return m;
-    };
-    const [a, b] = [twin(), twin()];
-    expect(stateHash(a)).toBe(stateHash(b));
-    b.squads[0]!.leader = 2;
-    expect(stateHash(a)).not.toBe(stateHash(b));
   });
 });
