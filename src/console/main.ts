@@ -75,8 +75,8 @@ renderer.setAnimationLoop(() => {
   for (const p of view.points) drawPoint(p, scale);
   drawTracers(now, scale);
   if (!view.result) {
-    soundEvents(events, view); // #85: combat sounds for the sources the layers drew this frame, Voice Lines go through the radio log
-    soundFrame(view, host.map.hqs[view.side], now / 1000); // the loops (UAV hum, shell whistle, parachute) follow drawEffects; Chatter ticks
+    soundEvents(events, view); // #85: combat cues for the sources the layers drew this frame; the radio log ducks them while a line is on air
+    soundFrame(view, host.map.hqs[view.side], now / 1000); // the looping cues (UAV, shells, crate) follow drawEffects
   }
   checkEnd(view);
   renderFeed();

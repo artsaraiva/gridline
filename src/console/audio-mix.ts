@@ -1,6 +1,5 @@
 // The pure side of the sound engine (#84): the mixer's numbers and the rules audio.ts applies before it touches Web
 // Audio. Nothing here needs a browser, so all of it is unit-tested; audio.ts (the Web Audio graph) is judged by ear.
-import lines from '../../assets/voice/lines.json';
 import type { CommanderView, SimEvent, Vec2 } from '../sim/types';
 import { scanUav, shellInFlight } from './sprites';
 
@@ -8,9 +7,6 @@ import { scanUav, shellInFlight } from './sprites';
 export const TUNING = {
   /** Chatter and combat drop this much while a radio line is on air. */
   duckDb: 6,
-  /** Seconds between two Chatter transmissions, [min, max], at idle and while a friendly Squad is taking fire. */
-  chatterIdle: [8, 25] as [number, number],
-  chatterCombat: [3, 8] as [number, number],
   /** Shots from one Squad make one burst per window. */
   coalesceSeconds: 0.5,
   /** One-shot combat sounds (bursts, explosions) playing at once; the newest wins. Loops sit outside the cap. */
@@ -102,47 +98,7 @@ export function drawnLoops(view: CommanderView, hq: Vec2, seconds: number): Loop
   return out;
 }
 
-/** Combat, from visible information only: a friendly Squad is taking fire. */
-export const inCombat = (view: CommanderView) => view.squads.some((q) => q.takingFire);
-
-// Voice Lines: the ids are the keys of assets/voice/lines.json, the script #83's build.py speaks into one WAV each.
-export type VoiceId = keyof typeof lines;
-
-/** The Asset net lines (`type: 'asset'`, src/sim/assets) by their exact text; "UAV eyes on N hostile(s)" is matched below. */
-const VOICE_FOR_ASSET_LINE: Record<string, VoiceId> = {
-  'Scan UAV inbound': 'uav-inbound',
-  // no 'UAV on station': the Simulation does not say it while the UAV has no fly-in (#85); the uav-on-station WAV waits for one
-  'UAV off station': 'uav-off-station',
-  'UAV off station, no contacts': 'uav-off-station',
-  'Supply Drop inbound': 'supplies-inbound',
-  'Supply Drop landed': 'supplies-on-the-ground',
-  'Barrage inbound': 'fire-mission-shot',
-  Splash: 'splash',
-};
-// "Artillery incoming" (the first enemy shell drawn) has no Simulation source until an enemy Commander exists: enemy shells
-// and impacts never reach the Console (#85). The audition page scripts it as a `warning` NET line, which is what plays it.
-const VOICE_FOR_WARNING: Record<string, VoiceId> = { 'Artillery incoming': 'artillery-incoming' };
-const POINT_NAMES = ['alpha', 'bravo', 'charlie', 'delta', 'echo', 'foxtrot', 'golf', 'hotel'] as const;
-
-/** The Voice Line that speaks radio `line` (the typed log line keeps its full text), or null for buzz plus text. */
-export function voiceFor(line: { type: string; text: string }): VoiceId | null {
-  switch (line.type) {
-    case 'asset':
-      return VOICE_FOR_ASSET_LINE[line.text] ?? (/^UAV eyes on \d+ hostile/.test(line.text) ? 'uav-has-contacts' : null);
-    case 'lost': {
-      const name = POINT_NAMES.find((n) => line.text.toLowerCase() === `${n} lost`); // "<Point> lost", the losing Side's NET line (src/sim/radio.ts)
-      return name ? `point-lost-${name}` : null;
-    }
-    case 'wiped':
-      return 'squad-wiped'; // "<Squad> wiped" (src/sim/radio.ts)
-    case 'warning':
-      return VOICE_FOR_WARNING[line.text] ?? null;
-    default:
-      return null;
-  }
-}
-
-// Spatial: combat sounds sit where their source is drawn. Radio, Voice Lines and Chatter come from the Console and never pan.
+// Spatial: combat sounds sit where their source is drawn. Radio and Chatter come from the Console and never pan.
 const PAN_WIDTH = 0.8; // full left/right is harsh on a tablet
 const OFF_SCREEN_GAIN = 0.4;
 const OFF_SCREEN_CUTOFF = 900; // Hz
@@ -155,12 +111,6 @@ export function spatialise(sx: number, sy: number, w: number, h: number, zoom: n
   const off = sx < 0 || sx > w || sy < 0 || sy > h;
   const near = Math.min(1, 0.4 + 0.15 * zoom); // the overview hears the battle from far away
   return { pan, gain: (near / (1 + d * d * 0.5)) * (off ? OFF_SCREEN_GAIN : 1), cutoff: off ? OFF_SCREEN_CUTOFF : FULL_BAND };
-}
-
-/** Seconds until the next Chatter, drawn from the idle or combat gap with `random` (0 <= r < 1); a max below the min reads as the min. */
-export function chatterGap(combat: boolean, random: () => number = Math.random): number {
-  const [lo, hi] = combat ? TUNING.chatterCombat : TUNING.chatterIdle;
-  return lo + Math.max(0, hi - lo) * random();
 }
 
 /** Linear gain of a bus at `level` (0..1): zero when the master is muted, `TUNING.duckDb` lower while ducked. */
