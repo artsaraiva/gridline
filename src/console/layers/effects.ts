@@ -1,17 +1,27 @@
 // Asset effects on the map: the armed Asset's preview ring (with its grid and the distance to the nearest friendly
-// Squad) and each working Asset's ring with its time left; the baked Scan UAV circles its ring. Labels are DOM tags over the
-// canvas and keep clear of the map Confirm button.
+// Squad) and each working Asset's ring with its time left; the baked Scan UAV circles its ring and the Supply Drop
+// crate comes down under its canopy. Labels are DOM tags over the canvas and keep clear of the map Confirm button.
 import * as THREE from 'three/webgpu';
 import { gridRef } from '../../sim/grid-ref';
 import type { CommanderView, Vec2 } from '../../sim/types';
 import { COLOR, layer, toScreen } from '../renderer';
 import { session } from '../session';
-import { barrageShells, scanUav, SHELL_SHADOW_FRAME, shellTrail, spriteMaterial, UAV_SHADOW_FRAME } from '../sprites';
+import {
+  barrageShells,
+  scanUav,
+  SHELL_SHADOW_FRAME,
+  shellTrail,
+  spriteMaterial,
+  SUPPLY_SHADOW_FRAME,
+  supplyDrop,
+  type SupplyDropPose,
+  UAV_SHADOW_FRAME,
+} from '../sprites';
 import { clock } from '../summary';
 import { overlaps, targeting, validSpot } from '../targeting';
 import { css, dashedRing, fading, shade } from './symbols';
 
-const crateGeometry = new THREE.PlaneGeometry(1, 1);
+const quadGeometry = new THREE.PlaneGeometry(1, 1);
 const NAME = { scan: 'Scan UAV', supply: 'Supply Drop', barrage: 'Barrage' };
 const discGeometry = new THREE.CircleGeometry(1, 96);
 // Tactical shell symbol (pointed warhead + cylindrical casing + flared tail fins, pointing +y before rotation).
@@ -42,9 +52,22 @@ const uavIconShape = new THREE.Shape(
 );
 const uavIconGeometry = new THREE.ShapeGeometry(uavIconShape);
 const uavHaloGeometry = uavIconGeometry.clone().scale(1.22, 1.3, 1).translate(0, 0, -0.02);
+// Tactical Supply Drop symbol: a canopy dome on two risers over a square crate.
+const dome = Array.from({ length: 13 }, (_, i) => new THREE.Vector2(-0.5 * Math.cos((Math.PI * i) / 12), 0.2 + 0.4 * Math.sin((Math.PI * i) / 12)));
+const riser = (sx: number) => new THREE.Shape([new THREE.Vector2(sx * 0.5, 0.2), new THREE.Vector2(sx * 0.4, 0.2), new THREE.Vector2(sx * 0.1, -0.16), new THREE.Vector2(sx * 0.2, -0.16)]);
+const canopyIconGeometry = new THREE.ShapeGeometry([new THREE.Shape([...dome, new THREE.Vector2(0.25, 0.14), new THREE.Vector2(0, 0.2), new THREE.Vector2(-0.25, 0.14)]), riser(1), riser(-1)]);
+const crateIconGeometry = new THREE.ShapeGeometry(new THREE.Shape([new THREE.Vector2(-0.24, -0.16), new THREE.Vector2(0.24, -0.16), new THREE.Vector2(0.24, -0.62), new THREE.Vector2(-0.24, -0.62)]));
+/** A black halo behind an icon part, grown about the part's own centre. */
+function halo(g: THREE.BufferGeometry, k: number) {
+  const h = g.clone();
+  h.computeBoundingBox();
+  const c = h.boundingBox!.getCenter(new THREE.Vector3());
+  return new THREE.Mesh(h.translate(-c.x, -c.y, 0).scale(k, k, 1).translate(c.x, c.y, -0.02), shade(0x000000, 0.75));
+}
+
 
 /** A ring, a faint disc and markers, pooled: rings carry no id, so they are reused in draw order. */
-type Ring = { group: THREE.Group; ring: ReturnType<typeof dashedRing>; disc: THREE.Mesh; crate: THREE.Mesh };
+type Ring = { group: THREE.Group; ring: ReturnType<typeof dashedRing>; disc: THREE.Mesh };
 type ShellMark = {
   shadow: THREE.Mesh;
   shadowMat: THREE.MeshBasicNodeMaterial;
@@ -53,9 +76,17 @@ type ShellMark = {
   icon: THREE.Mesh;
 };
 type UavMark = { shadow: THREE.Mesh; body: THREE.Mesh; frame: ReturnType<typeof spriteMaterial>['frame']; icon: THREE.Mesh };
+type DropMark = {
+  shadow: THREE.Mesh;
+  shadowMat: THREE.MeshBasicNodeMaterial;
+  body: THREE.Mesh;
+  frame: ReturnType<typeof spriteMaterial>['frame'];
+  icon: THREE.Group;
+};
 const pool: Ring[] = [];
 const shellPool: ShellMark[] = [];
 const uavPool: UavMark[] = [];
+const dropPool: DropMark[] = [];
 type Puff = { mesh: THREE.Mesh; material: THREE.MeshBasicNodeMaterial; frame: ReturnType<typeof spriteMaterial>['frame'] };
 const puffPool: Puff[] = [];
 const labelBox = document.getElementById('labels')!;
@@ -65,6 +96,7 @@ export const resetEffects = () => {
   pool.length = 0;
   shellPool.length = 0;
   uavPool.length = 0;
+  dropPool.length = 0;
   puffPool.length = 0;
 };
 
@@ -77,9 +109,8 @@ function ringAt(i: number, p: Vec2, radius: number, color: number, fill: number)
       group: new THREE.Group(),
       ring: dashedRing(120, color, { dash: 2, gap: 6, width: 2 }),
       disc: new THREE.Mesh(discGeometry, fading(color, fill)),
-      crate: new THREE.Mesh(crateGeometry, fading(color)),
     };
-    r.group.add(r.disc, r.ring.mesh, r.crate);
+    r.group.add(r.disc, r.ring.mesh);
     layer.add(r.group);
     pool.push(r);
   }
@@ -91,8 +122,6 @@ function ringAt(i: number, p: Vec2, radius: number, color: number, fill: number)
   r.ring.tint.value.setHex(color);
   material(r.disc).color.setHex(color);
   material(r.disc).opacity = fill;
-  material(r.crate).color.setHex(color);
-  r.crate.visible = false;
   return r;
 }
 
@@ -104,9 +133,9 @@ function shellAt(i: number): ShellMark {
     const icon = new THREE.Mesh(shellIconGeometry, fading(COLOR.hostile));
     icon.add(new THREE.Mesh(shellHaloGeometry, shade(0x000000, 0.75)));
     s = {
-      shadow: new THREE.Mesh(crateGeometry, shadow.material),
+      shadow: new THREE.Mesh(quadGeometry, shadow.material),
       shadowMat: shadow.material,
-      body: new THREE.Mesh(crateGeometry, body.material),
+      body: new THREE.Mesh(quadGeometry, body.material),
       frame: body.frame,
       icon,
     };
@@ -126,8 +155,8 @@ function uavAt(i: number): UavMark {
     const icon = new THREE.Mesh(uavIconGeometry, fading(COLOR.friendly));
     icon.add(new THREE.Mesh(uavHaloGeometry, shade(0x000000, 0.75)));
     u = {
-      shadow: new THREE.Mesh(crateGeometry, spriteMaterial('scan-uav', { frame: UAV_SHADOW_FRAME, shadow: true, opacity: 0.42 }).material),
-      body: new THREE.Mesh(crateGeometry, body.material),
+      shadow: new THREE.Mesh(quadGeometry, spriteMaterial('scan-uav', { frame: UAV_SHADOW_FRAME, shadow: true, opacity: 0.42 }).material),
+      body: new THREE.Mesh(quadGeometry, body.material),
       frame: body.frame,
       icon,
     };
@@ -138,11 +167,39 @@ function uavAt(i: number): UavMark {
   return u;
 }
 
+/** Draws Supply Drop `i`: the baked crate under its canopy with its ground shadow while falling, then the landed crate. */
+function dropAt(i: number, d: SupplyDropPose, scale: number) {
+  let m = dropPool[i];
+  if (!m) {
+    const shadow = spriteMaterial('supply-drop', { frame: SUPPLY_SHADOW_FRAME, shadow: true });
+    const body = spriteMaterial('supply-drop');
+    const canopy = new THREE.Mesh(canopyIconGeometry, fading(COLOR.friendly));
+    canopy.add(halo(canopyIconGeometry, 1.3));
+    const crate = new THREE.Mesh(crateIconGeometry, fading(COLOR.friendly));
+    crate.add(halo(crateIconGeometry, 1.45));
+    const icon = new THREE.Group().add(canopy, crate);
+    m = { shadow: new THREE.Mesh(quadGeometry, shadow.material), shadowMat: shadow.material, body: new THREE.Mesh(quadGeometry, body.material), frame: body.frame, icon };
+    layer.add(m.shadow, m.body, m.icon);
+    dropPool.push(m);
+  }
+  m.body.visible = m.icon.visible = true;
+  m.shadow.visible = !d.landed;
+  m.shadow.position.set(d.shadow.x, d.shadow.y, 0.43);
+  m.shadow.scale.setScalar(d.shadow.size);
+  m.shadowMat.opacity = d.shadow.opacity;
+  m.body.position.set(d.x, d.y, d.landed ? 0.45 : 0.75);
+  m.body.scale.setScalar(d.size);
+  m.frame.value = d.frame;
+  // Constant screen size, just west of the crate so it never sits on the canopy (north-east of the crate).
+  m.icon.position.set(d.crate.x - d.size * 0.12 - scale * 1.2, d.crate.y, 0.92);
+  m.icon.scale.setScalar(scale * 1.3);
+}
+
 function puffAt(i: number): Puff {
   let p = puffPool[i];
   if (!p) {
     const { material, frame } = spriteMaterial('smoke-puff');
-    p = { mesh: new THREE.Mesh(crateGeometry, material), material, frame };
+    p = { mesh: new THREE.Mesh(quadGeometry, material), material, frame };
     layer.add(p.mesh);
     puffPool.push(p);
   }
@@ -178,6 +235,7 @@ export function drawEffects(view: CommanderView, scale: number, now: number) {
   let rings = 0;
   let shells = 0;
   let uavs = 0;
+  let drops = 0;
   let puffs = 0;
   let tags = 0;
   for (const e of view.effects ?? []) {
@@ -200,12 +258,9 @@ export function drawEffects(view: CommanderView, scale: number, now: number) {
       m.icon.scale.setScalar(scale * 1.1);
     }
     let time = clock(Math.ceil(e.left));
-    if (e.landsIn !== undefined && e.fall) { // a Supply Drop crate: it drops toward its spot, growing smaller and brighter, then sits
+    if (e.landsIn !== undefined && e.fall) { // a Supply Drop crate: it comes down under its canopy, then sits on its spot
       const high = e.landsIn / e.fall;
-      r.crate.visible = true;
-      r.crate.scale.setScalar(scale * (1.2 + high));
-      r.crate.position.set(0, high * 40, 0.1);
-      material(r.crate).opacity = 1 - 0.6 * high;
+      dropAt(drops++, supplyDrop({ x: e.x, y: e.y, landsIn: e.landsIn, fall: e.fall }), scale);
       r.ring.alpha.value = 0.35 + 0.5 * (1 - high);
       if (high) time = `LANDS ${clock(Math.ceil(e.landsIn))}`;
     }
@@ -255,6 +310,10 @@ export function drawEffects(view: CommanderView, scale: number, now: number) {
     m.shadow.visible = m.body.visible = m.icon.visible = false;
   }
   for (let i = puffs; i < puffPool.length; i++) puffPool[i]!.mesh.visible = false;
+  for (let i = drops; i < dropPool.length; i++) {
+    const m = dropPool[i]!;
+    m.shadow.visible = m.body.visible = m.icon.visible = false;
+  }
   for (let i = shells; i < shellPool.length; i++) {
     const m = shellPool[i]!;
     m.shadow.visible = false;
