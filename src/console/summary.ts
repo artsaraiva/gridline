@@ -7,7 +7,7 @@ export const FACTION: Record<SideId, string> = { nato: 'NATO', pact: 'Warsaw Pac
 
 export const clock = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
-/** #72: the Commander Score categories in end-screen order, by their GLOSSARY names. */
+/** #72: the Commander Score categories in end-screen order, labelled by Asset name (as the rail shows them) or Orders. */
 const SCORE_ROWS = [
   ['uav', 'Scan UAV'],
   ['supply', 'Supply Drop'],

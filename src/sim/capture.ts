@@ -1,4 +1,4 @@
-// Capture Points, the Ticket drain and the end of the Match.
+// Capture Points, the Ticket drain and the end of the Match; a capture under an Order earns the Commander Score (#73).
 import type { Match } from './index';
 import { dist2 } from './geometry';
 import { award } from './score';

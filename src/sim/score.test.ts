@@ -29,7 +29,7 @@ function scene(place: Record<number, Vec2 & { fx?: number }> = {}, tune: Partial
   return m;
 }
 
-const barrage = (m: Match): Command => ({ tick: m.tick, side: 'nato', kind: 'asset', asset: 'barrage', at: AT });
+const barrage = (m: Match, side: 'nato' | 'pact' = 'nato', at: Vec2 = AT): Command => ({ tick: m.tick, side, kind: 'asset', asset: 'barrage', at });
 
 /** Sends `first` (the Barrage by default) on the first step, then steps `ticks` in all; returns every event. */
 function play(m: Match, ticks: number, first: Command[] = [barrage(m)]): SimEvent[] {
@@ -140,12 +140,12 @@ describe('Commander Score: Artillery', () => {
     // dry run: nato's shell Wounds 6, then pact calls a Barrage on the same spot; learn where its shell lands
     const dry = scene({ 6: victim });
     play(dry, LAND_TICK + 1);
-    const l2 = play(dry, LAND_TICK + 1, [{ ...barrage(dry), side: 'pact' }]).find((e): e is Extract<SimEvent, { kind: 'impact' }> => e.kind === 'impact')!;
+    const l2 = play(dry, LAND_TICK + 1, [barrage(dry, 'pact')]).find((e): e is Extract<SimEvent, { kind: 'impact' }> => e.kind === 'impact')!;
     // the same again, pact's Barrage aimed so its shell lands on 6
     const m = scene({ 6: victim });
     const before = play(m, LAND_TICK + 1);
     expect(before.some((e) => e.kind === 'wounded' && e.id === 6)).toBe(true);
-    const after = play(m, LAND_TICK + 1, [{ ...barrage(m), side: 'pact', at: { x: AT.x + (victim.x - l2.x), y: AT.y + (victim.y - l2.y) } }]);
+    const after = play(m, LAND_TICK + 1, [barrage(m, 'pact', { x: AT.x + (victim.x - l2.x), y: AT.y + (victim.y - l2.y) })]);
     expect(after.filter((e) => e.kind === 'death')).toEqual([{ kind: 'death', side: 'pact', id: 6, x: victim.x, y: victim.y }]);
     expect(awards([...before, ...after])).toEqual([]);
   });

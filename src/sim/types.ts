@@ -332,7 +332,7 @@ export interface CommanderView {
   /** This Side's Assets at work on the map. */
   effects?: EffectView[];
   /** #55: the Commander Score so far, in all and by category. */
-  score?: { total: number; uav: number; supply: number; artillery: number; orders: number };
+  score?: { total: number } & Record<ScoreCategory, number>;
 }
 
 export interface AssetView {

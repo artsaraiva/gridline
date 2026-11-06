@@ -1,4 +1,4 @@
-// Fire, Wounding, revive and bleed-out, suppression.
+// Fire, Wounding, revive and bleed-out, suppression; a death settles what the enemy Commander's Assets earn (#72 #75).
 import type { Match } from './index';
 import { logDeath, resetSoldierAi } from './ai';
 import { dist2 } from './geometry';
