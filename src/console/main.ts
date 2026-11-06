@@ -13,6 +13,7 @@ import { addDeathMarker, drawDeathMarkers } from './layers/markers';
 import { watchFrame } from './layers/map';
 import { drawOrders, hideOrderTags } from './layers/orders';
 import { drawHqs, drawPoint } from './layers/points';
+import { drawSelection } from './layers/selection';
 import { drawSquadFrames } from './layers/squads';
 import { UNIT_PX } from './layers/symbols';
 import { addShot, drawTracers } from './layers/tracers';
@@ -63,6 +64,7 @@ renderer.setAnimationLoop(() => {
   drawDeathMarkers(now, scale);
   drawLastKnown(view, scale);
   drawChevrons(view, scale);
+  drawSelection(view, scale);
   drawHqs(host.map, scale);
   for (const p of view.points) drawPoint(p, scale);
   drawSquadFrames(view, scale);
