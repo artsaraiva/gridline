@@ -92,6 +92,10 @@ _Avoid_: Spot, blip, target
 Where a Contact was last seen; it shows briefly after contact is lost, then fades.
 _Avoid_: Ghost, echo
 
+**Award**:
+One addition to the Commander Score: its category (UAV, Supply, Artillery or Orders), its points and a short reason that names no position and no unseen enemy. The Console shows each Award briefly as it lands.
+_Avoid_: Contribution message, bonus, reward, XP
+
 ### Commander actions
 
 **Order**:
@@ -101,6 +105,18 @@ _Avoid_: Command, asset, squad order (as an asset)
 **Asset**:
 A limited Commander ability that acts on the battlefield directly, such as a scan, a supply drop or a strike, and is unavailable for a while after use.
 _Avoid_: Ability, power, perk, call-in
+
+**Scan UAV**:
+The Asset that circles a chosen spot for a short time and reveals every enemy near it as a Contact, then as a Last Known Position.
+_Avoid_: Drone, recon, radar
+
+**Supply Drop**:
+The Asset that drops a crate at a chosen spot; once landed it refills the ammunition and slowly heals friendly Soldiers near it for a while.
+_Avoid_: Resupply, ammo box, care package
+
+**Artillery Barrage**:
+The Asset that, after a warning, lands a spread of shells round a chosen spot, killing, Wounding and suppressing Soldiers of either Side by their distance from each shell.
+_Avoid_: Strike, airstrike, bombardment, arty
 
 ### Radio
 

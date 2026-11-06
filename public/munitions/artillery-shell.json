@@ -1,0 +1,10 @@
+{
+  "frames": 129,
+  "framePx": 128,
+  "cols": 16,
+  "constants": {
+    "SHELL_PITCH_FRAMES": 8,
+    "SHELL_HEADINGS": 16,
+    "SHELL_WORLD_M": 1.5499999523162842
+  }
+}

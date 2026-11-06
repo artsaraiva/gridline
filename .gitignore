@@ -5,3 +5,6 @@ playwright-report/
 .claude/handoff/
 .claude/worktrees/
 .playwright-mcp/
+.vitest/
+review-capture/
+.codegraph/

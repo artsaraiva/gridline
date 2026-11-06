@@ -11,3 +11,14 @@ Default five-role vocabulary: needs-triage, needs-info, ready-for-agent, ready-f
 ### Domain docs
 
 Single-context: one `GLOSSARY.md` + `docs/adr/` at repo root. See `docs/agents/domain.md`.
+
+### Visual checks
+
+To check baked Assets by eye, run `pnpm review:capture` (screenshots the DEV Asset review scene per Asset; options in `scripts/review-capture.mjs`).
+
+## Navigation
+
+- **Simulation**: start at `src/sim/index.ts` (tick order, public surface, `stateHash`); each rule module hashes its own state. `src/sim/fog.test.ts` asserts the exact `CommanderView` key set.
+- **Coding standards**: `CODING_STANDARDS.md`, read by `/code-review`.
+- **Console look review** of a new event or chrome element: add a chapter to `src/console/dev/commander-review-timeline.ts` and open `/dev-commander-review.html` under `pnpm dev`; `/dev-asset-review.html` cycles the Assets on the real Simulation.
+- **Checks**: `pnpm test && pnpm typecheck && pnpm build && pnpm test:replay`. Run them inside a worktree; `test:replay` takes `PORT` when two runs share a machine.

@@ -130,7 +130,8 @@ export interface Tune {
   quietSeconds: number; // no enemy seen for this long (and nobody suppressed) before a Squad Respawn
   redeploySeconds: number;
 
-  // Each ticket appends its keys under its own heading below, so parallel tickets do not touch the same lines.
+  // Each ticket appends its keys under its own heading below, so parallel tickets do not touch the same lines. A spec's tracer
+  // ticket may add the whole spec's keys under the spec's heading, so its sibling tickets touch none.
 
   // #34 Squad AI: movement, routes, cover, fire model, ammo
   pairUp: number; // point score bonus for the second Squad going for the same enemy point
