@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PULSE_MS, pulseAt, pulseColor, REST_BRIGHTNESS } from './pulse';
+import { haloColor, PULSE_MS, pulseAt, pulseColor, REST_BRIGHTNESS } from './pulse';
 
 const rgb = (c: number) => [(c >> 16) & 255, (c >> 8) & 255, c & 255] as const;
 const spread = (c: number) => Math.max(...rgb(c)) - Math.min(...rgb(c));
@@ -20,20 +20,24 @@ describe('firing pulse', () => {
     }
   });
 
-  it('rests calmer and darker than the palette colour, keeping its hue (#54)', () => {
+  it('rests at the palette colour, keeping its hue (#90: as bright as BF4 draws it)', () => {
     for (const color of [FRIENDLY, HOSTILE]) {
       const rest = pulseColor(color, 0);
-      expect(rest).not.toBe(color);
-      expect(spread(rest)).toBeLessThan(spread(color));
-      expect(spread(rest)).toBeGreaterThan(0);
+      expect(spread(rest)).toBeGreaterThan(spread(color) * 0.8);
       const [r, g, b] = rgb(color);
       const [rr, rg, rb] = rgb(rest);
       expect(Math.sign(rr - rg)).toBe(Math.sign(r - g));
       expect(Math.sign(rg - rb)).toBe(Math.sign(g - b));
-      expect(Math.max(...rgb(rest))).toBeLessThanOrEqual(Math.max(...rgb(color)) * REST_BRIGHTNESS + 1);
+      expect(Math.max(...rgb(rest))).toBeGreaterThanOrEqual(Math.max(...rgb(color)) * 0.95);
     }
-    expect(REST_BRIGHTNESS).toBeLessThan(1);
-    expect(pulseColor(0x808080, 0)).toBe(Math.round(0x80 * REST_BRIGHTNESS) * 0x010101); // grey only darkens
+    expect(REST_BRIGHTNESS).toBe(1);
+    expect(pulseColor(0x808080, 0)).toBe(0x808080); // grey is untouched
+  });
+
+  it('flashes the halo from black to white (#90)', () => {
+    expect(haloColor(0)).toBe(0);
+    expect(haloColor(1)).toBe(0xffffff);
+    expect(haloColor(0.5)).toBe(0x808080);
   });
 
   it('peaks at least as bright as the palette colour in every channel', () => {

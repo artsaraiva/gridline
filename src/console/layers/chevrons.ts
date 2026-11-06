@@ -1,5 +1,5 @@
 // Chevrons: one per Soldier (friendly blue, Contacts hostile red) on a dark halo, pointing +x before rotation,
-// constant size on screen. They rest desaturated and pulse to full colour when their Soldier fires (#70, tune in pulse.ts).
+// constant size on screen. They rest at the palette colour; the halo flashes white when their Soldier fires (#70, #90, pulse.ts).
 // A Squad Leader's icon is a star instead of a chevron (#71, as BF4's Commander mode): it turns with the facing, and its
 // forward point is notched to show which way. Every leader sits in a faint dashed corner bracket; the selected Squad's
 // leader in a bright solid one, and nothing else marks the selected Squad (#92, as BF4 Commander).
@@ -8,7 +8,7 @@ import type { CommanderView, FriendlyView, SideId, SoldierView } from '../../sim
 import { COLOR, layer } from '../renderer';
 import { session } from '../session';
 import { targeting } from '../targeting';
-import { pulseAt, pulseColor } from './pulse';
+import { haloColor, pulseAt, pulseColor } from './pulse';
 import { bar, fading, px, shade } from './symbols';
 
 const chevronShape = new THREE.Shape([
@@ -91,7 +91,9 @@ function draw(list: (SoldierView | FriendlyView)[], kind: 'friendly' | 'hostile'
     const alpha = 'state' in c && c.state === 'wounded' ? 0.35 : 1;
     const material = mesh.material as THREE.MeshBasicNodeMaterial;
     material.opacity = alpha;
-    material.color.setHex(pulseColor(COLOR[kind], pulseAt(now - (firedAt.get(key) ?? -Infinity))));
+    const p = pulseAt(now - (firedAt.get(key) ?? -Infinity));
+    material.color.setHex(pulseColor(COLOR[kind], p));
+    halo.color.setHex(haloColor(p));
     halo.opacity = HALO * alpha;
     seen.add(key);
   }
