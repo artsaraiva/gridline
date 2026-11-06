@@ -64,6 +64,8 @@ export interface Squad {
   // #41 Requests
   request: Request | null; // its open Request; see requests.ts
   requestNext: number; // first tick it may ask again
+  // #68 Squad Leader
+  leader: number; // id of the Squad Leader, -1 = none; see leader.ts
 }
 
 export interface Point {
@@ -125,5 +127,6 @@ export function hashSquads(m: Match, mix: Mix) {
     mix(sq.goal);
     mix(sq.lastSeen);
     mix(sq.lastHit);
+    mix(sq.leader);
   }
 }

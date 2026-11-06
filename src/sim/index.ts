@@ -8,6 +8,7 @@ import { assetEffects, hashAssets, newAssets, type Assets } from './assets/core'
 import { applyCommands } from './commands';
 import { buildGrid, type Grid } from './grid';
 import { hashMemory, hear, type Sighting } from './memory';
+import { succession } from './leader';
 import { hashOrders, orders } from './orders';
 import { perceive } from './perception';
 import { hashRadio, newRadio, radio, type Radio } from './radio';
@@ -70,7 +71,7 @@ export function createMatch(opts: {
   for (const side of SIDES) {
     const hq = map.hqs[side];
     for (let q = 0; q < opts.squadsPerSide; q++) {
-      const squad: Squad = { id: m.squads.length, side, members: [], goal: -1, lastSeen: -1e9, lastHit: -1e9, memory: [], order: null, pending: null, request: null, requestNext: 0, ...newSquadAi() };
+      const squad: Squad = { id: m.squads.length, side, members: [], goal: -1, lastSeen: -1e9, lastHit: -1e9, memory: [], order: null, pending: null, request: null, requestNext: 0, leader: m.soldiers.length, ...newSquadAi() }; // #68 the first roster member leads
       m.squads.push(squad);
       for (let i = 0; i < tune.squadSize; i++) {
         const ox = (rnd(m) * 2 - 1) * tune.spread;
@@ -103,6 +104,7 @@ export function step(m: Match, commands: Command[]): SimEvent[] {
   for (const s of m.soldiers) if (s.state === 'alive') walk(m, s);
   suppressionDecay(m);
   returnToFight(m, events);
+  succession(m);
   for (const p of m.points) capture(m, p);
   orders(m, events);
   requests(m, events);
