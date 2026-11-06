@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import type { CommanderView, EffectView, SimEvent } from '../sim/types';
-import { admit, admitImpact, admitShot, busGain, chatterGap, drawnLoops, inCombat, newGate, release, sourceDrawn, spatialise, TUNING, voiceFor } from './audio-mix';
+import { createMatch, step } from '../sim/index';
+import { callName } from '../sim/state';
+import { DEFAULT_TUNE } from '../sim/tune';
+import type { AssetKind, CommanderView, EffectView, MapData, SimEvent, Tune, Vec2 } from '../sim/types';
+import { admit, admitImpact, admitShot, busGain, chatterGap, drawnLoops, inCombat, newGate, release, sourceDrawn, spatialise, TUNING, type VoiceId, voiceFor } from './audio-mix';
 
 const HQ = { x: -415, y: 0 };
 const view = (over: Partial<CommanderView> = {}): CommanderView => ({
@@ -145,35 +148,61 @@ describe('observability rule: a combat sound plays only when its source is drawn
     expect(loops[1]!.x).toBeLessThan(loops[0]!.x); // just launched: still near the HQ
   });
 
-  it('inCombat: a friendly Squad taking fire, from the view alone', () => {
+  it('inCombat: a friendly Squad taking fire, from the view alone; it counts Squads, not Soldiers (#85)', () => {
     expect(inCombat(view())).toBe(false);
     const v = view();
+    v.friendlies[0]!.suppressed = true;
+    expect(inCombat(v)).toBe(false);
     v.squads[0]!.takingFire = true;
     expect(inCombat(v)).toBe(true);
   });
 });
 
-describe('Voice Lines: which file speaks a radio log line (#84)', () => {
-  it.each([
-    ['Scan UAV inbound', 'uav-inbound'],
-    ['UAV on station', 'uav-on-station'],
-    ['UAV eyes on 3 hostiles', 'uav-has-contacts'],
-    ['UAV eyes on 1 hostile', 'uav-has-contacts'],
-    ['UAV off station, no contacts', 'uav-off-station'],
-    ['Supply Drop inbound', 'supplies-inbound'],
-    ['Supply Drop landed', 'supplies-on-the-ground'],
-    ['Barrage inbound', 'fire-mission-shot'],
-    ['Splash', 'splash'],
-    ['Artillery incoming', 'artillery-incoming'],
-    ['Alpha lost', 'point-lost-alpha'],
-    ['Hotel lost', 'point-lost-hotel'],
-    ['Bravo wiped', 'squad-wiped'],
-  ])('"%s" is spoken by %s', (text, id) => expect(voiceFor(text)).toBe(id));
+describe('Voice Lines: which file speaks a radio line (#84, #85)', () => {
+  // The Asset net lines as the Simulation says them: one Soldier a Side on open ground, an Asset called at (200, 0) on tick 0.
+  const field: MapData = {
+    name: 'field',
+    playArea: [{ x: -600, y: -600 }, { x: 600, y: -600 }, { x: 600, y: 600 }, { x: -600, y: 600 }],
+    hqs: { nato: { x: -560, y: 0 }, pact: { x: 560, y: 0 } },
+    points: [],
+    grid: { cols: 12, rows: 12, squareM: 100, letters: 'ABCDEFGHIJKL' },
+  };
+  const assetLines = (asset: AssetKind, seconds: number, enemyAt?: Vec2) => {
+    const tune: Tune = { ...DEFAULT_TUNE, squadSize: 1, speedJitter: 0, spread: 0, fireRangeM: 0, barrageCooldownSeconds: 0 };
+    const m = createMatch({ seed: 1, map: field, tune, squadsPerSide: 1, commanderSide: 'nato' });
+    if (enemyAt) Object.assign(m.soldiers[1]!, enemyAt);
+    const out: VoiceId[] = [];
+    for (let i = 0; i < seconds * tune.hz; i++) {
+      for (const e of step(m, i === 0 ? [{ tick: m.tick, side: 'nato', kind: 'asset', asset, at: { x: 200, y: 0 } }] : [])) {
+        if (e.kind === 'radio' && e.type === 'asset') out.push(voiceFor(e) ?? (`buzz: ${e.text}` as VoiceId));
+      }
+    }
+    return out;
+  };
 
-  it('Squad Callouts and captures stay buzz plus text', () => {
-    expect(voiceFor('Contact')).toBeNull();
-    expect(voiceFor('Alpha captured')).toBeNull();
-    expect(voiceFor('Taking fire')).toBeNull();
+  it('every Asset net line the Simulation says is spoken by its Voice Line, in order', () => {
+    expect(assetLines('scan', 16, { x: 200, y: 10 })).toEqual(['uav-inbound', 'uav-on-station', 'uav-has-contacts', 'uav-off-station']);
+    expect(assetLines('scan', 16)).toEqual(['uav-inbound', 'uav-on-station', 'uav-off-station']);
+    expect(assetLines('supply', 6)).toEqual(['supplies-inbound', 'supplies-on-the-ground']);
+    expect(assetLines('barrage', 8)).toEqual(['fire-mission-shot', 'splash']);
+    expect(voiceFor({ type: 'asset', text: 'UAV eyes on 3 hostiles' })).toBe('uav-has-contacts');
+  });
+
+  it('"<Point> lost" is spoken per NATO name as the Simulation says it (callName), "<Squad> wiped" as Squad wiped', () => {
+    const names = { A: 'alpha', B: 'bravo', C: 'charlie', D: 'delta', E: 'echo', F: 'foxtrot', G: 'golf', H: 'hotel' };
+    for (const [letter, name] of Object.entries(names)) expect(voiceFor({ type: 'lost', text: `${callName(letter)} lost` })).toBe(`point-lost-${name}`);
+    expect(voiceFor({ type: 'wiped', text: 'Bravo wiped' })).toBe('squad-wiped');
+  });
+
+  it('"Artillery incoming" is a warning line; nothing in the Simulation says it until an enemy Commander exists', () => {
+    expect(voiceFor({ type: 'warning', text: 'Artillery incoming' })).toBe('artillery-incoming');
+  });
+
+  it('Squad Callouts, captures and lines of another type stay buzz plus text', () => {
+    expect(voiceFor({ type: 'contact', text: 'contact, infantry' })).toBeNull();
+    expect(voiceFor({ type: 'captured', text: 'Alpha captured' })).toBeNull();
+    expect(voiceFor({ type: 'lost', text: 'Zulu lost' })).toBeNull();
+    expect(voiceFor({ type: 'fire', text: 'Splash' })).toBeNull(); // keyed on the type, not the text alone
   });
 });
 
