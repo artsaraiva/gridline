@@ -1,5 +1,6 @@
 // The pure side of the sound engine (#84): the mixer's numbers and the rules audio.ts applies before it touches Web
 // Audio. Nothing here needs a browser, so all of it is unit-tested; audio.ts (the Web Audio graph) is judged by ear.
+import lines from '../../assets/voice/lines.json';
 import type { CommanderView, SimEvent, Vec2 } from '../sim/types';
 import { scanUav, shellInFlight } from './sprites';
 
@@ -101,23 +102,10 @@ export function drawnLoops(view: CommanderView, hq: Vec2, seconds: number): Loop
 /** Combat, from visible information only: a friendly Squad is taking fire. */
 export const inCombat = (view: CommanderView) => view.squads.some((q) => q.takingFire);
 
-// Voice Lines (#83 generates `assets/voice/<id>.wav` for each): HQ speaks these and nothing else.
-const POINT_NAMES = ['alpha', 'bravo', 'charlie', 'delta', 'echo', 'foxtrot', 'golf', 'hotel'] as const;
-export const VOICE_IDS = [
-  'uav-inbound',
-  'uav-on-station',
-  'uav-has-contacts',
-  'uav-off-station',
-  'supplies-inbound',
-  'supplies-on-the-ground',
-  'fire-mission-shot',
-  'splash',
-  'artillery-incoming',
-  'squad-wiped',
-  ...POINT_NAMES.map((n) => `point-lost-${n}` as const),
-] as const;
-export type VoiceId = (typeof VOICE_IDS)[number];
+// Voice Lines: the ids are the keys of assets/voice/lines.json, the script #83's build.py speaks into one WAV each.
+export type VoiceId = keyof typeof lines;
 
+const POINT_NAMES = ['alpha', 'bravo', 'charlie', 'delta', 'echo', 'foxtrot', 'golf', 'hotel'] as const;
 const VOICE: [RegExp, VoiceId][] = [
   [/^Scan UAV inbound$/, 'uav-inbound'],
   [/^UAV on station$/, 'uav-on-station'],

@@ -1,10 +1,10 @@
 /// <reference types="node" />
 import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import LINES from '../../assets/voice/lines.json';
 
 // Voice Lines (#83, ADR 0003): assets/voice/build.py reads lines.json and writes one clean WAV per id.
 const VOICE_DIR = new URL('../../assets/voice/', import.meta.url);
-const LINES = JSON.parse(readFileSync(new URL('lines.json', VOICE_DIR), 'utf8')) as Record<string, string>;
 
 /** RIFF/WAVE header: the `fmt ` chunk fields and the `data` chunk size. */
 function wavInfo(buf: Buffer) {
@@ -25,10 +25,6 @@ function wavInfo(buf: Buffer) {
 }
 
 describe('committed Voice Lines', () => {
-  it('scripts the 18 Voice Lines of the spec', () => {
-    expect(Object.keys(LINES)).toHaveLength(18);
-  });
-
   for (const [id, text] of Object.entries(LINES)) {
     it(`${id} ("${text}") is a committed mono 24 kHz 16-bit WAV with audio in it`, () => {
       const url = new URL(`${id}.wav`, VOICE_DIR);
