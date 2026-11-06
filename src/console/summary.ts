@@ -111,6 +111,16 @@ export function squadCentroid(view: CommanderView, squadId: number): Vec2 | null
   return { x: x / men.length, y: y / men.length };
 }
 
+/**
+ * #71: which Soldiers carry the selection marker (every present member of the selected Squad, Wounded or not) and which
+ * one the Squad Leader marker (null while the Squad has no leader, or nothing is selected).
+ */
+export function selectionMarks(view: CommanderView, selectedId: number | null): { members: number[]; leader: number | null } {
+  const q = view.squads.find((s) => s.id === selectedId);
+  if (!q) return { members: [], leader: null };
+  return { members: view.friendlies.filter((f) => f.squad === q.id).map((f) => f.id), leader: q.leader ?? null };
+}
+
 /** Bottom-centre cursor readout: grid · MGRS · bearing and range from the selected Squad. */
 export function cursorReadout(pointer: Vec2 | null, view: CommanderView, grid: MapGrid | undefined, selectedId: number | null): string {
   if (!pointer) return 'Cursor off map';

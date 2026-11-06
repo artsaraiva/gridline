@@ -12,6 +12,7 @@ import { resetImpacts } from './layers/impacts';
 import { resetOrders } from './layers/orders';
 import { resetMarkers } from './layers/markers';
 import { resetPoints } from './layers/points';
+import { resetSelection } from './layers/selection';
 import { resetSquadFrames } from './layers/squads';
 import { resetTracers } from './layers/tracers';
 import { layer } from './renderer';
@@ -43,6 +44,7 @@ async function startMatch(setup: MatchSetup) {
   resetContacts();
   resetMarkers();
   resetSquadFrames();
+  resetSelection();
   resetTracers();
   resetEffects();
   resetImpacts();
