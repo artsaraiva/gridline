@@ -49,7 +49,7 @@ function panTo(to: { x: number; y: number }) {
   const from = { x: camera.position.x, y: camera.position.y };
   const t0 = performance.now();
   const id = ++panning;
-  burst(0.5);
+  burst(0.25);
   const frame = (now: number) => {
     if (id !== panning) return; // a drag or another tap took over
     const k = Math.min(1, (now - t0) / PAN_MS);
