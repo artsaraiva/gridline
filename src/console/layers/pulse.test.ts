@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PULSE_MS, pulseAt, pulseColor } from './pulse';
+import { PULSE_MS, pulseAt, pulseColor, REST_BRIGHTNESS } from './pulse';
 
 const rgb = (c: number) => [(c >> 16) & 255, (c >> 8) & 255, c & 255] as const;
 const spread = (c: number) => Math.max(...rgb(c)) - Math.min(...rgb(c));
@@ -20,7 +20,7 @@ describe('firing pulse', () => {
     }
   });
 
-  it('rests calmer than the palette colour, keeping its hue', () => {
+  it('rests calmer and darker than the palette colour, keeping its hue (#54)', () => {
     for (const color of [FRIENDLY, HOSTILE]) {
       const rest = pulseColor(color, 0);
       expect(rest).not.toBe(color);
@@ -30,8 +30,10 @@ describe('firing pulse', () => {
       const [rr, rg, rb] = rgb(rest);
       expect(Math.sign(rr - rg)).toBe(Math.sign(r - g));
       expect(Math.sign(rg - rb)).toBe(Math.sign(g - b));
+      expect(Math.max(...rgb(rest))).toBeLessThanOrEqual(Math.max(...rgb(color)) * REST_BRIGHTNESS + 1);
     }
-    expect(pulseColor(0x808080, 0)).toBe(0x808080); // grey has nothing to lose
+    expect(REST_BRIGHTNESS).toBeLessThan(1);
+    expect(pulseColor(0x808080, 0)).toBe(Math.round(0x80 * REST_BRIGHTNESS) * 0x010101); // grey only darkens
   });
 
   it('peaks at least as bright as the palette colour in every channel', () => {
