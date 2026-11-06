@@ -128,6 +128,12 @@ describe('Rails score drain, HUD readouts and edge hugging', () => {
     expect(topAt(100)).toBeNull();
     expect(topAt(400)).toBe(0);
     expect(topAt(800)).toBe(0);
+
+    // #54: with no depth allowed the line is pinned to the edge and only the covered positions drop out
+    const pinned = edgeLine([rail, { left: 1100, top: 16, right: 1350, bottom: 140 }], 'top', 0, [100, 400, 1200], screen);
+    expect(pinned(100)).toBeNull();
+    expect(pinned(400)).toBe(0);
+    expect(pinned(1200)).toBeNull();
   });
 });
 

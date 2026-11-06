@@ -137,7 +137,7 @@ export function drawGrid(view: CommanderView | null, now: number) {
         if (cy > 8 && cy < H - 8) ys.push(cy);
       }
     }
-    const topAt = edgeLine(rects, 'top', 140, xs, screen);
+    const topAt = edgeLine(rects, 'top', 0, xs, screen); // #54: pinned to the edge, so the row never jumps; covered letters are skipped
     const leftAt = edgeLine(rects, 'left', 300, ys, screen);
 
     ctx.save();
