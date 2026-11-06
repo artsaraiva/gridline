@@ -2,7 +2,7 @@
 import './input';
 import { drawAssetRail } from './chrome/assets';
 import { drawRadioLog, logRadio, showRadioLog } from './chrome/radio-log';
-import { drawRail, toastEvent } from './chrome/rail';
+import { drawRail, showAward, toastEvent } from './chrome/rail';
 import { drawSquads } from './chrome/squads';
 import { drawChevrons, pulse } from './layers/chevrons';
 import { drawLastKnown } from './layers/contacts';
@@ -50,6 +50,7 @@ renderer.setAnimationLoop(() => {
     }
     logRadio(e, view);
     toastEvent(e, view);
+    showAward(e, view);
   }
   metresPerPx.value = pxToWorld();
   const scale = UNIT_PX * metresPerPx.value; // one symbol unit in metres

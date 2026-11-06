@@ -58,7 +58,14 @@ export const barrage: Kind = {
       for (const s of m.soldiers) {
         if (s.state === 'dead') continue;
         const d2 = dist2(s, shell);
-        if (d2 <= t.barrageKillM * t.barrageKillM) {
+        const kills = d2 <= t.barrageKillM * t.barrageKillM;
+        // #55: an enemy it kills, whatever its state, or Wounds scores for the caller; one already Wounded by rifle fire is not its
+        if (s.side !== e.side && (kills || (s.state === 'alive' && d2 <= t.barrageWoundM * t.barrageWoundM))) {
+          s.cause = 'barrage';
+          if (s.state === 'alive') s.uavAssist ||= m.tick <= s.uavUntil; // #75: and the UAV that found it, if it did; fixed by the first downing hit
+        }
+        if (kills) {
+          if (s.side === e.side) s.cause = null; // its own Side's shell: the enemy Commander is not paid for a friendly-fire death
           Object.assign(s, { suppression: 0, target: -1, reviving: -1 }); // a killed reviver must not keep a job
           die(m, s, events);
         } else if (d2 <= t.barrageWoundM * t.barrageWoundM && s.state === 'alive') wound(m, s, events);

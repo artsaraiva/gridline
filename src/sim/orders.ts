@@ -11,12 +11,14 @@ export interface Order {
   point: number; // index of the Capture Point
   hold: boolean; // hold it: set when the point is the Side's own, or once taken; kept until the Commander changes it
   delayed: 'retreat' | 'resupply' | null; // survival has the Squad for now
+  since: number; // #73: tick the Command was given; a capture scores only for a Squad that began contributing after it
 }
 
 /** An Order sent and not yet acknowledged; `point` -1 = clear. The standing Order stands until `due`. */
 export interface Pending {
   point: number;
   due: number; // tick
+  since: number; // #73: tick the Command was given, carried onto the Order
 }
 
 // radio.ts sets the priority of every line by its type, so the 0 here is never heard.
@@ -26,7 +28,7 @@ const say = (sq: Squad, type: string, text: string, events: SimEvent[]) => event
 export function giveOrder(m: Match, c: Extract<Command, { kind: 'order' }>) {
   const t = m.tune;
   const lag = Math.round((t.orderAckMinSeconds + rnd(m) * (t.orderAckMaxSeconds - t.orderAckMinSeconds)) * t.hz);
-  m.squads[c.squad]!.pending = { point: c.point === null ? -1 : m.points.findIndex((p) => p.id === c.point), due: m.tick + lag };
+  m.squads[c.squad]!.pending = { point: c.point === null ? -1 : m.points.findIndex((p) => p.id === c.point), due: m.tick + lag, since: m.tick };
 }
 
 const survival = (sq: Squad) => (sq.task === 'retreat' || sq.task === 'resupply' ? sq.task : null);
@@ -36,9 +38,9 @@ const delayText = (why: 'retreat' | 'resupply') => `negative, ${why === 'retreat
 export function orders(m: Match, events: SimEvent[]) {
   for (const sq of m.squads) {
     if (sq.pending && m.tick >= sq.pending.due) {
-      const { point } = sq.pending;
+      const { point, since } = sq.pending;
       sq.pending = null;
-      const o: Order | null = point < 0 ? null : { point, hold: m.points[point]!.owner === sq.side, delayed: survival(sq) };
+      const o: Order | null = point < 0 ? null : { point, hold: m.points[point]!.owner === sq.side, delayed: survival(sq), since };
       sq.order = o;
       if (wiped(membersOf(m, sq))) continue; // a wiped Squad can't answer
       if (!o) say(sq, 'ack', 'copy, free to engage', events);
@@ -71,7 +73,9 @@ export function hashOrders(m: Match, mix: Mix) {
     mix(o ? o.point + 1 : 0);
     mix(o ? +o.hold : 0);
     mix(o?.delayed ? (o.delayed === 'retreat' ? 1 : 2) : 0);
+    mix(o ? o.since : 0); // #73
     mix(sq.pending ? sq.pending.point + 2 : 0);
     mix(sq.pending?.due ?? 0);
+    mix(sq.pending?.since ?? 0); // #73
   }
 }

@@ -79,6 +79,8 @@ function showEnd(summary: ReturnType<typeof endSummary>) {
   set('end-enemy', `${summary.enemy.faction} ${summary.enemy.tickets}`);
   set('end-time', summary.time);
   set('end-seed', String(session.seed));
+  const score = document.getElementById('end-score')!;
+  score.innerHTML = `<dt>Commander Score</dt><dd>${summary.score.total}</dd>` + summary.score.rows.map((r) => `<dt class="sub">${r.label}</dt><dd class="sub">${r.points}</dd>`).join('');
   set('end-copy', 'Copy match record');
   endScreen.hidden = false;
 }

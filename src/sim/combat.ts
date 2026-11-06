@@ -1,11 +1,12 @@
-// Fire, Wounding, revive and bleed-out, suppression.
+// Fire, Wounding, revive and bleed-out, suppression; a death settles what the enemy Commander's Assets earn (#72 #75).
 import type { Match } from './index';
 import { logDeath, resetSoldierAi } from './ai';
 import { dist2 } from './geometry';
 import { cellAt, COVER, los } from './grid';
 import { rnd } from './rng';
+import { award } from './score';
 import { membersOf, type Soldier } from './state';
-import type { SimEvent, Vec2 } from './types';
+import { enemyOf, type SimEvent, type Vec2 } from './types';
 
 interface Shot {
   shooter: Soldier;
@@ -85,7 +86,11 @@ export function fire(m: Match, events: SimEvent[]) {
     m.squads[e!.squad]!.lastHit = m.tick;
     events.push({ kind: 'shot', side: shooter.side, from: shooter.id, to: e!.id, hit });
   }
-  for (const { target: e } of shots) if (e && e.state === 'alive' && e.hp <= 0) wound(m, e, events);
+  for (const { target: e } of shots) {
+    if (!e || e.state !== 'alive' || e.hp > 0) continue;
+    e.uavAssist ||= m.tick <= e.uavUntil; // #75: the downing shot fixes whether the UAV gets the assist
+    wound(m, e, events);
+  }
 }
 
 /** Shot down: bleeding out, not dead. */
@@ -102,6 +107,11 @@ export function die(m: Match, s: Soldier, events: SimEvent[]) {
   m.tickets[s.side] = Math.max(0, m.tickets[s.side] - 1);
   logDeath(m, { side: s.side, x: s.x, y: s.y, tick: m.tick });
   events.push({ kind: 'death', side: s.side, id: s.id, x: s.x, y: s.y });
+  if (s.cause === 'barrage') award(m, enemyOf(s.side), 'artillery', m.tune.scoreArtilleryKill, 'Barrage kill', events); // #55: the enemy Commander's strike
+  if (s.uavAssist) award(m, enemyOf(s.side), 'uav', m.tune.scoreUavAssist, 'UAV assist', events); // #75: and their Scan
+  s.cause = null;
+  s.uavAssist = false;
+  s.uavUntil = -1;
 }
 
 /**
@@ -134,7 +144,7 @@ export function casualties(m: Match, events: SimEvent[]) {
       die(m, w, events);
     } else if (++w.revive >= t.reviveSeconds * t.hz) {
       r.reviving = -1;
-      Object.assign(w, { state: 'alive', hp: t.reviveHp, nextFire: m.tick });
+      Object.assign(w, { state: 'alive', hp: t.reviveHp, nextFire: m.tick, cause: null, uavAssist: false }); // #55 #75: a Revive clears what Wounded them
       events.push({ kind: 'revived', side: w.side, id: w.id, by: r.id });
     }
   }

@@ -28,6 +28,8 @@ function look(m: Match, s: Soldier) {
     if (dx * s.fx + dy * s.fy < t.visionCos * Math.sqrt(d2)) continue;
     if (inHq(m, e.side, e)) continue;
     if (!los(m, s, e)) continue;
+    // #75: out of all eyes (UAV or Soldier) last tick and found again by sight alone: no longer UAV-discovered. A UAV still over it re-stamps it this tick (assetEffects runs next).
+    if (!m.sightings[s.side].some((o) => o.id === e.id && o.tick >= m.tick - 1)) e.uavUntil = -1;
     see(m, sq, e);
     if (d2 > bestD2) continue;
     best = e.id;

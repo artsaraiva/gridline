@@ -36,6 +36,10 @@ export interface Soldier {
   regroup: boolean; // walking back to the leader
   slot: number; // seeded scale of its wedge slot
   blocked: number; // ticks it has been stuck
+  // #55 Commander Score
+  cause: 'barrage' | null; // what an enemy Asset did to it: scores for the enemy Commander on death; cleared by Revive
+  uavUntil: number; // #75 last tick it counts as UAV-discovered by the enemy Side (the Scan found it unseen, then the grace); see assets/scan.ts
+  uavAssist: boolean; // #75 the shot that downed it landed while UAV-discovered: scores for the enemy Commander on death; cleared by Revive
 }
 
 export interface Squad {
@@ -64,6 +68,9 @@ export interface Squad {
   // #41 Requests
   request: Request | null; // its open Request; see requests.ts
   requestNext: number; // first tick it may ask again
+  // #73 Ordered capture
+  taking: number; // index of the Capture Point it is contributing to taking, -1 = none; see capture.ts
+  takingSince: number; // tick it began
 }
 
 export interface Point {
@@ -116,6 +123,9 @@ export function hashSoldiers(m: Match, mix: Mix) {
     mix(s.reviving);
     mix(s.deadAt);
     mix(s.ammo);
+    mix(s.cause === 'barrage' ? 1 : 0);
+    mix(s.uavUntil); // #75
+    mix(+s.uavAssist);
   }
 }
 
@@ -125,5 +135,7 @@ export function hashSquads(m: Match, mix: Mix) {
     mix(sq.goal);
     mix(sq.lastSeen);
     mix(sq.lastHit);
+    mix(sq.taking + 1); // #73
+    mix(sq.takingSince);
   }
 }

@@ -1,8 +1,9 @@
-// Capture Points, the Ticket drain and the end of the Match.
+// Capture Points, the Ticket drain and the end of the Match; a capture under an Order earns the Commander Score (#73).
 import type { Match } from './index';
 import { dist2 } from './geometry';
-import { sideOf, sign, stageTicks, type Mix, type Point } from './state';
-import { enemyOf, type SideId } from './types';
+import { award } from './score';
+import { callName, sideOf, sign, stageTicks, type Mix, type Point } from './state';
+import { enemyOf, type SideId, type SimEvent } from './types';
 
 /** Living Soldiers of `side` inside the point; the Wounded and the dead don't count. */
 export function insideCount(m: Match, p: Point, side: SideId): number {
@@ -11,15 +12,45 @@ export function insideCount(m: Match, p: Point, side: SideId): number {
   return n;
 }
 
-export function capture(m: Match, p: Point) {
+export function capture(m: Match, p: Point, events: SimEvent[]) {
   const t = m.tune;
   const stage = stageTicks(t);
   const margin = insideCount(m, p, 'nato') - insideCount(m, p, 'pact');
   if (margin === 0) return;
+  if (p.owner !== sideOf(margin)) contribute(m, p, sideOf(margin)); // #73
   const rate = Math.min(t.captureMaxMultiplier, 1 + t.captureBonusPerExtra * (Math.abs(margin) - 1));
   p.progress = Math.max(-stage, Math.min(stage, p.progress + Math.sign(margin) * rate));
   if (p.owner && Math.sign(p.progress) !== sign(p.owner)) p.owner = null; // an enemy point goes neutral first
-  if (!p.owner && Math.abs(p.progress) >= stage) p.owner = sideOf(p.progress);
+  if (!p.owner && Math.abs(p.progress) >= stage) {
+    p.owner = sideOf(p.progress);
+    taken(m, p, events); // #73
+  }
+}
+
+/**
+ * #73: a Squad begins contributing to a capture on the first tick a living member is inside the point while its Side's
+ * progress is moving towards taking it. That tick stays through contested or interrupted spells (the Squad may leave and
+ * return) until the point is taken by either Side, which ends the capture; a Squad contributing to another point starts afresh.
+ */
+function contribute(m: Match, p: Point, side: SideId) {
+  const i = m.points.indexOf(p);
+  for (const s of m.soldiers) {
+    if (s.side !== side || s.state !== 'alive' || dist2(s, p) >= p.radius * p.radius) continue;
+    const sq = m.squads[s.squad]!;
+    if (sq.taking !== i) Object.assign(sq, { taking: i, takingSince: m.tick });
+  }
+}
+
+/**
+ * #73: the point is just taken. The Commander scores once if any contributing Squad holds an Order on it given before it began
+ * contributing, with no Command (a clear or any new Order) still awaiting acknowledgement. Orders have no attack/hold kind: hold
+ * is derived from ownership, so a hold Order on a point since lost counts when the Squad retakes it.
+ */
+function taken(m: Match, p: Point, events: SimEvent[]) {
+  const i = m.points.indexOf(p);
+  const ordered = m.squads.some((sq) => sq.side === p.owner && sq.taking === i && !sq.pending && sq.order?.point === i && sq.order.since < sq.takingSince);
+  for (const sq of m.squads) if (sq.taking === i) sq.taking = -1;
+  if (ordered) award(m, p.owner!, 'orders', m.tune.scoreOrderedCapture, `Ordered capture of ${callName(p.name)}`, events);
 }
 
 /** The Side with more Capture Points drains the other's Tickets; the interval restarts when the lead changes. */
