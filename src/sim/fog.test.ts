@@ -157,6 +157,19 @@ describe('the enemy roster', () => {
   });
 });
 
+describe('a Cruise Missile in the sky (#99)', () => {
+  it('is in the enemy view too, as an effect with its caller, launch point and flight, and nothing else new', () => {
+    const m = scene({}, { map: { points: [{ id: 'C', name: 'C', x: 0, y: 0, owner: 'nato' }] }, tune: { missileCooldownSeconds: 0 } });
+    step(m, [{ tick: 0, side: 'nato', kind: 'asset', asset: 'missile', at: { x: 100, y: 0 } }]);
+    const enemy = commanderView(m, 'pact');
+    expect(Object.keys(enemy).sort()).toEqual(['assets', 'contacts', 'effects', 'friendlies', 'lastKnown', 'points', 'result', 'score', 'seconds', 'side', 'squads', 'tick', 'tickets']);
+    expect(enemy.effects).toHaveLength(1);
+    expect(Object.keys(enemy.effects![0]!).sort()).toEqual(['asset', 'flight', 'from', 'impactIn', 'left', 'radius', 'side', 'total', 'x', 'y']);
+    expect(enemy.effects![0]).toMatchObject({ asset: 'missile', side: 'nato', x: 100, y: 0 });
+    expect(enemy.effects).toEqual(commanderView(m, 'nato').effects);
+  });
+});
+
 describe('effect events', () => {
   /** Steps `ticks` times; each Side's filtered events, with the raw ones for comparison. */
   function watch(m: Match, ticks: number) {

@@ -12,6 +12,8 @@ describe('devTune', () => {
     expect(t.scanCooldownSeconds).toBe(0);
     expect(t.supplyCooldownSeconds).toBe(0);
     expect(t.barrageCooldownSeconds).toBe(0);
+    expect(t.missileCooldownSeconds).toBe(0);
+    expect(t.missileGated).toBe(false);
     expect(t.matchSeconds).toBe(3600);
     expect(t).not.toBe(DEFAULT_TUNE);
   });

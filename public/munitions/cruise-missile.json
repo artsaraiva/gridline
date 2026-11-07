@@ -1,0 +1,11 @@
+{
+  "frames": 129,
+  "framePx": 128,
+  "cols": 16,
+  "constants": {
+    "MISSILE_PITCH_FRAMES": 4,
+    "MISSILE_HEADINGS": 16,
+    "MISSILE_FACTIONS": 2,
+    "MISSILE_WORLD_M": 6.5
+  }
+}

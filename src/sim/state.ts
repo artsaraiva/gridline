@@ -38,7 +38,7 @@ export interface Soldier {
   slot: number; // seeded scale of its wedge slot
   blocked: number; // ticks it has been stuck
   // #55 Commander Score
-  cause: 'barrage' | null; // what an enemy Asset did to it: scores for the enemy Commander on death; cleared by Revive
+  cause: 'barrage' | 'missile' | null; // what an enemy Strike did to it: scores for the enemy Commander on death; cleared by Revive
   uavUntil: number; // #75 last tick it counts as UAV-discovered by the enemy Side (the Scan found it unseen, then the grace); see assets/scan.ts
   uavAssist: boolean; // #75 the shot that downed it landed while UAV-discovered: scores for the enemy Commander on death; cleared by Revive
 }
@@ -124,7 +124,7 @@ export function hashSoldiers(m: Match, mix: Mix) {
     mix(s.reviving);
     mix(s.deadAt);
     mix(s.ammo);
-    mix(s.cause === 'barrage' ? 1 : 0);
+    mix(s.cause === 'barrage' ? 1 : s.cause === 'missile' ? 2 : 0);
     mix(s.uavUntil); // #75
     mix(+s.uavAssist);
   }

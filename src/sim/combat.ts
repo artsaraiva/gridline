@@ -107,7 +107,7 @@ export function die(m: Match, s: Soldier, events: SimEvent[]) {
   m.tickets[s.side] = Math.max(0, m.tickets[s.side] - 1);
   logDeath(m, { side: s.side, x: s.x, y: s.y, tick: m.tick });
   events.push({ kind: 'death', side: s.side, id: s.id, x: s.x, y: s.y });
-  if (s.cause === 'barrage') award(m, enemyOf(s.side), 'artillery', m.tune.scoreArtilleryKill, 'Barrage kill', events); // #55: the enemy Commander's strike
+  if (s.cause) award(m, enemyOf(s.side), 'artillery', m.tune.scoreArtilleryKill, s.cause === 'missile' ? 'Missile kill' : 'Barrage kill', events); // #55 #99: the enemy Commander's Strike
   if (s.uavAssist) award(m, enemyOf(s.side), 'uav', m.tune.scoreUavAssist, 'UAV assist', events); // #75: and their Scan
   s.cause = null;
   s.uavAssist = false;

@@ -7,6 +7,7 @@ import type { Mix } from '../state';
 import type { Soldier } from '../state';
 import { enemyOf, SIDES, type AssetKind, type AssetView, type Command, type EffectView, type SideId, type SimEvent, type Tune, type Vec2 } from '../types';
 import { barrage, type Shell } from './barrage';
+import { missile } from './missile';
 import { scan } from './scan';
 import { supply } from './supply';
 
@@ -19,6 +20,9 @@ export interface Effect {
   until: number;
   told: boolean; // its "on effect" radio line went out
   shells?: Shell[]; // #40 Barrage
+  from?: Vec2; // #99 Cruise Missile: where it was launched ...
+  launch?: number; // ... on this tick ...
+  land?: number; // ... and the tick it lands
   given?: Record<number, number>; // #74 Supply Drop: Commander Score points each Soldier (by id) drew from this crate
   open?: Record<number, number>; // #74 Supply Drop: of those, what the Console has not heard of yet
 }
@@ -30,11 +34,17 @@ export interface Assets {
 
 export interface Kind {
   name: string;
+  /** #99: the radio line at the call; `${name} inbound` when unset. */
+  called?: string;
+  /** #99: in the sky, so both Sides' views carry its effect (fog hides nothing up there). */
+  sky?: boolean;
   cooldownSeconds(t: Tune): number;
   seconds(t: Tune): number; // how long the effect works
   radius(t: Tune): number;
   /** Runs once a tick while the effect works. */
   work(m: Match, e: Effect, events: SimEvent[]): void;
+  /** #99: why `side` can't call it right now (the row shows it), or null; the cooldown runs regardless. */
+  gate?(m: Match, side: SideId): string | null;
   /** #40: ready this long after the match starts, rather than at once. */
   firstReadySeconds?(t: Tune): number;
   /** #40: runs once as the Asset is called, to set up the effect (seeded draws go here). */
@@ -49,8 +59,8 @@ export interface Kind {
   fall?(t: Tune): number;
 }
 
-const KINDS: Partial<Record<AssetKind, Kind>> = { scan, supply, barrage };
-const ORDER: AssetKind[] = ['scan', 'supply', 'barrage'];
+const KINDS: Partial<Record<AssetKind, Kind>> = { scan, supply, barrage, missile };
+const ORDER: AssetKind[] = ['scan', 'supply', 'barrage', 'missile'];
 const kinds = () => ORDER.filter((k) => KINDS[k]);
 
 export function newAssets(t: Tune): Assets {
@@ -68,6 +78,8 @@ export function assetRadio(m: Match, e: Effect, text: string, events: SimEvent[]
 export function checkCall(m: Match, c: Extract<Command, { kind: 'asset' }>): string | null {
   if (!KINDS[c.asset]) return 'not available';
   if (m.tick < m.assets.readyAt[c.side][c.asset]!) return 'cooling down';
+  const off = KINDS[c.asset]!.gate?.(m, c.side);
+  if (off) return off;
   if (!insidePolygon(m.map.playArea, c.at.x, c.at.y)) return 'outside the Play Area';
   if (inHq(m, enemyOf(c.side), c.at)) return 'on the enemy HQ';
   return null;
@@ -81,7 +93,7 @@ export function call(m: Match, c: Extract<Command, { kind: 'asset' }>, events: S
   const e: Effect = { side: c.side, asset: c.asset, x: c.at.x, y: c.at.y, until: m.tick + Math.round(kind.seconds(t) * t.hz), told: false };
   kind.start?.(m, e);
   m.assets.effects.push(e);
-  assetRadio(m, e, `${kind.name} inbound`, events);
+  assetRadio(m, e, kind.called ?? `${kind.name} inbound`, events);
 }
 
 /** The Asset phase: every effect works, then the ones whose time is up go. */
@@ -97,12 +109,16 @@ export function assetContacts(m: Match, side: SideId): Soldier[] {
 
 export function assetViews(m: Match, side: SideId): AssetView[] {
   const t = m.tune;
-  return kinds().map((k) => ({
-    asset: k,
-    readyIn: Math.max(0, m.assets.readyAt[side][k]! - m.tick) / t.hz,
-    cooldown: KINDS[k]!.cooldownSeconds(t),
-    radius: KINDS[k]!.radius(t),
-  }));
+  return kinds().map((k) => {
+    const off = KINDS[k]!.gate?.(m, side);
+    return {
+      asset: k,
+      readyIn: Math.max(0, m.assets.readyAt[side][k]! - m.tick) / t.hz,
+      cooldown: KINDS[k]!.cooldownSeconds(t),
+      radius: KINDS[k]!.radius(t),
+      ...(off && { off }),
+    };
+  });
 }
 
 const fallView = (m: Match, e: Effect) => {
@@ -113,7 +129,7 @@ const fallView = (m: Match, e: Effect) => {
 export function effectViews(m: Match, side: SideId): EffectView[] {
   const t = m.tune;
   return m.assets.effects
-    .filter((e) => e.side === side)
+    .filter((e) => e.side === side || KINDS[e.asset]!.sky)
     .map((e) => ({ asset: e.asset, x: e.x, y: e.y, radius: KINDS[e.asset]!.radius(t), left: (e.until - m.tick) / t.hz, total: KINDS[e.asset]!.seconds(t), ...fallView(m, e), ...KINDS[e.asset]!.view?.(m, e) }));
 }
 

@@ -227,6 +227,15 @@ export interface Tune {
   scoreSupplyPerFraction: number; // x (health fraction + ammo fraction) a Supply Drop restores ...
   scoreSupplyCapPerRecipient: number; // ... capped at this per Soldier per drop
   scoreUavGraceSeconds: number; // a UAV discovery lasts this long after the UAV stops seeing the enemy
+
+  // #99 Cruise Missile
+  missileCooldownSeconds: number; // from the call; the missile also starts the match on this cooldown
+  missileSpeedMps: number; // level flight from the launch point beyond the own map edge straight to the spot
+  missileKillM: number; // the one blast kills within this ...
+  missileWoundM: number; // ... Wounds within this ...
+  missileSuppressM: number; // ... and suppresses within this (the zone ring)
+  missileSuppression: number; // suppression (0..1) the blast leaves
+  missileGated: boolean; // the call needs the middle Capture Point; off for review scenes (`?free=1`)
 }
 
 /** #55: what a Commander Score award is for. */
@@ -234,9 +243,11 @@ export type ScoreCategory = 'uav' | 'supply' | 'artillery' | 'orders';
 
 export type Command =
   | { tick: number; side: SideId; kind: 'order'; squad: number; point: string | null }
-  | { tick: number; side: SideId; kind: 'asset'; asset: 'scan' | 'supply' | 'barrage'; at: Vec2 };
+  | { tick: number; side: SideId; kind: 'asset'; asset: 'scan' | 'supply' | 'barrage' | 'missile'; at: Vec2 };
 
 export type AssetKind = Extract<Command, { kind: 'asset' }>['asset'];
+/** #99: what a Squad may Request: never a Cruise Missile (#58). */
+export type RequestKind = Exclude<AssetKind, 'missile'>;
 
 export interface MatchResult {
   winner: SideId | null; // null = draw
@@ -297,7 +308,7 @@ export interface SquadView {
    * #41: the Squad's open Request, null/absent = none: the Asset it asks for, the centre of the Grid Reference it names
    * (`at`, null `grid` only on a map without one) and the seconds left before it expires.
    */
-  request?: { asset: AssetKind; at: Vec2; grid: string | null; left: number } | null;
+  request?: { asset: RequestKind; at: Vec2; grid: string | null; left: number } | null;
 }
 
 export interface PointView {
@@ -348,6 +359,8 @@ export interface AssetView {
   cooldown: number;
   /** Metres around the spot it acts on, for the preview ring. */
   radius: number;
+  /** #99: why the row is off (e.g. `needs C` for a point-gated Asset); the cooldown runs regardless. Absent when it can be called. */
+  off?: string;
 }
 
 export interface EffectView {
@@ -368,6 +381,13 @@ export interface EffectView {
   shells?: { x: number; y: number; flight: number }[];
   /** #40 Barrage: seconds until the first shell lands; 0 once it has. */
   impactIn?: number;
+  // #99 Cruise Missile: in the sky, so in both Sides' views
+  /** Who called it. Only on a missile. */
+  side?: SideId;
+  /** Where it was launched, beyond the Play Area behind the caller's HQ. Only on a missile. */
+  from?: Vec2;
+  /** How far along its flight it is (0..1); 1 once it has hit. Only on a missile. */
+  flight?: number;
 }
 
 /** Things that happened this tick, on every Side; `commanderEvents` keeps the ones a Side's Console may show. */
@@ -389,7 +409,7 @@ export type SimEvent =
   | { kind: 'radio'; side: SideId; squad: number | null; type: string; text: string; grid?: string; priority: number }
   /** #34: suppressive fire: a round at (x, y) near a Last Known Position, with no enemy in view. */
   | { kind: 'suppressive'; side: SideId; from: number; x: number; y: number; hit: boolean }
-  /** #40: a Barrage shell landed at (x, y); `side` called it. */
-  | { kind: 'impact'; side: SideId; x: number; y: number }
+  /** #40: a Barrage shell landed at (x, y); `side` called it. #99: or a Cruise Missile (`asset`). */
+  | { kind: 'impact'; side: SideId; x: number; y: number; asset: 'barrage' | 'missile' }
   /** #55: `side`'s Commander earned `points` of Commander Score. `reason` is safe to show: it never names a position or an unseen enemy. */
   | { kind: 'award'; side: SideId; category: ScoreCategory; points: number; reason: string };
