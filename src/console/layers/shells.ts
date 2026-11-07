@@ -2,30 +2,22 @@
 // thin bright streak back to its entry spot; after the hit the streak hangs in the air and fades. sprites/shell.ts
 // says where everything is; the Console's own impacts say where shells landed.
 import * as THREE from 'three/webgpu';
-import { uv } from 'three/tsl';
 import type { CommanderView, Vec2 } from '../../sim/types';
-import { BRIGHT, COLOR, GLOW, metresPerPx, pool } from '../renderer';
+import { metresPerPx, pool } from '../renderer';
 import { session } from '../session';
 import { spriteMesh } from '../sprites/sheet';
 import { barrageShells, SHELL_SHEET, shellStreak } from '../sprites/shell';
 import { recentImpacts } from './impacts';
+import { streak } from './symbols';
 
 /** The streak is this wide on screen, whatever the zoom. */
 const STREAK_PX = 2.5;
 /** A shell's streak hangs in the air after the hit and fades out over this long. */
 const STREAK_FADE_MS = 2500;
 
-/** A thin bright line, brightest at its head (uv.x = 1) and fading to nothing at its tail. */
-function streakMaterial() {
-  const material = new THREE.MeshBasicNodeMaterial({ color: COLOR.bone, transparent: true, depthWrite: false, side: THREE.DoubleSide });
-  material.opacityNode = BRIGHT.mul(uv().x.mul(0.15).add(0.85).mul(uv().x.pow(0.6)));
-  material.mrtNode = GLOW();
-  return material;
-}
-
 const quad = new THREE.PlaneGeometry(1, 1);
 const bodies = pool(() => spriteMesh(SHELL_SHEET));
-const streaks = pool(() => new THREE.Mesh(quad, streakMaterial()));
+const streaks = pool(() => new THREE.Mesh(quad, streak()));
 
 function streakAt(from: Vec2, to: Vec2, flight: number, opacity: number) {
   const m = streaks.next();
@@ -49,7 +41,7 @@ export function drawShells(view: CommanderView, now: number) {
     }
     const hq = map.hqs[view.side];
     // sqrt: the glow curve squares it back to a steady fade
-    for (const i of recentImpacts(now, STREAK_FADE_MS)) streakAt(hq, i, 1, Math.sqrt(1 - (now - i.at) / STREAK_FADE_MS));
+    for (const i of recentImpacts(now, STREAK_FADE_MS, 'barrage')) streakAt(hq, i, 1, Math.sqrt(1 - (now - i.at) / STREAK_FADE_MS));
   }
   bodies.end();
   streaks.end();

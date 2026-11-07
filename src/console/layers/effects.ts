@@ -12,7 +12,7 @@ import { clock } from '../summary';
 import { overlaps, targeting, validSpot } from '../targeting';
 import { css, dashedRing, fading } from './symbols';
 
-const NAME = { scan: 'Scan UAV', supply: 'Supply Drop', barrage: 'Barrage' };
+const NAME = { scan: 'Scan UAV', supply: 'Supply Drop', barrage: 'Barrage', missile: 'Missile' };
 const discGeometry = new THREE.CircleGeometry(1, 96);
 /** The Barrage ring turns this fast while it works, so an ongoing strike reads at a glance. */
 const RING_TURN_RAD_PER_S = 0.25;
@@ -67,10 +67,11 @@ function label(i: number, p: Vec2, dx: number, dy: number, text: string, color: 
 export function drawEffects(view: CommanderView, now: number) {
   let tags = 0;
   for (const e of view.effects ?? []) {
+    if (e.asset === 'missile') continue; // #99: layers/missile.ts draws its marker, ring and line
     const danger = e.asset === 'barrage';
     const r = ringAt(e, e.radius, danger ? COLOR.hostile : COLOR.friendly, danger ? 0.1 : 0.06);
     r.ring.mesh.rotation.z = danger ? (now / 1000) * RING_TURN_RAD_PER_S : 0;
-    if (danger) r.ring.alpha.value = 0.7 + 0.3 * Math.max(0, 1 - (now - lastImpactAt()) / RING_PULSE_MS);
+    if (danger) r.ring.alpha.value = 0.7 + 0.3 * Math.max(0, 1 - (now - lastImpactAt('barrage')) / RING_PULSE_MS);
     let time = clock(Math.ceil(e.left));
     if (e.landsIn !== undefined && e.fall) { // a Supply Drop crate: its ring brightens as it comes down
       const high = e.landsIn / e.fall;

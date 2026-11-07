@@ -3,7 +3,7 @@ import { CRATER_CAP, CRATER_SHEET, CRATER_VARIANTS, EXPLOSION_FRAMES, EXPLOSION_
 import { SMOKE_PUFF_VARIANTS } from './smoke-puff';
 
 describe('shell impact: explosion, drifting plume and lasting crater', () => {
-  const hit = (at = 0): ImpactRecord => recordImpact([], 50, -50, at).at(-1)!;
+  const hit = (at = 0): ImpactRecord => recordImpact([], 50, -50, at, 'barrage').at(-1)!;
 
   it('registers the baked explosion flipbook and crater decal sheets', () => {
     expect(EXPLOSION_SHEET.frames).toBe(EXPLOSION_FRAMES);
@@ -52,6 +52,18 @@ describe('shell impact: explosion, drifting plume and lasting crater', () => {
     expect(Math.max(...impactLook(hit(), EXPLOSION_MS + 1000).plume.map((p) => p.size))).toBeGreaterThan(look.crater.size * 2);
   });
 
+  it('a Cruise Missile hit is heavier: flash and crater 1.8 times a shell, the flash held 1.5 times as long', () => {
+    const missile = recordImpact([], 50, -50, 0, 'missile').at(-1)!; // same seed as hit(): same size jitter
+    const big = impactLook(missile, EXPLOSION_MS / 2);
+    const shell = impactLook(hit(), EXPLOSION_MS / 2);
+    expect(big.explosion!.size).toBeCloseTo(shell.explosion!.size * 1.8);
+    expect(big.crater.size).toBeCloseTo(shell.crater.size * 1.8);
+    expect(impactLook(hit(), EXPLOSION_MS * 1.2).explosion).toBeNull();
+    expect(impactLook(missile, EXPLOSION_MS * 1.2).explosion!.frame).toBeLessThan(EXPLOSION_FRAMES);
+    expect(impactLook(missile, EXPLOSION_MS * 1.5 - 40).explosion!.frame).toBe(EXPLOSION_FRAMES - 1);
+    expect(impactLook(missile, EXPLOSION_MS * 1.5).explosion).toBeNull();
+  });
+
   it('leaves a crater that stays for the match', () => {
     const i = hit();
     const c = impactLook(i, 0).crater;
@@ -62,7 +74,7 @@ describe('shell impact: explosion, drifting plume and lasting crater', () => {
 
   it('keeps at most CRATER_CAP impacts, removing the oldest first', () => {
     const list: ImpactRecord[] = [];
-    for (let k = 0; k < CRATER_CAP + 5; k++) recordImpact(list, k, 0, k);
+    for (let k = 0; k < CRATER_CAP + 5; k++) recordImpact(list, k, 0, k, 'barrage');
     expect(list).toHaveLength(CRATER_CAP);
     expect(list[0]!.x).toBe(5);
     expect(list.at(-1)!.x).toBe(CRATER_CAP + 4);

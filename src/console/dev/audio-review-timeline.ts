@@ -138,9 +138,9 @@ const artillery: Script = {
   events: [
     [BARRAGE.at, { ...NET, type: 'asset', text: 'Barrage inbound', grid: 'E5' }],
     [SHELLS[0]!.land, { ...NET, type: 'asset', text: 'Splash', grid: 'E5' }],
-    ...SHELLS.map((s): [number, SimEvent] => [s.land, { kind: 'impact', side: SIDE, x: s.x, y: s.y }]),
+    ...SHELLS.map((s): [number, SimEvent] => [s.land, { kind: 'impact', side: SIDE, x: s.x, y: s.y, asset: 'barrage' }]),
     [INCOMING.at, { ...NET, type: 'warning', text: 'Artillery incoming', grid: 'D5' }],
-    ...INCOMING.impacts.map((t, i): [number, SimEvent] => [t, { kind: 'impact', side: 'pact', x: -66 + (i % 3) * 8, y: 10 - (i % 2) * 14 }]),
+    ...INCOMING.impacts.map((t, i): [number, SimEvent] => [t, { kind: 'impact', side: 'pact', x: -66 + (i % 3) * 8, y: 10 - (i % 2) * 14, asset: 'barrage' }]),
     [LOST_AT, { ...NET, type: 'lost', text: 'Charlie lost', grid: 'E5' }],
     ...MEN.filter((m) => m.squad === 1).map((m): [number, SimEvent] => [WIPED_AT, { kind: 'death', side: SIDE, id: m.id, x: m.x, y: m.y }]),
     [WIPED_AT, { kind: 'radio', side: SIDE, squad: 1, type: 'wiped', text: 'Bravo wiped', grid: 'D5', priority: 5 }],
