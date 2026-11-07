@@ -88,7 +88,7 @@ export async function startAssetReview(): Promise<() => void> {
     commanderSide: 'nato',
     squadsPerSide: 3,
     seed: 60,
-    dev: { freeAssets: true },
+    dev: { freeAssets: true, tanks: 3 }, // #107: three tanks a Side, so they meet and fire
   });
 
   await drawMap(host.map);

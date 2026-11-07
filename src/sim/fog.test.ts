@@ -238,7 +238,7 @@ describe('#107: an enemy tank under the Soldier sight rules', () => {
     const v = play(parked(200), 1).at(-1)!;
     expect(v.contacts).toEqual([]);
     const tank = v.vehicles!.find((x) => x.side === 'pact')!;
-    expect(Object.keys(tank).sort()).toEqual(['fx', 'fy', 'id', 'kind', 'side', 'tx', 'ty', 'x', 'y']);
+    expect(Object.keys(tank).sort()).toEqual(['empty', 'fx', 'fy', 'id', 'kind', 'side', 'tx', 'ty', 'x', 'y']); // parked with nobody aboard
     expect(tank).toMatchObject({ id: 3, kind: 'tank', x: 200, y: 0, fx: -1, fy: 0 });
   });
 

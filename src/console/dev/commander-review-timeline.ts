@@ -41,13 +41,15 @@ function missileAt(t: number): EffectView[] {
 }
 
 // #107: Charlie's first two board their tank where they stand and drive it east up the road; an enemy tank comes into sight
-// by the bridge and the main gun fires on it twice. A nato Wreck from earlier lies by the road all along.
+// by the bridge and the main gun fires on it twice, each round flying out to it. A nato Wreck from earlier lies by the road
+// all along, and an abandoned nato tank (nobody aboard: the grey-white icon) stands off it.
 const TANK_AT = CHAPTERS[7]!.at;
 const TANK_ID = 30;
 const ENEMY_TANK_ID = 31;
 const TANK_PATH: Key[] = [[0, -150, -122], [TANK_AT + 2, -150, -122], [TANK_AT + 10, -96, -84], [TANK_AT + 14, -70, -76], [LENGTH, -70, -76]];
 const ENEMY_TANK = { x: 34, y: -58, fx: -0.94, fy: -0.34 };
 const SHOTS = [TANK_AT + 12, TANK_AT + 18];
+const ROUND_S = 0.8; // each round's flight
 const aboard = (id: number, t: number) => t >= TANK_AT && (id === 8 || id === 9);
 
 function tanksAt(t: number): VehicleView[] {
@@ -59,9 +61,11 @@ function tanksAt(t: number): VehicleView[] {
   const seen = t >= TANK_AT + 6;
   const lay = Math.hypot(ENEMY_TANK.x - p.x, ENEMY_TANK.y - p.y);
   const turret = seen ? { tx: (ENEMY_TANK.x - p.x) / lay, ty: (ENEMY_TANK.y - p.y) / lay } : { tx: hull.fx, ty: hull.fy };
-  const own: VehicleView = { id: TANK_ID, side: 'nato', kind: 'tank', ...p, ...hull, ...turret, hp: t >= SHOTS[1]! ? 0.65 : 1, seats: t >= TANK_AT ? [8, 9] : [-1, -1] };
+  const rounds = SHOTS.filter((s) => t >= s - ROUND_S && t < s).map((s) => ({ from: at(TANK_PATH, s - ROUND_S), to: { x: ENEMY_TANK.x, y: ENEMY_TANK.y }, flight: (t - s + ROUND_S) / ROUND_S }));
+  const own: VehicleView = { id: TANK_ID, side: 'nato', kind: 'tank', ...p, ...hull, ...turret, hp: t >= SHOTS[1]! ? 0.65 : 1, seats: t >= TANK_AT ? [8, 9] : [-1, -1], ...(t < TANK_AT && { empty: true }), ...(rounds.length && { rounds }) };
   const enemy: VehicleView = { id: ENEMY_TANK_ID, side: 'pact', kind: 'tank', ...ENEMY_TANK, tx: -0.99, ty: -0.12 };
-  return [wreck, own, ...(seen ? [enemy] : [])];
+  const abandoned: VehicleView = { id: 32, side: 'nato', kind: 'tank', x: -112, y: -40, fx: -0.3, fy: 0.95, tx: 0.5, ty: 0.87, hp: 0.3, seats: [-1, -1], empty: true };
+  return [wreck, own, abandoned, ...(seen ? [enemy] : [])];
 }
 
 type Span = [number, number];

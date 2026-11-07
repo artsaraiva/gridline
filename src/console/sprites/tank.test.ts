@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { VehicleView } from '../../sim/types';
-import { TANK_EXAGGERATION, TANK_HEADINGS, TANK_SHEET, TANK_WORLD_M, tankPose } from './tank';
+import { ROUND_STREAK_M, roundStreak, TANK_EXAGGERATION, TANK_HEADINGS, TANK_SHEET, TANK_WORLD_M, tankIcon, tankPose } from './tank';
 
 const STEP = (2 * Math.PI) / TANK_HEADINGS;
 const tank = (o: Partial<VehicleView> = {}): VehicleView => ({ id: 9, side: 'nato', kind: 'tank', x: 10, y: -4, fx: 1, fy: 0, tx: 1, ty: 0, ...o });
@@ -34,5 +34,19 @@ describe('tank pose', () => {
     const p = tankPose(tank({ side: 'pact', wreck: true }));
     expect(p.hull.frame).toBe(4 * TANK_HEADINGS);
     expect(p.turret.frame).toBe(5 * TANK_HEADINGS);
+  });
+
+  it('marks a tank with a tactical icon in its Side\'s colour, grey-white while nobody is aboard, none on a Wreck', () => {
+    expect(tankIcon(tank(), 'nato')).toBe('friendly');
+    expect(tankIcon(tank({ side: 'pact' }), 'nato')).toBe('hostile');
+    expect(tankIcon(tank({ empty: true }), 'nato')).toBe('empty');
+    expect(tankIcon(tank({ side: 'pact', empty: true }), 'nato')).toBe('empty');
+    expect(tankIcon(tank({ wreck: true }), 'nato')).toBeNull();
+  });
+
+  it('draws a main gun round as a short streak at its point along the flight, never reaching back past the muzzle', () => {
+    const r = { from: { x: 0, y: 0 }, to: { x: 140, y: 0 }, flight: 0.5 };
+    expect(roundStreak(r)).toEqual({ x: 70 - ROUND_STREAK_M / 2, y: 0, length: ROUND_STREAK_M, angle: 0 });
+    expect(roundStreak({ ...r, flight: 0.02 })).toMatchObject({ x: expect.closeTo(1.4), length: expect.closeTo(2.8) });
   });
 });

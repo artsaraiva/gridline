@@ -19,9 +19,9 @@ function map(points: { x: number; y: number }[], pactHqX = 3000): MapData {
   };
 }
 
-/** Nobody sees anybody, nobody strays (#93) and nobody boards the tank (#107) unless `tune` says so: these tests check capture and drain with Squads arriving whole and no combat in the way. */
+/** Nobody sees anybody, nobody strays (#93) and no tanks (#107) unless `tune` says so: these tests check capture and drain with Squads arriving whole and no combat in the way. */
 function start(m: MapData, tune: Partial<Tune> = {}, squadsPerSide = 1, seed = 1): Match {
-  return createMatch({ seed, map: m, tune: { ...DEFAULT_TUNE, visionM: 0, strayChance: 0, boardMinM: Infinity, ...tune }, squadsPerSide, commanderSide: 'nato' });
+  return createMatch({ seed, map: m, tune: { ...DEFAULT_TUNE, visionM: 0, strayChance: 0, tanksPerSide: 0, ...tune }, squadsPerSide, commanderSide: 'nato' });
 }
 
 /** The nato Commander view, plus the pact Soldiers from the pact view: ground truth the fog hides from nato. */
@@ -152,7 +152,7 @@ describe('tickets', () => {
     };
     const rates = [1, 2, 3, 4, 5].map(lost);
     expect(rates.every((n, i) => i === 0 || n > rates[i - 1]!)).toBe(true);
-  });
+  }, 15_000); // five minutes of Match on a 3.6 km map: ~3.5 s alone, past 5 s beside the rest of the suite
 
   it('a Side loses the moment its Tickets reach 0', () => {
     const views = runaway({ tickets: 20 });

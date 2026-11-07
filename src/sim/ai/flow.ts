@@ -141,7 +141,7 @@ export function warmFlows(m: Match) {
   }
   for (const side of SIDES) {
     hqFlow(m, side);
-    for (let i = 0; i < m.points.length; i++) driveFlow(m, side, i);
+    if (m.vehicles.some((v) => v.side === side)) for (let i = 0; i < m.points.length; i++) driveFlow(m, side, i);
   }
 }
 

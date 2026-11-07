@@ -20,7 +20,7 @@ interface Placement {
  * their HQ. Placing Soldiers (and their ammo) is the only reach past the Simulation interface: it stands in for a map script.
  */
 function scene(o: { map: MapData; place?: Record<number, Placement>; tune?: Partial<Tune>; squads?: number; seed?: number }): Match {
-  const tune: Tune = { ...DEFAULT_TUNE, speedJitter: 0, boardMinM: Infinity, ...o.tune }; // #107: infantry rules only, nobody boards the tank
+  const tune: Tune = { ...DEFAULT_TUNE, speedJitter: 0, tanksPerSide: 0, ...o.tune }; // #107: infantry rules only, no tanks
   const m = createMatch({ seed: o.seed ?? 1, map: o.map, tune, squadsPerSide: o.squads ?? 1, commanderSide: 'nato' });
   for (const [id, p] of Object.entries(o.place ?? {})) Object.assign(m.soldiers[Number(id)]!, p);
   return m;
@@ -227,7 +227,7 @@ describe('loose squads', () => {
   });
 
   it('#106: with `squadPull` high no stray ends Detached over a whole match (15 min at most)', () => {
-    const m = createMatch({ seed: 7, map: RIVER_FIELD, tune: { ...DEFAULT_TUNE, squadPull: 10 }, squadsPerSide: 4, commanderSide: 'nato' });
+    const m = createMatch({ seed: 7, map: RIVER_FIELD, tune: { ...DEFAULT_TUNE, squadPull: 10, tanksPerSide: 0 }, squadsPerSide: 4, commanderSide: 'nato' });
     for (let i = 0; i < 15 * 60 * HZ; i++) {
       step(m, []);
       if (i % HZ === 0) expect(detachedIds(m)).toEqual([]);

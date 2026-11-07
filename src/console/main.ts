@@ -76,7 +76,7 @@ renderer.setAnimationLoop(() => {
   drawSupplyDrops(view, scale);
   drawShells(view, now);
   drawMissiles(view, scale);
-  drawTanks(view);
+  drawTanks(view, scale);
   drawOrders(view, metresPerPx.value);
   drawDeathMarkers(now, scale);
   drawLastKnown(view, scale);

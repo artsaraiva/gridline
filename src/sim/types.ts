@@ -266,6 +266,8 @@ export interface Tune {
   tankSuppressM: number; // ... and suppresses within this
   tankSuppression: number;
   tankVsVehicleDamage: number; // an enemy tank's main gun on a vehicle within its kill radius
+  tankShellMps: number; // a main gun round flies to the spot at this speed, then lands
+  tanksPerSide: number; // tank slots in each HQ (1; more for review scenes)
   coaxFireSeconds: number; // the gunner's coax: the rifle shot model this often ...
   coaxRangeM: number; // ... at infantry this close
   rockets: number; // a Launcher (roster member 1 of every Squad) carries this many, refilled like ammo
@@ -335,6 +337,10 @@ export interface VehicleView {
   hp?: number;
   /** Own only: Soldier ids in the seats, driver first, -1 free. */
   seats?: number[];
+  /** Nobody aboard (it shows as an unmanned vehicle). Absent when someone is. */
+  empty?: boolean;
+  /** Main gun rounds in the air: from the muzzle spot to where each lands, `flight` 0..1 along. */
+  rounds?: { from: Vec2; to: Vec2; flight: number }[];
 }
 
 /** A friendly Squad. New fields go in optional (`?`), so view literals in other tickets and tests still typecheck. */

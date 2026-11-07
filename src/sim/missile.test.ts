@@ -27,7 +27,7 @@ type Placement = { x: number; y: number };
 
 /** nato Soldiers 0..n-1, pact n..2n-1, stood where placed (else at their HQ); nobody fires or walks unless told. */
 function scene(place: Record<number, Placement> = {}, tune: Partial<Tune> = {}, seed = 1, map: MapData = field): Match {
-  const t: Tune = { ...DEFAULT_TUNE, squadSize: 6, speedJitter: 0, spread: 0, fireRangeM: 0, walkSpeed: 0, missileCooldownSeconds: 0, boardMinM: Infinity, ...tune }; // #107: nobody boards the tank
+  const t: Tune = { ...DEFAULT_TUNE, squadSize: 6, speedJitter: 0, spread: 0, fireRangeM: 0, walkSpeed: 0, missileCooldownSeconds: 0, tanksPerSide: 0, ...tune }; // #107: no tanks
   const m = createMatch({ seed, map, tune: t, squadsPerSide: 1, commanderSide: 'nato' });
   for (const [id, p] of Object.entries(place)) Object.assign(m.soldiers[Number(id)]!, p);
   return m;

@@ -1,5 +1,5 @@
 // The tank (#107): its baked sheet (hull and turret apart, per paint variant) and the pose that turns them. layers/tank.ts draws it.
-import type { VehicleView } from '../../sim/types';
+import type { SideId, Vec2, VehicleView } from '../../sim/types';
 import type { SpriteSheetSpec } from './sheet';
 
 /** Headings baked per part (heading k at k * 360 / TANK_HEADINGS deg from east). */
@@ -53,4 +53,24 @@ export function tankPose(v: VehicleView, exaggeration = TANK_EXAGGERATION): Tank
     turret: part(variant * 2 + 1, v.tx, v.ty),
     shadow: { hull: { frame: shadow, rotation: Math.atan2(v.fy, v.fx) }, turret: { frame: shadow + 1, rotation: Math.atan2(v.ty, v.tx) } },
   };
+}
+
+/** The tactical icon's colour role: the Side's (friendly, hostile), grey-white while nobody is aboard; a Wreck has none. */
+export function tankIcon(v: VehicleView, mySide: SideId): 'friendly' | 'hostile' | 'empty' | null {
+  if (v.wreck) return null;
+  return v.empty ? 'empty' : v.side === mySide ? 'friendly' : 'hostile';
+}
+
+/** A main gun round's streak trails this far behind its head. */
+export const ROUND_STREAK_M = 12;
+
+/** The streak of a round `flight` (0..1) of the way from `from` to `to`: its centre, length and angle; it starts at the muzzle. */
+export function roundStreak(r: { from: Vec2; to: Vec2; flight: number }) {
+  const dx = r.to.x - r.from.x;
+  const dy = r.to.y - r.from.y;
+  const d = Math.hypot(dx, dy) || 1;
+  const head = Math.min(1, Math.max(0, r.flight)) * d;
+  const length = Math.min(ROUND_STREAK_M, head);
+  const mid = head - length / 2;
+  return { x: r.from.x + (dx / d) * mid, y: r.from.y + (dy / d) * mid, length, angle: Math.atan2(dy, dx) };
 }

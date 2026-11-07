@@ -188,6 +188,8 @@ export const DEFAULT_TUNE: Tune = {
   tankSuppressM: 12,
   tankSuppression: 0.9,
   tankVsVehicleDamage: 50,
+  tankShellMps: 140,
+  tanksPerSide: 1,
   coaxFireSeconds: 0.15,
   coaxRangeM: 160,
   rockets: 2,

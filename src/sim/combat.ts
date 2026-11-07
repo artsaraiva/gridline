@@ -9,7 +9,7 @@ import { rnd } from './rng';
 import { award } from './score';
 import { membersOf, vehicleOf, type Soldier } from './state';
 import { enemyOf, type SimEvent, type Vec2 } from './types';
-import { aimMainGuns, hurt, isLauncher, landMainGuns, leave, rocketTarget, type Vehicle } from './vehicles';
+import { hurt, isLauncher, leave, mainGuns, rocketTarget, type Vehicle } from './vehicles';
 
 interface Shot {
   shooter: Soldier;
@@ -97,7 +97,6 @@ export function fire(m: Match, events: SimEvent[]) {
     const shot = v ? coax(m, s, v) : (rocket(m, s) ?? aim(m, s) ?? suppressive(m, s));
     if (shot) shots.push(shot);
   }
-  const guns = aimMainGuns(m);
   for (const { shooter, target: e, hit, damage, at, near, rocket } of shots) {
     if (rocket) {
       hurt(m, rocket, damage, shooter.side, null, events);
@@ -122,7 +121,7 @@ export function fire(m: Match, events: SimEvent[]) {
     e.uavAssist ||= m.tick <= e.uavUntil; // #75: the downing shot fixes whether the UAV gets the assist
     wound(m, e, events);
   }
-  landMainGuns(m, guns, events); // #107
+  mainGuns(m, events); // #107
 }
 
 /** Shot down: bleeding out, not dead. */

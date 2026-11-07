@@ -30,6 +30,17 @@ export interface Vehicle {
   target: number; // main gun target id (Soldier or vehicle), -1 = none
   coax: number; // coax target Soldier id, -1 = none
   nextFire: number; // tick the main gun may fire again
+  rounds: Round[]; // main gun rounds in the air (they land even if it dies meanwhile)
+}
+
+/** A main gun round: fired from (x0, y0) at tick `launch`, landing on (x, y) at tick `land`. */
+export interface Round {
+  x0: number;
+  y0: number;
+  x: number;
+  y: number;
+  launch: number;
+  land: number;
 }
 
 /** A destroyed vehicle where it died, for the rest of the Match. `seen`: the enemy saw it die. */
@@ -47,13 +58,19 @@ export const live = (v: Vehicle) => v.deadAt < 0;
 export const riders = (m: Match, v: Vehicle) => v.seats.filter((id) => id >= 0).map((id) => m.soldiers[id]!);
 const squared = (r: number) => r * r;
 
-/** The first fresh tank of each Side, in its slot: the map's, else the drivable cell nearest its HQ. */
+/**
+ * The first fresh tanks of each Side, `tanksPerSide` of them, in their slots: the map's (else the drivable cell nearest the
+ * HQ), each further one 9 m farther toward the field.
+ */
 export function newVehicles(m: Match): Vehicle[] {
-  return SIDES.map((side, i) => {
+  return SIDES.flatMap((side) => {
     const hq = m.map.hqs[side];
-    const slot = m.map.vehicleSlots?.[side] ?? nearestWalkable(m, { x: hq.x, y: hq.y }, m.drive[side]);
-    return { id: m.soldiers.length + i, side, kind: 'tank', ...slot, fx: side === 'nato' ? 1 : -1, fy: 0, hp: m.tune.tankHp, seats: [-1, -1], slot, parked: true, deadAt: -1, goal: -1, departAt: 0, target: -1, coax: -1, nextFire: 0 };
-  });
+    const first = m.map.vehicleSlots?.[side] ?? nearestWalkable(m, { x: hq.x, y: hq.y }, m.drive[side]);
+    return Array.from({ length: m.tune.tanksPerSide }, (_, k) => {
+      const slot = nearestWalkable(m, { x: first.x + (side === 'nato' ? 9 : -9) * k, y: first.y }, m.drive[side]);
+      return { side, kind: 'tank' as const, ...slot, fx: side === 'nato' ? 1 : -1, fy: 0, hp: m.tune.tankHp, seats: [-1, -1], slot, parked: true, deadAt: -1, goal: -1, departAt: 0, target: -1, coax: -1, nextFire: 0, rounds: [] };
+    });
+  }).map((v, i) => ({ ...v, id: m.soldiers.length + i }));
 }
 
 /** The Capture Point `s` is heading for: its own when Detached, else its Squad's; -1 when that is not a Capture Point. */
@@ -90,6 +107,20 @@ export function mount(m: Match, v: Vehicle, s: Soldier, goal: number) {
     vehicle: v.id, x: v.x, y: v.y, fx: v.fx, fy: v.fy, target: -1, lastTarget: -1, reviving: -1, suppression: 0,
     dest: null, path: [], cover: null, chaseUntil: 0, role: null, regroup: false, strayUntil: 0, // a Detached rider keeps its own goal
   });
+}
+
+/**
+ * A Soldier coming back from the dead (Squad Respawn or Redeploy) takes a seat if one waits for it: in the Squad Leader's
+ * vehicle while the leader rides one, else in a friendly vehicle with nobody driving (fit to fight: a third of its hit points
+ * or more), as its driver. True when it did.
+ */
+export function boardOnReturn(m: Match, sq: Squad, s: Soldier): boolean {
+  const lead = m.soldiers[sq.members[0]!]!;
+  const mine = lead.state === 'alive' ? vehicleOf(m, lead.vehicle) : undefined;
+  const v = mine?.seats.includes(-1) ? mine : m.vehicles.find((o) => o.side === s.side && live(o) && o.seats[0] === -1 && o.hp >= m.tune.tankHp / 3);
+  if (!v) return false;
+  mount(m, v, s, goalOf(m, sq, s));
+  return true;
 }
 
 /**
@@ -207,28 +238,25 @@ export function seeVehicles(m: Match, s: Soldier, sq: Squad) {
 export const targetOf = (m: Match, v: Vehicle): Vec2 | undefined => m.soldiers[v.target] ?? vehicleOf(m, v.target);
 
 /**
- * The combat phase, before any shot lands: each driver whose main gun is due fires at a target in range; returns where each
- * round lands (its target's spot) and starts the interval.
+ * The combat phase: each driver whose main gun is due fires at its target in range, a round that flies to the target's spot
+ * at `tankShellMps`; then every round due lands, a Strike-shaped impact hitting the enemy's vehicles in its kill radius.
+ * No Commander is paid for what it kills.
  */
-export function aimMainGuns(m: Match): { v: Vehicle; at: Vec2 }[] {
+export function mainGuns(m: Match, events: SimEvent[]) {
   const t = m.tune;
-  const guns: { v: Vehicle; at: Vec2 }[] = [];
   for (const v of m.vehicles) {
     const e = targetOf(m, v);
     if (!live(v) || v.seats[0]! < 0 || !e || m.tick < v.nextFire || dist2(v, e) > t.tankRangeM * t.tankRangeM) continue;
     v.nextFire = m.tick + Math.round(t.tankFireSeconds * t.hz);
-    guns.push({ v, at: { x: e.x, y: e.y } });
+    const flight = Math.max(1, Math.round((Math.sqrt(dist2(v, e)) / t.tankShellMps) * t.hz));
+    v.rounds.push({ x0: v.x, y0: v.y, x: e.x, y: e.y, launch: m.tick, land: m.tick + flight });
   }
-  return guns;
-}
-
-/** After the shots: each round a Strike-shaped impact, the enemy's vehicles in its kill radius hit; no Commander is paid for what it kills. */
-export function landMainGuns(m: Match, guns: { v: Vehicle; at: Vec2 }[], events: SimEvent[]) {
-  const t = m.tune;
-  for (const { v, at } of guns) {
-    events.push({ kind: 'impact', side: v.side, x: at.x, y: at.y, asset: 'tank', from: v.id });
-    blast(m, v.side, at, { killM: t.tankKillM, woundM: t.tankWoundM, suppressM: t.tankSuppressM, suppression: t.tankSuppression }, null, events, { damage: t.tankVsVehicleDamage, foesOnly: true });
-  }
+  for (const v of m.vehicles)
+    for (const r of v.rounds.filter((r) => r.land <= m.tick)) {
+      events.push({ kind: 'impact', side: v.side, x: r.x, y: r.y, asset: 'tank', from: v.id });
+      blast(m, v.side, r, { killM: t.tankKillM, woundM: t.tankWoundM, suppressM: t.tankSuppressM, suppression: t.tankSuppression }, null, events, { damage: t.tankVsVehicleDamage, foesOnly: true });
+      v.rounds.splice(v.rounds.indexOf(r), 1);
+    }
 }
 
 /** A Launcher is roster member 1 of its Squad. */
@@ -280,7 +308,8 @@ export function vehicleViews(m: Match, side: SideId, seen: Set<number>): Vehicle
   for (const v of m.vehicles) {
     if (!live(v) || (v.side !== side && !seen.has(v.id))) continue;
     const base = { id: v.id, side: v.side, kind: v.kind, x: v.x, y: v.y, fx: v.fx, fy: v.fy, ...turret(v) };
-    views.push(v.side === side ? { ...base, hp: v.hp / m.tune.tankHp, seats: [...v.seats] } : base);
+    const rounds = v.rounds.map((r) => ({ from: { x: r.x0, y: r.y0 }, to: { x: r.x, y: r.y }, flight: (m.tick - r.launch) / (r.land - r.launch) }));
+    views.push({ ...base, ...(v.side === side && { hp: v.hp / m.tune.tankHp, seats: [...v.seats] }), ...(rounds.length && { rounds }), ...(v.seats.every((id) => id < 0) && { empty: true }) });
   }
   for (const w of m.wrecks)
     if (w.side === side || w.seen) views.push({ id: -1, side: w.side, kind: w.kind, x: w.x, y: w.y, fx: w.fx, fy: w.fy, tx: w.fx, ty: w.fy, wreck: true });
@@ -291,6 +320,8 @@ export function hashVehicles(m: Match, mix: Mix) {
   for (const v of m.vehicles) {
     for (const n of [v.x, v.y, v.fx, v.fy, v.hp]) mix(Math.round(n * 1000));
     for (const n of [...v.seats, +v.parked, v.deadAt, v.goal, v.departAt, v.target, v.coax, v.nextFire]) mix(n);
+    mix(v.rounds.length);
+    for (const r of v.rounds) for (const n of [Math.round(r.x0 * 1000), Math.round(r.y0 * 1000), Math.round(r.x * 1000), Math.round(r.y * 1000), r.launch, r.land]) mix(n);
   }
   mix(m.wrecks.length);
   for (const w of m.wrecks) for (const n of [Math.round(w.x * 1000), Math.round(w.y * 1000), +w.seen]) mix(n);

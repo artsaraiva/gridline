@@ -162,7 +162,7 @@ describe('#107 the kill table', () => {
 });
 
 describe('#107 the tank fights', () => {
-  it('its main gun lands a Strike-shaped impact every tankFireSeconds, the coax fires at infantry, and nobody aboard is shot', () => {
+  it('its main gun fires every tankFireSeconds, a round flying at tankShellMps to a Strike-shaped impact; the coax fires at infantry; nobody aboard is shot', () => {
     // the crewed nato tank on its HQ facing east, pact Soldiers 120 m and 156 m off in the open
     const m = scene({ tune: { hp: 1e9 }, place: { 2: { x: -440, y: 0, fx: -1 }, 3: { x: -440, y: 100, fx: -1 } } });
     crewed(m, [0, 1]);
@@ -170,7 +170,9 @@ describe('#107 the tank fights', () => {
     const impacts = events.filter((e) => e.kind === 'impact');
     expect(impacts.map((e) => [e.x, e.y])).toEqual([[-440, 0], [-440, 100]]);
     expect(impacts[0]).toMatchObject({ side: 'nato', asset: 'tank', from: 4 });
-    expect((impacts[1]!.tick - impacts[0]!.tick) / HZ).toBe(DEFAULT_TUNE.tankFireSeconds);
+    const flight = (d: number) => d / DEFAULT_TUNE.tankShellMps;
+    expect(impacts[0]!.tick / HZ).toBeCloseTo(flight(120), 1);
+    expect((impacts[1]!.tick - impacts[0]!.tick) / HZ).toBeCloseTo(DEFAULT_TUNE.tankFireSeconds + flight(Math.hypot(120, 100)) - flight(120), 1);
     expect(events.filter((e) => e.kind === 'death').map((e) => (e as { id: number }).id)).toEqual([2, 3]); // inside the kill radius
     expect(events.some((e) => e.kind === 'shot' && e.from === 1 && e.to === 2)).toBe(true); // the coax
     expect(events.some((e) => e.kind === 'shot' && (e.to === 0 || e.to === 1))).toBe(false);
@@ -181,7 +183,8 @@ describe('#107 the tank fights', () => {
     crewed(m, [0, 1]);
     Object.assign(m.vehicles[1]!, { x: -400, y: 0 });
     m.tune.visionM = DEFAULT_TUNE.visionM;
-    const { events } = play(m, 2);
+    const { events, views } = play(m, 2 * HZ); // 160 m of flight
+    expect(views[0]!.vehicles!.find((x) => x.id === 4)!.rounds).toEqual([{ from: { x: -560, y: 0 }, to: { x: -400, y: 0 }, flight: expect.any(Number) }]);
     expect(events.find((e) => e.kind === 'impact')).toMatchObject({ x: -400, y: 0 });
     expect(m.vehicles[1]!.hp).toBe(DEFAULT_TUNE.tankHp - DEFAULT_TUNE.tankVsVehicleDamage);
   });
@@ -193,6 +196,37 @@ describe('#107 the tank fights', () => {
     play(m, (DEFAULT_TUNE.respawnSeconds + 1) * HZ);
     expect(m.vehicles[0]!.seats).toEqual([0, 1]);
     expect(m.soldiers[1]!.vehicle).toBe(6);
+  });
+
+  it('a dead member with its leader on foot comes back as the driver of an idle tank, and a wiped Squad Redeploys into one', () => {
+    const m = scene({ tune: { squadSize: 3, visionM: 0 } });
+    for (const id of [0, 1, 2]) Object.assign(m.soldiers[id]!, { x: -100, y: 0 });
+    Object.assign(m.soldiers[1]!, { state: 'dead', deadAt: 0 });
+    const v0 = play(m, (DEFAULT_TUNE.respawnSeconds + 1) * HZ).views.at(-1)!;
+    expect(tankOf(v0).seats).toEqual([1, -1]);
+    expect(v0.friendlies.find((f) => f.id === 1)).toMatchObject({ vehicle: 6, x: -560, y: 0 });
+
+    const wiped = scene({ tune: { squadSize: 3, visionM: 0 } });
+    for (const id of [0, 1, 2]) Object.assign(wiped.soldiers[id]!, { x: -100, y: 0, state: 'dead', deadAt: 0 });
+    const v1 = play(wiped, (DEFAULT_TUNE.redeploySeconds + 1) * HZ).views.at(-1)!;
+    expect(tankOf(v1).seats).toEqual([0, 1]); // the first two take it; the third Redeploys on foot
+    expect(v1.friendlies.find((f) => f.id === 2)!.vehicle).toBeUndefined();
+  });
+
+  it('shows a tank with nobody aboard as empty', () => {
+    const m = scene({ tune: { visionM: 0 }, place: { 0: { x: 0, y: 0 }, 1: { x: 0, y: 0 } } });
+    const v = play(m, 1).views[0]!;
+    expect(tankOf(v).empty).toBe(true);
+    crewed(m, [0]);
+    expect(tankOf(play(m, 1).views[0]!).empty).toBeUndefined();
+  });
+
+  it('takes `tanksPerSide` slots in each HQ, each further one 9 m toward the field, ids after the Soldiers', () => {
+    const m = scene({ tune: { tanksPerSide: 3 } });
+    expect(m.vehicles.map((v) => [v.id, v.side, v.slot.x])).toEqual([
+      [4, 'nato', -560], [5, 'nato', -551], [6, 'nato', -542],
+      [7, 'pact', 560], [8, 'pact', 551], [9, 'pact', 542],
+    ]);
   });
 
   it('hashes every vehicle field, every Wreck and who rides where', () => {
