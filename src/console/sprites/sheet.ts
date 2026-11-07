@@ -100,12 +100,9 @@ export function spriteMaterial(spec: SpriteSheetSpec, opts: { frame?: number; sh
   return { material, frame };
 }
 
-export type SpriteFrame = ReturnType<typeof spriteMaterial>['frame'];
+const spriteQuad = new THREE.PlaneGeometry(1, 1);
 
-/** A unit quad for one sprite frame; scale the mesh to the frame's world size. */
-export const spriteQuad = new THREE.PlaneGeometry(1, 1);
-
-/** A sprite mesh: `frame.value` picks the frame, `material.opacity` fades it. */
+/** A unit-quad sprite mesh; scale it to the frame's world size. `frame.value` picks the frame, `material.opacity` fades it. */
 export const spriteMesh = (spec: SpriteSheetSpec, opts?: Parameters<typeof spriteMaterial>[1]) => {
   const { material, frame } = spriteMaterial(spec, opts);
   return Object.assign(new THREE.Mesh(spriteQuad, material), { frame });
