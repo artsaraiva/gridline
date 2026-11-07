@@ -4,7 +4,7 @@ import { resetSoldierAi } from './ai';
 import { insideCount } from './capture';
 import { canStand, dist2 } from './geometry';
 import { nearestWalkable } from './grid';
-import { lastDeath, membersOf, wiped, type Point, type Soldier, type Squad } from './state';
+import { footLeader, lastDeath, membersOf, wiped, type Point, type Soldier, type Squad } from './state';
 import { enemyOf, type SimEvent, type Vec2 } from './types';
 
 function bringBack(m: Match, s: Soldier, at: Vec2) {
@@ -31,7 +31,7 @@ export function redeployPoint(m: Match, sq: Squad): Point | null {
 }
 
 /**
- * Squad Respawn: dead members return `respawnBehindM` behind the first living member once their time is up and the Squad is quiet.
+ * Squad Respawn: dead members return `respawnBehindM` behind the foot leader once their time is up and the Squad is quiet.
  * Redeploy: a wiped Squad (every member dead) returns whole, `redeploySeconds` after its last death.
  */
 export function returnToFight(m: Match, events: SimEvent[]) {
@@ -48,7 +48,7 @@ export function returnToFight(m: Match, events: SimEvent[]) {
       events.push({ kind: 'redeploy', side: sq.side, squad: sq.id, x: at.x, y: at.y });
       continue;
     }
-    const leader = members.find((s) => s.state === 'alive');
+    const leader = footLeader(members.filter((s) => s.state === 'alive'));
     if (!leader || !quiet(m, sq, members)) continue;
     for (const s of members) {
       if (s.state !== 'dead' || m.tick - s.deadAt < t.respawnSeconds * t.hz) continue;
