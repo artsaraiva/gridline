@@ -1,6 +1,6 @@
 // The Squad layer: survival first (Retreat, Resupply), else the Capture Point with the best score; then how to move there
 // (travel in a wedge, bound under fire, flank, hold), plus the Soldier jobs it hands out (peel-off, cover when pinned, regroup,
-// #93 straying from the wedge).
+// #93 straying from the wedge), and the #106 Detached members who pick their own goal.
 import type { Match } from '../index';
 import { insideCount } from '../capture';
 import { nearestCrate } from '../assets/crate';
@@ -65,32 +65,13 @@ export function setDest(m: Match, s: Soldier, d: { at: Vec2; path: Vec2[] } | Ve
   }
 }
 
-export function think(m: Match, sq: Squad, events: SimEvent[]) {
+/**
+ * The best-scoring Capture Point seen from `from`, -1 = none: value by owner, path distance, crowding (pairing up on enemy
+ * points), stickiness plus `pull` on the Squad's goal, the Order's bonus.
+ */
+function bestPoint(m: Match, sq: Squad, from: Vec2, pull = 0): number {
   const t = m.tune;
-  const members = membersOf(m, sq);
-  const alive = members.filter((s) => s.state === 'alive');
-  const L = alive[0];
-  if (!L) {
-    sq.task = 'none';
-    return;
-  }
   const foe = enemyOf(sq.side);
-  let threat: Vec2 | null = null;
-  for (const c of sq.memory) if (!threat || dist2(c, L) < dist2(threat, L)) threat = c;
-  const inContact = sq.memory.some((c) => m.tick - c.tick < t.contactSeconds * t.hz) || alive.some((s) => s.suppression > t.suppressedAt);
-
-  // survival outranks everything
-  const shaken = alive.filter((s) => s.suppression > t.retreatSuppression).length;
-  const dry = alive.filter((s) => s.ammo < t.ammoLow).length;
-  let survive: 'retreat' | 'resupply' | null = null;
-  if (sq.task === 'retreat') survive = quiet(m, sq, members) && alive.length >= members.length - 1 ? null : 'retreat';
-  else if ((alive.length <= 1 && members.length >= 3) || (alive.length >= 2 && shaken * 2 > alive.length)) survive = 'retreat';
-  if (!survive) {
-    if (sq.task === 'resupply') survive = alive.every((s) => s.ammo >= t.ammo * t.ammoRefilled) ? null : 'resupply';
-    else if (dry * 2 > alive.length) survive = 'resupply';
-  }
-
-  // point scores: value by owner, path distance, crowding (pairing up on enemy points), stickiness
   let best = -1;
   let bestScore = -Infinity;
   m.points.forEach((p, i) => {
@@ -100,17 +81,48 @@ export function think(m: Match, sq: Squad, events: SimEvent[]) {
       : p.owner === foe ? t.pointValue.enemy
       : threatened ? t.pointValue.ownedThreatened
       : t.pointValue.ownedQuiet;
-    v -= (t.distancePenaltyPer100m * flowDist(m, pointFlow(m, i), L)) / 100;
+    v -= (t.distancePenaltyPer100m * flowDist(m, pointFlow(m, i), from)) / 100;
     const others = m.squads.filter((o) => o !== sq && o.side === sq.side && o.task === 'point' && o.goal === i).length;
     v -= p.owner === foe ? (others === 1 ? -t.pairUp : t.crowdPenalty * Math.max(0, others - 1)) : t.crowdPenalty * others;
-    if (sq.task === 'point' && sq.goal === i) v += t.stickiness;
+    if (sq.task === 'point' && sq.goal === i) v += t.stickiness + pull;
     if (sq.order?.point === i) v += t.orderBonus;
     if (v > bestScore) {
       bestScore = v;
       best = i;
     }
   });
+  return best;
+}
 
+export function think(m: Match, sq: Squad, events: SimEvent[]) {
+  const t = m.tune;
+  const members = membersOf(m, sq);
+  const alive = members.filter((s) => s.state === 'alive');
+  const lead = alive[0]; // #106: the Squad scores from its Squad Leader (member 0) while alive, wherever they are
+  if (!lead) {
+    sq.task = 'none';
+    return;
+  }
+  if (alive.every((s) => s.detached)) Object.assign(lead, { detached: false, goal: -1 }); // someone is always the Squad's body
+  const body = alive.filter((s) => !s.detached); // #106: the members moving as one
+  const L = body[0]!; // the foot leader: the wedge forms on them
+  const foe = enemyOf(sq.side);
+  let threat: Vec2 | null = null;
+  for (const c of sq.memory) if (!threat || dist2(c, L) < dist2(threat, L)) threat = c;
+  const inContact = sq.memory.some((c) => m.tick - c.tick < t.contactSeconds * t.hz) || body.some((s) => s.suppression > t.suppressedAt);
+
+  // survival outranks everything; a Detached member's fight is its own, so only the body's fire and ammo count (the headcount stays the Squad's)
+  const shaken = body.filter((s) => s.suppression > t.retreatSuppression).length;
+  const dry = body.filter((s) => s.ammo < t.ammoLow).length;
+  let survive: 'retreat' | 'resupply' | null = null;
+  if (sq.task === 'retreat') survive = quiet(m, sq, members) && alive.length >= members.length - 1 ? null : 'retreat';
+  else if ((alive.length <= 1 && members.length >= 3) || (body.length >= 2 && shaken * 2 > body.length)) survive = 'retreat';
+  if (!survive) {
+    if (sq.task === 'resupply') survive = body.every((s) => s.ammo >= t.ammo * t.ammoRefilled) ? null : 'resupply';
+    else if (dry * 2 > body.length) survive = 'resupply';
+  }
+
+  let best = bestPoint(m, sq, lead);
   if (sq.order) best = sq.order.point; // an Order is never lost to a better-scoring point, whatever the distance
 
   const prevTask = sq.task;
@@ -121,8 +133,8 @@ export function think(m: Match, sq: Squad, events: SimEvent[]) {
       let near = Infinity;
       if (survive === 'retreat')
         m.points.forEach((p, i) => {
-          if (p.owner !== sq.side || insideCount(m, p, foe) > 0 || dist2(L, p) <= sq2(p.radius + 20)) return;
-          const d = flowDist(m, pointFlow(m, i), L);
+          if (p.owner !== sq.side || insideCount(m, p, foe) > 0 || dist2(lead, p) <= sq2(p.radius + 20)) return;
+          const d = flowDist(m, pointFlow(m, i), lead);
           if (d < near) [near, goal] = [d, i];
         });
       Object.assign(sq, { task: survive, goal, route: -1 });
@@ -143,15 +155,15 @@ export function think(m: Match, sq: Squad, events: SimEvent[]) {
     else mode = dL < goal.r ? 'hold' : 'fallback';
   }
   if (mode !== sq.mode || prevTask !== sq.task || prevGoal !== sq.goal) {
-    for (const s of alive)
+    for (const s of body)
       if (!s.chaseUntil) {
         setDest(m, s, null);
         Object.assign(s, { cover: null, role: null, strayUntil: 0 });
       }
     Object.assign(sq, { mode, phase: 1, phaseUntil: 0, holdAt: 0, flankSign: 0, flankSince: -1, flankDone: false });
   }
-  const team = alive.filter((s) => !s.chaseUntil);
-  sq.slow = (mode === 'travel' || mode === 'fallback') && alive.some((s, n) => n > 0 && !s.strayUntil && dist2(s, wedgeSlot(m, L, n, s.slot)) > 100); // #93: a stray is not waited for
+  const team = body.filter((s) => !s.chaseUntil);
+  sq.slow = (mode === 'travel' || mode === 'fallback') && body.some((s, n) => n > 0 && !s.strayUntil && dist2(s, wedgeSlot(m, L, n, s.slot)) > 100); // #93: a stray is not waited for
   if (mode === 'hold' && goal) hold(m, sq, goal, threat, team, alive);
   else if (mode === 'bound' && goal) {
     const flow = flowOf(m, sq)!;
@@ -159,7 +171,16 @@ export function think(m: Match, sq: Squad, events: SimEvent[]) {
     else bound(m, sq, threat, flow, team, alive);
   }
   soldierJobs(m, sq, L, goal, threat, alive);
-  if ((mode === 'travel' || mode === 'fallback') && goal && dist2(L, goal) > sq2(goal.r + t.leashM)) stray(m, sq, L, alive); // #93: closes up within a leash of the goal
+  if ((mode === 'travel' || mode === 'fallback') && goal && dist2(L, goal) > sq2(goal.r + t.leashM)) stray(m, sq, L, body); // #93: closes up within a leash of the goal
+  for (const s of alive) if (s.detached) detached(m, sq, L, s);
+}
+
+/** #106: a Detached Soldier picks its own Capture Point, pulled toward the Squad's, and rejoins near the foot leader on the Squad's goal. */
+function detached(m: Match, sq: Squad, L: Soldier, s: Soldier) {
+  const t = m.tune;
+  const own = sq.task === 'point' ? bestPoint(m, sq, s, t.squadPull) : -1; // survival calls them back to the Squad's goal
+  s.goal = own === sq.goal ? -1 : own;
+  if (s.goal < 0 && dist2(s, L) < sq2(t.rejoinM)) s.detached = false;
 }
 
 /**
@@ -175,6 +196,10 @@ function stray(m: Match, sq: Squad, L: Soldier, alive: Soldier[]) {
     if (s.strayUntil && m.tick >= s.strayUntil) {
       if (s.regroup) return; // walking back; `strayUntil` stays set so the leader does not wait for it and it does not stray again yet
       if (s.dest) setDest(m, s, null);
+      if (dist2(s, L) > sq2(t.detachM)) {
+        Object.assign(s, { detached: true, strayUntil: 0, cover: null, role: null }); // #106: too far to come back; picks its own goal below
+        return;
+      }
       if (dist2(s, L) > sq2(22)) {
         // too far for the wedge to take it (soldier.ts): walks back behind the leader like a straggler, the regroup rule above keeps it going
         Object.assign(s, { regroup: true, cover: null });
@@ -276,7 +301,7 @@ function soldierJobs(m: Match, sq: Squad, L: Soldier, goal: (Vec2 & { r: number 
   for (const s of alive) {
     const lost = s.target < 0 && s.lastTarget >= 0 ? sq.memory.find((c) => c.id === s.lastTarget) : undefined;
     if (s.target < 0) s.lastTarget = -1;
-    if (!lost || !fighting || s.chaseUntil || s.hp <= t.hp / 2 || s.suppression >= 0.3 || alive.length < 3 || alive.some((o) => o.chaseUntil)) continue;
+    if (!lost || !fighting || s.detached || s.chaseUntil || s.hp <= t.hp / 2 || s.suppression >= 0.3 || alive.length < 3 || alive.some((o) => o.chaseUntil)) continue;
     if (dist2(lost, s) >= sq2(t.peelRangeM) || (leash && dist2(lost, leash.around) > sq2(leash.r))) continue;
     Object.assign(s, { chaseUntil: m.tick + t.peelSeconds * t.hz, cover: null, role: null });
     setDest(m, s, pickCover(m, s, alive, { at: lost, radius: 14, threat: lost, leash }) ?? { x: lost.x, y: lost.y });
@@ -290,7 +315,7 @@ function soldierJobs(m: Match, sq: Squad, L: Soldier, goal: (Vec2 & { r: number 
     if (s.cover && s.suppression < 0.25 && dist2(s, s.cover) < 1) s.cover = null;
   }
   for (const s of alive) {
-    if (s === L || s.chaseUntil) {
+    if (s === L || s.chaseUntil || s.detached) {
       s.regroup = false;
       continue;
     }

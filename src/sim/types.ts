@@ -236,6 +236,11 @@ export interface Tune {
   missileSuppressM: number; // ... and suppresses within this (the zone ring)
   missileSuppression: number; // suppression (0..1) the blast leaves
   missileGated: boolean; // the call needs the middle Capture Point; off for review scenes (`?free=1`)
+
+  // #106 Detached Soldiers
+  detachM: number; // a stray that ends farther than this from the foot leader goes Detached instead of regrouping
+  rejoinM: number; // a Detached Soldier with the Squad's goal rejoins within this of the foot leader
+  squadPull: number; // added to the Squad's goal when a Detached Soldier picks its own Capture Point
 }
 
 /** #55: what a Commander Score award is for. */

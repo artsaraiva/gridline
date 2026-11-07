@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { RIVER_FIELD } from '../maps/river-field';
-import { commanderView, createMatch, gridRef, step, type Match } from './index';
+import { commanderView, createMatch, gridRef, stateHash, step, type Match } from './index';
 import { DEFAULT_TUNE } from './tune';
 import type { CommanderView, MapData, Rect, SimEvent, Tune } from './types';
 
@@ -12,6 +12,7 @@ interface Placement {
   fx?: number;
   fy?: number;
   ammo?: number; // rounds
+  detached?: boolean; // #106: stands in for a Soldier who left the Squad (later: a vehicle)
 }
 
 /**
@@ -162,6 +163,75 @@ describe('loose squads', () => {
       for (const f of v.friendlies) expect(dist(f, lead)).toBeLessThan(DEFAULT_TUNE.leashM + 20);
     }
     expect(loose.at(-1)!.friendlies.reduce((a, b) => (b.x > a.x ? b : a)).x).toBeGreaterThan(still.at(0)!.friendlies[0]!.x + 50); // the leader still gets on
+  });
+
+  it('#106: the wedge forms on the first on-foot member when the Squad Leader is Detached, who stays the leader', () => {
+    // the Squad Leader (id 0) starts Detached 200 m north of the HQ; the rest set off from the HQ for P
+    const m = scene({ map: field({ points: [{ id: 'P', name: 'P', x: 300, y: 0 }] }), place: { 0: { x: -560, y: 200, detached: true } }, tune: { visionM: 0, strayChance: 0, spread: 0 } });
+    const v = play(m, 30 * HZ).nato.at(-1)!;
+    const at = (id: number) => v.friendlies.find((f) => f.id === id)!;
+    for (const id of [2, 3]) expect(at(1).x - at(id).x > 3 && dist(at(id), at(1)) < 25).toBe(true);
+    expect(dist(at(0), at(1))).toBeGreaterThan(50);
+    expect(at(0).x).toBeGreaterThan(-460); // walks its own line to the Squad's goal
+    expect(v.squads[0]!.leader).toBe(0);
+  });
+
+  // #106: with `detachM` under the 22 m the wedge reaches, a stray that ends out of it goes Detached
+  const loose: Partial<Tune> = { visionM: 0, strayChance: 1, squadPull: 0, detachM: 20 };
+  const detachedIds = (m: Match) => m.soldiers.filter((s) => s.detached).map((s) => s.id); // not in any CommanderView
+
+  it('#106: strays go Detached, walk on to the Squad\'s goal and rejoin the Squad there', () => {
+    const m = scene({ map: field({ points: [{ id: 'P', name: 'P', x: 0, y: 0 }] }), tune: loose });
+    let ever = false;
+    for (let i = 0; i < 220 * HZ; i++) {
+      step(m, []);
+      ever ||= detachedIds(m).length > 0;
+    }
+    expect(ever).toBe(true);
+    expect(detachedIds(m)).toEqual([]);
+  });
+
+  it('#106: a Detached Soldier who reaches the Squad\'s goal walks over to the Squad holding it and rejoins', () => {
+    const big = field({ points: [{ id: 'P', name: 'P', x: 0, y: 0, radius: 60 }] });
+    const place = { 0: { x: -40, y: 0 }, 1: { x: -40, y: 5 }, 2: { x: -40, y: -5 }, 3: { x: 40, y: 0, detached: true } };
+    const m = scene({ map: big, place, tune: { visionM: 0, strayChance: 0 } });
+    play(m, 30 * HZ);
+    expect(detachedIds(m)).toEqual([]);
+  });
+
+  it('#106: Detached and its own goal are part of the state hash', () => {
+    const m = scene({ map: field() });
+    const s = m.soldiers[1]!;
+    const h = stateHash(m);
+    s.detached = true;
+    expect(stateHash(m)).not.toBe(h);
+    const d = stateHash(m);
+    s.goal = 0;
+    expect(stateHash(m)).not.toBe(d);
+  });
+
+  it('#106: a Detached Soldier makes for a Capture Point of its own; the Squad still reaches its ordered point', () => {
+    // R lies just off the Squad's line to its ordered point P; with no Order bonus only the Squad keeps to P
+    const points = [{ id: 'P', name: 'P', x: 300, y: 0 }, { id: 'R', name: 'R', x: -250, y: 40 }];
+    const m = scene({ map: field({ points }), tune: { ...loose, orderBonus: 0 } });
+    let atR = false;
+    let leaderAtP = false;
+    for (let i = 0; i < 220 * HZ; i++) {
+      step(m, i === 0 ? [{ tick: m.tick, side: 'nato', kind: 'order', squad: 0, point: 'P' }] : []);
+      const v = commanderView(m, 'nato');
+      atR ||= v.friendlies.some((f) => f.id !== 0 && dist(f, points[1]!) < 25);
+      leaderAtP ||= dist(v.friendlies.find((f) => f.id === 0)!, points[0]!) < 25;
+    }
+    expect(atR).toBe(true);
+    expect(leaderAtP).toBe(true);
+  });
+
+  it('#106: with `squadPull` high no stray ends Detached over a whole match (15 min at most)', () => {
+    const m = createMatch({ seed: 7, map: RIVER_FIELD, tune: { ...DEFAULT_TUNE, squadPull: 10 }, squadsPerSide: 4, commanderSide: 'nato' });
+    for (let i = 0; i < 15 * 60 * HZ; i++) {
+      step(m, []);
+      if (i % HZ === 0) expect(detachedIds(m)).toEqual([]);
+    }
   });
 
   it('a Soldier more than 60 m from its leader regroups; one within 60 m stays put', () => {
