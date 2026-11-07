@@ -1,4 +1,5 @@
 // A Barrage shell's impact (#62): the baked explosion flipbook and crater decal, and what one impact shows as it ages.
+// A Cruise Missile's (#99) is the same, bigger and held longer.
 // layers/impacts.ts draws it. Crater cap and smoke fade are Console constants, not Simulation Tune values: they only
 // change the look, and the Console has no Tune of its own.
 import type { SimEvent } from '../../sim/types';
@@ -22,6 +23,10 @@ const WIND = { x: 0.7, y: 0.25 };
 const PLUME_PUFFS = 4;
 /** The plume fades in over the explosion's last frames, which fade out under it. */
 const HANDOVER_MS = EXPLOSION_MS * 0.35;
+/** Console look (#99): a missile's explosion and crater are drawn this much bigger than a shell's, */
+const MISSILE_SIZE = 1.8;
+/** and its flipbook plays this much slower, so the flash holds. */
+const MISSILE_HOLD = 1.5;
 
 export const EXPLOSION_SHEET: SpriteSheetSpec = {
   file: 'munitions/explosion.png',
@@ -79,19 +84,24 @@ const hash = (n: number) => Math.abs(Math.sin(n * 12.9898 + 78.233) * 43758.5453
 
 /** What one impact shows at `now` ms: the explosion flipbook, then a drifting, fading plume, and a crater that stays. */
 export function impactLook(i: ImpactRecord, now: number): ImpactLook {
+  const heavy = i.asset === 'missile';
+  const big = heavy ? MISSILE_SIZE : 1;
+  const hold = heavy ? MISSILE_HOLD : 1;
+  const flashMs = EXPLOSION_MS * hold;
+  const handoverMs = HANDOVER_MS * hold;
   const age = Math.max(0, now - i.at);
   const r = hash(i.seed);
   const flip = r < 0.5;
-  const crater = { x: i.x, y: i.y, size: CRATER_WORLD_M * (0.85 + 0.3 * hash(i.seed + 0.5)), frame: i.seed % CRATER_VARIANTS, flip, opacity: 1 };
-  const frame = Math.floor((age / 1000) * EXPLOSION_FPS);
+  const crater = { x: i.x, y: i.y, size: big * CRATER_WORLD_M * (0.85 + 0.3 * hash(i.seed + 0.5)), frame: i.seed % CRATER_VARIANTS, flip, opacity: 1 };
+  const frame = Math.floor((age / 1000 / hold) * EXPLOSION_FPS);
   const explosion =
     frame < EXPLOSION_FRAMES
-      ? { x: i.x, y: i.y, size: EXPLOSION_WORLD_M * (0.9 + 0.2 * r), frame, flip: !flip, opacity: Math.min(1, (EXPLOSION_MS - age) / HANDOVER_MS) }
+      ? { x: i.x, y: i.y, size: big * EXPLOSION_WORLD_M * (0.9 + 0.2 * r), frame, flip: !flip, opacity: Math.min(1, (flashMs - age) / handoverMs) }
       : null;
   const plume: ImpactSprite[] = [];
   if (age < SMOKE_FADE_MS) {
     const s = age / 1000;
-    const fadeIn = Math.max(0, Math.min(1, (age - (EXPLOSION_MS - HANDOVER_MS)) / HANDOVER_MS));
+    const fadeIn = Math.max(0, Math.min(1, (age - (flashMs - handoverMs)) / handoverMs));
     const life = age / SMOKE_FADE_MS;
     for (let k = 0; k < PLUME_PUFFS; k++) {
       const q = hash(i.seed * 7 + k);

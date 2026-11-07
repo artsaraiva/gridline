@@ -158,7 +158,7 @@ export const DEFAULT_TUNE: Tune = {
 
   // #99 Cruise Missile
   missileCooldownSeconds: 240,
-  missileSpeedMps: 40,
+  missileSpeedMps: 70,
   missileKillM: 12,
   missileWoundM: 20,
   missileSuppressM: 35,

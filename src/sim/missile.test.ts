@@ -90,22 +90,22 @@ describe('Cruise Missile: the call', () => {
 });
 
 describe('Cruise Missile: the flight', () => {
-  it('leaves at once from beyond the Play Area behind the own HQ, on the line from the map centre through it, at 40 m/s', () => {
+  it('leaves at once from beyond the Play Area behind the own HQ, on the line from the map centre through it, 400 m out, at 70 m/s', () => {
     const run = play(scene(), 30 * HZ, { x: 370, y: 0 }); // just short of the enemy HQ ring (no Asset lands on it)
     const e0 = effect(run.views[0]!)!;
     expect(e0.from!.y).toBe(0);
-    expect(e0.from!.x).toBeLessThan(-456); // beyond the west edge, behind nato's HQ at -415
+    expect(e0.from!.x).toBe(-856); // 400 m beyond the west edge at -456, behind nato's HQ at -415
     expect(e0.flight).toBeGreaterThan(0);
     expect(e0.flight).toBeLessThan(0.01);
-    expect(e0.impactIn).toBeCloseTo((370 - e0.from!.x) / 40 - 1 / HZ, 1);
+    expect(e0.impactIn).toBeCloseTo((370 - e0.from!.x) / 70 - 1 / HZ, 1);
     expect(effect(run.views[10 * HZ]!)!.flight).toBeGreaterThan(effect(run.views[5 * HZ]!)!.flight!);
   });
 
-  it('lands about 22 s after confirm at the far HQ edge and about 12 s at the map centre', () => {
+  it('lands about 17.5 s after confirm at the far HQ edge and about 12 s at the map centre', () => {
     const far = impacts(play(scene(), 30 * HZ, { x: 370, y: 0 }));
     expect(far).toHaveLength(1);
-    expect(far[0]!.tick / HZ).toBeGreaterThan(20.5);
-    expect(far[0]!.tick / HZ).toBeLessThan(23.5);
+    expect(far[0]!.tick / HZ).toBeGreaterThan(16.5);
+    expect(far[0]!.tick / HZ).toBeLessThan(18.5);
     expect(far[0]).toMatchObject({ side: 'nato', x: 370, y: 0 });
     const centre = impacts(play(scene(), 30 * HZ, { x: 0, y: 0 }));
     expect(centre[0]!.tick / HZ).toBeGreaterThan(11);

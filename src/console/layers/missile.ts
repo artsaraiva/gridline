@@ -1,6 +1,6 @@
 // The Cruise Missile on the map (#99): the baked missile at the nearest heading with its ground shadow and contrail
 // (a streak that hangs and fades after the hit),
-// a line from it to a small square impact marker in the caller's colour with a faint zone ring, and a bracketed
+// a line from it to a bright square impact marker out to the kill radius in the caller's colour, and a bracketed
 // tactical icon that rides the missile on screen and clamps to the screen edge where the line leaves it while the
 // missile is off screen. At the hit everything goes and the shared impact (explosion, crater, plume) takes over.
 // sprites/missile.ts says where everything is; edge-clamp.ts where the icon sits.
@@ -8,9 +8,10 @@ import * as THREE from 'three/webgpu';
 import type { CommanderView } from '../../sim/types';
 import { edgeClamp, type Inset } from '../edge-clamp';
 import { metresPerPx, pool, sideColor, toScreen, toWorld } from '../renderer';
-import { MISSILE_SHADOW_FRAME, MISSILE_SHEET, missileInFlight, missiles, missileTrail } from '../sprites/missile';
+import { DEFAULT_TUNE } from '../../sim/tune';
+import { MISSILE_OUTLINE, MISSILE_SHADOW_FRAME, MISSILE_SHEET, missileInFlight, missiles, missileTrail } from '../sprites/missile';
 import { spriteMesh } from '../sprites/sheet';
-import { bar, dashedRing, fading, frameOutline, px, shade, streak } from './symbols';
+import { bar, fading, px, streak } from './symbols';
 
 const LINE_PX = 1.5;
 const TRAIL_PX = 2.5;
@@ -18,17 +19,14 @@ const TRAIL_PX = 2.5;
 const TRAIL_OPACITY = 0.6;
 /** The edge-clamped icon keeps this far inside the screen. */
 const EDGE_MARGIN_PX = 30;
-const Z = { shadow: 0.42, trail: 0.6, line: 0.56, ring: 0.5, body: 0.72, marker: 0.9, icon: 0.92 };
+const Z = { shadow: 0.42, trail: 0.6, line: 0.56, body: 0.72, marker: 0.9, icon: 0.92 };
+/** The impact marker: a square out to the kill radius (missileKillM), its stroke a constant pixel width. */
+const MARKER_M = DEFAULT_TUNE.missileKillM;
+const MARKER_PX = 2;
+const MARKER_OPACITY = 0.9;
+const MARKER_SIDES = [[MARKER_M, 0], [-MARKER_M, 0], [0, MARKER_M], [0, -MARKER_M]] as const;
 
-// Tactical missile symbol: a slim body with pop-out wings and a tail, pointing +y, in symbol units.
-const iconShape = new THREE.Shape(
-  [
-    [0, 0.62], [0.09, 0.42], [0.09, 0.1], [0.5, 0.02], [0.5, -0.08], [0.09, -0.08], [0.09, -0.4], [0.3, -0.5], [0.3, -0.6],
-    [-0.3, -0.6], [-0.3, -0.5], [-0.09, -0.4], [-0.09, -0.08], [-0.5, -0.08], [-0.5, 0.02], [-0.09, 0.1], [-0.09, 0.42],
-  ].map(([x, y]) => new THREE.Vector2(x, y)),
-);
-const iconGeometry = new THREE.ShapeGeometry(iconShape);
-const haloGeometry = iconGeometry.clone().scale(1.25, 1.2, 1).translate(0, 0, -0.02);
+const iconGeometry = new THREE.ShapeGeometry(new THREE.Shape(MISSILE_OUTLINE.map(([x, y]) => new THREE.Vector2(x, y))));
 /** Four corner brackets round the icon. */
 const bracketGeometry = (() => {
   const g: THREE.BufferGeometry[] = [];
@@ -44,21 +42,18 @@ const bracketGeometry = (() => {
   merged.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   return merged;
 })();
-const markerGeometry = frameOutline('friendly', 0.3, px(1.5));
 const quad = new THREE.PlaneGeometry(1, 1);
 
 const bodies = pool(() => spriteMesh(MISSILE_SHEET));
 const shadows = pool(() => spriteMesh(MISSILE_SHEET, { frame: MISSILE_SHADOW_FRAME, shadow: true, opacity: 0.42 }));
 const trails = pool(() => new THREE.Mesh(quad, streak()));
 const lines = pool(() => new THREE.Mesh(quad, fading(0xffffff, 0.55)));
-const markers = pool(() => new THREE.Mesh(markerGeometry, fading(0xffffff)));
-const rings = pool(() => {
-  const ring = dashedRing(35, 0xffffff, { dash: 2, gap: 6, width: 1.5, opacity: 0.35 });
-  return Object.assign(ring.mesh, { ring });
+const markers = pool(() => {
+  const stroke = fading(0xffffff, MARKER_OPACITY);
+  return Object.assign(new THREE.Group().add(...MARKER_SIDES.map(() => new THREE.Mesh(quad, stroke))), { stroke });
 });
 const icons = pool(() => {
   const icon = new THREE.Mesh(iconGeometry, fading(0xffffff));
-  icon.add(new THREE.Mesh(haloGeometry, shade(0x000000, 0.75)));
   const brackets = new THREE.Mesh(bracketGeometry, icon.material);
   return Object.assign(new THREE.Group().add(icon, brackets), { icon });
 });
@@ -77,7 +72,7 @@ function inset(): Inset {
   return r;
 }
 
-/** `scale` is the chevron size in metres (constant on screen), for the marker and the icon. */
+/** `scale` is the chevron size in metres (constant on screen), for the icon. */
 export function drawMissiles(view: CommanderView, scale: number) {
   const flock = missiles(view);
   const box = flock.some((e) => e.flight < 1) ? inset() : null;
@@ -113,12 +108,13 @@ export function drawMissiles(view: CommanderView, scale: number) {
 
     const marker = markers.next();
     marker.position.set(p.to.x, p.to.y, Z.marker);
-    marker.scale.setScalar(scale);
-    material(marker).color.setHex(color);
-    const ring = rings.next();
-    ring.position.set(p.to.x, p.to.y, Z.ring);
-    ring.ring.r.value = e.radius;
-    ring.ring.tint.value.setHex(color);
+    const w = MARKER_PX * metresPerPx.value;
+    marker.children.forEach((side, k) => {
+      const [x, y] = MARKER_SIDES[k]!;
+      side.position.set(x, y, 0);
+      side.scale.set(x ? w : 2 * MARKER_M + w, x ? 2 * MARKER_M + w : w, 1);
+    });
+    marker.stroke.color.setHex(color);
 
     // The icon rides beside the missile on screen; off screen it clamps to the edge where the line leaves the screen.
     const at = edgeClamp(toScreen(p), toScreen(p.to), box!);
@@ -135,5 +131,4 @@ export function drawMissiles(view: CommanderView, scale: number) {
     material(icon.icon).color.setHex(color);
   }
   for (const q of [bodies, shadows, trails, lines, markers, icons]) q.end();
-  rings.end();
 }

@@ -1,7 +1,7 @@
 """Build the Cruise Missile 3D asset and its top-down sprite sheet (#99).
 
 Headless Blender script (ADR 0001, ADR 0002). Renders 4 top-down pitch rows (level, then nosing down into the
-target) of 16 headings each, once per Faction (the paint on the wings and the band is the `FactionPaint` material
+target, to straight down) of 16 headings each, once per Faction (the paint on the wings and the band is the `FactionPaint` material
 role), plus 1 soft shadow frame, lit with Kaltenbach's sun (azimuth 45 deg NE, elevation 24 deg) and sky fill,
 and packs them into `public/munitions/cruise-missile.png` (16 columns; frame = (faction * 4 + pitch) * 16 + heading).
 The engine glow is an emissive exhaust baked into every frame.
@@ -27,8 +27,8 @@ os.makedirs(os.path.dirname(OUT_SHEET), exist_ok=True)
 
 FRAME_PX = 128
 HEADINGS = 16  # MISSILE_HEADINGS in src/console/sprites/missile.ts
-# Nose +Y; 0 = level cruise, negative = nose tilted down toward -Z: the dive over the last metres into the target.
-PITCH_ANGLES = (0, -20, -40, -60)
+# Nose +Y; 0 = level cruise, negative = nose tilted down toward -Z, to -90 straight down: the drop onto the target.
+PITCH_ANGLES = (0, -30, -60, -90)
 # Faction colour through the FactionPaint material role (ADR 0001); frame rows in this order.
 FACTIONS = (("nato", (0.26, 0.40, 0.56)), ("pact", (0.52, 0.26, 0.20)))
 ORTHO_M = 6.5  # MISSILE_WORLD_M: the sprite quad's world size in metres (the missile is 5.6 m long)

@@ -1,8 +1,9 @@
 // Hand-drawn SVG line icons (1.6 px stroke) for the Assets.
 import type { AssetKind } from '../../sim/types';
+import { MISSILE_OUTLINE } from '../sprites/missile';
 
-/** A missile seen from above: body with its pop-out wings and tail, nose up-right; the Asset row and the edge-clamped mark share it. */
-export const MISSILE_ICON = '<path d="M19.5 4.5l-3 9-8 8-2.5-2.5 8-8z"/><path d="M9.5 10.5l-5-1.5 2.5-2.5zM13.5 14.5l1.5 5 2.5-2.5z"/><path d="M6.5 19.5l-3 1 1-3"/>';
+/** The same missile, filled, nose up-right, for the Asset row. */
+export const MISSILE_ICON = `<path fill="currentColor" stroke-width="0.6" transform="rotate(45 12 12)" d="M${MISSILE_OUTLINE.map(([x, y]) => `${(12 + x * 14).toFixed(2)} ${(12 - y * 14).toFixed(2)}`).join('L')}Z"/>`;
 
 const PATHS: Record<AssetKind, string> = {
   scan: '<path d="M12 2.5v18.5M2.5 11l9.5-1.8 9.5 1.8M8.3 19.8h7.4"/><circle cx="12" cy="9.4" r="1.1" fill="currentColor"/>',

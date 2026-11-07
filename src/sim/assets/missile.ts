@@ -11,7 +11,7 @@ import { blast } from './strike';
 
 const CENTRE = { x: 0, y: 0 };
 /** The launch point sits this far beyond the Play Area edge. */
-const BEYOND_M = 30;
+const BEYOND_M = 400;
 
 /** The middle Capture Point: the one nearest the map centre (Lane 2 on Kaltenbach); undefined on a map with none. */
 export const middlePoint = (m: Match) => m.points.reduce<Match['points'][number] | undefined>((a, p) => (!a || dist2(p, CENTRE) < dist2(a, CENTRE) ? p : a), undefined);

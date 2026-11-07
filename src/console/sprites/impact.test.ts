@@ -52,6 +52,18 @@ describe('shell impact: explosion, drifting plume and lasting crater', () => {
     expect(Math.max(...impactLook(hit(), EXPLOSION_MS + 1000).plume.map((p) => p.size))).toBeGreaterThan(look.crater.size * 2);
   });
 
+  it('a Cruise Missile hit is heavier: flash and crater 1.8 times a shell, the flash held 1.5 times as long', () => {
+    const missile = recordImpact([], 50, -50, 0, 'missile').at(-1)!; // same seed as hit(): same size jitter
+    const big = impactLook(missile, EXPLOSION_MS / 2);
+    const shell = impactLook(hit(), EXPLOSION_MS / 2);
+    expect(big.explosion!.size).toBeCloseTo(shell.explosion!.size * 1.8);
+    expect(big.crater.size).toBeCloseTo(shell.crater.size * 1.8);
+    expect(impactLook(hit(), EXPLOSION_MS * 1.2).explosion).toBeNull();
+    expect(impactLook(missile, EXPLOSION_MS * 1.2).explosion!.frame).toBeLessThan(EXPLOSION_FRAMES);
+    expect(impactLook(missile, EXPLOSION_MS * 1.5 - 40).explosion!.frame).toBe(EXPLOSION_FRAMES - 1);
+    expect(impactLook(missile, EXPLOSION_MS * 1.5).explosion).toBeNull();
+  });
+
   it('leaves a crater that stays for the match', () => {
     const i = hit();
     const c = impactLook(i, 0).crater;
