@@ -89,7 +89,7 @@ The state of a Soldier riding a Vehicle in one of its seats: they move with it, 
 _Avoid_: In the vehicle, embarked, loaded, crew (Vehicles have no crew of their own)
 
 **Detached**:
-A Soldier acting away from their Squad on a goal of their own, usually after riding a Vehicle elsewhere; they drift back toward the Squad's goal and rejoin when they reach it.
+A Soldier acting away from their Squad on a goal of their own, usually after riding a Vehicle elsewhere; they drift back toward the Squad's goal and rejoin once back with the Squad on it.
 _Avoid_: Lone wolf, stray (the brief wander within a leash), split squad
 
 **Wreck**:

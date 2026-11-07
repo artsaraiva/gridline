@@ -164,4 +164,9 @@ export const DEFAULT_TUNE: Tune = {
   missileSuppressM: 35,
   missileSuppression: 1,
   missileGated: true,
+
+  // #106 Detached Soldiers
+  detachM: 80,
+  rejoinM: 22,
+  squadPull: 0.6,
 };
