@@ -55,7 +55,7 @@ function play(m: Match, ticks: number, at: Vec2 = AT): Run {
 const impacts = (r: Run) => r.events.filter((e): e is Extract<Stamped, { kind: 'impact' }> => e.kind === 'impact');
 const dist = (a: Vec2, b: Vec2) => Math.hypot(a.x - b.x, a.y - b.y);
 const rejections = (events: SimEvent[]) => events.flatMap((e) => (e.kind === 'rejected' ? [e.reason] : []));
-const SHELLS_DONE = 16 * HZ;
+const SHELLS_DONE = 20 * HZ;
 
 /** Where the shells land with `tune`, found by a dry run on the same seed: the spots are drawn when it is called. */
 const landings = (tune: Partial<Tune> = {}, seed = 1) => impacts(play(scene({}, tune, seed), SHELLS_DONE));
@@ -95,11 +95,11 @@ describe('Artillery Barrage: the call', () => {
 });
 
 describe('Artillery Barrage: the shells', () => {
-  it('six shells, seeded within 25 m of the spot: the first lands 2.5 s + 4 s after the call, the rest over 8 s', () => {
+  it('six shells, seeded within 25 m of the spot: the first lands 10 s + 4 s after the call, the rest over 5 s', () => {
     const hits = landings();
     expect(hits).toHaveLength(6);
-    expect(hits[0]!.tick).toBe(6.5 * HZ);
-    expect(hits[5]!.tick - hits[0]!.tick).toBe(8 * HZ);
+    expect(hits[0]!.tick).toBe(14 * HZ);
+    expect(hits[5]!.tick - hits[0]!.tick).toBe(5 * HZ);
     for (const h of hits) expect(dist(h, AT)).toBeLessThanOrEqual(25);
     expect(new Set(hits.map((h) => `${h.x},${h.y}`)).size).toBe(6);
   });
@@ -113,14 +113,15 @@ describe('Artillery Barrage: the shells', () => {
   it('are projectiles: in the air for 4 s with their landing spot in the view, and harmless until they land', () => {
     const [first] = landings();
     const m = scene({ 6: { x: first!.x, y: first!.y } }); // pact Soldier 6, on the first landing spot
-    const run = play(m, 8 * HZ);
+    const run = play(m, 16 * HZ);
     const air = (i: number) => run.views[i]!.effects![0]!.shells!;
-    expect(air(2 * HZ)).toEqual([]); // 2 s: nothing has left yet
-    expect(air(3 * HZ)).toMatchObject([{ x: first!.x, y: first!.y }]); // launched
-    expect(air(3 * HZ)[0]!.flight).toBeGreaterThan(0);
-    expect(air(3 * HZ + 15)[0]!.flight).toBeGreaterThan(air(3 * HZ)[0]!.flight);
+    expect(air(9 * HZ)).toEqual([]); // 9 s: nothing has left yet
+    const t0 = 10 * HZ + 10; // the first shell is up, the second (1 s behind it) not yet
+    expect(air(t0)).toMatchObject([{ x: first!.x, y: first!.y }]); // launched
+    expect(air(t0)[0]!.flight).toBeGreaterThan(0);
+    expect(air(t0 + 15)[0]!.flight).toBeGreaterThan(air(t0)[0]!.flight);
     const hit = first!.tick;
-    for (let i = 3 * HZ; i < hit; i++) expect(run.pact[i]!.friendlies.find((f) => f.id === 6)).toMatchObject({ state: 'alive', suppressed: false });
+    for (let i = t0; i < hit; i++) expect(run.pact[i]!.friendlies.find((f) => f.id === 6)).toMatchObject({ state: 'alive', suppressed: false });
     expect(run.pact[hit]!.friendlies.find((f) => f.id === 6)).toBeUndefined(); // dead on the landing tick
   });
 
@@ -160,47 +161,17 @@ describe('Artillery Barrage: the shells', () => {
   });
 });
 
-describe('Artillery Barrage: fleeing', () => {
+describe('Artillery Barrage: nobody dodges', () => {
   const pos = (v: CommanderView, id: number) => v.friendlies.find((f) => f.id === id)!;
 
-  it('friendlies in the zone run out of it as soon as it is called, and are clear before the shells land', () => {
-    const m = scene({ 0: { x: AT.x + 5, y: AT.y }, 1: { x: AT.x - 20, y: AT.y + 10 } });
-    const run = play(m, 16 * HZ);
-    for (const id of [0, 1]) {
-      const d = (i: number) => dist(pos(run.views[i]!, id), AT);
-      expect(d(1 * HZ)).toBeGreaterThan(d(0));
-      expect(d(2 * HZ)).toBeGreaterThan(d(1 * HZ));
-      expect(d(6 * HZ + 10)).toBeGreaterThanOrEqual(ZONE); // clear by the first landing, 6.5 s
-      expect(pos(run.views.at(-1)!, id).state).toBe('alive');
-    }
+  it('a Soldier in the zone stands where it is, friend or foe, before and after the first impact (#58: no hold-out rule)', () => {
+    const harmless = { barrageKillM: 0, barrageWoundM: 0 }; // so the enemy lives to be watched
+    const friend = { x: AT.x + 5, y: AT.y };
+    const enemy = { x: AT.x + 20, y: AT.y };
+    const run = play(scene({ 0: friend, 6: enemy }, harmless), SHELLS_DONE);
     expect(impacts(run).length).toBe(6);
-  });
-
-  it('enemies in the zone stand until the first shell lands, then run out of it', () => {
-    // the shells themselves are made harmless here, so the enemy lives to run
-    const harmless = { barrageKillM: 0, barrageWoundM: 0 };
-    const start = { x: AT.x + 20, y: AT.y };
-    const run = play(scene({ 6: start }, harmless), 14 * HZ);
-    const at = (i: number) => run.pact[i]!.friendlies.find((f) => f.id === 6)!;
-    const first = impacts(run)[0]!.tick;
-    for (let i = 0; i < first; i++) expect(dist(at(i), start)).toBe(0);
-    expect(dist(at(first + 2 * HZ), AT)).toBeGreaterThan(dist(start, AT) + 5);
-    expect(dist(at(14 * HZ - 1), AT)).toBeGreaterThanOrEqual(ZONE);
-  });
-
-  it('Soldiers outside the zone stand where they are', () => {
-    const run = play(scene({ 6: { x: AT.x + 60, y: AT.y } }), 10 * HZ);
-    expect(dist(pos(run.pact.at(-1)!, 6), { x: AT.x + 60, y: AT.y })).toBe(0);
-  });
-
-  it('a Squad on its way to a point in the zone is held outside it while the Barrage works, then goes in', () => {
-    const P = { id: 'P', name: 'P', x: AT.x, y: AT.y, owner: null };
-    const place = Object.fromEntries([0, 1, 2, 3, 4, 5].map((i) => [i, { x: AT.x - 70, y: AT.y + i * 3 }]));
-    const run = play(scene(place, {}, 1, { ...field, points: [P] }), 30 * HZ);
-    const nearest = (i: number) => Math.min(...run.views[i]!.friendlies.map((f) => dist(f, AT)));
-    expect(nearest(10 * HZ)).toBeGreaterThanOrEqual(ZONE); // held at the edge
-    expect(nearest(15 * HZ)).toBeGreaterThanOrEqual(ZONE);
-    expect(nearest(30 * HZ - 1)).toBeLessThan(25); // the Barrage is over: it carries on to the point
+    for (const v of run.views) expect(dist(pos(v, 0), friend)).toBe(0);
+    for (const v of run.pact) expect(dist(pos(v, 6), enemy)).toBe(0);
   });
 });
 

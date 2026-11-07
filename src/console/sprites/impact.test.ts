@@ -46,6 +46,12 @@ describe('shell impact: explosion, drifting plume and lasting crater', () => {
     expect(impactLook(i, SMOKE_FADE_MS).plume).toEqual([]);
   });
 
+  it('is big: the flash spans well over the kill ring, the plume more than the crater', () => {
+    const look = impactLook(hit(), EXPLOSION_MS / 2);
+    expect(look.explosion!.size).toBeGreaterThanOrEqual(50);
+    expect(Math.max(...impactLook(hit(), EXPLOSION_MS + 1000).plume.map((p) => p.size))).toBeGreaterThan(look.crater.size * 2);
+  });
+
   it('leaves a crater that stays for the match', () => {
     const i = hit();
     const c = impactLook(i, 0).crater;

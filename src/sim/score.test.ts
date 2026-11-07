@@ -45,7 +45,7 @@ const landing = (): Vec2 => {
   const { x, y } = play(scene(), 16 * HZ).find((e): e is Extract<SimEvent, { kind: 'impact' }> => e.kind === 'impact')!;
   return { x, y };
 };
-const LAND_TICK = 6.5 * HZ; // 2.5 s warning + 4 s flight
+const LAND_TICK = 14 * HZ; // 10 s warning + 4 s flight
 
 describe('Commander Score: Artillery', () => {
   it('a Barrage kill of an enemy awards the artillery kill value to the caller, and the view carries the totals', () => {
@@ -137,12 +137,14 @@ describe('Commander Score: Artillery', () => {
   it("a Soldier Wounded by the enemy's Barrage and killed by its own Side's earns the enemy nothing", () => {
     const at = landing();
     const victim = { x: at.x + 6, y: at.y };
-    // dry run: nato's shell Wounds 6, then pact calls a Barrage on the same spot; learn where its shell lands
-    const dry = scene({ 6: victim });
+    // dry run: nato's shell Wounds 6, then pact calls a Barrage on the same spot; learn where its shell lands.
+    // 6 must still be bleeding 14 s later when pact's shell lands, so it bleeds slowly here.
+    const slow = { bleedOutSeconds: 30 };
+    const dry = scene({ 6: victim }, slow);
     play(dry, LAND_TICK + 1);
     const l2 = play(dry, LAND_TICK + 1, [barrage(dry, 'pact')]).find((e): e is Extract<SimEvent, { kind: 'impact' }> => e.kind === 'impact')!;
     // the same again, pact's Barrage aimed so its shell lands on 6
-    const m = scene({ 6: victim });
+    const m = scene({ 6: victim }, slow);
     const before = play(m, LAND_TICK + 1);
     expect(before.some((e) => e.kind === 'wounded' && e.id === 6)).toBe(true);
     const after = play(m, LAND_TICK + 1, [barrage(m, 'pact', { x: AT.x + (victim.x - l2.x), y: AT.y + (victim.y - l2.y) })]);

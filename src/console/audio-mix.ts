@@ -2,7 +2,7 @@
 // Audio. Nothing here needs a browser, so all of it is unit-tested; audio.ts (the Web Audio graph) is judged by ear.
 import type { CommanderView, SimEvent, Vec2 } from '../sim/types';
 import { scanUav } from './sprites/scan-uav';
-import { shellInFlight } from './sprites/shell';
+import { SHELL_VISIBLE_FROM, shellInFlight } from './sprites/shell';
 
 /** Every tuning knob in one place; the audition page's sliders mutate it live. */
 export const TUNING = {
@@ -82,7 +82,7 @@ export interface Loop extends Vec2 {
   kind: 'uav' | 'crate' | 'shell';
 }
 
-/** The loops the effects layer draws from `view` at `seconds`: the UAV in orbit, the crate in the air, every shell in flight from `hq`. */
+/** The loops the effects layer draws from `view` at `seconds`: the UAV in orbit, the crate in the air, every shell in flight (bearing from `hq`). */
 export function drawnLoops(view: CommanderView, hq: Vec2, seconds: number): Loop[] {
   const out: Loop[] = [];
   for (const e of view.effects ?? []) {
@@ -92,6 +92,7 @@ export function drawnLoops(view: CommanderView, hq: Vec2, seconds: number): Loop
     }
     if (e.landsIn !== undefined && e.fall && e.landsIn > 0) out.push({ key: `crate:${e.x}:${e.y}`, kind: 'crate', x: e.x, y: e.y });
     for (const s of e.shells ?? []) {
+      if (s.flight < SHELL_VISIBLE_FROM) continue; // not drawn yet
       const p = shellInFlight(hq, s, s.flight);
       out.push({ key: `shell:${s.x}:${s.y}`, kind: 'shell', x: p.x, y: p.y });
     }

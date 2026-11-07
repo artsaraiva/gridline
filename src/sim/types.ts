@@ -214,7 +214,6 @@ export interface Tune {
   barrageSuppressM: number; // ... and suppresses within this
   barrageSuppression: number; // suppression (0..1) a shell leaves
   barrageContactSeconds: number; // enemies in the zone are Contacts from the first impact until this long after the last
-  barrageHoldOutM: number; // Soldiers that stay clear of the zone are held this far outside it
 
   // #41 Requests
   requestSeconds: number; // an open Request expires after this long

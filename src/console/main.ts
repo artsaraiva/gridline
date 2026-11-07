@@ -69,10 +69,10 @@ renderer.setAnimationLoop(() => {
   drawRadioLog(now);
   drawGrid(view, now);
   drawImpacts(now);
-  drawEffects(view);
+  drawEffects(view, now);
   drawScanUavs(view, scale, now);
   drawSupplyDrops(view, scale);
-  drawShells(view, scale);
+  drawShells(view, now);
   drawOrders(view, metresPerPx.value);
   drawDeathMarkers(now, scale);
   drawLastKnown(view, scale);

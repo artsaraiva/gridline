@@ -7,11 +7,11 @@ import { SMOKE_PUFF_VARIANTS } from './smoke-puff';
 export const EXPLOSION_FRAMES = 32;
 export const EXPLOSION_FPS = 16;
 export const EXPLOSION_MS = (EXPLOSION_FRAMES / EXPLOSION_FPS) * 1000;
-/** World size in metres of the baked explosion quad (1 bake unit = 18 m). */
-const EXPLOSION_WORLD_M = 36;
+/** Console look: metres the explosion quad is drawn across (#98: big, well over the kill ring). Not a bake value. */
+const EXPLOSION_WORLD_M = 64;
 export const CRATER_VARIANTS = 3;
-/** World size in metres of the baked crater decal quad (1 bake unit = 5 m). */
-const CRATER_WORLD_M = 10;
+/** Console look: metres the crater decal quad is drawn across. Not a bake value. */
+const CRATER_WORLD_M = 13;
 /** Console constant: craters kept on the map; past this the oldest is removed. */
 export const CRATER_CAP = 60;
 /** Console constant: time from impact until its smoke plume has drifted off and faded out. */
@@ -97,7 +97,7 @@ export function impactLook(i: ImpactRecord, now: number): ImpactLook {
       plume.push({
         x: i.x + Math.cos(a) * spread + WIND.x * drift,
         y: i.y + Math.sin(a) * spread + WIND.y * drift,
-        size: (k === 0 ? 18 : 14) * (1 + 0.8 * Math.sqrt(life)),
+        size: (k === 0 ? 26 : 20) * (1 + 0.8 * Math.sqrt(life)),
         frame: (i.seed + k) % SMOKE_PUFF_VARIANTS,
         flip: q < 0.5,
         opacity: fadeIn * (k === 0 ? 0.52 : 0.42) * (1 - life) ** 1.4,

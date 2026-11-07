@@ -1,17 +1,22 @@
 // Asset effects on the map: the armed Asset's preview ring (with its grid and the distance to the nearest friendly
 // Squad) and each working Asset's ring with its time left. Labels are DOM tags over the canvas and keep clear of the
 // map Confirm button. The baked objects (Scan UAV, Supply Drop crate, shells, impacts) each have a layer of their own (#77).
+// The Barrage ring turns while it works and pulses on each impact (#98).
 import * as THREE from 'three/webgpu';
 import { gridRef } from '../../sim/grid-ref';
 import type { CommanderView, Vec2 } from '../../sim/types';
 import { COLOR, pool, toScreen } from '../renderer';
 import { session } from '../session';
+import { lastImpactAt } from './impacts';
 import { clock } from '../summary';
 import { overlaps, targeting, validSpot } from '../targeting';
 import { css, dashedRing, fading } from './symbols';
 
 const NAME = { scan: 'Scan UAV', supply: 'Supply Drop', barrage: 'Barrage' };
 const discGeometry = new THREE.CircleGeometry(1, 96);
+/** The Barrage ring turns this fast while it works, so an ongoing strike reads at a glance. */
+const RING_TURN_RAD_PER_S = 0.25;
+const RING_PULSE_MS = 600;
 
 /** A ring and a faint disc, pooled: rings carry no id, so they are reused in draw order. */
 const rings = pool(() => {
@@ -59,11 +64,13 @@ function label(i: number, p: Vec2, dx: number, dy: number, text: string, color: 
   el.style.transform = `translate(${x}px, ${y}px)`;
 }
 
-export function drawEffects(view: CommanderView) {
+export function drawEffects(view: CommanderView, now: number) {
   let tags = 0;
   for (const e of view.effects ?? []) {
     const danger = e.asset === 'barrage';
     const r = ringAt(e, e.radius, danger ? COLOR.hostile : COLOR.friendly, danger ? 0.1 : 0.06);
+    r.ring.mesh.rotation.z = danger ? (now / 1000) * RING_TURN_RAD_PER_S : 0;
+    if (danger) r.ring.alpha.value = 0.7 + 0.3 * Math.max(0, 1 - (now - lastImpactAt()) / RING_PULSE_MS);
     let time = clock(Math.ceil(e.left));
     if (e.landsIn !== undefined && e.fall) { // a Supply Drop crate: its ring brightens as it comes down
       const high = e.landsIn / e.fall;

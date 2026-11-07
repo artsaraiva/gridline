@@ -39,8 +39,6 @@ export interface Kind {
   firstReadySeconds?(t: Tune): number;
   /** #40: runs once as the Asset is called, to set up the effect (seeded draws go here). */
   start?(m: Match, e: Effect): void;
-  /** #40: the Soldier is kept off the ground: a spot to run to, 'hold' to stand, or null when not affected. */
-  avoid?(m: Match, e: Effect, s: Soldier): Vec2 | 'hold' | null;
   /** #40: enemies of the caller the effect shows as Contacts for as long as it lasts. */
   contacts?(m: Match, e: Effect): Soldier[];
   /** #40: extra fields for the effect's view. */
@@ -90,15 +88,6 @@ export function call(m: Match, c: Extract<Command, { kind: 'asset' }>, events: S
 export function assetEffects(m: Match, events: SimEvent[]) {
   for (const e of m.assets.effects) KINDS[e.asset]!.work(m, e, events);
   m.assets.effects = m.assets.effects.filter((e) => e.until > m.tick + 1);
-}
-
-/** Where `s` must go (or 'hold') to keep clear of the Assets at work, or null. */
-export function avoid(m: Match, s: Soldier): Vec2 | 'hold' | null {
-  for (const e of m.assets.effects) {
-    const a = KINDS[e.asset]!.avoid?.(m, e, s);
-    if (a) return a;
-  }
-  return null;
 }
 
 /** Enemies of `side` its Assets show as Contacts right now. */
