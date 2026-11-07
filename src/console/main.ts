@@ -15,6 +15,9 @@ import { addDeathMarker, drawDeathMarkers } from './layers/markers';
 import { watchFrame } from './layers/map';
 import { drawOrders, hideOrderTags } from './layers/orders';
 import { drawHqs, drawPoint } from './layers/points';
+import { drawScanUavs } from './layers/scan-uav';
+import { drawShells } from './layers/shells';
+import { drawSupplyDrops } from './layers/supply-drop';
 import { UNIT_PX } from './layers/symbols';
 import { addShot, drawTracers } from './layers/tracers';
 import { checkEnd } from './match-flow';
@@ -66,7 +69,10 @@ renderer.setAnimationLoop(() => {
   drawRadioLog(now);
   drawGrid(view, now);
   drawImpacts(now);
-  drawEffects(view, scale, now);
+  drawEffects(view);
+  drawScanUavs(view, scale, now);
+  drawSupplyDrops(view, scale);
+  drawShells(view, scale);
   drawOrders(view, metresPerPx.value);
   drawDeathMarkers(now, scale);
   drawLastKnown(view, scale);
@@ -76,7 +82,7 @@ renderer.setAnimationLoop(() => {
   drawTracers(now, scale);
   if (!view.result) {
     soundEvents(events, view); // #85: combat cues for the sources the layers drew this frame; the radio log ducks them while a line is on air
-    soundFrame(view, host.map.hqs[view.side], now / 1000); // the looping cues (UAV, shells, crate) follow drawEffects
+    soundFrame(view, host.map.hqs[view.side], now / 1000); // the looping cues (UAV, shells, crate) follow the Asset layers
   }
   checkEnd(view);
   renderFeed();
