@@ -154,6 +154,11 @@ canvas { display: block; touch-action: none; }
   background: linear-gradient(225deg, var(--amber) 50%, transparent 50%); animation: blink 1s steps(1) infinite;
 }
 
+.tile .veh { position: absolute; top: 3px; right: 3px; display: flex; flex-direction: column; gap: 1px; color: var(--fr); }
+.tile .veh svg { width: 11px; height: 6px; }
+#squads .card .veh { display: flex; gap: 2px; margin-left: 4px; align-items: center; color: var(--fr); }
+#squads .card .veh svg { width: 14px; height: 8px; }
+
 #squads .card {
   pointer-events: auto; width: 248px; min-height: 58px; display: grid; grid-template-columns: 44px 1fr; gap: 4px;
   padding: 0; background: none; border: 0; cursor: pointer;

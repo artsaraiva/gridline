@@ -6,7 +6,7 @@ import type { CommanderView, SquadView } from '../../sim/types';
 import { session } from '../session';
 import { clock, orderLine, requestLine, squadAlert, squadCentroid } from '../summary';
 import { answer, clearOrder, select, targeting } from '../targeting';
-import { assetIcon } from './icons';
+import { assetIcon, TANK_BADGE } from './icons';
 
 const box = document.getElementById('squads')!;
 const tilesBox = box.querySelector<HTMLElement>('.tiles')!;
@@ -29,6 +29,12 @@ function pips(q: SquadView, view: CommanderView): string {
   return Array.from({ length: q.size }, (_, n) =>
     n < q.strength ? '<i class="on ok"></i>' : n < q.strength + wounded ? '<i class="hurt"></i>' : '<i></i>',
   ).join('');
+}
+
+/** #107: a tank badge per member aboard one; vehicles themselves are never listed. */
+function badges(q: SquadView, view: CommanderView): string {
+  const aboard = view.friendlies.filter((f) => f.squad === q.id && f.vehicle !== undefined).length;
+  return aboard ? `<span class="veh">${TANK_BADGE.repeat(aboard)}</span>` : '';
 }
 
 const alertOf = (q: SquadView, view: CommanderView) => squadAlert(q, view.friendlies.some((f) => f.squad === q.id && f.suppressed));
@@ -68,7 +74,7 @@ export function drawSquads(view: CommanderView | null) {
     if (isSel) selIdx = i;
     t.hidden = isSel;
     const cls = `tile${isSel ? ' sel' : ''}${q.order?.state === 'delayed' ? ' delayed' : ''}${wiped(q) ? ' wiped' : ''}${q.request ? ' req' : ''}${alertOf(q, view) ? ' fire' : ''}`;
-    const html = `${q.request ? `<span class="rq">${assetIcon(q.request.asset, 2.4)}</span>` : ''}<b>${q.name[0]}</b><span class="pips">${pips(q, view)}</span>`;
+    const html = `${q.request ? `<span class="rq">${assetIcon(q.request.asset, 2.4)}</span>` : ''}<b>${q.name[0]}</b><span class="pips">${pips(q, view)}</span>${badges(q, view)}`;
     if (t.className !== cls) t.className = cls;
     if (t.dataset.h !== html) t.innerHTML = t.dataset.h = html;
     t.title = q.name;
@@ -83,7 +89,7 @@ export function drawSquads(view: CommanderView | null) {
   const html =
     `<div class="letter">${q.name[0]}</div>` +
     `<div class="body">` +
-    `<div class="top"><b>${q.name}</b>${alertOf(q, view) ? `<span class="alert">${alertOf(q, view)}</span>` : ''}<span class="pips">${pips(q, view)}</span></div>` +
+    `<div class="top"><b>${q.name}</b>${alertOf(q, view) ? `<span class="alert">${alertOf(q, view)}</span>` : ''}<span class="pips">${pips(q, view)}${badges(q, view)}</span></div>` +
     `<div class="ord${delayed ? ' delayed' : ''}"><span>${orderLine(q, view)}</span><span class="st${delayed ? ' delayed' : ''}">${stateOf(q)}</span><span class="where">${whereOf(q, view)}</span></div>` +
     (q.request ? `<button type="button" class="ask">${assetIcon(q.request.asset, 2)}<span>${requestLine(q.request)}</span></button>` : '') +
     (q.order ? '<button type="button" class="clr">Clear order</button>' : '') +

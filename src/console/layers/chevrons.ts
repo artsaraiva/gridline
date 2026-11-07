@@ -107,7 +107,7 @@ function draw(list: (SoldierView | FriendlyView)[], kind: 'friendly' | 'hostile'
 export function drawChevrons(view: CommanderView, scale: number, now: number) {
   const seen = new Set<string>();
   const leaders = new Set(view.squads.map((q) => q.leader).filter((id): id is number => id != null));
-  draw(view.friendlies, 'friendly', seen, scale, now, leaders);
+  draw(view.friendlies.filter((f) => f.vehicle === undefined), 'friendly', seen, scale, now, leaders); // #107: aboard, the tank stands for them
   draw(view.contacts, 'hostile', seen, scale, now, new Set());
   for (const [key, { mesh }] of chevrons) mesh.visible = seen.has(key);
   drawBrackets(view, scale);

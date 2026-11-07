@@ -14,6 +14,7 @@ import { addImpact, drawImpacts } from './layers/impacts';
 import { addDeathMarker, drawDeathMarkers } from './layers/markers';
 import { watchFrame } from './layers/map';
 import { drawMissiles } from './layers/missile';
+import { drawTanks } from './layers/tank';
 import { drawOrders, hideOrderTags } from './layers/orders';
 import { drawHqs, drawPoint } from './layers/points';
 import { drawScanUavs } from './layers/scan-uav';
@@ -75,6 +76,7 @@ renderer.setAnimationLoop(() => {
   drawSupplyDrops(view, scale);
   drawShells(view, now);
   drawMissiles(view, scale);
+  drawTanks(view);
   drawOrders(view, metresPerPx.value);
   drawDeathMarkers(now, scale);
   drawLastKnown(view, scale);
