@@ -9,7 +9,7 @@ export { walk } from './soldier';
 export { logDeath, type Death } from './routes';
 
 type SquadAi = Omit<Squad, 'id' | 'side' | 'members' | 'goal' | 'lastSeen' | 'lastHit' | 'memory' | 'order' | 'pending' | 'request' | 'requestNext' | 'taking' | 'takingSince'>;
-type SoldierAi = Pick<Soldier, 'ammo' | 'lastTarget' | 'dest' | 'path' | 'cover' | 'chaseUntil' | 'role' | 'regroup' | 'slot' | 'blocked'>;
+type SoldierAi = Pick<Soldier, 'ammo' | 'lastTarget' | 'dest' | 'path' | 'cover' | 'chaseUntil' | 'role' | 'regroup' | 'strayUntil' | 'slot' | 'blocked'>;
 
 export const newSquadAi = (): SquadAi => ({
   task: 'none', mode: 'travel', route: -1, slow: false, phase: 0, phaseUntil: 0, holdAt: 0, holdOct: -1, flankSign: 0, flankSince: -1, flankDone: false,
@@ -20,7 +20,7 @@ export const newSoldierAi = (m: Match): SoldierAi => ({ ...resetSoldierAi(m), sl
 
 /** What a Soldier forgets when Wounded or brought back. */
 export const resetSoldierAi = (m: Match) => ({
-  ammo: m.tune.ammo, lastTarget: -1, dest: null, path: [], cover: null, chaseUntil: 0, role: null, regroup: false,
+  ammo: m.tune.ammo, lastTarget: -1, dest: null, path: [], cover: null, chaseUntil: 0, role: null, regroup: false, strayUntil: 0,
 });
 
 const MODE = { travel: 0, bound: 1, hold: 2, fallback: 3 };
@@ -35,7 +35,7 @@ export function hashAi(m: Match, mix: Mix) {
   for (const sq of m.squads)
     for (const v of [TASK[sq.task], MODE[sq.mode], sq.route, +sq.slow, sq.phase, sq.phaseUntil, sq.holdAt, sq.holdOct, sq.flankSign, sq.flankSince, +sq.flankDone]) mix(v);
   for (const s of m.soldiers) {
-    for (const v of [s.lastTarget, s.path.length, s.chaseUntil, s.role ? ROLE[s.role] : 0, +s.regroup, s.blocked]) mix(v);
+    for (const v of [s.lastTarget, s.path.length, s.chaseUntil, s.role ? ROLE[s.role] : 0, +s.regroup, s.strayUntil, s.blocked]) mix(v);
     at(s.dest);
     at(s.cover);
     at(s.path[0]);

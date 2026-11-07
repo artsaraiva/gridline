@@ -198,8 +198,8 @@ describe('casualties', () => {
   });
 
   it('the bleed-out clock keeps running while the squad mate runs over', () => {
-    // 39 m at 4.4 m/s is under 1.8 m away only after about 8.5 s
-    const { events } = play(exchange({ x: 0, y: 39 }), 20 * HZ);
+    // 45 m at 5.06 m/s is under 1.8 m away only after about 8.5 s
+    const { events } = play(exchange({ x: 0, y: 45 }), 20 * HZ);
     expect(of(events, 'revived', 'nato')).toEqual([]);
     expect(of(events, 'death', 'nato').map((e) => e.tick / HZ)).toEqual([8]);
   });

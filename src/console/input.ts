@@ -40,7 +40,7 @@ renderer.domElement.addEventListener(
     const after = pxToWorld();
     camera.position.x += cx * (before - after); // keep the world point under the cursor fixed
     camera.position.y += cy * (before - after);
-    burst(0.3);
+    burst(0.15);
   },
   { passive: false },
 );

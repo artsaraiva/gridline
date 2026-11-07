@@ -1,12 +1,14 @@
 // The Squad layer: survival first (Retreat, Resupply), else the Capture Point with the best score; then how to move there
-// (travel in a wedge, bound under fire, flank, hold), plus the Soldier jobs it hands out (peel-off, cover when pinned, regroup).
+// (travel in a wedge, bound under fire, flank, hold), plus the Soldier jobs it hands out (peel-off, cover when pinned, regroup,
+// #93 straying from the wedge).
 import type { Match } from '../index';
 import { insideCount } from '../capture';
 import { nearestCrate } from '../assets/crate';
-import { dist2 } from '../geometry';
+import { canStand, dist2 } from '../geometry';
 import { gridRef } from '../grid-ref';
 import { lineWalk } from '../grid';
 import { quiet } from '../respawn';
+import { rnd } from '../rng';
 import { membersOf, type Soldier, type Squad } from '../state';
 import { enemyOf, type SimEvent, type Vec2 } from '../types';
 import { localPath, oct, pickCover, shelter } from './cover';
@@ -144,12 +146,12 @@ export function think(m: Match, sq: Squad, events: SimEvent[]) {
     for (const s of alive)
       if (!s.chaseUntil) {
         setDest(m, s, null);
-        Object.assign(s, { cover: null, role: null });
+        Object.assign(s, { cover: null, role: null, strayUntil: 0 });
       }
     Object.assign(sq, { mode, phase: 1, phaseUntil: 0, holdAt: 0, flankSign: 0, flankSince: -1, flankDone: false });
   }
   const team = alive.filter((s) => !s.chaseUntil);
-  sq.slow = (mode === 'travel' || mode === 'fallback') && alive.some((s, n) => n > 0 && dist2(s, wedgeSlot(m, L, n, s.slot)) > 100);
+  sq.slow = (mode === 'travel' || mode === 'fallback') && alive.some((s, n) => n > 0 && !s.strayUntil && dist2(s, wedgeSlot(m, L, n, s.slot)) > 100); // #93: a stray is not waited for
   if (mode === 'hold' && goal) hold(m, sq, goal, threat, team, alive);
   else if (mode === 'bound' && goal) {
     const flow = flowOf(m, sq)!;
@@ -157,6 +159,39 @@ export function think(m: Match, sq: Squad, events: SimEvent[]) {
     else bound(m, sq, threat, flow, team, alive);
   }
   soldierJobs(m, sq, L, goal, threat, alive);
+  if ((mode === 'travel' || mode === 'fallback') && goal && dist2(L, goal) > sq2(goal.r + t.leashM)) stray(m, sq, L, alive); // #93: closes up within a leash of the goal
+}
+
+/**
+ * #93: a travelling mate now and then leaves the wedge for a spot beside the Squad's line ahead, then walks its own line
+ * from there (soldier.ts) until its stray ends or the leash pulls it back (regroup, in soldierJobs); it rejoins the wedge
+ * after either. Only the Simulation RNG, so replays hold.
+ */
+function stray(m: Match, sq: Squad, L: Soldier, alive: Soldier[]) {
+  const t = m.tune;
+  const flow = flowOf(m, sq);
+  alive.forEach((s, n) => {
+    if (s === L || s.chaseUntil) return;
+    if (s.strayUntil && m.tick >= s.strayUntil) {
+      if (s.regroup) return; // walking back; `strayUntil` stays set so the leader does not wait for it and it does not stray again yet
+      if (s.dest) setDest(m, s, null);
+      if (dist2(s, L) > sq2(22)) {
+        // too far for the wedge to take it (soldier.ts): walks back behind the leader like a straggler, the regroup rule above keeps it going
+        Object.assign(s, { regroup: true, cover: null });
+        setDest(m, s, { x: L.x - L.fx * 5, y: L.y - L.fy * 5 });
+        return;
+      }
+      if (dist2(s, wedgeSlot(m, L, n, s.slot)) > 100) return; // the wedge walks it the last metres to its slot; still not waited for
+      s.strayUntil = 0;
+    }
+    if (s.strayUntil || s.regroup || s.dest || !flow || rnd(m) >= t.strayChance) return;
+    const ahead = flowLook(m, flow, L, 20) ?? L;
+    const side = (t.strayM[0] + (t.strayM[1] - t.strayM[0]) * rnd(m)) * (rnd(m) < 0.5 ? -1 : 1);
+    const spot = { x: ahead.x + L.fy * side, y: ahead.y - L.fx * side };
+    if (!canStand(m, s, spot) || alive.some((o) => o !== s && dist2(o.dest ?? o, spot) < sq2(t.coverSpacingM))) return;
+    s.strayUntil = m.tick + (t.straySeconds[0] + (t.straySeconds[1] - t.straySeconds[0]) * rnd(m)) * t.hz;
+    setDest(m, s, spot);
+  });
 }
 
 /** Cover in and around the point, facing the threat (or the enemy HQ); re-picked every `holdRepickSeconds` or when the threat moves round. */

@@ -136,7 +136,7 @@ describe('point choice', () => {
 
 describe('loose squads', () => {
   it('a travelling Squad moves as a wedge: the leader in front, the others behind on both sides, spaced out', () => {
-    const m = scene({ map: field({ points: [{ id: 'P', name: 'P', x: 300, y: 0 }] }), tune: { visionM: 0 } });
+    const m = scene({ map: field({ points: [{ id: 'P', name: 'P', x: 300, y: 0 }] }), tune: { visionM: 0, strayChance: 0 } });
     const { nato } = play(m, 30 * HZ);
     const v = nato.at(-1)!;
     const lead = v.friendlies.reduce((a, b) => (b.x > a.x ? b : a));
@@ -144,6 +144,24 @@ describe('loose squads', () => {
     expect(rest.every((f) => lead.x - f.x > 3 && dist(f, lead) < 25)).toBe(true);
     expect(rest.some((f) => f.y > lead.y + 2) && rest.some((f) => f.y < lead.y - 2)).toBe(true);
     for (const a of v.friendlies) for (const b of v.friendlies) if (a !== b) expect(dist(a, b)).toBeGreaterThan(2.5);
+  });
+
+  it('#93: a travelling mate strays from the wedge when the chance says so, never past the leash, and not at all at 0', () => {
+    const far = { map: field({ points: [{ id: 'P', name: 'P', x: 500, y: 0 }] }) };
+    const offWedge = (v: CommanderView) => {
+      const lead = v.friendlies.reduce((a, b) => (b.x > a.x ? b : a));
+      return v.friendlies.filter((f) => f !== lead && Math.abs(f.y - lead.y) > 9); // a rank-one wedge slot sits at most 7 m out
+    };
+    const { nato: still } = play(scene({ ...far, tune: { visionM: 0, strayChance: 0 } }), 60 * HZ);
+    expect(still.slice(10 * HZ).every((v) => offWedge(v).length === 0)).toBe(true); // once the spawn spread has closed into the wedge
+
+    const { nato: loose } = play(scene({ ...far, tune: { visionM: 0, strayChance: 1 } }), 60 * HZ);
+    expect(loose.some((v) => offWedge(v).length > 0)).toBe(true);
+    for (const v of loose) {
+      const lead = v.friendlies.reduce((a, b) => (b.x > a.x ? b : a));
+      for (const f of v.friendlies) expect(dist(f, lead)).toBeLessThan(DEFAULT_TUNE.leashM + 20);
+    }
+    expect(loose.at(-1)!.friendlies.reduce((a, b) => (b.x > a.x ? b : a)).x).toBeGreaterThan(still.at(0)!.friendlies[0]!.x + 50); // the leader still gets on
   });
 
   it('a Soldier more than 60 m from its leader regroups; one within 60 m stays put', () => {
@@ -249,13 +267,15 @@ describe('under fire', () => {
     const { nato } = play(scene({ map: field({ points: [{ id: 'Q', name: 'Q', x: 150, y: 0, owner: 'pact' }], cover: block }), place: squadsFacing(), tune: { hp: 1e9, suppressPerShot: 0.05, ammo: 1e6 } }), 60 * HZ);
     let crowd = 0;
     let closest = Infinity;
-    for (const v of nato) {
+    nato.forEach((v, i) => {
       const inside = v.friendlies.filter((f) => inCover(block, f));
       if (inside.length >= 3) crowd++;
-      for (const a of inside) for (const b of inside) if (a !== b) closest = Math.min(closest, dist(a, b));
-    }
+      // the spots are kept apart; a Soldier walking to its spot may pass a settled mate closer
+      const settled = inside.filter((f) => i > 0 && dist(f, nato[i - 1]!.friendlies.find((g) => g.id === f.id)!) < 0.05);
+      for (const a of settled) for (const b of settled) if (a !== b) closest = Math.min(closest, dist(a, b));
+    });
     expect(crowd).toBeGreaterThan(5 * HZ); // three or more spend a good while in the block
-    expect(closest).toBeGreaterThanOrEqual(4.5) // 5 m, less a step's slack;
+    expect(closest).toBeGreaterThanOrEqual(4.5); // 5 m, less a step's slack
   });
 
   it('a Squad of 3 or more under contact within 130 m flanks: radios the side and grid, and the flankers swing out that way', () => {

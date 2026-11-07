@@ -1,12 +1,12 @@
 // Right rail (#36, #41, #44): one 56 × 48 tile per Squad (letter, 4 health pips, amber border when Delayed, blinking
-// amber corner when a Request is open, dimmed when wiped); the selected Squad opens in place into a 248 px card (APP-6
-// frame, name, pips, Order and state, grid, open Request with timer, Clear order).
+// amber corner when a Request is open, dimmed when wiped); the selected Squad opens in place into a 248 px card (letter,
+// name, pips, Order and state, grid, open Request with timer, Clear order).
 import { gridRef } from '../../sim/grid-ref';
 import type { CommanderView, SquadView } from '../../sim/types';
 import { session } from '../session';
 import { clock, orderLine, requestLine, squadAlert, squadCentroid } from '../summary';
 import { answer, clearOrder, select, targeting } from '../targeting';
-import { assetIcon, FRAME_SVG } from './icons';
+import { assetIcon } from './icons';
 
 const box = document.getElementById('squads')!;
 const tilesBox = box.querySelector<HTMLElement>('.tiles')!;
@@ -81,7 +81,7 @@ export function drawSquads(view: CommanderView | null) {
   if (card.className !== cardCls) card.className = cardCls;
   const delayed = q.order?.state === 'delayed';
   const html =
-    `<div class="frame">${FRAME_SVG}</div>` +
+    `<div class="letter">${q.name[0]}</div>` +
     `<div class="body">` +
     `<div class="top"><b>${q.name}</b>${alertOf(q, view) ? `<span class="alert">${alertOf(q, view)}</span>` : ''}<span class="pips">${pips(q, view)}</span></div>` +
     `<div class="ord${delayed ? ' delayed' : ''}"><span>${orderLine(q, view)}</span><span class="st${delayed ? ' delayed' : ''}">${stateOf(q)}</span><span class="where">${whereOf(q, view)}</span></div>` +

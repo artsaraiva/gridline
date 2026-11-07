@@ -34,6 +34,7 @@ export interface Soldier {
   chaseUntil: number; // tick a peel-off chase ends; 0 = not chasing
   role: 'flank' | 'support' | null; // its part in a flank
   regroup: boolean; // walking back to the leader
+  strayUntil: number; // #93 tick its stray ends; 0 = in the wedge
   slot: number; // seeded scale of its wedge slot
   blocked: number; // ticks it has been stuck
   // #55 Commander Score

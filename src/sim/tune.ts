@@ -4,7 +4,7 @@ export const DEFAULT_TUNE: Tune = {
   // Match and movement
   hz: 20,
   squadSize: 4,
-  walkSpeed: 4.4,
+  walkSpeed: 5.06, // 4.4 until the visual round 2 review: the game felt slow, +15 %
   speedJitter: 0.1,
   spread: 8,
   thinkSeconds: 1,
@@ -102,6 +102,11 @@ export const DEFAULT_TUNE: Tune = {
   memorySeconds: 8,
   lkpSeconds: 3.5,
   hearM: 90,
+
+  // #93 Squad mates stray
+  strayChance: 0.1,
+  straySeconds: [8, 20],
+  strayM: [10, 30],
 
   // #36 Orders
   orderBonus: 1.5,

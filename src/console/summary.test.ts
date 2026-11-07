@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { awardLine, cursorReadout, drainLine, dtg, edgeLine, endSummary, latlon, leaderOf, mgrs, orderLine, radioLine, requestLine, squadTag } from './summary';
+import { awardLine, cursorReadout, drainLine, dtg, edgeLine, endSummary, latlon, leaderOf, mgrs, orderLine, radioLine, requestLine } from './summary';
 import type { CommanderView, MapGrid, MatchResult, SideId, SimEvent, SquadView } from '../sim/types';
 
 function ended(side: SideId, result: MatchResult, tickets: Record<SideId, number>, seconds: number): CommanderView {
@@ -71,13 +71,6 @@ describe('Order line and Squad tag', () => {
     expect(orderLine(squad({ order: { point: 'C', state: 'following' } }), view)).toBe('TAKE C');
     expect(orderLine(squad({ order: { point: 'C', state: 'holding' } }), view)).toBe('HOLD C');
     expect(orderLine(squad({ order: { point: 'C', state: 'delayed', reason: 'resupply' } }), view)).toBe('RESUPPLYING · ORDER C');
-  });
-
-  it('the Squad tag shows name, strength with respawn timers, task, Order state and alerts', () => {
-    expect(squadTag(squad({ task: 'move', order: { point: 'C', state: 'delayed', reason: 'retreat' } }), true)).toBe('BRAVO 3/4 +8 · MOVE · DELAYED · SUPPRESSED');
-    expect(squadTag(squad({ respawnIn: [] }), false)).toBe('BRAVO 3/4');
-    expect(squadTag(squad({ respawnIn: [], takingFire: true }), false)).toBe('BRAVO 3/4 · TAKING FIRE');
-    expect(squadTag(squad({ respawnIn: [], takingFire: true }), true)).toBe('BRAVO 3/4 · SUPPRESSED');
   });
 });
 

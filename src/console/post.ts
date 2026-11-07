@@ -45,9 +45,9 @@ const scheduler = glitchScheduler(Math.random);
 const calm = matchMedia('(prefers-reduced-motion: reduce)').matches; // no flashing static
 let last = performance.now();
 
-/** Starts a static burst of strength `k` (0..1) unless one ran in the last 4 s. */
+/** Starts a static burst of strength `k` (0..1) unless one ran in the last 15 s (#91). */
 export const burst = (k: number) => !calm && scheduler.burst(performance.now(), k);
-confirmed.push(() => burst(0.8));
+confirmed.push(() => burst(0.4));
 
 /** Renders the scene through the feed chain. */
 export function renderFeed() {

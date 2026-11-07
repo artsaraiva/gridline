@@ -176,6 +176,11 @@ export interface Tune {
   hearM: number; // Soldiers this close to a shooter hear it (the target always does)
 
   // #36 Orders
+  // #93 Squad mates stray
+  strayChance: number; // per think, a travelling non-leader member this likely leaves the wedge ...
+  straySeconds: [number, number]; // ... for this long (seeded between the two) ...
+  strayM: [number, number]; // ... to a spot this far beside the Squad's line ahead (seeded, either side)
+
   orderBonus: number; // added to the score of the Squad's ordered point
   orderAckMinSeconds: number; // a Squad acknowledges (and starts on) an Order after a seeded lag between these
   orderAckMaxSeconds: number;

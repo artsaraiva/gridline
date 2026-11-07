@@ -1,4 +1,4 @@
-// Hand-drawn SVG line icons (1.6 px stroke) for the 3 Assets and the APP-6 friendly infantry frame for the Squad card.
+// Hand-drawn SVG line icons (1.6 px stroke) for the 3 Assets.
 import type { AssetKind } from '../../sim/types';
 
 const PATHS: Record<AssetKind, string> = {
@@ -10,5 +10,3 @@ const PATHS: Record<AssetKind, string> = {
 export const assetIcon = (asset: AssetKind, strokeWidth = 1.6) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${strokeWidth}" stroke-linejoin="round" stroke-linecap="round">${PATHS[asset]}</svg>`;
 
-export const FRAME_SVG =
-  '<svg viewBox="0 0 30 22"><circle cx="15" cy="-3" r="1.6" fill="currentColor"/><rect x="1" y="2" width="28" height="18" fill="rgba(111,208,255,.15)" stroke="currentColor" stroke-width="1.8"/><path d="M1 2l28 18M29 2L1 20" stroke="currentColor" stroke-width="1.4"/></svg>';
