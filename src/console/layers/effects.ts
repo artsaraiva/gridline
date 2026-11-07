@@ -8,7 +8,7 @@ import { gridRef } from '../../sim/grid-ref';
 import type { CommanderView, Vec2 } from '../../sim/types';
 import { BRIGHT, COLOR, GLOW, layer, metresPerPx, toScreen } from '../renderer';
 import { session } from '../session';
-import { lastImpactAt } from './impacts';
+import { lastImpactAt, recentImpacts } from './impacts';
 import {
   barrageShells,
   scanUav,
@@ -51,10 +51,12 @@ function halo(g: THREE.BufferGeometry, k: number) {
 
 /** A ring, a faint disc and markers, pooled: rings carry no id, so they are reused in draw order. */
 type Ring = { group: THREE.Group; ring: ReturnType<typeof dashedRing>; disc: THREE.Mesh };
-type ShellMark = { body: THREE.Mesh; frame: ReturnType<typeof spriteMaterial>['frame']; streak: THREE.Mesh };
+type ShellMark = { body: THREE.Mesh; frame: ReturnType<typeof spriteMaterial>['frame']; streak: THREE.Mesh; streakMat: THREE.MeshBasicNodeMaterial };
 /** The Barrage ring turns this fast while it works, so an ongoing strike reads at a glance. */
 const RING_TURN_RAD_PER_S = 0.25;
 const RING_PULSE_MS = 600;
+/** A shell's streak hangs in the air after the hit and fades out over this long. */
+const STREAK_FADE_MS = 2500;
 /** The streak is this wide on screen, whatever the zoom. */
 const STREAK_PX = 2.5;
 type UavMark = { shadow: THREE.Mesh; body: THREE.Mesh; frame: ReturnType<typeof spriteMaterial>['frame']; icon: THREE.Mesh };
@@ -116,7 +118,8 @@ function shellAt(i: number): ShellMark {
   let s = shellPool[i];
   if (!s) {
     const body = spriteMaterial('artillery-shell');
-    s = { body: new THREE.Mesh(quadGeometry, body.material), frame: body.frame, streak: new THREE.Mesh(quadGeometry, streakMaterial()) };
+    const streakMat = streakMaterial();
+    s = { body: new THREE.Mesh(quadGeometry, body.material), frame: body.frame, streak: new THREE.Mesh(quadGeometry, streakMat), streakMat };
     layer.add(s.streak, s.body);
     shellPool.push(s);
   }
@@ -235,16 +238,27 @@ export function drawEffects(view: CommanderView, scale: number, now: number) {
   }
   const map = session.host?.map;
   if (map) {
-    for (const s of barrageShells(view, map)) {
-      const m = shellAt(shells++);
-      const t = shellStreak(s.from, s.to, s.flight);
+    const streakAt = (m: ShellMark, from: Vec2, to: Vec2, flight: number, opacity: number) => {
+      const t = shellStreak(from, to, flight);
       m.streak.position.set((t.tail.x + t.head.x) / 2, (t.tail.y + t.head.y) / 2, 0.6);
       m.streak.rotation.z = t.angle;
       m.streak.scale.set(t.length, STREAK_PX * metresPerPx.value, 1);
+      m.streakMat.opacity = opacity;
+    };
+    for (const s of barrageShells(view, map)) {
+      const m = shellAt(shells++);
+      streakAt(m, s.from, s.to, s.flight, 1);
       m.body.position.set(s.x, s.y, 0.72);
       m.body.rotation.z = s.bodyRotation;
       m.body.scale.setScalar(s.size);
       m.frame.value = s.frame;
+    }
+    // After the hit the streak hangs in the air and fades; the Console's own impacts are the shells that landed
+    const hq = map.hqs[view.side];
+    for (const i of recentImpacts(now, STREAK_FADE_MS)) {
+      const m = shellAt(shells++);
+      m.body.visible = false;
+      streakAt(m, hq, i, 1, Math.sqrt(1 - (now - i.at) / STREAK_FADE_MS)); // sqrt: the glow curve squares it back to a steady fade
     }
   }
   const at = targeting.armed && (targeting.spot ?? targeting.pointer);
