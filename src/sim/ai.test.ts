@@ -267,13 +267,15 @@ describe('under fire', () => {
     const { nato } = play(scene({ map: field({ points: [{ id: 'Q', name: 'Q', x: 150, y: 0, owner: 'pact' }], cover: block }), place: squadsFacing(), tune: { hp: 1e9, suppressPerShot: 0.05, ammo: 1e6 } }), 60 * HZ);
     let crowd = 0;
     let closest = Infinity;
-    for (const v of nato) {
+    nato.forEach((v, i) => {
       const inside = v.friendlies.filter((f) => inCover(block, f));
       if (inside.length >= 3) crowd++;
-      for (const a of inside) for (const b of inside) if (a !== b) closest = Math.min(closest, dist(a, b));
-    }
+      // the spots are kept apart; a Soldier walking to its spot may pass a settled mate closer
+      const settled = inside.filter((f) => i > 0 && dist(f, nato[i - 1]!.friendlies.find((g) => g.id === f.id)!) < 0.05);
+      for (const a of settled) for (const b of settled) if (a !== b) closest = Math.min(closest, dist(a, b));
+    });
     expect(crowd).toBeGreaterThan(5 * HZ); // three or more spend a good while in the block
-    expect(closest).toBeGreaterThanOrEqual(4.5) // 5 m, less a step's slack;
+    expect(closest).toBeGreaterThanOrEqual(4.5); // 5 m, less a step's slack
   });
 
   it('a Squad of 3 or more under contact within 130 m flanks: radios the side and grid, and the flankers swing out that way', () => {

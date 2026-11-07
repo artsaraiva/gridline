@@ -4,7 +4,7 @@ export const DEFAULT_TUNE: Tune = {
   // Match and movement
   hz: 20,
   squadSize: 4,
-  walkSpeed: 4.4,
+  walkSpeed: 5.06, // 4.4 until the visual round 2 review: the game felt slow, +15 %
   speedJitter: 0.1,
   spread: 8,
   thinkSeconds: 1,

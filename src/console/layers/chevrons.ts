@@ -2,7 +2,7 @@
 // constant size on screen. They rest at the palette colour; the halo flashes white when their Soldier fires (#70, #90, pulse.ts).
 // A Squad Leader's icon is a star instead of a chevron (#71, as BF4's Commander mode): it turns with the facing, and its
 // forward point is notched to show which way. Every leader sits in a faint dashed corner bracket; the selected Squad's
-// leader in a bright solid one, and nothing else marks the selected Squad (#92, as BF4 Commander).
+// leader in a bright solid one, and the selected Squad's members are amber (#92, as BF4 Commander plus a colour).
 import * as THREE from 'three/webgpu';
 import type { CommanderView, FriendlyView, SideId, SoldierView } from '../../sim/types';
 import { COLOR, layer } from '../renderer';
@@ -92,7 +92,8 @@ function draw(list: (SoldierView | FriendlyView)[], kind: 'friendly' | 'hostile'
     const material = mesh.material as THREE.MeshBasicNodeMaterial;
     material.opacity = alpha;
     const p = pulseAt(now - (firedAt.get(key) ?? -Infinity));
-    material.color.setHex(pulseColor(COLOR[kind], p));
+    const base = 'squad' in c && c.squad === targeting.selected ? COLOR.amber : COLOR[kind];
+    material.color.setHex(pulseColor(base, p));
     halo.color.setHex(haloColor(p));
     halo.opacity = HALO * alpha;
     seen.add(key);

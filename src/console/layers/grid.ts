@@ -88,7 +88,7 @@ export function drawGrid(view: CommanderView | null, now: number) {
     const lead = sel && leaderOf(view, sel);
     if (lead) {
       const { x: csx, y: csy } = toScreen(lead);
-      ctx.strokeStyle = CHROME(0.42);
+      ctx.strokeStyle = CHROME(0.75);
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(0, csy);
