@@ -35,7 +35,7 @@ const starGeometry = new THREE.ShapeGeometry(starShape);
 const starHaloGeometry = starGeometry.clone().scale(1.25, 1.25, 1).translate(0, 0, -0.05);
 
 // Corner brackets (#92): four L corners `BRACKET` units from the centre, arms `ARM` long; the dashed one cuts each arm in two.
-const BRACKET = 1.05;
+export const BRACKET = 1.05; // grid.ts stops the crosshair at it
 const ARM = 0.42;
 const bracketGeometry = (dashed: boolean) => {
   const w = px(1.5);
