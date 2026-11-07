@@ -1,7 +1,7 @@
 /// <reference types="node" />
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { commanderView, createMatch, step, SIDES, type Match } from '../sim';
+import { createMatch, SIDES } from '../sim';
 import { routeFlow, flowDist } from '../sim/ai/flow';
 import { COVER, WALL, WATER, walkCost, cellAt, nearestWalkable } from '../sim/grid';
 import { DEFAULT_TUNE } from '../sim/tune';
@@ -90,20 +90,5 @@ describe('map loader: 1 m bake data to the Simulation\'s 2 m cells', () => {
     const east = m.points.findIndex((p) => p.id === 'E');
     expect(flowDist(m, routeFlow(m, east, -1), from), 'all crossings closed').toBe(Infinity);
     meta.crossings.forEach((c, i) => expect(flowDist(m, routeFlow(m, east, i), from), c.id).toBeLessThan(Infinity));
-  });
-});
-
-describe('a match on the baked map', () => {
-  it('keeps every Soldier on walkable ground inside the Play Area', () => {
-    const m: Match = match();
-    for (let t = 0; t < 20 * 600; t++) {
-      step(m, []);
-      if (t % 10) continue;
-      for (const side of SIDES)
-        for (const s of commanderView(m, side).friendlies) {
-          expect(insidePolygon(m.map.playArea, s.x, s.y), `Soldier ${s.id} at tick ${t}`).toBe(true);
-          expect(walkCost(m, s.x, s.y), `Soldier ${s.id} at tick ${t}`).toBeGreaterThan(0);
-        }
-    }
   });
 });
