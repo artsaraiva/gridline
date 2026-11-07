@@ -195,6 +195,22 @@ describe('#107 the tank fights', () => {
     expect(m.soldiers[1]!.vehicle).toBe(6);
   });
 
+  it('hashes every vehicle field, every Wreck and who rides where', () => {
+    const m = scene({});
+    const moves = (change: (m: Match) => void) => {
+      const h = stateHash(m);
+      change(m);
+      expect(stateHash(m)).not.toBe(h);
+    };
+    moves((m) => (m.vehicles[0]!.x += 1));
+    moves((m) => (m.vehicles[0]!.hp -= 35));
+    moves((m) => (m.vehicles[0]!.seats[0] = 0));
+    moves((m) => (m.soldiers[0]!.vehicle = 4));
+    moves((m) => (m.soldiers[1]!.rockets -= 1));
+    moves((m) => (m.vehicles[1]!.target = 0));
+    moves((m) => m.wrecks.push({ side: 'nato', kind: 'tank', x: 1, y: 2, fx: 1, fy: 0, seen: false }));
+  });
+
   it('replays hash the same, tanks and all', () => {
     const run = () => {
       const m = createMatch({ seed: 9, map: field({ points: [{ id: 'A', name: 'A', x: 0, y: 200 }, { id: 'B', name: 'B', x: 0, y: -200 }] }), tune: DEFAULT_TUNE, squadsPerSide: 3, commanderSide: 'nato' });

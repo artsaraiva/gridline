@@ -4,6 +4,7 @@
 // address either.
 import type { Match } from './index';
 import { driveFlow, flowDist, flowLook } from './ai/flow';
+import { blast } from './assets/strike';
 import { die } from './combat';
 import { dist2, inHq } from './geometry';
 import { cellIndex, los, nearestWalkable } from './grid';
@@ -22,7 +23,7 @@ export interface Vehicle {
   hp: number;
   seats: number[]; // Soldier ids, -1 free; seat 0 drives and fires the main gun, seat 1 is the gunner on the coax
   slot: Vec2; // where it waits at the start and a fresh one appears
-  parked: boolean; // standing at its goal, or waiting for its crew
+  parked: boolean; // standing at its goal, or waiting for riders
   deadAt: number; // tick it was destroyed, -1 = live
   goal: number; // index of the Capture Point it drives to (its driver's), -1 = none
   departAt: number; // tick a fresh driver leaves with free seats
@@ -43,8 +44,8 @@ export interface Wreck {
 }
 
 export const live = (v: Vehicle) => v.deadAt < 0;
-export const crew = (m: Match, v: Vehicle) => v.seats.filter((id) => id >= 0).map((id) => m.soldiers[id]!);
-const sq2 = (r: number) => r * r;
+export const riders = (m: Match, v: Vehicle) => v.seats.filter((id) => id >= 0).map((id) => m.soldiers[id]!);
+const squared = (r: number) => r * r;
 
 /** The first fresh tank of each Side, in its slot: the map's, else the drivable cell nearest its HQ. */
 export function newVehicles(m: Match): Vehicle[] {
@@ -67,14 +68,14 @@ export function board(m: Match, sq: Squad, s: Soldier) {
   const t = m.tune;
   const goal = goalOf(m, sq, s);
   const p = m.points[goal];
-  if (!p || s.reviving >= 0 || dist2(s, p) <= sq2(t.boardMinM)) return;
+  if (!p || s.reviving >= 0 || dist2(s, p) <= squared(t.boardMinM)) return;
   let best: Vehicle | null = null;
   let bestKey = Infinity;
   for (const v of m.vehicles) {
-    if (v.side !== s.side || !live(v) || v.hp < t.tankHp / 3 || !v.seats.includes(-1) || dist2(s, v) > sq2(t.boardM)) continue;
+    if (v.side !== s.side || !live(v) || v.hp < t.tankHp / 3 || !v.seats.includes(-1) || dist2(s, v) > squared(t.boardM)) continue;
     const driving = m.points[v.goal];
-    if (v.seats[0]! >= 0 && (!driving || dist2(driving, p) > sq2(t.sameWayM))) continue;
-    const key = dist2(s, v) + (crew(m, v).some((o) => o.squad === s.squad) ? 0 : 1e9);
+    if (v.seats[0]! >= 0 && (!driving || dist2(driving, p) > squared(t.sameWayM))) continue;
+    const key = dist2(s, v) + (riders(m, v).some((o) => o.squad === s.squad) ? 0 : 1e9);
     if (key < bestKey) [best, bestKey] = [v, key];
   }
   if (best) mount(m, best, s, goal);
@@ -87,36 +88,38 @@ export function mount(m: Match, v: Vehicle, s: Soldier, goal: number) {
   if (seat === 0) Object.assign(v, { goal, departAt: m.tick + Math.round(m.tune.boardWaitSeconds * m.tune.hz), parked: true });
   Object.assign(s, {
     vehicle: v.id, x: v.x, y: v.y, fx: v.fx, fy: v.fy, target: -1, lastTarget: -1, reviving: -1, suppression: 0,
-    dest: null, path: [], cover: null, chaseUntil: 0, role: null, regroup: false, strayUntil: 0, detached: false, goal: -1,
+    dest: null, path: [], cover: null, chaseUntil: 0, role: null, regroup: false, strayUntil: 0, // a Detached rider keeps its own goal
   });
 }
 
 /**
- * At its Squad's think, a Soldier aboard: the driver keeps the vehicle on the Squad's Capture Point (Retreat and Resupply
- * ignore it); everyone gets out once the vehicle is under a third of its hit points, Detached when away from the Squad.
+ * At its Squad's think, a Soldier aboard: the driver keeps the vehicle on its own Capture Point (the Squad's, or its own
+ * when it boarded Detached; Retreat and Resupply ignore it); everyone gets out once the vehicle is under a third of its hit
+ * points, Detached when away from the Squad.
  */
 export function ride(m: Match, sq: Squad, s: Soldier) {
   const v = vehicleOf(m, s.vehicle)!;
-  if (v.seats[0] === s.id && sq.task === 'point' && sq.goal >= 0) v.goal = sq.goal;
+  const goal = goalOf(m, sq, s);
+  if (v.seats[0] === s.id && goal >= 0) v.goal = goal;
   if (v.hp >= m.tune.tankHp / 3) return;
   v.seats[v.seats.indexOf(s.id)] = -1;
   s.vehicle = -1;
   const foot = membersOf(m, sq).filter((o) => o.state === 'alive' && o.vehicle < 0 && o !== s && !o.detached);
-  s.detached = foot.length > 0 && dist2(s, footLeader(foot)!) > sq2(m.tune.detachM);
+  s.detached = foot.length > 0 && dist2(s, footLeader(foot)!) > squared(m.tune.detachM);
 }
 
-/** The vehicle phase, after the Soldiers walk: fresh vehicles in empty slots, then every crewed one drives; its crew rides along. */
+/** The vehicle phase, after the Soldiers walk: fresh vehicles in empty slots, then every one with a driver drives; its riders ride along. */
 export function drive(m: Match) {
   const t = m.tune;
   for (const v of m.vehicles) {
     if (!live(v)) {
       if (m.tick - v.deadAt >= t.vehicleRespawnSeconds * t.hz)
-        Object.assign(v, { ...v.slot, hp: t.tankHp, seats: v.seats.map(() => -1), parked: true, deadAt: -1, goal: -1, target: -1, coax: -1 });
+        Object.assign(v, { ...v.slot, fx: v.side === 'nato' ? 1 : -1, fy: 0, hp: t.tankHp, seats: v.seats.map(() => -1), parked: true, deadAt: -1, goal: -1, departAt: 0, target: -1, coax: -1, nextFire: 0 });
       continue;
     }
     const full = !v.seats.includes(-1);
     if (v.seats[0]! >= 0 && v.goal >= 0 && (full || m.tick >= v.departAt)) step(m, v);
-    for (const s of crew(m, v)) Object.assign(s, { x: v.x, y: v.y, fx: v.fx, fy: v.fy, ammo: t.ammo, suppression: 0 }); // no ammo worries
+    for (const s of riders(m, v)) Object.assign(s, { x: v.x, y: v.y, fx: v.fx, fy: v.fy, ammo: t.ammo, suppression: 0 }); // no ammo worries
   }
 }
 
@@ -149,15 +152,15 @@ function step(m: Match, v: Vehicle) {
 }
 
 /**
- * Perception, for each crewed vehicle: one pair of eyes from the hull (the Soldier cone and line of sight at `vehicleVisionMul`
- * x `visionM`) on enemy Soldiers on foot and enemy vehicles; what it sees goes into every crew Squad's memory. The main gun
+ * Perception, for each vehicle with anyone aboard: one pair of eyes from the hull (the Soldier cone and line of sight at `vehicleVisionMul`
+ * x `visionM`) on enemy Soldiers on foot and enemy vehicles; what it sees goes into the memory of every Squad with a rider aboard. The main gun
  * takes an enemy tank first, then any other vehicle, then infantry, nearest within each, in range; the coax the nearest infantry.
  */
 export function look(m: Match, v: Vehicle) {
   const t = m.tune;
   v.target = -1;
   v.coax = -1;
-  const aboard = crew(m, v);
+  const aboard = riders(m, v);
   if (!live(v) || !aboard.length) return;
   const squads = [...new Set(aboard.map((s) => m.squads[s.squad]!))];
   const R = t.visionM * t.vehicleVisionMul;
@@ -168,9 +171,9 @@ export function look(m: Match, v: Vehicle) {
   };
   let best: { id: number; rank: number; d2: number } | null = null;
   const consider = (id: number, rank: number, d2: number) => {
-    if (d2 <= sq2(t.tankRangeM) && (!best || rank < best.rank || (rank === best.rank && d2 < best.d2))) best = { id, rank, d2 };
+    if (d2 <= squared(t.tankRangeM) && (!best || rank < best.rank || (rank === best.rank && d2 < best.d2))) best = { id, rank, d2 };
   };
-  let coaxD2 = sq2(t.coaxRangeM);
+  let coaxD2 = squared(t.coaxRangeM);
   for (const e of m.soldiers) {
     if (e.side === v.side || e.state !== 'alive' || e.vehicle >= 0 || !sees(e)) continue;
     if (!m.sightings[v.side].some((o) => o.id === e.id && o.tick >= m.tick - 1)) e.uavUntil = -1; // #75, as for a Soldier's eyes
@@ -203,13 +206,38 @@ export function seeVehicles(m: Match, s: Soldier, sq: Squad) {
 /** What `v`'s main gun is laid on: a Soldier or a vehicle, or undefined. */
 export const targetOf = (m: Match, v: Vehicle): Vec2 | undefined => m.soldiers[v.target] ?? vehicleOf(m, v.target);
 
+/**
+ * The combat phase, before any shot lands: each driver whose main gun is due fires at a target in range; returns where each
+ * round lands (its target's spot) and starts the interval.
+ */
+export function aimMainGuns(m: Match): { v: Vehicle; at: Vec2 }[] {
+  const t = m.tune;
+  const guns: { v: Vehicle; at: Vec2 }[] = [];
+  for (const v of m.vehicles) {
+    const e = targetOf(m, v);
+    if (!live(v) || v.seats[0]! < 0 || !e || m.tick < v.nextFire || dist2(v, e) > t.tankRangeM * t.tankRangeM) continue;
+    v.nextFire = m.tick + Math.round(t.tankFireSeconds * t.hz);
+    guns.push({ v, at: { x: e.x, y: e.y } });
+  }
+  return guns;
+}
+
+/** After the shots: each round a Strike-shaped impact, the enemy's vehicles in its kill radius hit; no Commander is paid for what it kills. */
+export function landMainGuns(m: Match, guns: { v: Vehicle; at: Vec2 }[], events: SimEvent[]) {
+  const t = m.tune;
+  for (const { v, at } of guns) {
+    events.push({ kind: 'impact', side: v.side, x: at.x, y: at.y, asset: 'tank', from: v.id });
+    blast(m, v.side, at, { killM: t.tankKillM, woundM: t.tankWoundM, suppressM: t.tankSuppressM, suppression: t.tankSuppression }, null, events, { damage: t.tankVsVehicleDamage, foesOnly: true });
+  }
+}
+
 /** A Launcher is roster member 1 of its Squad. */
 export const isLauncher = (m: Match, s: Soldier) => m.squads[s.squad]!.members[1] === s.id;
 
 /** The nearest enemy vehicle a Launcher may fire a rocket at: live, within `rocketRangeM`, in line of sight, outside its HQ. */
 export function rocketTarget(m: Match, s: Soldier): Vehicle | null {
   let best: Vehicle | null = null;
-  let bestD2 = sq2(m.tune.rocketRangeM);
+  let bestD2 = squared(m.tune.rocketRangeM);
   for (const v of m.vehicles) {
     const d2 = dist2(s, v);
     if (v.side === s.side || !live(v) || d2 > bestD2 || inHq(m, v.side, v) || !los(m, s, v)) continue;
@@ -226,7 +254,7 @@ export function hurt(m: Match, v: Vehicle, damage: number, by: SideId, cause: So
   if (!live(v)) return;
   v.hp -= damage;
   if (v.hp > 0) return;
-  for (const s of crew(m, v)) {
+  for (const s of riders(m, v)) {
     if (cause && by !== s.side) s.cause = cause;
     die(m, s, events);
   }

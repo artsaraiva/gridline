@@ -9,8 +9,7 @@ import { rnd } from './rng';
 import { award } from './score';
 import { membersOf, vehicleOf, type Soldier } from './state';
 import { enemyOf, type SimEvent, type Vec2 } from './types';
-import { blast } from './assets/strike';
-import { hurt, isLauncher, leave, live, rocketTarget, targetOf, type Vehicle } from './vehicles';
+import { aimMainGuns, hurt, isLauncher, landMainGuns, leave, rocketTarget, type Vehicle } from './vehicles';
 
 interface Shot {
   shooter: Soldier;
@@ -98,7 +97,7 @@ export function fire(m: Match, events: SimEvent[]) {
     const shot = v ? coax(m, s, v) : (rocket(m, s) ?? aim(m, s) ?? suppressive(m, s));
     if (shot) shots.push(shot);
   }
-  const guns = m.vehicles.filter((v) => mainGun(m, v)).map((v) => ({ v, at: { x: targetOf(m, v)!.x, y: targetOf(m, v)!.y } }));
+  const guns = aimMainGuns(m);
   for (const { shooter, target: e, hit, damage, at, near, rocket } of shots) {
     if (rocket) {
       hurt(m, rocket, damage, shooter.side, null, events);
@@ -123,20 +122,7 @@ export function fire(m: Match, events: SimEvent[]) {
     e.uavAssist ||= m.tick <= e.uavUntil; // #75: the downing shot fixes whether the UAV gets the assist
     wound(m, e, events);
   }
-  // #107: each main gun that fired lands a Strike-shaped impact on its target's spot; no Commander is paid for what it kills
-  for (const { v, at } of guns) {
-    events.push({ kind: 'impact', side: v.side, x: at.x, y: at.y, asset: 'tank', from: v.id });
-    blast(m, v.side, at, { killM: t.tankKillM, woundM: t.tankWoundM, suppressM: t.tankSuppressM, suppression: t.tankSuppression }, null, events, { damage: t.tankVsVehicleDamage, foesOnly: true });
-  }
-}
-
-/** #107: whether `v`'s driver fires the main gun this tick (at a target in range, once its interval is up); starts the interval. */
-function mainGun(m: Match, v: Vehicle): boolean {
-  const t = m.tune;
-  const e = targetOf(m, v);
-  if (!live(v) || v.seats[0]! < 0 || !e || m.tick < v.nextFire || dist2(v, e) > t.tankRangeM * t.tankRangeM) return false;
-  v.nextFire = m.tick + Math.round(t.tankFireSeconds * t.hz);
-  return true;
+  landMainGuns(m, guns, events); // #107
 }
 
 /** Shot down: bleeding out, not dead. */
