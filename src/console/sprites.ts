@@ -239,10 +239,10 @@ export function supplyDrop(e: { x: number; y: number; landsIn: number; fall: num
 export const EXPLOSION_FRAMES = 32;
 export const EXPLOSION_FPS = 16;
 export const EXPLOSION_MS = (EXPLOSION_FRAMES / EXPLOSION_FPS) * 1000;
-/** World size in metres of the baked explosion quad (1 bake unit = 18 m). */
+/** Console look: metres the explosion quad is drawn across (#98: big, well over the kill ring). Not a bake value. */
 const EXPLOSION_WORLD_M = 64;
 export const CRATER_VARIANTS = 3;
-/** World size in metres of the baked crater decal quad (1 bake unit = 5 m). */
+/** Console look: metres the crater decal quad is drawn across. Not a bake value. */
 const CRATER_WORLD_M = 13;
 /** Console constant: craters kept on the map; past this the oldest is removed. */
 export const CRATER_CAP = 60;

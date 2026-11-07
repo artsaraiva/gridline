@@ -8,10 +8,10 @@ import { gridRef } from '../../sim/grid-ref';
 import type { CommanderView, Vec2 } from '../../sim/types';
 import { BRIGHT, COLOR, GLOW, layer, metresPerPx, toScreen } from '../renderer';
 import { session } from '../session';
+import { lastImpactAt } from './impacts';
 import {
   barrageShells,
   scanUav,
-  SHELL_VISIBLE_FROM,
   shellStreak,
   spriteMaterial,
   SUPPLY_SHADOW_FRAME,
@@ -54,6 +54,7 @@ type Ring = { group: THREE.Group; ring: ReturnType<typeof dashedRing>; disc: THR
 type ShellMark = { body: THREE.Mesh; frame: ReturnType<typeof spriteMaterial>['frame']; streak: THREE.Mesh };
 /** The Barrage ring turns this fast while it works, so an ongoing strike reads at a glance. */
 const RING_TURN_RAD_PER_S = 0.25;
+const RING_PULSE_MS = 600;
 /** The streak is this wide on screen, whatever the zoom. */
 const STREAK_PX = 2.5;
 type UavMark = { shadow: THREE.Mesh; body: THREE.Mesh; frame: ReturnType<typeof spriteMaterial>['frame']; icon: THREE.Mesh };
@@ -205,11 +206,7 @@ export function drawEffects(view: CommanderView, scale: number, now: number) {
     const danger = e.asset === 'barrage';
     const r = ringAt(rings++, e, e.radius, danger ? COLOR.hostile : COLOR.friendly, danger ? 0.1 : 0.06);
     r.ring.mesh.rotation.z = danger ? (now / 1000) * RING_TURN_RAD_PER_S : 0; // the Barrage ring turns while it works
-    if (danger) {
-      // and brightens as each shell comes down, so every impact pulses it
-      const falling = Math.max(0, ...(e.shells ?? []).map((s) => (s.flight - SHELL_VISIBLE_FROM) / (1 - SHELL_VISIBLE_FROM)));
-      r.ring.alpha.value = 0.7 + 0.3 * falling;
-    }
+    if (danger) r.ring.alpha.value = 0.7 + 0.3 * Math.max(0, 1 - (now - lastImpactAt()) / RING_PULSE_MS); // and pulses on each impact
     if (e.asset === 'scan') {
       const u = scanUav(e, e.radius, now / 1000);
       const m = uavAt(uavs++);

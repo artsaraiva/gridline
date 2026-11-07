@@ -21,6 +21,8 @@ export const resetImpacts = () => {
 };
 
 export const addImpact = (x: number, y: number, now: number) => recordImpact(impacts, x, y, now);
+/** When the latest impact landed, in ms; -Infinity before the first. */
+export const lastImpactAt = () => impacts.at(-1)?.at ?? -Infinity;
 
 function place(kind: keyof typeof pools, i: number, s: ImpactSprite) {
   let p = pools[kind][i];
