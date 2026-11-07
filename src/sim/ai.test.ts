@@ -20,7 +20,7 @@ interface Placement {
  * their HQ. Placing Soldiers (and their ammo) is the only reach past the Simulation interface: it stands in for a map script.
  */
 function scene(o: { map: MapData; place?: Record<number, Placement>; tune?: Partial<Tune>; squads?: number; seed?: number }): Match {
-  const tune: Tune = { ...DEFAULT_TUNE, speedJitter: 0, ...o.tune };
+  const tune: Tune = { ...DEFAULT_TUNE, speedJitter: 0, boardMinM: Infinity, ...o.tune }; // #107: infantry rules only, nobody boards the tank
   const m = createMatch({ seed: o.seed ?? 1, map: o.map, tune, squadsPerSide: o.squads ?? 1, commanderSide: 'nato' });
   for (const [id, p] of Object.entries(o.place ?? {})) Object.assign(m.soldiers[Number(id)]!, p);
   return m;

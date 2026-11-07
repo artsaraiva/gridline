@@ -46,12 +46,16 @@ export interface MapData {
   crossings?: Crossing[];
   /** #42: a baked map's terrain on cells; when present it replaces `walls`, `cover`, `water` and the box rule of `crossings`. */
   terrain?: Terrain;
+  /** #107: where each Side's tank waits and respawns (its HQ vehicle park); unset = the drivable ground nearest the HQ. */
+  vehicleSlots?: Partial<Record<SideId, Vec2>>;
 }
 
 /**
  * #42: terrain on a cell grid, row-major, row 0 at the south edge (y up). `x0`, `y0` is the south-west corner in metres.
  * `cells` holds 0 open, or WALL / COVER / WATER from grid.ts; `wade` marks fords (slow going); `crossing` is the index into
- * `MapData.crossings` of the crossing the cell belongs to, -1 for none.
+ * `MapData.crossings` of the crossing the cell belongs to, -1 for none. #107: `drive` is the ground-vehicle cost per cell before the
+ hull margin: road 10, open 20, ford 30, 0 blocked (half a cell of hedge, woods, building, wall or water; a footbridge);
+ `clear` is the distance from the cell's centre to the nearest 1 m cell of any of those, in decimetres, 255 for 5 m or more.
  */
 export interface Terrain {
   x0: number;
@@ -62,6 +66,8 @@ export interface Terrain {
   cells: Uint8Array;
   wade: Uint8Array;
   crossing: Int8Array;
+  drive: Uint8Array;
+  clear: Uint8Array;
 }
 
 export interface Crossing {
@@ -241,6 +247,32 @@ export interface Tune {
   detachM: number; // a stray that ends farther than this from the foot leader goes Detached instead of regrouping
   rejoinM: number; // a Detached Soldier with the Squad's goal rejoins within this of the foot leader
   squadPull: number; // added to the Squad's goal when a Detached Soldier picks its own Capture Point
+
+  // #107 Tank tracer (and the #27 shared vehicle rules it brings)
+  vehicleRespawnSeconds: number; // a destroyed vehicle's fresh one appears in its slot this long after
+  boardMinM: number; // a Soldier boards only when its goal is farther than this ...
+  boardM: number; // ... from a friendly vehicle with a free seat within this ...
+  sameWayM: number; // ... that is empty, or whose driver's goal is within this of its own
+  boardWaitSeconds: number; // a fresh driver waits this long for others, leaving early when full
+  vehicleVisionMul: number; // a ground vehicle sees, and is seen, at this x visionM
+  hullM: number; // ground vehicles keep their centre farther than this from anything blocking
+  tankRoadMps: number; // on road
+  tankOpenMps: number; // off road (a ford is slower in the ratio of its drive cost)
+  tankHp: number;
+  tankFireSeconds: number; // the driver fires the main gun this often ...
+  tankRangeM: number; // ... at a target this close: a Strike-shaped impact that kills within ...
+  tankKillM: number;
+  tankWoundM: number; // ... Wounds within ...
+  tankSuppressM: number; // ... and suppresses within this
+  tankSuppression: number;
+  tankVsVehicleDamage: number; // an enemy tank's main gun on a vehicle within its kill radius
+  coaxFireSeconds: number; // the gunner's coax: the rifle shot model this often ...
+  coaxRangeM: number; // ... at infantry this close
+  rockets: number; // a Launcher (roster member 1 of every Squad) carries this many, refilled like ammo
+  rocketSeconds: number; // one rocket this often ...
+  rocketRangeM: number; // ... at the nearest enemy vehicle this close, in line of sight ...
+  rocketDamage: number; // ... for this much
+  shellVehicleDamage: number; // a Barrage shell within its kill radius of the hull; a Cruise Missile destroys outright
 }
 
 /** #55: what a Commander Score award is for. */
@@ -278,6 +310,31 @@ export interface FriendlyView extends SoldierView {
   suppressed: boolean;
   /** #34: rounds left, as a fraction of a full load. */
   ammo?: number;
+  /** #107: the id of the vehicle it rides in (it is drawn there, not as a Soldier); absent on foot. */
+  vehicle?: number;
+}
+
+/**
+ * #107: a vehicle on the map: the Side's own (live, with `hp` and `crew`), an enemy one a friendly sees right now (position
+ * and facing only), or a Wreck (`wreck`, no id: -1).
+ */
+export interface VehicleView {
+  id: number;
+  side: SideId;
+  kind: 'tank';
+  x: number;
+  y: number;
+  /** Unit hull facing. */
+  fx: number;
+  fy: number;
+  /** Unit turret facing: at its target, else along the hull. */
+  tx: number;
+  ty: number;
+  wreck?: boolean;
+  /** Own only: hit points as a fraction of full. */
+  hp?: number;
+  /** Own only: Soldier ids in the seats, driver first, -1 free. */
+  seats?: number[];
 }
 
 /** A friendly Squad. New fields go in optional (`?`), so view literals in other tickets and tests still typecheck. */
@@ -354,6 +411,8 @@ export interface CommanderView {
   effects?: EffectView[];
   /** #55: the Commander Score so far, in all and by category. */
   score?: { total: number } & Record<ScoreCategory, number>;
+  /** #107: own vehicles, enemy vehicles in sight, and Wrecks (own, and enemy ones that died in sight). */
+  vehicles?: VehicleView[];
 }
 
 export interface AssetView {
@@ -414,7 +473,7 @@ export type SimEvent =
   | { kind: 'radio'; side: SideId; squad: number | null; type: string; text: string; grid?: string; priority: number }
   /** #34: suppressive fire: a round at (x, y) near a Last Known Position, with no enemy in view. */
   | { kind: 'suppressive'; side: SideId; from: number; x: number; y: number; hit: boolean }
-  /** #40: a Barrage shell landed at (x, y); `side` called it. #99: or a Cruise Missile (`asset`). */
-  | { kind: 'impact'; side: SideId; x: number; y: number; asset: 'barrage' | 'missile' }
+  /** #40: a Barrage shell landed at (x, y); `side` called it. #99: or a Cruise Missile (`asset`). #107: or a tank's main gun, fired by vehicle `from`. */
+  | { kind: 'impact'; side: SideId; x: number; y: number; asset: 'barrage' | 'missile' | 'tank'; from?: number }
   /** #55: `side`'s Commander earned `points` of Commander Score. `reason` is safe to show: it never names a position or an unseen enemy. */
   | { kind: 'award'; side: SideId; category: ScoreCategory; points: number; reason: string };

@@ -1,6 +1,6 @@
 import type { Match } from './index';
 import { insidePolygon } from './geometry';
-import type { MapData, Rect, Terrain, Vec2 } from './types';
+import type { MapData, Rect, SideId, Terrain, Tune, Vec2 } from './types';
 
 export const WALL = 1;
 export const COVER = 2;
@@ -82,6 +82,47 @@ function terrainGrid(map: MapData, t: Terrain, g: { x0: number; y0: number; cols
   return { x0, y0, cols, rows, cells, cost, crossing };
 }
 
+/**
+ * #107: `side`'s ground-vehicle grid: the sight grid with the drive cost (road 10, open 20, ford 30; from the baked terrain,
+ * or on a hand-written map open 20, a bridge 10, a ford 30 and cover, walls, water and footbridges blocked), every cell within
+ * `hullM` of a blocked one blocked too, and the enemy HQ circle blocked.
+ */
+export function driveGrid(map: MapData, g: Grid, side: SideId, t: Tune): Grid {
+  const { x0, y0, cols, rows, cells, crossing } = g;
+  const base = new Uint8Array(cols * rows);
+  const tr = map.terrain;
+  for (let j = 0; j < rows; j++)
+    for (let i = 0; i < cols; i++) {
+      const k = j * cols + i;
+      if (!g.cost[k]) continue; // a wall, water nobody crosses, or outside the Play Area: blocked for vehicles too
+      if (tr) {
+        const ti = Math.floor((x0 + (i + 0.5) * t.cellM - tr.x0) / tr.cellM);
+        const tj = Math.floor((y0 + (j + 0.5) * t.cellM - tr.y0) / tr.cellM);
+        const tk = tj * tr.cols + ti;
+        if (ti >= 0 && tj >= 0 && ti < tr.cols && tj < tr.rows && tr.clear[tk]! > t.hullM * 10) base[k] = tr.drive[tk]!; // the hull margin, to the metre
+      } else if (cells[k] === 0) base[k] = 20;
+      else if (cells[k] === WATER) base[k] = { bridge: 10, ford: 30, footbridge: 0 }[map.crossings![crossing[k]!]!.kind];
+    }
+  const cost = base.slice();
+  const reach = tr ? 0 : Math.floor(t.hullM / t.cellM); // a hand-written map's margin goes by whole cells
+  const ring: number[][] = [];
+  for (let b = -reach; b <= reach; b++) for (let a = -reach; a <= reach; a++) if ((a * a + b * b) * t.cellM * t.cellM <= t.hullM * t.hullM) ring.push([a, b]);
+  for (let j = 0; j < rows; j++)
+    for (let i = 0; i < cols; i++) {
+      if (base[j * cols + i] || !reach) continue;
+      for (const [a, b] of ring) if (i + a! >= 0 && j + b! >= 0 && i + a! < cols && j + b! < rows) cost[(j + b!) * cols + i + a!] = 0;
+    }
+  const hq = map.hqs[side === 'nato' ? 'pact' : 'nato'];
+  const r = hq.radius ?? t.hqRadius;
+  for (let j = Math.max(0, Math.floor((hq.y - r - y0) / t.cellM)); j < Math.min(rows, Math.ceil((hq.y + r - y0) / t.cellM)); j++)
+    for (let i = Math.max(0, Math.floor((hq.x - r - x0) / t.cellM)); i < Math.min(cols, Math.ceil((hq.x + r - x0) / t.cellM)); i++) {
+      const dx = x0 + (i + 0.5) * t.cellM - hq.x;
+      const dy = y0 + (j + 0.5) * t.cellM - hq.y;
+      if (dx * dx + dy * dy < r * r) cost[j * cols + i] = 0;
+    }
+  return { ...g, cost };
+}
+
 /** Index of the cell holding (x, y), -1 off the grid. */
 export function cellIndex(m: Match, x: number, y: number): number {
   const g = m.grid;
@@ -107,10 +148,10 @@ export function walkCost(m: Match, x: number, y: number): number {
   return k < 0 ? 0 : m.grid.cost[k]!;
 }
 
-/** `p` itself when it can be walked on, else the centre of the nearest walkable cell (a Capture Point may sit in a building). */
-export function nearestWalkable(m: Match, p: Vec2): Vec2 {
-  if (walkCost(m, p.x, p.y) > 0) return p;
-  const g = m.grid;
+/** `p` itself when it can be walked on (over `g`: #107 a drive grid), else the centre of the nearest walkable cell (a Capture Point may sit in a building). */
+export function nearestWalkable(m: Match, p: Vec2, g: Grid = m.grid): Vec2 {
+  const k = cellIndex(m, p.x, p.y);
+  if (k >= 0 && g.cost[k]) return p;
   const i0 = Math.floor((p.x - g.x0) / m.tune.cellM);
   const j0 = Math.floor((p.y - g.y0) / m.tune.cellM);
   let best = p;

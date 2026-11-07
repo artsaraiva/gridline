@@ -63,6 +63,7 @@ _HALF_AREA = [(456, -12), (452, 90), (460, 200), (447, 310), (438, 425), (330, 4
               (-40, 428), (-150, 433), (-240, 420), (-330, 332), (-420, 243), (-452, 150), (-447, 40)]
 PLAY_AREA = _HALF_AREA + [(-x, -y) for x, y in _HALF_AREA]  # cut corners north-west and south-east
 HQS = {"nato": (-415.0, 0.0), "pact": (415.0, 0.0)}
+VEHICLE_SLOTS = {}  # #107: per side, where its tank waits: under the first vehicle-park camo net (build_hq)
 HQ_RADIUS = 35.0
 POINTS = [("A", -262.0, -322.0, "nato"), ("B", 0.0, 300.0, None), ("C", 0.0, 0.0, None), ("D", 0.0, -300.0, None),
           ("E", 262.0, 322.0, "pact")]
@@ -1371,6 +1372,8 @@ def build_hq(tag, cx, cy, a):
                 faces.append((k, k + 1, k + nx + 2, k + nx + 1))
         wx, wy = W(nx0 - 1, ny0)
         make_obj(f"hq_{tag}_net{net}", verts, faces, ["camonet"], loc=(wx, wy, height(wx, wy)), rot=a, cover="prop")
+        if net == 0:
+            VEHICLE_SLOTS[tag] = (wx, wy)
     FOOT.append((cx, cy, 46))
 
 
@@ -1964,6 +1967,7 @@ def write_meta():
         "points": [{"id": i, "name": i, "x": x, "y": y, "radius": POINT_RADIUS, "owner": o}
                    for i, x, y, o in POINTS],
         "crossings": [{"id": i, "kind": k, "x": r2(x), "y": r2(y), "halfWidth": hw} for i, k, x, y, hw in CROSSINGS],
+        "vehicleSlots": {side: {"x": r2(x), "y": r2(y)} for side, (x, y) in VEHICLE_SLOTS.items()},
         "grid": {"cols": 13, "rows": 13, "squareM": 2 * HALF / 13, "letters": "ABCDEFGHIJKLM"},
         "data": {"cells": int(2 * HALF), "cellM": 1, "cover": "cover_u8.bin", "ground": "ground_f32.bin", "top": "top_f32.bin",
                  "coverIds": COVER_IDS},

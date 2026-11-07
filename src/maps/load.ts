@@ -19,6 +19,7 @@ export function terrainOf(map: BakedMap, cover: Uint8Array, cellM: number): Terr
   const t: Terrain = {
     x0: -map.sizeM / 2, y0: -map.sizeM / 2, cols, rows: cols, cellM,
     cells: new Uint8Array(cols * cols), wade: new Uint8Array(cols * cols), crossing: new Int8Array(cols * cols).fill(-1),
+    drive: new Uint8Array(cols * cols), clear: new Uint8Array(cols * cols).fill(255),
   };
   const deck = new Uint8Array(cols * cols);
   for (let j = 0; j < cols; j++)
@@ -36,6 +37,25 @@ export function terrainOf(map: BakedMap, cover: Uint8Array, cellM: number): Terr
       if (t.cells[k] === WALL || t.cells[k] === WATER) continue;
       t.wade[k] = (c[id.ford!] ?? 0) > 0 ? 1 : 0;
       deck[k] = t.wade[k]! || (c[id.road!] ?? 0) > 0 ? 1 : 0;
+      // #107: a vehicle is stopped by half a cell of anything solid or wet (props are no obstacle: no collisions)
+      const stop = (c[id.hedge!] ?? 0) + (c[id.woods!] ?? 0) + (c[id.wall!] ?? 0) + (c[id.building!] ?? 0) + water;
+      t.drive[k] = stop >= half ? 0 : t.wade[k] ? 30 : (c[id.road!] ?? 0) >= half ? 10 : 20;
+    }
+  // #107: how close the nearest solid or wet 1 m cell comes to each cell's centre, for the vehicles' hull margin
+  const stop = new Uint8Array(n * n);
+  for (let k = 0; k < n * n; k++) stop[k] = [id.hedge, id.woods, id.wall, id.building, id.water].includes(cover[k]) ? 1 : 0;
+  const R = 5;
+  for (let j = 0; j < cols; j++)
+    for (let i = 0; i < cols; i++) {
+      const cx = (i + 0.5) * cellM; // metres from the south-west corner
+      const cy = (j + 0.5) * cellM;
+      let best = R * R;
+      for (let b = Math.max(0, Math.floor(cy - R)); b < Math.min(n, Math.ceil(cy + R)); b++)
+        for (let a = Math.max(0, Math.floor(cx - R)); a < Math.min(n, Math.ceil(cx + R)); a++) {
+          const d2 = (a + 0.5 - cx) ** 2 + (b + 0.5 - cy) ** 2;
+          if (d2 < best && stop[(n - 1 - b) * n + a]) best = d2;
+        }
+      if (best < R * R) t.clear[j * cols + i] = Math.round(Math.sqrt(best) * 10);
     }
   map.crossings.forEach((x, q) => {
     for (let j = Math.max(0, Math.floor((x.y - CROSSING_R - t.y0) / cellM)); j <= Math.min(cols - 1, Math.floor((x.y + CROSSING_R - t.y0) / cellM)); j++)
@@ -43,7 +63,9 @@ export function terrainOf(map: BakedMap, cover: Uint8Array, cellM: number): Terr
         const dx = t.x0 + (i + 0.5) * cellM - x.x;
         const dy = t.y0 + (j + 0.5) * cellM - x.y;
         const k = j * cols + i;
-        if (deck[k] && dx * dx + dy * dy <= CROSSING_R * CROSSING_R) t.crossing[k] = q;
+        if (!deck[k] || dx * dx + dy * dy > CROSSING_R * CROSSING_R) continue;
+        t.crossing[k] = q;
+        if (x.kind === 'footbridge') t.drive[k] = 0; // #107: the road bridge and the fords are the vehicle crossings
       }
   });
   return t;

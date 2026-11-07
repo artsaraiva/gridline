@@ -74,7 +74,7 @@ export function radio(m: Match, events: SimEvent[]) {
       if (!r.down[e.id]) say(squadOf(e.id), 'mandown', 'man down', e); // killed outright
       r.down[e.id] = false;
     } else if (e.kind === 'revived') r.down[e.id] = false;
-    else if (e.kind === 'shot') say(squadOf(e.to), 'fire', 'taking fire', m.soldiers[e.to]);
+    else if (e.kind === 'shot' && m.soldiers[e.to]) say(squadOf(e.to), 'fire', 'taking fire', m.soldiers[e.to]); // #107: a vehicle shot at says nothing
     else if (e.kind === 'suppressive') {
       for (const sq of m.squads) {
         const near = sq.side !== e.side && membersOf(m, sq).find((s) => s.state === 'alive' && dist2(s, e) <= t.suppressiveRadiusM * t.suppressiveRadiusM);

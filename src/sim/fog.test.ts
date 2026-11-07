@@ -150,9 +150,10 @@ describe('the enemy roster', () => {
     // three Squads a Side; nato 0 and pact 3 shoot each other dead, so a pact Squad is wiped and waiting to Redeploy
     const m = scene({ 0: { x: 0, y: 0 }, 3: { x: 100, y: 0, fx: -1 } }, { tune: { hp: 100, hitChance: 1, damage: [100, 100] }, squads: 3 });
     for (const v of play(m, 12 * HZ)) {
-      expect(Object.keys(v).sort()).toEqual(['assets', 'contacts', 'effects', 'friendlies', 'lastKnown', 'points', 'result', 'score', 'seconds', 'side', 'squads', 'tick', 'tickets']);
+      expect(Object.keys(v).sort()).toEqual(['assets', 'contacts', 'effects', 'friendlies', 'lastKnown', 'points', 'result', 'score', 'seconds', 'side', 'squads', 'tick', 'tickets', 'vehicles']);
       expect(v.squads.map((q) => q.id)).toEqual([0, 1, 2]);
       expect(v.friendlies.every((f) => f.id < 3)).toBe(true);
+      expect(v.vehicles!.map((x) => x.side)).toEqual(['nato']); // #107: the enemy tank, unseen in its HQ, is not there
     }
   });
 });
@@ -162,7 +163,7 @@ describe('a Cruise Missile in the sky (#99)', () => {
     const m = scene({}, { map: { points: [{ id: 'C', name: 'C', x: 0, y: 0, owner: 'nato' }] }, tune: { missileCooldownSeconds: 0 } });
     step(m, [{ tick: 0, side: 'nato', kind: 'asset', asset: 'missile', at: { x: 100, y: 0 } }]);
     const enemy = commanderView(m, 'pact');
-    expect(Object.keys(enemy).sort()).toEqual(['assets', 'contacts', 'effects', 'friendlies', 'lastKnown', 'points', 'result', 'score', 'seconds', 'side', 'squads', 'tick', 'tickets']);
+    expect(Object.keys(enemy).sort()).toEqual(['assets', 'contacts', 'effects', 'friendlies', 'lastKnown', 'points', 'result', 'score', 'seconds', 'side', 'squads', 'tick', 'tickets', 'vehicles']);
     expect(enemy.effects).toHaveLength(1);
     expect(Object.keys(enemy.effects![0]!).sort()).toEqual(['asset', 'flight', 'from', 'impactIn', 'left', 'radius', 'side', 'total', 'x', 'y']);
     expect(enemy.effects![0]).toMatchObject({ asset: 'missile', side: 'nato', x: 100, y: 0 });
@@ -222,5 +223,40 @@ describe('effect events', () => {
     expect(kinds(all, 'pact')).toEqual(['wounded', 'death', 'redeploy']);
     expect(kinds(nato, 'pact')).toEqual(['wounded']);
     expect(kinds(nato, 'nato')).toEqual(['wounded', 'death', 'redeploy']);
+  });
+});
+
+describe('#107: an enemy tank under the Soldier sight rules', () => {
+  // nato Soldier 0 at the origin facing east; the empty pact tank (vehicle id 3: after both Soldiers and the nato tank) parked east of it
+  const parked = (x: number) => {
+    const m = scene({ 0: { x: 0, y: 0 }, 1: { x: 520, y: 0 } });
+    Object.assign(m.vehicles[1]!, { x, y: 0, fx: -1, fy: 0 });
+    return m;
+  };
+
+  it('is seen at 1.5x Soldier range, as a vehicle Contact with position, hull and turret facing only', () => {
+    const v = play(parked(200), 1).at(-1)!;
+    expect(v.contacts).toEqual([]);
+    const tank = v.vehicles!.find((x) => x.side === 'pact')!;
+    expect(Object.keys(tank).sort()).toEqual(['fx', 'fy', 'id', 'kind', 'side', 'tx', 'ty', 'x', 'y']);
+    expect(tank).toMatchObject({ id: 3, kind: 'tank', x: 200, y: 0, fx: -1, fy: 0 });
+  });
+
+  it('is not seen past that range, nor a Soldier at the same distance', () => {
+    const far = play(parked(240), 1).at(-1)!;
+    expect(far.vehicles!.filter((x) => x.side === 'pact')).toEqual([]);
+    const m = scene({ 0: { x: 0, y: 0 }, 1: { x: 200, y: 0, fx: -1 } });
+    expect(play(m, 1).at(-1)!.contacts).toEqual([]);
+  });
+
+  it('leaves a plain Last Known Position when lost, and is never seen inside its own HQ', () => {
+    const m = parked(200);
+    play(m, 1);
+    m.vehicles[1]!.x = 300;
+    const lost = play(m, 1).at(-1)!;
+    expect(lost.vehicles!.filter((x) => x.side === 'pact')).toEqual([]);
+    expect(lost.lastKnown).toEqual([{ x: 200, y: 0, fade: expect.closeTo(1, 1) }]);
+    const home = scene({ 0: { x: 400, y: 0 } });
+    expect(play(home, 1).at(-1)!.vehicles!.filter((x) => x.side === 'pact')).toEqual([]);
   });
 });

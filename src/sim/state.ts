@@ -4,6 +4,7 @@ import type { Sighting } from './memory';
 import type { Order, Pending } from './orders';
 import type { Request } from './requests';
 import type { SideId, SoldierState, Tune, Vec2 } from './types';
+import type { Vehicle } from './vehicles';
 
 export interface Soldier {
   id: number;
@@ -40,6 +41,9 @@ export interface Soldier {
   // #106 Detached Soldiers
   detached: boolean; // away from its Squad on its own goal; out of the wedge, leash, regroup, bounding and flanking
   goal: number; // Detached: index of its own Capture Point, -1 = the Squad's goal
+  // #107 Tank tracer
+  vehicle: number; // id of the vehicle it rides in, -1 = on foot
+  rockets: number; // Launcher rockets left (only roster member 1 fires them)
   // #55 Commander Score
   cause: 'barrage' | 'missile' | null; // what an enemy Strike did to it: scores for the enemy Commander on death; cleared by Revive
   uavUntil: number; // #75 last tick it counts as UAV-discovered by the enemy Side (the Scan found it unseen, then the grace); see assets/scan.ts
@@ -94,8 +98,10 @@ export const sign = (s: SideId) => (s === 'nato' ? 1 : -1);
 export const sideOf = (n: number): SideId => (n > 0 ? 'nato' : 'pact');
 export const stageTicks = (t: Tune) => t.captureSeconds * t.hz;
 export const membersOf = (m: Match, sq: Squad) => sq.members.map((id) => m.soldiers[id]!);
-/** The first living member not Detached, whom the wedge forms on; the first living member when all are Detached. */
-export const footLeader = (alive: Soldier[]) => alive.find((s) => !s.detached) ?? alive[0];
+/** The first living member on foot and not Detached, whom the wedge forms on; the first living member when there is none. */
+export const footLeader = (alive: Soldier[]) => alive.find((s) => !s.detached && s.vehicle < 0) ?? alive[0];
+/** #107: the vehicle with id `id` (vehicle ids follow the Soldiers'), or undefined for a Soldier id or -1. */
+export const vehicleOf = (m: Match, id: number): Vehicle | undefined => (id >= m.soldiers.length ? m.vehicles[id - m.soldiers.length] : undefined);
 export const wiped = (members: Soldier[]) => members.every((s) => s.state === 'dead');
 export const lastDeath = (members: Soldier[]) => Math.max(...members.map((s) => s.deadAt));
 
@@ -132,6 +138,8 @@ export function hashSoldiers(m: Match, mix: Mix) {
     mix(s.cause === 'barrage' ? 1 : s.cause === 'missile' ? 2 : 0);
     mix(s.uavUntil); // #75
     mix(+s.uavAssist);
+    mix(s.vehicle); // #107
+    mix(s.rockets);
   }
 }
 

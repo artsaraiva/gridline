@@ -55,14 +55,14 @@ export const barrage: Kind = {
         e.told = true;
         assetRadio(m, e, 'Splash', events);
       }
-      blast(m, e, shell, { killM: t.barrageKillM, woundM: t.barrageWoundM, suppressM: t.barrageSuppressM, suppression: t.barrageSuppression }, 'barrage', events);
+      blast(m, e.side, shell, { killM: t.barrageKillM, woundM: t.barrageWoundM, suppressM: t.barrageSuppressM, suppression: t.barrageSuppression }, 'barrage', events, { damage: t.shellVehicleDamage });
     }
   },
 
   contacts(m, e) {
     if (!e.shells!.some((x) => x.done)) return [];
     const r = zone(m.tune);
-    return m.soldiers.filter((s) => s.side !== e.side && s.state === 'alive' && dist2(s, e) <= r * r);
+    return m.soldiers.filter((s) => s.side !== e.side && s.state === 'alive' && s.vehicle < 0 && dist2(s, e) <= r * r);
   },
 
   view(m, e) {

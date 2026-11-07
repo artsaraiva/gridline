@@ -1,13 +1,13 @@
 // What each Side knows about the enemy. Each Squad acts on its own sighting memory, never shared; the Commander sees
 // the union of what the Side's Soldiers see (Contacts) and where they last saw it (Last Known Positions).
 import type { Match } from './index';
-import type { Mix, Soldier, Squad } from './state';
+import { vehicleOf, type Mix, type Soldier, type Squad } from './state';
 import { dist2 } from './geometry';
 import { SIDES, type LastKnownView, type SideId, type SimEvent } from './types';
 
-/** One enemy Soldier a Squad knows about. `heard` entries (gunfire) steer behaviour but never become Contacts. */
+/** One enemy Soldier (or #107 vehicle) a Squad knows about. `heard` entries (gunfire) steer behaviour but never become Contacts. */
 export interface Sighting {
-  id: number; // enemy Soldier id
+  id: number; // enemy Soldier or vehicle id
   x: number;
   y: number;
   tick: number;
@@ -21,8 +21,8 @@ function note(list: Sighting[], s: Sighting) {
   else list[i] = s;
 }
 
-/** A Soldier of `sq` sees enemy `e` this tick: the Squad remembers it and the Side's Commander gets it as a Contact. */
-export function see(m: Match, sq: Squad, e: Soldier) {
+/** A Soldier (or vehicle) of `sq` sees enemy `e` (Soldier or vehicle) this tick: the Squad remembers it and the Side's Commander gets it as a Contact. */
+export function see(m: Match, sq: Squad, e: { id: number; x: number; y: number }) {
   const s: Sighting = { id: e.id, x: e.x, y: e.y, tick: m.tick, source: 'seen' };
   note(sq.memory, s);
   note(m.sightings[sq.side], { ...s });
@@ -32,14 +32,19 @@ export function see(m: Match, sq: Squad, e: Soldier) {
  * Gunfire phase, right after the shots: the target's Squad, and every living enemy of the shooter within `hearM` of
  * it, hears where the shot came from. Suppressive fire has no target: the enemies it lands near (`suppressiveRadiusM`
  * of the aim point) hear it instead. A sighting from this tick's perception is not replaced by a heard one.
+ * #107: a shot from a Soldier aboard is heard as its vehicle, the crew of a vehicle shot at hear it, and a main gun impact
+ * is heard like a shot by the enemies near it (`tankSuppressM`).
  */
 export function hear(m: Match, events: SimEvent[]) {
   const t = m.tune;
   for (const e of events) {
-    if (e.kind !== 'shot' && e.kind !== 'suppressive') continue;
-    const shooter = m.soldiers[e.from]!;
+    if (e.kind !== 'shot' && e.kind !== 'suppressive' && !(e.kind === 'impact' && e.from !== undefined)) continue;
+    const from = e.kind === 'impact' ? e.from! : e.from;
+    const gun = m.soldiers[from];
+    const shooter = vehicleOf(m, gun ? gun.vehicle : from) ?? gun!;
     const heard: Sighting = { id: shooter.id, x: shooter.x, y: shooter.y, tick: m.tick, source: 'heard' };
-    const hit = (s: Soldier) => (e.kind === 'shot' ? s.id === e.to : s.state === 'alive' && dist2(s, e) <= t.suppressiveRadiusM * t.suppressiveRadiusM);
+    const r = e.kind === 'impact' ? t.tankSuppressM : t.suppressiveRadiusM;
+    const hit = (s: Soldier) => (e.kind === 'shot' ? s.id === e.to || s.vehicle === e.to : s.state === 'alive' && dist2(s, e) <= r * r);
     for (const sq of m.squads) {
       if (sq.side === shooter.side) continue;
       const near = (s: Soldier) => hit(s) || (s.state === 'alive' && dist2(s, shooter) <= t.hearM * t.hearM);
@@ -59,12 +64,12 @@ export function forget(m: Match) {
 }
 
 // Read on a view, after `step` moved the tick on: the latest perception phase ran at tick - 1.
-const isContact = (m: Match, s: Sighting) => s.tick === m.tick - 1 && m.soldiers[s.id]!.state === 'alive';
+const isContact = (m: Match, s: Sighting) => s.tick === m.tick - 1 && (m.soldiers[s.id] ? m.soldiers[s.id]!.state === 'alive' : vehicleOf(m, s.id)!.deadAt < 0);
 
 /** Whether a Soldier of `side` saw enemy `id` in the latest perception phase (it may have been Wounded since). */
 export const justSeen = (m: Match, side: SideId, id: number) => m.sightings[side].some((s) => s.id === id && s.tick === m.tick - 1);
 
-/** Enemies seen in the latest perception phase and still standing. */
+/** Enemies (Soldiers and #107 vehicles) seen in the latest perception phase and still standing. */
 export function contactIds(m: Match, side: SideId): number[] {
   return m.sightings[side].filter((s) => isContact(m, s)).map((s) => s.id);
 }

@@ -19,9 +19,9 @@ function map(points: { x: number; y: number }[], pactHqX = 3000): MapData {
   };
 }
 
-/** Nobody sees anybody and nobody strays (#93) unless `tune` says so: these tests check capture and drain with Squads arriving whole and no combat in the way. */
+/** Nobody sees anybody, nobody strays (#93) and nobody boards the tank (#107) unless `tune` says so: these tests check capture and drain with Squads arriving whole and no combat in the way. */
 function start(m: MapData, tune: Partial<Tune> = {}, squadsPerSide = 1, seed = 1): Match {
-  return createMatch({ seed, map: m, tune: { ...DEFAULT_TUNE, visionM: 0, strayChance: 0, ...tune }, squadsPerSide, commanderSide: 'nato' });
+  return createMatch({ seed, map: m, tune: { ...DEFAULT_TUNE, visionM: 0, strayChance: 0, boardMinM: Infinity, ...tune }, squadsPerSide, commanderSide: 'nato' });
 }
 
 /** The nato Commander view, plus the pact Soldiers from the pact view: ground truth the fog hides from nato. */
