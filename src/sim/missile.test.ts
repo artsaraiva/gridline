@@ -90,26 +90,26 @@ describe('Cruise Missile: the call', () => {
 });
 
 describe('Cruise Missile: the flight', () => {
-  it('leaves at once from beyond the Play Area behind the own HQ, on the line from the map centre through it, 400 m out, at 70 m/s', () => {
+  it('leaves at once from beyond the Play Area behind the own HQ, on the line from the map centre through it, 1100 m out, at 70 m/s', () => {
     const run = play(scene(), 30 * HZ, { x: 370, y: 0 }); // just short of the enemy HQ ring (no Asset lands on it)
     const e0 = effect(run.views[0]!)!;
     expect(e0.from!.y).toBe(0);
-    expect(e0.from!.x).toBe(-856); // 400 m beyond the west edge at -456, behind nato's HQ at -415
+    expect(e0.from!.x).toBe(-1556); // 1100 m beyond the west edge at -456, behind nato's HQ at -415
     expect(e0.flight).toBeGreaterThan(0);
     expect(e0.flight).toBeLessThan(0.01);
     expect(e0.impactIn).toBeCloseTo((370 - e0.from!.x) / 70 - 1 / HZ, 1);
     expect(effect(run.views[10 * HZ]!)!.flight).toBeGreaterThan(effect(run.views[5 * HZ]!)!.flight!);
   });
 
-  it('lands about 17.5 s after confirm at the far HQ edge and about 12 s at the map centre', () => {
+  it('lands about 27.5 s after confirm at the far HQ edge and about 22 s at the map centre', () => {
     const far = impacts(play(scene(), 30 * HZ, { x: 370, y: 0 }));
     expect(far).toHaveLength(1);
-    expect(far[0]!.tick / HZ).toBeGreaterThan(16.5);
-    expect(far[0]!.tick / HZ).toBeLessThan(18.5);
+    expect(far[0]!.tick / HZ).toBeGreaterThan(26.5);
+    expect(far[0]!.tick / HZ).toBeLessThan(28.5);
     expect(far[0]).toMatchObject({ side: 'nato', x: 370, y: 0 });
     const centre = impacts(play(scene(), 30 * HZ, { x: 0, y: 0 }));
-    expect(centre[0]!.tick / HZ).toBeGreaterThan(11);
-    expect(centre[0]!.tick / HZ).toBeLessThan(13);
+    expect(centre[0]!.tick / HZ).toBeGreaterThan(21);
+    expect(centre[0]!.tick / HZ).toBeLessThan(23);
   });
 
   it('is in the sky: both Sides see it from launch to impact, with its caller, and it goes 2 s after the hit', () => {
@@ -129,14 +129,14 @@ describe('Cruise Missile: the flight', () => {
     step(m, [missile(m, { x: 0, y: 0 })]);
     m.points.find((p) => p.id === 'C')!.owner = 'pact';
     const events: Stamped[] = [];
-    for (let i = 0; i < 20 * HZ; i++) events.push(...step(m, []).map((e) => ({ ...e, tick: m.tick - 1 })));
+    for (let i = 0; i < 30 * HZ; i++) events.push(...step(m, []).map((e) => ({ ...e, tick: m.tick - 1 })));
     expect(events.filter((e) => e.kind === 'impact')).toHaveLength(1);
   });
 
   it('radios "Missile away" at the call and "Splash" at the hit, to the caller only', () => {
     const m = scene();
     const events: Stamped[] = [];
-    for (let i = 0; i < 20 * HZ; i++) events.push(...step(m, i === 0 ? [missile(m, { x: 0, y: 0 })] : []).map((e) => ({ ...e, tick: m.tick - 1 })));
+    for (let i = 0; i < 30 * HZ; i++) events.push(...step(m, i === 0 ? [missile(m, { x: 0, y: 0 })] : []).map((e) => ({ ...e, tick: m.tick - 1 })));
     const hit = events.find((e) => e.kind === 'impact')!.tick;
     expect(events.filter((e) => e.kind === 'radio')).toMatchObject([
       { side: 'nato', squad: null, text: 'Missile away', grid: expect.any(String), tick: 0 },
@@ -158,7 +158,7 @@ describe('Cruise Missile: the blast', () => {
     const place = Object.fromEntries(offsets.map((d, i) => [6 + i, { x: AT.x + d, y: AT.y }]));
     place[0] = { x: AT.x - 5, y: AT.y }; // a friendly in the blast: the Commander's mistake
     const m = scene(place);
-    const run = play(m, 16 * HZ, AT);
+    const run = play(m, 26 * HZ, AT);
     const hit = impacts(run)[0]!.tick;
     const before = run.pact[hit - 1]!;
     expect(offsets.map((_, i) => state(before, 6 + i))).toEqual(Array(6).fill('alive')); // harmless until it lands
@@ -172,7 +172,7 @@ describe('Cruise Missile: the blast', () => {
 
   it('scores the caller artillery points per enemy Soldier it kills, as a Barrage shell does, never for a friendly', () => {
     const m = scene({ 0: { x: AT.x + 3, y: AT.y }, 6: { x: AT.x - 3, y: AT.y }, 7: { x: AT.x + 15, y: AT.y } });
-    const run = play(m, 13 * HZ, AT);
+    const run = play(m, 23 * HZ, AT);
     const awards = run.events.filter((e) => e.kind === 'award');
     expect(awards).toMatchObject([{ side: 'nato', category: 'artillery', points: DEFAULT_TUNE.scoreArtilleryKill, reason: 'Missile kill' }]);
     expect(run.views.at(-1)!.score).toMatchObject({ artillery: DEFAULT_TUNE.scoreArtilleryKill });
@@ -182,7 +182,7 @@ describe('Cruise Missile: the blast', () => {
   });
 
   it('shows the enemies in the 35 m zone as Contacts for 2 s after the hit, never before and never outside', () => {
-    const run = play(scene({ 6: { x: AT.x + 25, y: AT.y }, 7: { x: AT.x + 40, y: AT.y } }, { visionM: 0, missileKillM: 0, missileWoundM: 0 }), 16 * HZ, AT);
+    const run = play(scene({ 6: { x: AT.x + 25, y: AT.y }, 7: { x: AT.x + 40, y: AT.y } }, { visionM: 0, missileKillM: 0, missileWoundM: 0 }), 26 * HZ, AT);
     const hit = impacts(run)[0]!.tick;
     const seen = (i: number) => run.views[i]!.contacts.map((c) => c.id);
     for (let i = 0; i < hit; i++) expect(seen(i)).toEqual([]);
@@ -207,7 +207,7 @@ describe('Cruise Missile: the blast', () => {
     e.from!.x += 1;
     expect(stateHash(m)).not.toBe(h);
     e.from!.x -= 1;
-    for (let i = 0; i < 20 * HZ; i++) step(m, []);
+    for (let i = 0; i < 30 * HZ; i++) step(m, []);
     expect(m.soldiers[6]!.cause).toBe('missile');
     const hit = stateHash(m);
     m.soldiers[6]!.cause = 'barrage';
@@ -217,7 +217,7 @@ describe('Cruise Missile: the blast', () => {
   it('a seeded replay lands on the same tick with the same casualties and state every run', () => {
     const go = () => {
       const m = scene({ 6: { x: AT.x + 5, y: AT.y } }, { fireRangeM: 140, walkSpeed: 5 });
-      const run = play(m, 20 * HZ, AT);
+      const run = play(m, 30 * HZ, AT);
       return { hit: impacts(run)[0]!.tick, deaths: run.events.flatMap((e) => (e.kind === 'death' ? [[e.tick, e.id]] : [])), hash: stateHash(m) };
     };
     expect(go()).toEqual(go());

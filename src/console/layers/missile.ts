@@ -20,7 +20,11 @@ const TRAIL_OPACITY = 0.6;
 /** The edge-clamped icon's centre keeps this far inside the screen. */
 const EDGE_MARGIN_PX = 56;
 /** Icon size in chevrons (its brackets span about 1.9 of these). */
-const ICON_SCALE = 1.8;
+const ICON_SCALE = 1.44;
+/** The icon and its arrow are the caller's colour this far toward white: bright, as in BF4. */
+const ICON_WHITEN = 0.55;
+const WHITE = new THREE.Color(0xffffff);
+const iconColor = new THREE.Color();
 /** Edge arrow size in chevrons. */
 const ARROW_SCALE = 1.6;
 const Z = { shadow: 0.42, trail: 0.6, line: 0.56, body: 0.72, marker: 0.9, icon: 0.92 };
@@ -117,7 +121,8 @@ export function drawMissiles(view: CommanderView, scale: number) {
     icon.position.set(w.x, w.y, Z.icon);
     icon.rotation.z = p.heading - Math.PI / 2;
     icon.scale.setScalar(scale * ICON_SCALE);
-    material(icon.icon).color.setHex(color);
+    iconColor.setHex(color).lerp(WHITE, ICON_WHITEN);
+    material(icon.icon).color.copy(iconColor);
     if (at.clamped) {
       const out = Math.atan2(p.y - w.y, p.x - w.x);
       const arrow = arrows.next();
@@ -125,7 +130,7 @@ export function drawMissiles(view: CommanderView, scale: number) {
       arrow.position.set(w.x + Math.cos(out) * off, w.y + Math.sin(out) * off, Z.icon);
       arrow.rotation.z = out;
       arrow.scale.setScalar(scale * ARROW_SCALE);
-      material(arrow).color.setHex(color);
+      material(arrow).color.copy(iconColor);
     }
   }
   for (const q of [bodies, shadows, trails, lines, markers, icons, arrows]) q.end();

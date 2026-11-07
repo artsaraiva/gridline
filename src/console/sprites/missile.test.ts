@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { commanderView, createMatch, step } from '../../sim';
 import { DEFAULT_TUNE } from '../../sim/tune';
-import { MISSILE_FACTIONS, MISSILE_HEADINGS, MISSILE_PITCH_FRAMES, MISSILE_WORLD_M, missileInFlight, missiles, missileTrail } from './missile';
+import { DROP_FROM, MISSILE_FACTIONS, MISSILE_HEADINGS, MISSILE_PITCH_FRAMES, MISSILE_WORLD_M, missileInFlight, missiles, missileTrail } from './missile';
 
 const from = { x: -486, y: 0 };
 const to = { x: 114, y: 0 }; // 600 m east
 
 describe('cruise missile pose', () => {
   it('flies level at altitude from the launch point straight to the spot, drawn lifted north-east of the ground it is over, with its shadow on the ground', () => {
-    const half = missileInFlight({ from, x: to.x, y: to.y, flight: 0.425, side: 'nato', left: 5 }); // half of the 85 % cruise
+    const half = missileInFlight({ from, x: to.x, y: to.y, flight: DROP_FROM / 2, side: 'nato', left: 5 }); // half the cruise
     expect(half.ground.x).toBeCloseTo(-186);
     expect(half.ground.y).toBe(0);
     expect(half.altitude).toBeGreaterThan(0);
@@ -20,14 +20,15 @@ describe('cruise missile pose', () => {
     expect(half.size).toBeCloseTo(MISSILE_WORLD_M * 2.5);
   });
 
-  it('cruises level until it is over the target, then drops on it, nose down, over the last 15 % of the flight', () => {
+  it('cruises level until it is over the target, then drops on it, nose down, over the last 9 % of the flight (about 2 s from the centre)', () => {
     const d = (flight: number) => missileInFlight({ from, x: to.x, y: to.y, flight, side: 'nato', left: 5 });
     const cruise = d(0.5).altitude;
-    expect(d(0.84)).toMatchObject({ pitchFrame: 0, altitude: cruise });
-    const over = d(0.85);
+    expect(DROP_FROM).toBe(0.91);
+    expect(d(DROP_FROM - 0.01)).toMatchObject({ pitchFrame: 0, altitude: cruise });
+    const over = d(DROP_FROM);
     expect(over.ground.x).toBeCloseTo(to.x);
     expect(over).toMatchObject({ pitchFrame: 0, altitude: cruise });
-    const mid = d(0.925);
+    const mid = d((DROP_FROM + 1) / 2);
     expect(mid.ground).toEqual(to);
     expect(mid.altitude).toBeCloseTo(cruise / 2);
     expect(mid.pitchFrame).toBe(MISSILE_PITCH_FRAMES - 1); // straight down
@@ -51,10 +52,10 @@ describe('cruise missile pose', () => {
 
   it('trails a contrail from up to 8 s of flight behind it to where it is, never before the launch point; after the hit it hangs and fades with the time left', () => {
     const at = (flight: number, left = 5) => missileTrail(missileInFlight({ from, x: to.x, y: to.y, flight, side: 'nato', left }), left);
-    const early = at(0.085); // 60 m flown: the trail starts at the launch point
+    const early = at(DROP_FROM / 10); // 60 m flown: the trail starts at the launch point
     expect(early.tail.x).toBeCloseTo(early.head.x - 60);
     expect(early.opacity).toBe(1);
-    const mid = at(0.85); // all 600 m flown: 8 s at 70 m/s = 560 m of it
+    const mid = at(DROP_FROM); // all 600 m flown: 8 s at 70 m/s = 560 m of it
     expect(mid.length).toBeCloseTo(560);
     expect(mid.head).toEqual({ x: mid.head.x, y: mid.head.y });
     expect(mid.tail.x).toBeLessThan(mid.head.x);

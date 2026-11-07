@@ -24,10 +24,11 @@ export const CLOSE_AT = { x: -66, y: 18 };
 const HQ = { x: -415, y: 0 };
 const HZ = DEFAULT_TUNE.hz;
 
-// #99: a Cruise Missile called on the Contacts at the missile chapter: it leaves from beyond the west edge behind the HQ
-// (where the Simulation launches nato's) and flies straight at the spot at `missileSpeedMps`, so the edge-clamped icon,
-// the line and the marker show at both zooms, then the shared impact takes over.
-const MISSILE = { at: CHAPTERS[4]!.at, from: { x: -856, y: 0 }, to: { x: -16, y: 28 } };
+// #99: a Cruise Missile called on the Contacts 10 s before the missile chapter, so the chapter opens on the edge-glued
+// icon and the hit lands before the Wipe: it leaves from beyond the west edge behind the HQ (where the Simulation
+// launches nato's) and flies straight at the spot at `missileSpeedMps`, so the edge-clamped icon, the line and the
+// marker show at both zooms, then the shared impact takes over.
+const MISSILE = { at: CHAPTERS[4]!.at - 10, from: { x: -1556, y: 0 }, to: { x: -16, y: 28 } };
 const MISSILE_FLIGHT = Math.hypot(MISSILE.to.x - MISSILE.from.x, MISSILE.to.y - MISSILE.from.y) / DEFAULT_TUNE.missileSpeedMps;
 const MISSILE_LANDS = MISSILE.at + MISSILE_FLIGHT;
 
