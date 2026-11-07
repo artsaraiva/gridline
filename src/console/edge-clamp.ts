@@ -6,7 +6,7 @@ export interface Clamped extends Vec2 {
   clamped: boolean;
 }
 
-/** The part of the screen a mark may sit in, in px: inside the margins and clear of the chrome panels at the sides. */
+/** The part of the screen a mark may sit in, in px: inside the margins (it sits under the chrome panels, as in BF4). */
 export interface Inset {
   x0: number;
   y0: number;
