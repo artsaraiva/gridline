@@ -102,7 +102,7 @@ describe('observability rule: a combat sound plays only when its source is drawn
   });
 
   it('an impact the Console receives is drawn by the impacts layer, so it always sounds', () => {
-    expect(sourceDrawn(view(), { kind: 'impact', side: 'pact', x: 0, y: 0 })).toBe(true);
+    expect(sourceDrawn(view(), { kind: 'impact', side: 'pact', x: 0, y: 0, asset: 'barrage' })).toBe(true);
   });
 
   it('a Scan UAV on station hums at its orbit; nothing loops on an empty map', () => {

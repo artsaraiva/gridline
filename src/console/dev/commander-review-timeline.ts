@@ -1,8 +1,9 @@
 // DEV-only Commander look review timeline (#69): a hand-written, deterministic script of CommanderViews and Events on
 // Kaltenbach coordinates, so the Console's readability treatments (#70 firing pulse, #71 selection and Squad Leader
-// markers) are judged on every Squad Leader state without a Simulation. `viewAt` and `eventsBetween` are pure.
+// markers) and the Cruise Missile's marks (#99) are judged on every Squad Leader state without a Simulation. `viewAt`
+// and `eventsBetween` are pure.
 import { DEFAULT_TUNE } from '../../sim/tune';
-import type { CommanderView, FriendlyView, SimEvent, SoldierView, SquadView } from '../../sim/types';
+import type { CommanderView, EffectView, FriendlyView, SimEvent, SoldierView, SquadView } from '../../sim/types';
 
 export const LENGTH = 72;
 
@@ -12,6 +13,7 @@ export const CHAPTERS = [
   { at: 10, title: 'Firing' },
   { at: 20, title: 'Wounded leader' },
   { at: 30, title: 'Leader down' },
+  { at: 34, title: 'Cruise Missile' },
   { at: 50, title: 'Wipe' },
   { at: 62, title: 'Redeploy' },
 ];
@@ -21,6 +23,20 @@ export const CLOSE_AT = { x: -66, y: 18 };
 
 const HQ = { x: -415, y: 0 };
 const HZ = DEFAULT_TUNE.hz;
+
+// #99: a Cruise Missile called on the Contacts at the missile chapter: it leaves from beyond the west edge behind the HQ
+// (where the Simulation launches nato's) and flies straight at the spot at `missileSpeedMps`, so the edge-clamped icon,
+// the line and the marker show at both zooms, then the shared impact takes over.
+const MISSILE = { at: CHAPTERS[4]!.at, from: { x: -486, y: 0 }, to: { x: -16, y: 28 } };
+const MISSILE_FLIGHT = Math.hypot(MISSILE.to.x - MISSILE.from.x, MISSILE.to.y - MISSILE.from.y) / DEFAULT_TUNE.missileSpeedMps;
+const MISSILE_LANDS = MISSILE.at + MISSILE_FLIGHT;
+
+function missileAt(t: number): EffectView[] {
+  const contact = DEFAULT_TUNE.barrageContactSeconds;
+  if (t < MISSILE.at || t >= MISSILE_LANDS + contact) return [];
+  const flight = Math.min(1, (t - MISSILE.at) / MISSILE_FLIGHT);
+  return [{ asset: 'missile', ...MISSILE.to, radius: DEFAULT_TUNE.missileSuppressM, left: MISSILE_LANDS + contact - t, total: MISSILE_FLIGHT + contact, impactIn: Math.max(0, MISSILE_LANDS - t), side: 'nato', from: MISSILE.from, flight }];
+}
 
 type Span = [number, number];
 type Key = [t: number, x: number, y: number];
@@ -138,8 +154,8 @@ export function viewAt(t: number): CommanderView {
     points: POINTS,
     tickets: { nato: 150, pact: 150 },
     result: null,
-    assets: [],
-    effects: [],
+    assets: [{ asset: 'missile', readyIn: t < MISSILE.at ? 0 : Math.max(0, MISSILE.at + DEFAULT_TUNE.missileCooldownSeconds - t), cooldown: DEFAULT_TUNE.missileCooldownSeconds, radius: DEFAULT_TUNE.missileSuppressM }],
+    effects: missileAt(t),
   };
 }
 
@@ -202,4 +218,11 @@ function casualties(): [number, SimEvent][] {
   return events;
 }
 
-const EVENTS: [number, SimEvent][] = [...casualties(), ...firefight()].sort((a, b) => a[0] - b[0]);
+/** #99: the missile's radio lines and its impact. */
+const strike = (): [number, SimEvent][] => [
+  [MISSILE.at, { kind: 'radio', side: 'nato', squad: null, type: 'asset', text: 'Missile away', grid: 'G7', priority: 1 }],
+  [MISSILE_LANDS, { kind: 'impact', side: 'nato', ...MISSILE.to, asset: 'missile' }],
+  [MISSILE_LANDS, { kind: 'radio', side: 'nato', squad: null, type: 'asset', text: 'Splash', grid: 'G7', priority: 1 }],
+];
+
+const EVENTS: [number, SimEvent][] = [...casualties(), ...firefight(), ...strike()].sort((a, b) => a[0] - b[0]);

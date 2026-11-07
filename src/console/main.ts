@@ -13,6 +13,7 @@ import { drawGrid } from './layers/grid';
 import { addImpact, drawImpacts } from './layers/impacts';
 import { addDeathMarker, drawDeathMarkers } from './layers/markers';
 import { watchFrame } from './layers/map';
+import { drawMissiles } from './layers/missile';
 import { drawOrders, hideOrderTags } from './layers/orders';
 import { drawHqs, drawPoint } from './layers/points';
 import { drawScanUavs } from './layers/scan-uav';
@@ -51,7 +52,7 @@ renderer.setAnimationLoop(() => {
   const events = host.takeEvents();
   for (const e of events) {
     if (e.kind === 'death') addDeathMarker(e.x, e.y, e.side, now);
-    else if (e.kind === 'impact') addImpact(e.x, e.y, now);
+    else if (e.kind === 'impact') addImpact(e.x, e.y, now, e.asset);
     else if (e.kind === 'shot' || e.kind === 'suppressive') {
       addShot(e, view, now);
       pulse(e.from, e.side, now);
@@ -73,6 +74,7 @@ renderer.setAnimationLoop(() => {
   drawScanUavs(view, scale, now);
   drawSupplyDrops(view, scale);
   drawShells(view, now);
+  drawMissiles(view, scale);
   drawOrders(view, metresPerPx.value);
   drawDeathMarkers(now, scale);
   drawLastKnown(view, scale);

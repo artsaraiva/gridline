@@ -9,8 +9,8 @@
 // - World-sized rings use `dashedRing`, which keeps its line and dashes a constant pixel size at any zoom.
 // - Text uses `label`.
 import * as THREE from 'three/webgpu';
-import { abs, atan, float, fract, length, max, mix, positionLocal, smoothstep, step, uniform, vec3 } from 'three/tsl';
-import { DARK, flat, GLOW, metresPerPx } from '../renderer';
+import { abs, atan, float, fract, length, max, mix, positionLocal, smoothstep, step, uniform, uv, vec3 } from 'three/tsl';
+import { BRIGHT, COLOR, DARK, flat, GLOW, metresPerPx } from '../renderer';
 
 /** Screen pixels per symbol unit (the chevron size). */
 export const UNIT_PX = 14;
@@ -49,6 +49,17 @@ export function bar(x0: number, y0: number, x1: number, y1: number, w: number) {
 export function shade(color: number, opacity: number) {
   const material = new THREE.MeshBasicNodeMaterial({ color, opacity, transparent: true, depthWrite: false, side: THREE.DoubleSide });
   material.opacityNode = DARK;
+  return material;
+}
+
+/**
+ * A thin bright line on a unit quad, brightest at its head (uv.x = 1) and fading to nothing at its tail: the shell's
+ * streak (#98) and the missile's contrail (#99). Scale the quad to length x pixel width; `opacity` fades the whole line.
+ */
+export function streak(color = COLOR.bone) {
+  const material = new THREE.MeshBasicNodeMaterial({ color, transparent: true, depthWrite: false, side: THREE.DoubleSide });
+  material.opacityNode = BRIGHT.mul(uv().x.mul(0.15).add(0.85).mul(uv().x.pow(0.6)));
+  material.mrtNode = GLOW();
   return material;
 }
 

@@ -56,7 +56,7 @@ describe('contribution message (#72)', () => {
     expect(awardLine(award('nato'), view)).toBe('+100 · Barrage kill');
     expect(awardLine({ kind: 'award', side: 'nato', category: 'supply', points: 15.52, reason: 'Supply Drop resupplied Alpha' }, view)).toBe('+16 · Supply Drop resupplied Alpha'); // #74: Supply points are fractional
     expect(awardLine(award('pact'), view)).toBeNull();
-    expect(awardLine({ kind: 'impact', side: 'nato', x: 0, y: 0 }, view)).toBeNull();
+    expect(awardLine({ kind: 'impact', side: 'nato', x: 0, y: 0, asset: 'barrage' }, view)).toBeNull();
   });
 });
 

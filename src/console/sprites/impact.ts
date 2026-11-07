@@ -1,6 +1,7 @@
 // A Barrage shell's impact (#62): the baked explosion flipbook and crater decal, and what one impact shows as it ages.
 // layers/impacts.ts draws it. Crater cap and smoke fade are Console constants, not Simulation Tune values: they only
 // change the look, and the Console has no Tune of its own.
+import type { SimEvent } from '../../sim/types';
 import type { SpriteSheetSpec } from './sheet';
 import { SMOKE_PUFF_VARIANTS } from './smoke-puff';
 
@@ -37,16 +38,20 @@ export const CRATER_SHEET: SpriteSheetSpec = {
   constants: { CRATER_VARIANTS },
 };
 
+export type ImpactAsset = Extract<SimEvent, { kind: 'impact' }>['asset'];
+
 export interface ImpactRecord {
   x: number;
   y: number;
   at: number;
   seed: number;
+  /** #99: what landed; only a shell leaves a streak (layers/shells.ts). */
+  asset: ImpactAsset;
 }
 
 /** Records an impact at `at` ms, dropping the oldest past CRATER_CAP. Returns `list`. */
-export function recordImpact(list: ImpactRecord[], x: number, y: number, at: number): ImpactRecord[] {
-  list.push({ x, y, at, seed: (list.at(-1)?.seed ?? -1) + 1 });
+export function recordImpact(list: ImpactRecord[], x: number, y: number, at: number, asset: ImpactAsset): ImpactRecord[] {
+  list.push({ x, y, at, seed: (list.at(-1)?.seed ?? -1) + 1, asset });
   if (list.length > CRATER_CAP) list.splice(0, list.length - CRATER_CAP);
   return list;
 }

@@ -1,13 +1,13 @@
 // Artillery Barrage: after a warning, shells leave one by one over a few seconds and land at seeded spots round the target.
-// Each is a projectile in the air for `barrageFlightSeconds`, then kills, Wounds and suppresses by distance, friend or foe.
+// Each is a projectile in the air for `barrageFlightSeconds`, then lands a Strike blast (strike.ts).
 // Nobody dodges it (#58: a Squad in the zone is the Commander's mistake); the caller sees the enemies in it as Contacts
 // from the first impact until `barrageContactSeconds` after the last.
-import { die, wound } from '../combat';
 import { dist2 } from '../geometry';
 import { rnd } from '../rng';
 import type { Mix } from '../state';
 import type { Tune } from '../types';
 import { assetRadio, type Kind } from './core';
+import { blast } from './strike';
 
 /** One shell: where it lands, the tick it leaves and the tick it lands. */
 export interface Shell {
@@ -50,27 +50,12 @@ export const barrage: Kind = {
     for (const shell of e.shells!) {
       if (shell.done || shell.land > m.tick) continue;
       shell.done = true;
-      events.push({ kind: 'impact', side: e.side, x: shell.x, y: shell.y });
+      events.push({ kind: 'impact', side: e.side, x: shell.x, y: shell.y, asset: 'barrage' });
       if (!e.told) {
         e.told = true;
         assetRadio(m, e, 'Splash', events);
       }
-      for (const s of m.soldiers) {
-        if (s.state === 'dead') continue;
-        const d2 = dist2(s, shell);
-        const kills = d2 <= t.barrageKillM * t.barrageKillM;
-        // #55: an enemy it kills, whatever its state, or Wounds scores for the caller; one already Wounded by rifle fire is not its
-        if (s.side !== e.side && (kills || (s.state === 'alive' && d2 <= t.barrageWoundM * t.barrageWoundM))) {
-          s.cause = 'barrage';
-          if (s.state === 'alive') s.uavAssist ||= m.tick <= s.uavUntil; // #75: and the UAV that found it, if it did; fixed by the first downing hit
-        }
-        if (kills) {
-          if (s.side === e.side) s.cause = null; // its own Side's shell: the enemy Commander is not paid for a friendly-fire death
-          Object.assign(s, { suppression: 0, target: -1, reviving: -1 }); // a killed reviver must not keep a job
-          die(m, s, events);
-        } else if (d2 <= t.barrageWoundM * t.barrageWoundM && s.state === 'alive') wound(m, s, events);
-        else if (d2 <= t.barrageSuppressM * t.barrageSuppressM && s.state === 'alive') s.suppression = Math.max(s.suppression, t.barrageSuppression);
-      }
+      blast(m, e, shell, { killM: t.barrageKillM, woundM: t.barrageWoundM, suppressM: t.barrageSuppressM, suppression: t.barrageSuppression }, 'barrage', events);
     }
   },
 

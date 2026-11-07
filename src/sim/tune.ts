@@ -155,4 +155,12 @@ export const DEFAULT_TUNE: Tune = {
   scoreSupplyPerFraction: 10,
   scoreSupplyCapPerRecipient: 30,
   scoreUavGraceSeconds: 5,
+
+  // #99 Cruise Missile
+  missileCooldownSeconds: 240,
+  missileSpeedMps: 40,
+  missileKillM: 12,
+  missileWoundM: 20,
+  missileSuppressM: 35,
+  missileSuppression: 1,
 };

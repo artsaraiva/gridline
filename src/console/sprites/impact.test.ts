@@ -3,7 +3,7 @@ import { CRATER_CAP, CRATER_SHEET, CRATER_VARIANTS, EXPLOSION_FRAMES, EXPLOSION_
 import { SMOKE_PUFF_VARIANTS } from './smoke-puff';
 
 describe('shell impact: explosion, drifting plume and lasting crater', () => {
-  const hit = (at = 0): ImpactRecord => recordImpact([], 50, -50, at).at(-1)!;
+  const hit = (at = 0): ImpactRecord => recordImpact([], 50, -50, at, 'barrage').at(-1)!;
 
   it('registers the baked explosion flipbook and crater decal sheets', () => {
     expect(EXPLOSION_SHEET.frames).toBe(EXPLOSION_FRAMES);
@@ -62,7 +62,7 @@ describe('shell impact: explosion, drifting plume and lasting crater', () => {
 
   it('keeps at most CRATER_CAP impacts, removing the oldest first', () => {
     const list: ImpactRecord[] = [];
-    for (let k = 0; k < CRATER_CAP + 5; k++) recordImpact(list, k, 0, k);
+    for (let k = 0; k < CRATER_CAP + 5; k++) recordImpact(list, k, 0, k, 'barrage');
     expect(list).toHaveLength(CRATER_CAP);
     expect(list[0]!.x).toBe(5);
     expect(list.at(-1)!.x).toBe(CRATER_CAP + 4);

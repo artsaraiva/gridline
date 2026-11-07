@@ -1,7 +1,7 @@
 // Barrage impacts as baked sprites (#62): the explosion flipbook, then a smoke plume that drifts and fades, and a
 // crater decal that stays for the match. Fed by `impact` events; the sim says where, sprites/impact.ts says how it looks.
 import { pool } from '../renderer';
-import { CRATER_SHEET, EXPLOSION_SHEET, type ImpactRecord, type ImpactSprite, impactLook, recordImpact } from '../sprites/impact';
+import { CRATER_SHEET, EXPLOSION_SHEET, type ImpactAsset, type ImpactRecord, type ImpactSprite, impactLook, recordImpact } from '../sprites/impact';
 import { spriteMesh } from '../sprites/sheet';
 import { SMOKE_PUFF_SHEET } from '../sprites/smoke-puff';
 
@@ -14,11 +14,11 @@ export const resetImpacts = () => {
   impacts.length = 0;
 };
 
-export const addImpact = (x: number, y: number, now: number) => recordImpact(impacts, x, y, now);
-/** When the latest impact landed, in ms; -Infinity before the first. */
-export const lastImpactAt = () => impacts.at(-1)?.at ?? -Infinity;
-/** The impacts of the last `ms` ms, oldest first. */
-export const recentImpacts = (now: number, ms: number) => impacts.filter((i) => now - i.at < ms);
+export const addImpact = (x: number, y: number, now: number, asset: ImpactAsset) => recordImpact(impacts, x, y, now, asset);
+/** When the latest impact of `asset` landed, in ms; -Infinity before the first. */
+export const lastImpactAt = (asset: ImpactAsset) => impacts.filter((i) => i.asset === asset).at(-1)?.at ?? -Infinity;
+/** The impacts of `asset` in the last `ms` ms, oldest first. */
+export const recentImpacts = (now: number, ms: number, asset: ImpactAsset) => impacts.filter((i) => i.asset === asset && now - i.at < ms);
 
 function place(kind: keyof typeof pools, s: ImpactSprite) {
   const p = pools[kind].next();

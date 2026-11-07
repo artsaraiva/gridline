@@ -7,26 +7,26 @@ import type { Match } from './index';
 import { dist2 } from './geometry';
 import { gridCentre, gridRef } from './grid-ref';
 import { membersOf, wiped, type Mix, type Squad } from './state';
-import type { AssetKind, SideId, SimEvent, SquadView, Vec2 } from './types';
+import type { RequestKind, SideId, SimEvent, SquadView, Vec2 } from './types';
 
 /** An open Request: the Asset it asks for, the centre of the grid square it names, and the tick it expires. */
 export interface Request {
-  asset: AssetKind;
+  asset: RequestKind;
   at: Vec2;
   until: number;
 }
 
-const WORDS: Record<AssetKind, string> = { supply: 'supplies', barrage: 'fire support', scan: 'recon' };
-const KINDS: AssetKind[] = ['scan', 'supply', 'barrage'];
+const WORDS: Record<RequestKind, string> = { supply: 'supplies', barrage: 'fire support', scan: 'recon' };
+const KINDS: RequestKind[] = ['scan', 'supply', 'barrage'];
 
 /** A matching Asset of `side` has arrived near `at`: the crate has landed, a shell has, the UAV is on station. */
-function answered(m: Match, side: SideId, asset: AssetKind, at: Vec2) {
+function answered(m: Match, side: SideId, asset: RequestKind, at: Vec2) {
   const r = m.tune.requestCloseM;
   return m.assets.effects.some((e) => e.side === side && e.asset === asset && dist2(e, at) <= r * r && (e.asset === 'supply' ? landed(m, e) : e.asset === 'barrage' ? e.shells!.some((s) => s.done) : true));
 }
 
 /** What `sq` needs and where, or null: Fire support when most are suppressed by enemies it sees, Recon when any is under fire it can't place, else Supplies. */
-function need(m: Match, sq: Squad): { asset: AssetKind; at: Vec2 } | null {
+function need(m: Match, sq: Squad): { asset: RequestKind; at: Vec2 } | null {
   const t = m.tune;
   const alive = membersOf(m, sq).filter((s) => s.state === 'alive');
   const L = alive[0];
