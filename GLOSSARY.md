@@ -78,6 +78,28 @@ _Avoid_: Squad spawn, buddy spawn
 A wiped squad returning to the fight as a whole from its HQ or a capture point its side owns.
 _Avoid_: Respawn (for whole squads), reinforce
 
+### Vehicles
+
+**Vehicle**:
+A machine of one Side that Soldiers ride and fight from: tank, jeep, transport helicopter, jet or anti-air gun. It waits empty or crewed in a fixed slot at its HQ and returns there a while after it is destroyed.
+_Avoid_: Unit, armour (for all vehicles), asset
+
+**Mounted**:
+The state of a Soldier riding a Vehicle in one of its seats: they move with it, see and fire from it and cannot be shot, suppressed or Wounded until they get out or it is destroyed. Soldiers board and leave Vehicles one by one, so a Squad may be partly Mounted.
+_Avoid_: In the vehicle, embarked, loaded, crew (Vehicles have no crew of their own)
+
+**Detached**:
+A Soldier acting away from their Squad on a goal of their own, usually after riding a Vehicle elsewhere; they drift back toward the Squad's goal and rejoin when they reach it.
+_Avoid_: Lone wolf, stray (the brief wander within a leash), split squad
+
+**Wreck**:
+A destroyed Vehicle's hull, left where it died until its slot gives the Side a fresh one.
+_Avoid_: Debris, corpse, destroyed vehicle (as a thing on the map)
+
+**Launcher**:
+The rocket weapon one Soldier of every Squad carries against Vehicles; rifles cannot hurt an armoured Vehicle.
+_Avoid_: RPG, AT, bazooka
+
 ### Commander view
 
 **Console**:
