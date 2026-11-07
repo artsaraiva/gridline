@@ -47,7 +47,7 @@ export const missile: Kind = {
   radius: (t) => t.missileSuppressM,
   gate(m, side) {
     const p = middlePoint(m);
-    return !p ? 'no middle point' : p.owner === side ? null : `needs ${p.name}`;
+    return !p ? 'no Capture Point' : p.owner === side ? null : `needs ${p.name}`;
   },
 
   start(m, e) {

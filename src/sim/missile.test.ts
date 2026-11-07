@@ -186,6 +186,27 @@ describe('Cruise Missile: the blast', () => {
     expect((shown.at(-1)! - hit) / HZ).toBeLessThanOrEqual(2.05);
   });
 
+  it('the flight and what it did to a Soldier are part of the state hash', () => {
+    const m = scene({ 6: { x: AT.x + 15, y: AT.y } }); // pact 6 in the Wound ring
+    step(m, [missile(m, AT)]);
+    const e = m.assets.effects[0]!;
+    for (const [field, nudge] of [['land', 1], ['launch', -1]] as const) {
+      const h = stateHash(m);
+      (e as unknown as Record<string, number>)[field]! += nudge;
+      expect(stateHash(m), field).not.toBe(h);
+      (e as unknown as Record<string, number>)[field]! -= nudge;
+    }
+    const h = stateHash(m);
+    e.from!.x += 1;
+    expect(stateHash(m)).not.toBe(h);
+    e.from!.x -= 1;
+    for (let i = 0; i < 20 * HZ; i++) step(m, []);
+    expect(m.soldiers[6]!.cause).toBe('missile');
+    const hit = stateHash(m);
+    m.soldiers[6]!.cause = 'barrage';
+    expect(stateHash(m)).not.toBe(hit);
+  });
+
   it('a seeded replay lands on the same tick with the same casualties and state every run', () => {
     const go = () => {
       const m = scene({ 6: { x: AT.x + 5, y: AT.y } }, { fireRangeM: 140, walkSpeed: 5 });
