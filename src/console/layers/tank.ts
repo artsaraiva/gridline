@@ -14,48 +14,55 @@ const Z = { wreck: 0.44, shadow: 0.42, hull: 0.46, turret: 0.47, round: 0.6, ico
 const SHADOW_OPACITY = 0.5;
 /** Icon size in chevrons. */
 const ICON_SCALE = 1.7;
-const ROUND_PX = 2;
+const ROUND_PX = 1.8;
 const ICON_COLOR = { friendly: COLOR.friendly, hostile: COLOR.hostile, empty: 0xd4d8d6 };
 
-/** A rounded-rectangle outline `w` x `h` symbol units centred on (0, `cy`), stroke `s`. */
-function outline(w: number, h: number, r: number, s: number, cy = 0) {
-  const rect = (hw: number, hh: number, rr: number) => {
-    const p = new THREE.Path();
-    p.moveTo(-hw + rr, cy - hh);
-    p.lineTo(hw - rr, cy - hh);
-    p.quadraticCurveTo(hw, cy - hh, hw, cy - hh + rr);
-    p.lineTo(hw, cy + hh - rr);
-    p.quadraticCurveTo(hw, cy + hh, hw - rr, cy + hh);
-    p.lineTo(-hw + rr, cy + hh);
-    p.quadraticCurveTo(-hw, cy + hh, -hw, cy + hh - rr);
-    p.lineTo(-hw, cy - hh + rr);
-    p.quadraticCurveTo(-hw, cy - hh, -hw + rr, cy - hh);
-    return p;
-  };
-  const shape = new THREE.Shape(rect(w / 2 + s / 2, h / 2 + s / 2, r + s / 2).getPoints());
-  shape.holes.push(rect(w / 2 - s / 2, h / 2 - s / 2, Math.max(0, r - s / 2)));
-  return new THREE.ShapeGeometry(shape, 4);
+/** A rounded rectangle `w` x `h` symbol units centred on (0, `cy`), corner radius `r`. */
+function rounded(w: number, h: number, r: number, cy = 0) {
+  const [hw, hh] = [w / 2, h / 2];
+  const p = new THREE.Shape();
+  p.moveTo(-hw + r, cy - hh);
+  p.lineTo(hw - r, cy - hh);
+  p.quadraticCurveTo(hw, cy - hh, hw, cy - hh + r);
+  p.lineTo(hw, cy + hh - r);
+  p.quadraticCurveTo(hw, cy + hh, hw - r, cy + hh);
+  p.lineTo(-hw + r, cy + hh);
+  p.quadraticCurveTo(-hw, cy + hh, -hw, cy + hh - r);
+  p.lineTo(-hw, cy - hh + r);
+  p.quadraticCurveTo(-hw, cy - hh, -hw + r, cy - hh);
+  return p;
 }
 
-// BF4's tank icon, in chevrons, nose +y: the hull's outline, and over it the turret's outline with the gun reaching past the hull.
-const hullGeometry = (s: number) => outline(0.92, 1.36, 0.16, s);
-function turretGeometry(s: number) {
-  const pieces = [outline(0.5, 0.56, 0.12, s, -0.04), bar(0, 0.24, 0, 0.98, s)].map((p) => p.toNonIndexed());
-  const merged = new THREE.BufferGeometry();
-  merged.setAttribute('position', new THREE.Float32BufferAttribute(pieces.flatMap((p) => [...(p.getAttribute('position').array as Float32Array)]), 3));
-  return merged;
+/** Merges geometries (non-indexed positions only). */
+function merge(parts: THREE.BufferGeometry[]) {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(parts.flatMap((p) => [...(p.toNonIndexed().getAttribute('position').array as Float32Array)]), 3));
+  return g;
 }
-const LINE = px(2);
-const HALO = px(4.5);
+
+// BF4's tank icon, in chevrons, nose +y, grown by `g` for its dark halo: a bold hull outline over a faint hull fill, and over
+// that the solid turret with its gun reaching well past the hull.
+const HULL = { w: 0.94, h: 1.34, r: 0.2 };
+const hullLine = (s: number, g = 0) => {
+  const shape = rounded(HULL.w + s + g, HULL.h + s + g, HULL.r + (s + g) / 2);
+  shape.holes.push(rounded(HULL.w - s - g, HULL.h - s - g, Math.max(0.02, HULL.r - (s + g) / 2)));
+  return new THREE.ShapeGeometry(shape, 4);
+};
+const hullFill = new THREE.ShapeGeometry(rounded(HULL.w, HULL.h, HULL.r), 4);
+const turret = (g = 0) => merge([new THREE.ShapeGeometry(rounded(0.56 + g, 0.62 + g, 0.16 + g / 2, -0.06), 4), bar(0, 0.12, 0, 1.08 + g / 2, px(3.2) + g)]);
+const LINE = px(2.6);
+const HALO = px(2.5);
 
 const shadows = pool(() => spriteMesh(TANK_SHEET, { shadow: true, opacity: SHADOW_OPACITY }));
 const parts = pool(() => spriteMesh(TANK_SHEET));
 const icons = pool(() => {
-  const hull = new THREE.Mesh(hullGeometry(LINE), fading(COLOR.friendly));
-  const turret = new THREE.Mesh(turretGeometry(LINE), fading(COLOR.friendly));
-  hull.add(new THREE.Mesh(hullGeometry(HALO), shade(0x000000, 0.55)).translateZ(-0.01));
-  turret.add(new THREE.Mesh(turretGeometry(HALO), shade(0x000000, 0.55)).translateZ(-0.01));
-  return Object.assign(new THREE.Group().add(hull, turret), { hull, turret });
+  const hull = new THREE.Mesh(hullLine(LINE), fading(COLOR.friendly));
+  hull.add(new THREE.Mesh(hullFill, fading(COLOR.friendly, 0.28)).translateZ(-0.005));
+  hull.add(new THREE.Mesh(hullLine(LINE, HALO), shade(0x000000, 0.55)).translateZ(-0.01));
+  const top = new THREE.Mesh(turret(), fading(COLOR.friendly));
+  top.add(new THREE.Mesh(turret(HALO), shade(0x000000, 0.6)).translateZ(-0.002));
+  top.position.z = 0.01;
+  return Object.assign(new THREE.Group().add(hull, top), { hull, turret: top, fill: hull.children[0] as THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicNodeMaterial> });
 });
 const rounds = pool(() => new THREE.Mesh(new THREE.PlaneGeometry(1, 1), streak(0xffe6a0)));
 
@@ -84,7 +91,7 @@ export function drawTanks(view: CommanderView, scale: number) {
       icon.scale.setScalar(scale * ICON_SCALE);
       icon.hull.rotation.z = Math.atan2(v.fy, v.fx) - Math.PI / 2;
       icon.turret.rotation.z = Math.atan2(v.ty, v.tx) - Math.PI / 2;
-      for (const part of [icon.hull, icon.turret]) part.material.color.setHex(ICON_COLOR[role]);
+      for (const part of [icon.hull, icon.turret, icon.fill]) part.material.color.setHex(ICON_COLOR[role]);
     }
     for (const r of v.rounds ?? []) {
       const s = roundStreak(r);

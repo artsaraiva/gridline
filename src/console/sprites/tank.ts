@@ -62,7 +62,7 @@ export function tankIcon(v: VehicleView, mySide: SideId): 'friendly' | 'hostile'
 }
 
 /** A main gun round's streak trails this far behind its head. */
-export const ROUND_STREAK_M = 12;
+export const ROUND_STREAK_M = 10.8;
 
 /** The streak of a round `flight` (0..1) of the way from `from` to `to`: its centre, length and angle; it starts at the muzzle. */
 export function roundStreak(r: { from: Vec2; to: Vec2; flight: number }) {

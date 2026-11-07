@@ -8,7 +8,7 @@ import type { Tune } from '../sim/types';
  * #107 `tanks` sets the tank slots per Side (`?tanks=3`), so tank fights come quickly.
  */
 export function devTune(freeAssets: boolean, tanks?: number): Tune {
-  const t = tanks ? { ...DEFAULT_TUNE, tanksPerSide: tanks } : DEFAULT_TUNE;
+  const t = tanks !== undefined ? { ...DEFAULT_TUNE, tanksPerSide: tanks } : DEFAULT_TUNE;
   if (!freeAssets) return t;
   return {
     ...t,

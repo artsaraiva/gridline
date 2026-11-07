@@ -97,7 +97,7 @@ describe('#107 the kill table', () => {
   const ambush = () =>
     scene({
       map: { points: [{ id: 'A', name: 'A', x: -200, y: 0, owner: 'pact' }] },
-      tune: { rockets: 3, tankRangeM: 0, coaxRangeM: 0, walkSpeed: 0 },
+      tune: { rockets: 3, tankRangeM: 0, coaxRangeM: 0, walkSpeed: 0, hp: 1e9 }, // nobody is Wounded in the firefight once the crew bail
       place: { 2: { x: -330, y: 30, fx: -1 }, 3: { x: -330, y: 30, fx: -1 } },
     });
 
@@ -164,7 +164,7 @@ describe('#107 the kill table', () => {
 describe('#107 the tank fights', () => {
   it('its main gun fires every tankFireSeconds, a round flying at tankShellMps to a Strike-shaped impact; the coax fires at infantry; nobody aboard is shot', () => {
     // the crewed nato tank on its HQ facing east, pact Soldiers 120 m and 156 m off in the open
-    const m = scene({ tune: { hp: 1e9 }, place: { 2: { x: -440, y: 0, fx: -1 }, 3: { x: -440, y: 100, fx: -1 } } });
+    const m = scene({ tune: { hp: 1e9, tankAimSeconds: [0, 0] }, place: { 2: { x: -440, y: 0, fx: -1 }, 3: { x: -440, y: 100, fx: -1 } } });
     crewed(m, [0, 1]);
     const { events } = play(m, 13 * HZ);
     const impacts = events.filter((e) => e.kind === 'impact');
@@ -178,8 +178,22 @@ describe('#107 the tank fights', () => {
     expect(events.some((e) => e.kind === 'shot' && (e.to === 0 || e.to === 1))).toBe(false);
   });
 
+  it('the main gun fires on a new target only after a seeded aim time of tankAimSeconds', () => {
+    const firsts = [1, 2, 3, 4].map((seed) => {
+      const m = createMatch({ seed, map: field(), tune: { ...DEFAULT_TUNE, squadSize: 2, spread: 0, speedJitter: 0 }, squadsPerSide: 1, commanderSide: 'nato' });
+      Object.assign(m.soldiers[2]!, { x: -500, y: 0 });
+      Object.assign(m.soldiers[3]!, { x: -500, y: 0 });
+      crewed(m, [0, 1]);
+      let fired = -1;
+      for (let i = 0; i < 5 * HZ && fired < 0; i++) if (step(m, []).length && m.vehicles[0]!.rounds.length) fired = m.tick - 1;
+      return fired / HZ;
+    });
+    for (const f of firsts) expect(f).toBeGreaterThanOrEqual(DEFAULT_TUNE.tankAimSeconds[0]), expect(f).toBeLessThanOrEqual(DEFAULT_TUNE.tankAimSeconds[1]);
+    expect(new Set(firsts).size).toBeGreaterThan(1);
+  });
+
   it('the main gun takes an enemy tank before infantry, for tankVsVehicleDamage', () => {
-    const m = scene({ tune: { visionM: 0 }, place: { 2: { x: -440, y: 0 }, 3: { x: -440, y: 0 } } });
+    const m = scene({ tune: { visionM: 0, tankAimSeconds: [0, 0] }, place: { 2: { x: -440, y: 0 }, 3: { x: -440, y: 0 } } });
     crewed(m, [0, 1]);
     Object.assign(m.vehicles[1]!, { x: -400, y: 0 });
     m.tune.visionM = DEFAULT_TUNE.visionM;

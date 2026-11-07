@@ -4,6 +4,8 @@
 // address either.
 import type { Match } from './index';
 import { driveFlow, flowDist, flowLook } from './ai/flow';
+import { bestPoint } from './ai/squad';
+import { rnd } from './rng';
 import { blast } from './assets/strike';
 import { die } from './combat';
 import { dist2, inHq } from './geometry';
@@ -31,6 +33,8 @@ export interface Vehicle {
   coax: number; // coax target Soldier id, -1 = none
   nextFire: number; // tick the main gun may fire again
   rounds: Round[]; // main gun rounds in the air (they land even if it dies meanwhile)
+  laid: number; // the target the main gun last laid on, -1 = none; a new one costs the aim time
+  bias: number[]; // its driver's seeded preference per Capture Point, drawn when the driver boards
 }
 
 /** A main gun round: fired from (x0, y0) at tick `launch`, landing on (x, y) at tick `land`. */
@@ -59,16 +63,17 @@ export const riders = (m: Match, v: Vehicle) => v.seats.filter((id) => id >= 0).
 const squared = (r: number) => r * r;
 
 /**
- * The first fresh tanks of each Side, `tanksPerSide` of them, in their slots: the map's (else the drivable cell nearest the
- * HQ), each further one 9 m farther toward the field.
+ * The first fresh tanks of each Side in their slots: one per slot the map gives (else one on the drivable cell nearest the
+ * HQ), or `tanksPerSide` when the tune says, any beyond the map's slots each 9 m farther toward the field than the last.
  */
 export function newVehicles(m: Match): Vehicle[] {
   return SIDES.flatMap((side) => {
     const hq = m.map.hqs[side];
-    const first = m.map.vehicleSlots?.[side] ?? nearestWalkable(m, { x: hq.x, y: hq.y }, m.drive[side]);
-    return Array.from({ length: m.tune.tanksPerSide }, (_, k) => {
-      const slot = nearestWalkable(m, { x: first.x + (side === 'nato' ? 9 : -9) * k, y: first.y }, m.drive[side]);
-      return { side, kind: 'tank' as const, ...slot, fx: side === 'nato' ? 1 : -1, fy: 0, hp: m.tune.tankHp, seats: [-1, -1], slot, parked: true, deadAt: -1, goal: -1, departAt: 0, target: -1, coax: -1, nextFire: 0, rounds: [] };
+    const slots = m.map.vehicleSlots?.[side] ?? [nearestWalkable(m, { x: hq.x, y: hq.y }, m.drive[side])];
+    const last = slots.at(-1)!;
+    return Array.from({ length: m.tune.tanksPerSide ?? slots.length }, (_, k) => {
+      const slot = slots[k] ?? nearestWalkable(m, { x: last.x + (side === 'nato' ? 9 : -9) * (k - slots.length + 1), y: last.y }, m.drive[side]);
+      return { side, kind: 'tank' as const, ...slot, fx: side === 'nato' ? 1 : -1, fy: 0, hp: m.tune.tankHp, seats: [-1, -1], slot, parked: true, deadAt: -1, goal: -1, departAt: 0, target: -1, coax: -1, nextFire: 0, rounds: [], laid: -1, bias: [] };
     });
   }).map((v, i) => ({ ...v, id: m.soldiers.length + i }));
 }
@@ -95,14 +100,21 @@ export function board(m: Match, sq: Squad, s: Soldier) {
     const key = dist2(s, v) + (riders(m, v).some((o) => o.squad === s.squad) ? 0 : 1e9);
     if (key < bestKey) [best, bestKey] = [v, key];
   }
-  if (best) mount(m, best, s, goal);
+  if (best) mount(m, best, s, sq);
 }
 
-/** `s` takes the first free seat of `v`; in the driver's seat it sets the goal and starts the wait for others. */
-export function mount(m: Match, v: Vehicle, s: Soldier, goal: number) {
+/**
+ * `s` takes the first free seat of `v`. In the driver's seat it draws its own preference per Capture Point (seeded, kept for
+ * the drive), picks its goal and starts the wait for others.
+ */
+export function mount(m: Match, v: Vehicle, s: Soldier, sq: Squad) {
   const seat = v.seats.indexOf(-1);
   v.seats[seat] = s.id;
-  if (seat === 0) Object.assign(v, { goal, departAt: m.tick + Math.round(m.tune.boardWaitSeconds * m.tune.hz), parked: true });
+  if (seat === 0) {
+    const t = m.tune;
+    Object.assign(v, { goal: -1, bias: m.points.map(() => (rnd(m) * 2 - 1) * t.tankGoalBias), departAt: m.tick + Math.round(t.boardWaitSeconds * t.hz), parked: true });
+    v.goal = drivePoint(m, sq, s, v);
+  }
   Object.assign(s, {
     vehicle: v.id, x: v.x, y: v.y, fx: v.fx, fy: v.fy, target: -1, lastTarget: -1, reviving: -1, suppression: 0,
     dest: null, path: [], cover: null, chaseUntil: 0, role: null, regroup: false, strayUntil: 0, // a Detached rider keeps its own goal
@@ -119,8 +131,21 @@ export function boardOnReturn(m: Match, sq: Squad, s: Soldier): boolean {
   const mine = lead.state === 'alive' ? vehicleOf(m, lead.vehicle) : undefined;
   const v = mine?.seats.includes(-1) ? mine : m.vehicles.find((o) => o.side === s.side && live(o) && o.seats[0] === -1 && o.hp >= m.tune.tankHp / 3);
   if (!v) return false;
-  mount(m, v, s, goalOf(m, sq, s));
+  mount(m, v, s, sq);
   return true;
+}
+
+/**
+ * The Capture Point a driver takes its vehicle to: scored like its Squad's choice (the Order's bonus as ever) but by drive
+ * distance from the vehicle, with its own seeded preference, stickiness to where it is going, and the crowd penalty for each
+ * other friendly vehicle already going there; its Squad's goal pulls no harder than any point. A Detached driver keeps its own.
+ */
+function drivePoint(m: Match, sq: Squad, s: Soldier, v: Vehicle): number {
+  if (s.detached && s.goal >= 0) return s.goal;
+  const t = m.tune;
+  const others = (i: number) => m.vehicles.filter((o) => o !== v && o.side === v.side && live(o) && o.seats[0]! >= 0 && o.goal === i).length;
+  const bias = v.bias.map((b, i) => b + (i === v.goal ? t.stickiness : 0) - t.crowdPenalty * others(i) - (sq.task === 'point' && sq.goal === i ? t.stickiness : 0));
+  return bestPoint(m, sq, v, 0, { flow: (i) => driveFlow(m, v.side, i), bias });
 }
 
 /**
@@ -130,8 +155,10 @@ export function boardOnReturn(m: Match, sq: Squad, s: Soldier): boolean {
  */
 export function ride(m: Match, sq: Squad, s: Soldier) {
   const v = vehicleOf(m, s.vehicle)!;
-  const goal = goalOf(m, sq, s);
-  if (v.seats[0] === s.id && goal >= 0) v.goal = goal;
+  if (v.seats[0] === s.id) {
+    const goal = drivePoint(m, sq, s, v);
+    if (goal >= 0) v.goal = goal;
+  }
   if (v.hp >= m.tune.tankHp / 3) return;
   v.seats[v.seats.indexOf(s.id)] = -1;
   s.vehicle = -1;
@@ -145,7 +172,7 @@ export function drive(m: Match) {
   for (const v of m.vehicles) {
     if (!live(v)) {
       if (m.tick - v.deadAt >= t.vehicleRespawnSeconds * t.hz)
-        Object.assign(v, { ...v.slot, fx: v.side === 'nato' ? 1 : -1, fy: 0, hp: t.tankHp, seats: v.seats.map(() => -1), parked: true, deadAt: -1, goal: -1, departAt: 0, target: -1, coax: -1, nextFire: 0 });
+        Object.assign(v, { ...v.slot, fx: v.side === 'nato' ? 1 : -1, fy: 0, hp: t.tankHp, seats: v.seats.map(() => -1), parked: true, deadAt: -1, goal: -1, departAt: 0, target: -1, coax: -1, nextFire: 0, laid: -1, bias: [] });
       continue;
     }
     const full = !v.seats.includes(-1);
@@ -246,6 +273,10 @@ export function mainGuns(m: Match, events: SimEvent[]) {
   const t = m.tune;
   for (const v of m.vehicles) {
     const e = targetOf(m, v);
+    if (e && v.target !== v.laid) { // laying the gun on a new target takes a seeded moment, so two tanks never trade the first round together
+      v.laid = v.target;
+      v.nextFire = Math.max(v.nextFire, m.tick + Math.round((t.tankAimSeconds[0] + rnd(m) * (t.tankAimSeconds[1] - t.tankAimSeconds[0])) * t.hz));
+    }
     if (!live(v) || v.seats[0]! < 0 || !e || m.tick < v.nextFire || dist2(v, e) > t.tankRangeM * t.tankRangeM) continue;
     v.nextFire = m.tick + Math.round(t.tankFireSeconds * t.hz);
     const flight = Math.max(1, Math.round((Math.sqrt(dist2(v, e)) / t.tankShellMps) * t.hz));
@@ -319,7 +350,8 @@ export function vehicleViews(m: Match, side: SideId, seen: Set<number>): Vehicle
 export function hashVehicles(m: Match, mix: Mix) {
   for (const v of m.vehicles) {
     for (const n of [v.x, v.y, v.fx, v.fy, v.hp]) mix(Math.round(n * 1000));
-    for (const n of [...v.seats, +v.parked, v.deadAt, v.goal, v.departAt, v.target, v.coax, v.nextFire]) mix(n);
+    for (const n of [...v.seats, +v.parked, v.deadAt, v.goal, v.departAt, v.target, v.coax, v.nextFire, v.laid]) mix(n);
+    for (const b of v.bias) mix(Math.round(b * 1000));
     mix(v.rounds.length);
     for (const r of v.rounds) for (const n of [Math.round(r.x0 * 1000), Math.round(r.y0 * 1000), Math.round(r.x * 1000), Math.round(r.y * 1000), r.launch, r.land]) mix(n);
   }

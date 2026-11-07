@@ -69,9 +69,10 @@ export function setDest(m: Match, s: Soldier, d: { at: Vec2; path: Vec2[] } | Ve
 
 /**
  * The best-scoring Capture Point seen from `from`, -1 = none: value by owner, path distance, crowding (pairing up on enemy
- * points), stickiness plus `pull` on the Squad's goal, the Order's bonus.
+ * points), stickiness plus `pull` on the Squad's goal, the Order's bonus. #107: a driver scores by `flow` (its drive grid)
+ * and adds its own `bias` per point.
  */
-function bestPoint(m: Match, sq: Squad, from: Vec2, pull = 0): number {
+export function bestPoint(m: Match, sq: Squad, from: Vec2, pull = 0, own: { flow?: (i: number) => Flow; bias?: number[] } = {}): number {
   const t = m.tune;
   const foe = enemyOf(sq.side);
   let best = -1;
@@ -83,7 +84,8 @@ function bestPoint(m: Match, sq: Squad, from: Vec2, pull = 0): number {
       : p.owner === foe ? t.pointValue.enemy
       : threatened ? t.pointValue.ownedThreatened
       : t.pointValue.ownedQuiet;
-    v -= (t.distancePenaltyPer100m * flowDist(m, pointFlow(m, i), from)) / 100;
+    v -= (t.distancePenaltyPer100m * flowDist(m, (own.flow ?? ((k) => pointFlow(m, k)))(i), from)) / 100;
+    v += own.bias?.[i] ?? 0;
     const others = m.squads.filter((o) => o !== sq && o.side === sq.side && o.task === 'point' && o.goal === i).length;
     v -= p.owner === foe ? (others === 1 ? -t.pairUp : t.crowdPenalty * Math.max(0, others - 1)) : t.crowdPenalty * others;
     if (sq.task === 'point' && sq.goal === i) v += t.stickiness + pull;

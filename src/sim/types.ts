@@ -46,8 +46,8 @@ export interface MapData {
   crossings?: Crossing[];
   /** #42: a baked map's terrain on cells; when present it replaces `walls`, `cover`, `water` and the box rule of `crossings`. */
   terrain?: Terrain;
-  /** #107: where each Side's tank waits and respawns (its HQ vehicle park); unset = the drivable ground nearest the HQ. */
-  vehicleSlots?: Partial<Record<SideId, Vec2>>;
+  /** #107: where each Side's tanks wait and respawn (its HQ vehicle park), one per tank; unset = one, on the drivable ground nearest the HQ. */
+  vehicleSlots?: Partial<Record<SideId, Vec2[]>>;
 }
 
 /**
@@ -267,7 +267,9 @@ export interface Tune {
   tankSuppression: number;
   tankVsVehicleDamage: number; // an enemy tank's main gun on a vehicle within its kill radius
   tankShellMps: number; // a main gun round flies to the spot at this speed, then lands
-  tanksPerSide: number; // tank slots in each HQ (1; more for review scenes)
+  tankAimSeconds: [number, number]; // the main gun fires on a new target this long after it is laid on it (seeded between the two)
+  tankGoalBias: number; // ± a fresh driver's seeded preference per Capture Point, in point-score units, kept for its drive
+  tanksPerSide: number | null; // tanks in each HQ; null = one per slot the map has (one without); 0 = none
   coaxFireSeconds: number; // the gunner's coax: the rifle shot model this often ...
   coaxRangeM: number; // ... at infantry this close
   rockets: number; // a Launcher (roster member 1 of every Squad) carries this many, refilled like ammo

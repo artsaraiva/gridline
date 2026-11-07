@@ -9,4 +9,4 @@ it('plays whole matches over seeds, summarises them, and takes tune overrides', 
   expect(b.wins.nato + b.wins.pact + b.wins.draw).toBe(2);
   expect(Object.keys(b.picks).length).toBeGreaterThan(0);
   expect(balance({ seeds: 2, squads: 3, map: RIVER_FIELD, tune: { matchSeconds: 90 } })).toEqual(b); // deterministic
-});
+}, 15_000); // four matches: ~2 s alone, past 5 s beside the rest of the suite
