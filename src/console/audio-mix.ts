@@ -1,7 +1,8 @@
 // The pure side of the sound engine (#84): the mixer's numbers and the rules audio.ts applies before it touches Web
 // Audio. Nothing here needs a browser, so all of it is unit-tested; audio.ts (the Web Audio graph) is judged by ear.
 import type { CommanderView, SimEvent, Vec2 } from '../sim/types';
-import { scanUav, SHELL_VISIBLE_FROM, shellInFlight } from './sprites';
+import { scanUav } from './sprites/scan-uav';
+import { SHELL_VISIBLE_FROM, shellInFlight } from './sprites/shell';
 
 /** Every tuning knob in one place; the audition page's sliders mutate it live. */
 export const TUNING = {

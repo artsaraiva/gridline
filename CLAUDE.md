@@ -20,5 +20,6 @@ To check baked Assets by eye, run `pnpm review:capture` (screenshots the DEV Ass
 
 - **Simulation**: start at `src/sim/index.ts` (tick order, public surface, `stateHash`); each rule module hashes its own state. `src/sim/fog.test.ts` asserts the exact `CommanderView` key set.
 - **Coding standards**: `CODING_STANDARDS.md`, read by `/code-review`.
+- **Baked Assets**: one module per Asset, `src/console/sprites/<asset>.ts` (sheet entry, pose maths, test) and `src/console/layers/<asset>.ts` (drawing on `pool()`); `sprites/sheet.ts` is the shared loader and `sheet.test.ts` checks every sheet against its bake `.json`.
 - **Console look review** of a new event or chrome element: add a chapter to `src/console/dev/commander-review-timeline.ts` and open `/dev-commander-review.html` under `pnpm dev`; `/dev-asset-review.html` cycles the Assets on the real Simulation.
 - **Checks**: `pnpm test && pnpm typecheck && pnpm build && pnpm test:replay`. Run them inside a worktree; `test:replay` takes `PORT` when two runs share a machine.

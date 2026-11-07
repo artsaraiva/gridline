@@ -106,6 +106,22 @@ _Avoid_: Command, asset, squad order (as an asset)
 A limited Commander ability that acts on the battlefield directly, such as a scan, a supply drop or a strike, and is unavailable for a while after use.
 _Avoid_: Ability, power, perk, call-in
 
+**Strike**:
+An Asset that damages an area of the map, such as the Artillery Barrage; every Strike warns before it lands, hits Soldiers of either Side and shows the enemies it catches as Contacts.
+_Avoid_: Attack, fire mission, bombardment
+
+**Cruise Missile**:
+The Strike that flies in from beyond the Commander's own map edge to one chosen spot and lands a single large blast there; its whole approach is visible, and the flight is its warning.
+_Avoid_: Missile strike, rocket, tomahawk
+
+**Strafing Run**:
+The Strike in which an aircraft flies in along a line the Commander chose, fires along it and flies off; the whole pass is visible.
+_Avoid_: Airstrike, gun run, CAS
+
+**Gunship**:
+The Strike that orbits a chosen spot for a while, reveals the enemies under it as Contacts and shells them from the air.
+_Avoid_: AC-130, Spooky, air support
+
 **Scan UAV**:
 The Asset that circles a chosen spot for a short time and reveals every enemy near it as a Contact, then as a Last Known Position.
 _Avoid_: Drone, recon, radar
