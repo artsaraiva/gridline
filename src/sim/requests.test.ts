@@ -186,8 +186,8 @@ describe('Request closes', () => {
     run(f, 1);
     const spot = request(f)!.at;
     run(f, 1, [asset(f, 'barrage', spot)]);
-    run(f, 6 * HZ);
-    expect(request(f)).not.toBeNull(); // shells leave at 2.5 s and fly 4 s
+    run(f, 13 * HZ);
+    expect(request(f)).not.toBeNull(); // shells leave at 10 s and fly 4 s
     run(f, 1 * HZ);
     expect(request(f)).toBeNull();
   });

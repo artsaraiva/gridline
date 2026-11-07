@@ -55,7 +55,8 @@ async function startMatch(setup: MatchSetup) {
   session.enemySide = enemyOf(setup.commanderSide);
   session.seed = setup.seed;
   session.ended = false;
-  const host = await startSimHost({ kind: 'start', map: params.get('map') === 'test' ? 'test' : 'kaltenbach', ...setup });
+  // `?free=1` keeps the Asset cooldowns at zero for a by-eye check; the worker honours it only under `import.meta.env.DEV`.
+  const host = await startSimHost({ kind: 'start', map: params.get('map') === 'test' ? 'test' : 'kaltenbach', dev: { freeAssets: params.has('free') }, ...setup });
   await drawMap(host.map); // the ticking sim waits in the worker's queue while the bake loads
   session.host = host;
 }

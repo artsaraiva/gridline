@@ -118,13 +118,13 @@ describe('observability rule: a combat sound plays only when its source is drawn
     expect(drawnLoops(view({ effects: [{ ...falling, landsIn: 0 }] }), HQ, 0)).toEqual([]);
   });
 
-  it('each Barrage shell in flight whistles along its arc from the HQ, keyed by where it lands', () => {
-    const barrage = effect({ asset: 'barrage', x: 0, y: 0, radius: 25, shells: [{ x: 5, y: 5, flight: 0.5 }, { x: -5, y: 5, flight: 0.1 }] });
+  it('each drawn Barrage shell whistles along its descent, keyed by where it lands; one not yet drawn is silent', () => {
+    const barrage = effect({ asset: 'barrage', x: 0, y: 0, radius: 25, shells: [{ x: 5, y: 5, flight: 0.95 }, { x: -5, y: 5, flight: 0.85 }, { x: 0, y: 9, flight: 0.3 }] });
     const loops = drawnLoops(view({ effects: [barrage] }), HQ, 0);
     expect(loops.map((l) => l.key)).toEqual(['shell:5:5', 'shell:-5:5']);
     expect(loops[0]!.kind).toBe('shell');
-    expect(loops[0]!.x).toBeGreaterThan(HQ.x); // half way along, so well east of the HQ
-    expect(loops[1]!.x).toBeLessThan(loops[0]!.x); // just launched: still near the HQ
+    expect(loops[0]!.x).toBeGreaterThan(HQ.x); // nearly down, so well east of the HQ
+    expect(loops[1]!.x).toBeLessThan(loops[0]!.x); // just entered: further toward the HQ
   });
 });
 

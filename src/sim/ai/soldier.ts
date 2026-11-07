@@ -1,7 +1,6 @@
 // The Soldier layer: where to step this tick (reviving, a spot its Squad sent it to, the wedge, its own line while straying
 // (#93), the flow field) and the step itself.
 import type { Match } from '../index';
-import { avoid } from '../assets/core';
 import { canStand, dist2, inHq } from '../geometry';
 import { lineWalk, walkCost } from '../grid';
 import { membersOf, type Soldier } from '../state';
@@ -13,11 +12,6 @@ import { flowOf, setDest, wedgeSlot } from './squad';
 export function walk(m: Match, s: Soldier) {
   const t = m.tune;
   if (inHq(m, s.side, s)) s.ammo = t.ammo; // Capture Points never refill
-  const clear = avoid(m, s); // kept off the ground an Asset (the Barrage) is working
-  if (clear) {
-    if (clear !== 'hold') step(m, s, clear, s.speed * 1.23 * (1 - 0.3 * s.suppression));
-    return;
-  }
   const w = m.soldiers[s.reviving];
   if (w) {
     if (dist2(s, w) > t.reviveReachM * t.reviveReachM) step(m, s, w, s.speed);

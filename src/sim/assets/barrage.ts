@@ -1,7 +1,7 @@
 // Artillery Barrage: after a warning, shells leave one by one over a few seconds and land at seeded spots round the target.
 // Each is a projectile in the air for `barrageFlightSeconds`, then kills, Wounds and suppresses by distance, friend or foe.
-// Friendlies keep out of the zone from the call, enemies from the first impact; the caller sees the enemies in it as
-// Contacts from the first impact until `barrageContactSeconds` after the last.
+// Nobody dodges it (#58: a Squad in the zone is the Commander's mistake); the caller sees the enemies in it as Contacts
+// from the first impact until `barrageContactSeconds` after the last.
 import { die, wound } from '../combat';
 import { dist2 } from '../geometry';
 import { rnd } from '../rng';
@@ -72,22 +72,6 @@ export const barrage: Kind = {
         else if (d2 <= t.barrageSuppressM * t.barrageSuppressM && s.state === 'alive') s.suppression = Math.max(s.suppression, t.barrageSuppression);
       }
     }
-  },
-
-  /**
-   * Out of the zone: a Soldier inside it runs straight away from its centre; one just outside stands (so nobody walks
-   * back in while it works). The caller's Soldiers from the call, the enemy's from the first impact.
-   */
-  avoid(m, e, s) {
-    if (s.side !== e.side && !e.shells!.some((x) => x.done)) return null;
-    const t = m.tune;
-    const dx = s.x - e.x;
-    const dy = s.y - e.y;
-    const d = Math.sqrt(dx * dx + dy * dy);
-    if (d >= zone(t) + t.barrageHoldOutM) return null;
-    if (d >= zone(t)) return 'hold';
-    const out = zone(t) + t.barrageHoldOutM;
-    return d < 0.01 ? { x: e.x + out, y: e.y } : { x: e.x + (dx / d) * out, y: e.y + (dy / d) * out };
   },
 
   contacts(m, e) {
