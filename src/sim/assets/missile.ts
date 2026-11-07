@@ -46,6 +46,7 @@ export const missile: Kind = {
   seconds: (t) => t.barrageContactSeconds, // the flight is added at the call, by distance
   radius: (t) => t.missileSuppressM,
   gate(m, side) {
+    if (!m.tune.missileGated) return null;
     const p = middlePoint(m);
     return !p ? 'no Capture Point' : p.owner === side ? null : `needs ${p.name}`;
   },

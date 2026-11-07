@@ -80,6 +80,13 @@ describe('Cruise Missile: the call', () => {
     expect(row(commanderView(m, 'nato')).off).toBeUndefined();
     expect(rejections(step(m, [missile(m, { x: 100, y: 0 })]))).toEqual([]);
   });
+
+  it('with the gate tuned off (review scenes), it needs no point at all', () => {
+    const m = scene({}, { missileGated: false });
+    m.points.find((p) => p.id === 'C')!.owner = 'pact';
+    expect(row(commanderView(m, 'nato')).off).toBeUndefined();
+    expect(rejections(step(m, [missile(m, { x: 100, y: 0 })]))).toEqual([]);
+  });
 });
 
 describe('Cruise Missile: the flight', () => {

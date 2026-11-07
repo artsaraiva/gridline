@@ -235,6 +235,7 @@ export interface Tune {
   missileWoundM: number; // ... Wounds within this ...
   missileSuppressM: number; // ... and suppresses within this (the zone ring)
   missileSuppression: number; // suppression (0..1) the blast leaves
+  missileGated: boolean; // the call needs the middle Capture Point; off for review scenes (`?free=1`)
 }
 
 /** #55: what a Commander Score award is for. */

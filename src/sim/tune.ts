@@ -163,4 +163,5 @@ export const DEFAULT_TUNE: Tune = {
   missileWoundM: 20,
   missileSuppressM: 35,
   missileSuppression: 1,
+  missileGated: true,
 };
