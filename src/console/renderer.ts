@@ -42,6 +42,29 @@ export const toScreen = (p: Vec2): Vec2 => ({ x: innerWidth / 2 + (p.x - camera.
 export const layer = new THREE.Group();
 scene.add(layer);
 
+/**
+ * Objects of one kind in `layer`, reused frame to frame (#77): `next()` hands out the next one, made on first use, and
+ * `end()` hides those not handed out this frame. An object left behind by `layer.clear()` rejoins the layer when next
+ * used, so a pool needs no reset between matches.
+ */
+export function pool<T extends THREE.Object3D>(make: () => T) {
+  const items: T[] = [];
+  let used = 0;
+  return {
+    next(): T {
+      let o = items[used++];
+      if (!o) items.push((o = make()));
+      if (o.parent !== layer) layer.add(o);
+      o.visible = true;
+      return o;
+    },
+    end() {
+      for (let i = used; i < items.length; i++) items[i]!.visible = false;
+      used = 0;
+    },
+  };
+}
+
 /** Marks a node material's fragments to glow (post.ts blooms them), as strongly as they are opaque. */
 export const GLOW = () => mrt({ glow: vec4(diffuseColor.a) });
 
