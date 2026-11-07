@@ -1,10 +1,11 @@
 // HUD frame and grid overlay (#44): map grid lines, top-edge grid letters on a pinned line (skipping those under a
 // panel) and left-rail inner-edge grid numbers, bottom and right UTM ticks, corner lat/long, compass (grid/true/magnetic
-// north), scale bar, DTG strip and cursor readout. The selected Squad crosshair went with #92: the leader's bracket marks it.
+// north), scale bar, DTG strip and cursor readout, and a screen-wide crosshair through the selected Squad's leader (#92, as
+// BF4 Commander: two thin lines, no intersection tags).
 import type { CommanderView } from '../../sim/types';
 import { pxToWorld, toScreen, toWorld } from '../renderer';
 import { session } from '../session';
-import { cursorReadout, dtg, edgeLine, GEO, latlon } from '../summary';
+import { cursorReadout, dtg, edgeLine, GEO, latlon, leaderOf } from '../summary';
 import { targeting, type Box } from '../targeting';
 
 const canvas = document.getElementById('hud') as HTMLCanvasElement;
@@ -82,7 +83,22 @@ export function drawGrid(view: CommanderView | null, now: number) {
     }
     ctx.stroke();
 
-    // 2. Top-edge grid letters and left-rail inner-edge grid numbers
+    // 2. Selected Squad crosshair through its leader (#92)
+    const sel = view.squads.find((q) => q.id === targeting.selected);
+    const lead = sel && leaderOf(view, sel);
+    if (lead) {
+      const { x: csx, y: csy } = toScreen(lead);
+      ctx.strokeStyle = CHROME(0.42);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, csy);
+      ctx.lineTo(W, csy);
+      ctx.moveTo(csx, 0);
+      ctx.lineTo(csx, H);
+      ctx.stroke();
+    }
+
+    // 3. Top-edge grid letters and left-rail inner-edge grid numbers
     const xs: number[] = [];
     for (let i = 0; i <= g.cols; i++) {
       const sx = toScreen({ x: -halfW + i * g.squareM, y: 0 }).x;
@@ -155,7 +171,7 @@ export function drawGrid(view: CommanderView | null, now: number) {
     ctx.restore();
   }
 
-  // 3. Bottom and right UTM ticks + corner lat/long + compass + scale bar
+  // 4. Bottom and right UTM ticks + corner lat/long + compass + scale bar
   const w0 = toWorld(0, 0);
   const w1 = toWorld(W, H);
   const mpp = pxToWorld();
