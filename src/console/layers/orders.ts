@@ -1,11 +1,12 @@
-// Orders on the map (#36): a line from each ordered Squad's Squad Leader to its point, and DOM tags: the Squad tag on the
-// Squad Leader (#68: `leader` in the view, Wounded or not; #54: while the leader is dead, on the point man, the first
-// alive member, else any present member; none once wiped) (name, strength, task, Order state, alerts), and a Holding
-// tag on the point. Line (#95, as BF4 Commander): white dots, fainter while pending, amber with a reason glyph while Delayed.
+// Orders on the map (#36): a line from each ordered Squad's Squad Leader to its point, and DOM tags: the Squad letter
+// beside the Squad Leader (#68: `leader` in the view, Wounded or not; #54: while the leader is dead, on the point man, the
+// first alive member, else any present member; none once wiped), amber when selected, red while a member is Suppressed
+// (#92, as BF4 Commander: the full tag made the map too busy, the card and the rail carry the rest). Line (#95, as BF4
+// Commander): white dots, fainter while pending, amber with a reason glyph while Delayed.
 import * as THREE from 'three/webgpu';
 import type { CommanderView, Vec2 } from '../../sim/types';
 import { BRIGHT, COLOR, GLOW, layer, toScreen } from '../renderer';
-import { leaderOf, squadTag } from '../summary';
+import { leaderOf } from '../summary';
 import { targeting } from '../targeting';
 import { css } from './symbols';
 
@@ -82,9 +83,11 @@ export function drawOrders(view: CommanderView, px: number) {
       m.opacity = o.state === 'pending' ? 0.45 : 0.9;
       segments(line, lead, point, DASH_PX * px, GAP_PX * px);
       if (o.state === 'delayed') tag(n++, { x: (lead.x + point.x) / 2, y: (lead.y + point.y) / 2 }, 6, -8, GLYPH[o.reason ?? 'retreat'], css(AMBER));
-      if (o.state === 'holding') tag(n++, point, 4, 6, `HOLD · ${q.name.toUpperCase()}`, css(COLOR.friendly));
     }
-    if (lead) tag(n++, lead, 40, -30, squadTag(q, view.friendlies.some((f) => f.squad === q.id && f.suppressed)), css(targeting.selected === q.id ? AMBER : COLOR.friendly));
+    if (lead) {
+      const suppressed = view.friendlies.some((f) => f.squad === q.id && f.suppressed);
+      tag(n++, lead, -30, -22, q.name[0]!, css(targeting.selected === q.id ? AMBER : suppressed ? COLOR.hostile : COLOR.bone));
+    }
   }
   for (let i = n; i < tags.length; i++) tags[i]!.hidden = true;
 }

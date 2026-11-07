@@ -51,16 +51,6 @@ export const requestLine = (r: NonNullable<SquadView['request']>) => [REQUEST_WO
 /** A Squad's alert: SUPPRESSED (some member is) outranks TAKING FIRE. */
 export const squadAlert = (q: SquadView, suppressed: boolean) => (suppressed ? 'SUPPRESSED' : q.takingFire ? 'TAKING FIRE' : null);
 
-/** "ALPHA 3/4 +7 · MOVE · FOLLOWING · SUPPRESSED" */
-export function squadTag(q: SquadView, suppressed: boolean): string {
-  const parts = [`${q.name.toUpperCase()} ${q.strength}/${q.size}${q.respawnIn.map((s) => (s > 0 ? ` +${Math.ceil(s)}` : ' +--')).join('')}`];
-  if (q.task) parts.push(q.task.toUpperCase());
-  if (q.order) parts.push(q.order.state.toUpperCase());
-  const alert = squadAlert(q, suppressed);
-  if (alert) parts.push(alert);
-  return parts.join(' · ');
-}
-
 const BAD_NEWS = new Set(['mandown', 'wiped', 'lost', 'fire']);
 
 /** One line of the radio log: who says it, what, where (a Grid Reference) and whether it is bad news. Null for events that are not for the log. */
