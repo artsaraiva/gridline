@@ -26,7 +26,7 @@ function field(extra: Partial<MapData> = {}): MapData {
  * that. Placing Soldiers (and a tank's hit points) stands in for a map script; everything after it runs through `step`.
  */
 function scene(o: { map?: Partial<MapData>; tune?: Partial<Tune>; place?: Record<number, { x: number; y: number; fx?: number; fy?: number }>; squads?: number }): Match {
-  const tune: Tune = { ...DEFAULT_TUNE, squadSize: 2, speedJitter: 0, spread: 0, strayChance: 0, drainSeconds: [1e9, 1e9, 1e9, 1e9, 1e9], jeepsPerSide: 0, ...o.tune };
+  const tune: Tune = { ...DEFAULT_TUNE, squadSize: 2, speedJitter: 0, spread: 0, strayChance: 0, drainSeconds: [1e9, 1e9, 1e9, 1e9, 1e9], jeepsPerSide: 0, pointJeeps: false, ...o.tune };
   const m = createMatch({ seed: 1, map: field(o.map), tune, squadsPerSide: o.squads ?? 1, commanderSide: 'nato' });
   for (const [id, p] of Object.entries(o.place ?? {})) Object.assign(m.soldiers[Number(id)]!, p);
   return m;
@@ -387,6 +387,45 @@ describe('#108 the jeep fights and dies', () => {
     moves((m) => (m.soldiers[0]!.exited = 4));
     moves((m) => (m.soldiers[0]!.away = 120.5));
     moves((m) => (m.soldiers[0]!.awaySince = 7));
+  });
+});
+
+describe('#108 a jeep at every Capture Point but the middle one, for its owner', () => {
+  // A neutral, C in the middle, E pact's from the start; nato's Soldiers stand in A, pact's in C. Vehicles: A's jeep 4, E's 5
+  const points = () =>
+    scene({
+      map: { points: [{ id: 'A', name: 'A', x: -300, y: 0 }, { id: 'C', name: 'C', x: 0, y: 0 }, { id: 'E', name: 'E', x: 300, y: 0, owner: 'pact' }] },
+      tune: { tanksPerSide: 0, pointJeeps: true, visionM: 0, walkSpeed: 0, rockets: 0, boardM: 0 }, // nobody drives off in them
+      place: { 0: { x: -300, y: 0 }, 1: { x: -300, y: 5 }, 2: { x: 0, y: 0 }, 3: { x: 0, y: 5 } },
+    });
+  const jeepAt = (v: CommanderView, p: { x: number; y: number }) => v.vehicles!.find((x) => x.kind === 'jeep' && !x.wreck && Math.hypot(x.x - p.x, x.y - p.y) < 25);
+
+  it('one waits at a point owned from the start; one appears the moment a point is captured; never at the middle one', () => {
+    const m = points();
+    expect(m.vehicles.map((v) => [v.id, v.side, v.deadAt === -1])).toEqual([[4, 'nato', false], [5, 'pact', true]]);
+    const { views } = play(m, 50 * HZ, 'nato');
+    const pact = play(points(), 50 * HZ, 'pact').views;
+    expect(jeepAt(pact[0]!, { x: 300, y: 0 })).toMatchObject({ side: 'pact', empty: true });
+    const taken = views.findIndex((v) => v.points[0]!.owner === 'nato');
+    expect(taken).toBeGreaterThan(0);
+    expect(jeepAt(views[taken - 1]!, { x: -300, y: 0 })).toBeUndefined();
+    expect(jeepAt(views[taken + 1]!, { x: -300, y: 0 })).toMatchObject({ id: 4, side: 'nato' }); // the vehicle phase of the next tick
+    expect(pact.at(-1)!.points[1]!.owner).toBe('pact');
+    expect(pact.some((v) => jeepAt(v, { x: 0, y: 0 }))).toBe(false);
+  });
+
+  it('a destroyed one comes back for the owner vehicleRespawnSeconds later, at the point', () => {
+    const m = points();
+    play(m, 40 * HZ);
+    const j = m.vehicles[0]!;
+    expect(j.deadAt).toBe(-1);
+    Object.assign(j, { hp: 0, deadAt: m.tick, x: -250, y: 40 }); // a map script's wreck: it died off the point
+    const dead = m.tick;
+    const { views } = play(m, 61 * HZ);
+    const back = views.findIndex((v) => jeepAt(v, { x: -300, y: 0 }));
+    expect((back + 1) / HZ).toBeCloseTo(DEFAULT_TUNE.vehicleRespawnSeconds, 0);
+    expect(m.tick - dead).toBeGreaterThan(back);
+    expect(jeepAt(views.at(-1)!, { x: -300, y: 0 })).toMatchObject({ side: 'nato', hp: 1 });
   });
 });
 

@@ -22,7 +22,7 @@ type Placement = { x: number; y: number; fx?: number; fy?: number };
 
 /** Like combat.test.ts `scene`: placing Soldiers stands in for a map script; everything after runs through `step`. Nobody can be Wounded. */
 function scene(place: Record<number, Placement>, o: { tune?: Partial<Tune>; map?: Partial<MapData>; squads?: number } = {}): Match {
-  const tune: Tune = { ...DEFAULT_TUNE, squadSize: 1, speedJitter: 0, spread: 0, hp: 1e9, jeepsPerSide: 0, ...o.tune }; // #108: the tank stands for every ground vehicle
+  const tune: Tune = { ...DEFAULT_TUNE, squadSize: 1, speedJitter: 0, spread: 0, hp: 1e9, jeepsPerSide: 0, pointJeeps: false, ...o.tune }; // #108: the tank stands for every ground vehicle
   const m = createMatch({ seed: 1, map: { ...field, ...o.map }, tune, squadsPerSide: o.squads ?? 1, commanderSide: 'nato' });
   for (const [id, p] of Object.entries(place)) Object.assign(m.soldiers[Number(id)]!, p);
   return m;

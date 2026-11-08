@@ -9,7 +9,7 @@ import { bestPoint } from './ai/squad';
 import { rnd } from './rng';
 import { blast } from './assets/strike';
 import { die } from './combat';
-import { dist2, inHq } from './geometry';
+import { dist2, inHq, middlePoint } from './geometry';
 import { cellIndex, los, nearestWalkable } from './grid';
 import { see } from './memory';
 import { footLeader, membersOf, vehicleOf, type Mix, type Soldier, type Squad } from './state';
@@ -27,7 +27,7 @@ export interface Vehicle {
   seats: number[]; // Soldier ids, -1 free; seat 0 drives (and fires a tank's main gun), seat 1 is the gunner on the coax or MG, any more ride
   slot: Vec2; // where it waits at the start and a fresh one appears
   parked: boolean; // standing at its goal, or waiting for riders
-  deadAt: number; // tick it was destroyed, -1 = live
+  deadAt: number; // tick it was destroyed, -1 = live, DORMANT = a point's slot that has never had one
   goal: number; // index of the Capture Point it drives to (its driver's), -1 = none
   departAt: number; // tick a fresh driver leaves with free seats
   target: number; // main gun target id (Soldier or vehicle), -1 = none
@@ -36,6 +36,7 @@ export interface Vehicle {
   rounds: Round[]; // main gun rounds in the air (they land even if it dies meanwhile)
   laid: number; // the target the main gun last laid on, -1 = none; a new one costs the aim time
   bias: number[]; // its driver's seeded preference per Capture Point, drawn when the driver boards
+  point: number; // #108 index of the Capture Point whose owner it appears for, -1 = an HQ slot
   movedAt: number; // #108 last tick it moved
   halt: number; // #108 tick it stopped for someone to get out, -1 = not stopping
 }
@@ -61,7 +62,9 @@ export interface Wreck {
   seen: boolean;
 }
 
-export const live = (v: Vehicle) => v.deadAt < 0;
+/** #108: a point's slot before the point first has an owner. */
+const DORMANT = -2;
+export const live = (v: Vehicle) => v.deadAt === -1;
 export const riders = (m: Match, v: Vehicle) => v.seats.filter((id) => id >= 0).map((id) => m.soldiers[id]!);
 const squared = (r: number) => r * r;
 
@@ -82,19 +85,27 @@ const fresh = (m: Match, side: SideId, kind: VehicleKind, slot: Vec2) => ({
 /**
  * The first fresh vehicles of each Side in their slots: its tanks, one per slot the map gives (else one on the drivable cell
  * nearest the HQ) or `tanksPerSide` when the tune says, then `jeepsPerSide` jeeps (#108); any beyond the map's slots each 9 m
- * farther toward the field than the last.
+ * farther toward the field than the last. Then #108 a jeep slot at every Capture Point but the middle one (`pointJeeps`): a
+ * jeep for its owner, dormant while it has none.
  */
 export function newVehicles(m: Match): Vehicle[] {
-  return SIDES.flatMap((side) => {
+  const middle = middlePoint(m);
+  const points = m.tune.pointJeeps ? m.points.flatMap((p, i) => (p === middle ? [] : [i])) : [];
+  const atPoints = points.map((i) => {
+    const p = m.points[i]!;
+    const slot = nearestWalkable(m, { x: p.x, y: p.y }, m.drive.nato);
+    return { ...fresh(m, p.owner ?? 'nato', 'jeep', slot), ...(!p.owner && { deadAt: DORMANT }), point: i, rounds: [] as Round[] };
+  });
+  return [...SIDES.flatMap((side) => {
     const hq = m.map.hqs[side];
     const slots = m.map.vehicleSlots?.[side] ?? [nearestWalkable(m, { x: hq.x, y: hq.y }, m.drive[side])];
     const last = slots.at(-1)!;
     const kinds: VehicleKind[] = [...Array<VehicleKind>(m.tune.tanksPerSide ?? slots.length).fill('tank'), ...Array<VehicleKind>(m.tune.jeepsPerSide).fill('jeep')];
     return kinds.map((kind, k) => {
       const slot = slots[k] ?? nearestWalkable(m, { x: last.x + (side === 'nato' ? 9 : -9) * (k - slots.length + 1), y: last.y }, m.drive[side]);
-      return { ...fresh(m, side, kind, slot), rounds: [] as Round[] };
+      return { ...fresh(m, side, kind, slot), point: -1, rounds: [] as Round[] };
     });
-  }).map((v, i) => ({ ...v, id: m.soldiers.length + i }));
+  }), ...atPoints].map((v, i) => ({ ...v, id: m.soldiers.length + i }));
 }
 
 /** The Capture Point `s` is heading for: its own when Detached, else its Squad's; -1 when that is not a Capture Point. */
@@ -218,14 +229,16 @@ function wantsOut(m: Match, sq: Squad, s: Soldier, v: Vehicle): boolean {
 }
 
 /**
- * The vehicle phase, after the Soldiers walk: fresh vehicles in empty slots, then every one with a driver drives unless it
- * stands for a dismount (long enough for everyone who wants out to have thought once); its riders ride along.
+ * The vehicle phase, after the Soldiers walk: fresh vehicles in empty slots `vehicleRespawnSeconds` after the last one died
+ * (#108: a point's for its owner, at once when the point first has one or has changed hands), then every one with a driver
+ * drives unless it stands for a dismount (long enough for everyone who wants out to have thought once); its riders ride along.
  */
 export function drive(m: Match) {
   const t = m.tune;
   for (const v of m.vehicles) {
     if (!live(v)) {
-      if (m.tick - v.deadAt >= t.vehicleRespawnSeconds * t.hz) Object.assign(v, fresh(m, v.side, v.kind, v.slot));
+      const side = v.point < 0 ? v.side : m.points[v.point]!.owner;
+      if (side && (v.deadAt === DORMANT || side !== v.side || m.tick - v.deadAt >= t.vehicleRespawnSeconds * t.hz)) Object.assign(v, fresh(m, side, v.kind, v.slot));
       continue;
     }
     const halted = v.halt >= 0 && m.tick - v.halt < Math.round((t.dismountStopSeconds + t.thinkSeconds) * t.hz);
@@ -413,7 +426,7 @@ export function vehicleViews(m: Match, side: SideId, seen: Set<number>): Vehicle
 export function hashVehicles(m: Match, mix: Mix) {
   for (const v of m.vehicles) {
     for (const n of [v.x, v.y, v.fx, v.fy, v.hp]) mix(Math.round(n * 1000));
-    for (const n of [...v.seats, +v.parked, v.deadAt, v.goal, v.departAt, v.target, v.coax, v.nextFire, v.laid, v.movedAt, v.halt]) mix(n);
+    for (const n of [+(v.side === 'nato'), ...v.seats, +v.parked, v.deadAt, v.goal, v.departAt, v.target, v.coax, v.nextFire, v.laid, v.movedAt, v.halt]) mix(n);
     for (const b of v.bias) mix(Math.round(b * 1000));
     mix(v.rounds.length);
     for (const r of v.rounds) for (const n of [Math.round(r.x0 * 1000), Math.round(r.y0 * 1000), Math.round(r.x * 1000), Math.round(r.y * 1000), r.launch, r.land]) mix(n);

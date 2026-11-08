@@ -201,7 +201,8 @@ export const DEFAULT_TUNE: Tune = {
   shellVehicleDamage: 35,
 
   // #108 Jeep
-  jeepsPerSide: 1,
+  jeepsPerSide: 2,
+  pointJeeps: true,
   jeepRoadMps: 15,
   jeepOpenMps: 9,
   jeepHp: 60,

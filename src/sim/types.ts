@@ -280,6 +280,7 @@ export interface Tune {
 
   // #108 Jeep (and the #27 passenger rule for every transport)
   jeepsPerSide: number; // jeeps in each HQ, each slot past the tanks'; 0 = none
+  pointJeeps: boolean; // a jeep at every Capture Point but the middle one, for whoever owns it
   jeepRoadMps: number; // on road
   jeepOpenMps: number; // off road
   jeepHp: number; // rifles hit it like a Soldier (no cover), rockets and shells as any vehicle, a tank's main gun destroys it
