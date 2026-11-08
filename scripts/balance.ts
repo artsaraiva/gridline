@@ -126,6 +126,7 @@ export function report(b: Balance): string {
     `different opening points per match nato ${b.opening.nato.toFixed(2)}  pact ${b.opening.pact.toFixed(2)}`,
     `different Squads the helicopter took its first riders from, all matches: nato ${b.heliSquads.nato}  pact ${b.heliSquads.pact}`,
     ...Object.entries(b.zoneSpread).map(([goal, z]) => `Landing Zones for ${goal}: ${z.zones}, ${(z.apart * 100).toFixed(0)}% of pairs more than ${ZONE_APART_M} m apart`),
+    ...b.matches.flatMap((r) => r.zones.map((z) => `Landing Zone seed ${r.seed}: ${z.side} ${z.goal} at ${z.x.toFixed(0)}, ${z.y.toFixed(0)}`)),
   );
   return lines.join('\n');
 }

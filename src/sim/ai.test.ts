@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { RIVER_FIELD } from '../maps/river-field';
 import { commanderView, createMatch, gridRef, stateHash, step, type Match } from './index';
-import { DEFAULT_TUNE, NO_TEMPO } from './tune';
+import { DEFAULT_TUNE } from './tune';
+import { NO_TEMPO, NO_TRAITS, thinkOnId } from './test-tune';
 import type { CommanderView, MapData, Rect, SimEvent, Tune } from './types';
 
 const HZ = DEFAULT_TUNE.hz;
@@ -20,8 +21,8 @@ interface Placement {
  * their HQ. Placing Soldiers (and their ammo) is the only reach past the Simulation interface: it stands in for a map script.
  */
 function scene(o: { map: MapData; place?: Record<number, Placement>; tune?: Partial<Tune>; squads?: number; seed?: number }): Match {
-  const tune: Tune = { ...DEFAULT_TUNE, speedJitter: 0, tanksPerSide: 0, jeepsPerSide: 0, helisPerSide: 0, pointJeeps: false, ...NO_TEMPO, rideM: [180, 180], ...o.tune }; // #107 #108: infantry rules only, no vehicles
-  const m = createMatch({ seed: o.seed ?? 1, map: o.map, tune, squadsPerSide: o.squads ?? 1, commanderSide: 'nato' });
+  const tune: Tune = { ...DEFAULT_TUNE, speedJitter: 0, tanksPerSide: 0, jeepsPerSide: 0, helisPerSide: 0, pointJeeps: false, ...NO_TRAITS, ...NO_TEMPO, ...o.tune }; // #107 #108: infantry rules only, no vehicles
+  const m = thinkOnId(createMatch({ seed: o.seed ?? 2, map: o.map, tune, squadsPerSide: o.squads ?? 1, commanderSide: 'nato' }));
   for (const [id, p] of Object.entries(o.place ?? {})) Object.assign(m.soldiers[Number(id)]!, p);
   return m;
 }

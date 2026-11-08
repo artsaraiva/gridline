@@ -9,5 +9,5 @@ export function rnd(m: Match): number {
   return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 }
 
-/** Uniform in [lo, hi]; a range of one value draws nothing. */
+/** Uniform in [lo, hi]. A range of one value draws nothing, so a tune that pins a Trait (`[180, 180]`, `[0, 0]`) leaves the RNG stream, and so every later draw, as it was without the Trait. */
 export const between = (m: Match, [lo, hi]: [number, number]) => (lo === hi ? lo : lo + (hi - lo) * rnd(m));

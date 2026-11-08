@@ -7,16 +7,16 @@
 // when someone of theirs sees it, as any vehicle.
 import type { Match } from './index';
 import { driveFlow, flowDist, flowLook } from './ai/flow';
-import { bestPoint } from './ai/squad';
+import { bestPoint, reactAt } from './ai/squad';
 import { between, rnd } from './rng';
 import { blast } from './assets/strike';
 import { die } from './combat';
-import { approach, stopSpeed, turnToward } from './momentum';
+import { approach, BRAKE_RESERVE, stopSpeed, turnToward } from './momentum';
 import { dist2, inHq, middlePoint } from './geometry';
 import { dogleg, landingZone } from './flight';
 import { cellIndex, los, nearestWalkable } from './grid';
 import { see } from './memory';
-import { footLeader, membersOf, vehicleOf, type Mix, type Soldier, type Squad } from './state';
+import { footLeader, membersOf, ticksOf, vehicleOf, type Mix, type Soldier, type Squad } from './state';
 import { enemyOf, SIDES, type SideId, type SimEvent, type Tune, type Vec2, type VehicleKind, type VehicleView } from './types';
 
 export interface Vehicle {
@@ -213,11 +213,11 @@ export function decideRide(m: Match, sq: Squad, body: Soldier[], L: Soldier) {
   const v = fits[Math.floor(rnd(m) * fits.length)]!;
   const seats = v.seats.filter((id) => id < 0).length;
   const left = body.length > seats ? body.reduce((a, s) => (dist2(s, v) > dist2(a, v) ? s : a)) : null;
-  if (left) Object.assign(left, { detached: true, goal: -1 });
+  if (left) Object.assign(left, { detached: true, goal: -1, commitUntil: m.tick + ticksOf(t, t.commitSeconds[1]) }); // walks the Squad's goal as its own Commitment
   const claimUntil = m.tick + Math.round(t.boardWaitSeconds * t.hz);
   Object.assign(v, { claim: sq.id, claimUntil, departAt: claimUntil });
   for (const s of body)
-    if (s !== left) Object.assign(s, { boarding: v.id, climbAt: 0, dest: null, path: [], cover: null, holdUntil: m.tick + Math.round(s.reaction * t.hz) });
+    if (s !== left) Object.assign(s, { boarding: v.id, climbAt: 0, dest: null, path: [], cover: null, holdUntil: reactAt(m, s) });
 }
 
 /**
@@ -233,7 +233,7 @@ export function boardStep(m: Match, s: Soldier): Vehicle | null {
     return null;
   }
   if (dist2(s, v) <= squared(t.mountM)) {
-    if (!s.climbAt) s.climbAt = m.tick + Math.max(1, Math.round(between(m, t.mountSeconds) * t.hz));
+    if (!s.climbAt) s.climbAt = m.tick + ticksOf(t, between(m, t.mountSeconds));
     if (m.tick >= s.climbAt) {
       mount(m, v, s, m.squads[s.squad]!);
       Object.assign(s, { boarding: -1, climbAt: 0 });
@@ -442,13 +442,13 @@ function fly(m: Match, v: Vehicle) {
 /**
  * #124, one tick in the air: heading toward the waypoint, then the destination (the Landing Zone out, the slot home), by at
  * most `heliTurnDegPerS`; speed toward `heliMps` (less the sharper the turn ahead) and no more than lets it stop on the
- * destination, by `heliAccel` (braking `brakeMul` times that), as #123's ground vehicles. It banks through the waypoint
+ * destination, by `heliAccel` either way (the stop curve plans on `BRAKE_RESERVE` of it, see `stopSpeed`). It banks through the waypoint
  * within a second's flight of it. On arrival it hovers `flareSeconds`, still airborne, then touches down. Never into the enemy HQ circle.
  */
 function cruise(m: Match, v: Vehicle) {
   const t = m.tune;
   if (v.flareUntil >= 0) {
-    v.speed = approach(v.speed, 0, t.heliAccel, t.brakeMul, t.hz); // the last of the braking
+    v.speed = approach(v.speed, 0, t.heliAccel, 1, t.hz); // the last of the braking
     if (m.tick >= v.flareUntil) Object.assign(v, { airborne: false, parked: true, landedAt: m.tick, flareUntil: -1 });
     return;
   }
@@ -467,12 +467,12 @@ function cruise(m: Match, v: Vehicle) {
     const way = { x: (aim.x - v.x) / d, y: (aim.y - v.y) / d };
     ({ fx, fy } = turnToward(fx, fy, way.x, way.y, t.heliTurnDegPerS, t.hz));
     const align = Math.max(0, fx * way.x + fy * way.y);
-    want = Math.min(t.heliMps * (t.turnSpeedMin + (1 - t.turnSpeedMin) * align), stopSpeed(left, t.heliAccel, t.brakeMul / 2)) // half the braking in reserve, so slowing tick by tick keeps up with the stop curve and the last step is no jump;
+    want = Math.min(t.heliMps * (t.turnSpeedMin + (1 - t.turnSpeedMin) * align), stopSpeed(left, t.heliAccel, 1, BRAKE_RESERVE));
   }
-  const speed = approach(v.speed, want, t.heliAccel, t.brakeMul, t.hz);
+  const speed = approach(v.speed, want, t.heliAccel, 1, t.hz); // braking no harder than speeding up
   const arrived = !v.wp && (d < 0.01 || speed / t.hz >= d);
   const at = arrived ? aim : clearOfHq(m, v.side, { x: v.x + (fx * speed) / t.hz, y: v.y + (fy * speed) / t.hz });
-  Object.assign(v, { x: at.x, y: at.y, fx, fy, speed, movedAt: m.tick, ...(arrived && { flareUntil: m.tick + Math.max(1, Math.round(t.flareSeconds * t.hz)) }) });
+  Object.assign(v, { x: at.x, y: at.y, fx, fy, speed, movedAt: m.tick, ...(arrived && { flareUntil: m.tick + ticksOf(t, t.flareSeconds) }) });
 }
 
 /**

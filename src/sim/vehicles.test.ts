@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { commanderView, createMatch, stateHash, step, type Match } from './index';
-import { DEFAULT_TUNE, NO_TEMPO, NO_TRAITS } from './tune';
+import { dogleg } from './flight';
+import { insidePolygon } from './geometry';
+import { DEFAULT_TUNE } from './tune';
+import { NO_TEMPO, NO_TRAITS, thinkOnId } from './test-tune';
 import type { Command, CommanderView, MapData, SideId, SimEvent, Tune } from './types';
 
 const HZ = DEFAULT_TUNE.hz;
@@ -27,7 +30,7 @@ function field(extra: Partial<MapData> = {}): MapData {
  */
 function scene(o: { map?: Partial<MapData>; tune?: Partial<Tune>; place?: Record<number, { x: number; y: number; fx?: number; fy?: number }>; squads?: number }): Match {
   const tune: Tune = { ...DEFAULT_TUNE, squadSize: 2, speedJitter: 0, spread: 0, strayChance: 0, drainSeconds: [1e9, 1e9, 1e9, 1e9, 1e9], jeepsPerSide: 0, helisPerSide: 0, pointJeeps: false, ...NO_TRAITS, ...NO_TEMPO, ...o.tune };
-  const m = createMatch({ seed: 1, map: field(o.map), tune, squadsPerSide: o.squads ?? 1, commanderSide: 'nato' });
+  const m = thinkOnId(createMatch({ seed: 1, map: field(o.map), tune, squadsPerSide: o.squads ?? 1, commanderSide: 'nato' }));
   for (const [id, p] of Object.entries(o.place ?? {})) Object.assign(m.soldiers[Number(id)]!, p);
   return m;
 }
@@ -445,7 +448,7 @@ describe('#109 the transport helicopter ferries a Squad', () => {
 
   it('the Squad boards at match start, it flies a dogleg to the far point, lands off it, unloads, and flies home empty', () => {
     const m = ferry();
-    const { views } = play(m, 90 * HZ);
+    const { views } = play(m, 100 * HZ); // #124: braking no harder than speeding up
     const filled = views.findIndex((v) => heliOf(v).seats!.every((id) => id >= 0)); // #122: they walk to it and climb in one by one
     expect(filled).toBeGreaterThan(0);
     expect(filled / HZ).toBeLessThan(4);
@@ -460,11 +463,13 @@ describe('#109 the transport helicopter ferries a Squad', () => {
     expect(Math.hypot(lz.x - A.x, lz.y - A.y)).toBeGreaterThan(DEFAULT_TUNE.captureRadius); // so the passengers walk in
     const lift = views.findIndex((v, i) => i > landed && heliOf(v).airborne);
     expect((lift - landed) / HZ).toBeCloseTo(DEFAULT_TUNE.unloadSeconds + DEFAULT_TUNE.spoolSeconds, 0); // #124: unloaded, then the rotor spools up
-    expect(heliOf(views[lift]!).seats).toEqual([0, -1, -1, -1]); // the pilot never gets out
+    const pilot = heliOf(views[lift]!).seats![0]!;
+    expect([0, 1, 2, 3]).toContain(pilot); // whoever climbed in first
+    expect(heliOf(views[lift]!).seats).toEqual([pilot, -1, -1, -1]); // the pilot never gets out
     const home = heliOf(views.at(-1)!);
-    expect(home).toMatchObject({ x: -560, y: 0, seats: [0, -1, -1, -1] });
+    expect(home).toMatchObject({ x: -560, y: 0, seats: [pilot, -1, -1, -1] });
     expect(home.airborne).toBeUndefined();
-    for (const id of [1, 2, 3]) expect(Math.hypot(m.soldiers[id]!.x - A.x, m.soldiers[id]!.y - A.y)).toBeLessThan(DEFAULT_TUNE.captureRadius + 10);
+    for (const id of [0, 1, 2, 3].filter((id) => id !== pilot)) expect(Math.hypot(m.soldiers[id]!.x - A.x, m.soldiers[id]!.y - A.y)).toBeLessThan(DEFAULT_TUNE.captureRadius + 10);
     expect(views.at(-1)!.points[0]!.owner).toBe('nato');
   });
 
@@ -476,7 +481,7 @@ describe('#109 the transport helicopter ferries a Squad', () => {
       place: { 4: away, 5: away, 6: away, 7: away },
     });
     m.squads[0]!.order = { point: 0, hold: false, delayed: null, since: 0 };
-    const { views } = play(m, 40 * HZ);
+    const { views } = play(m, 60 * HZ);
     const up = views.findIndex((v) => heliOf(v).airborne);
     const landed = views.findIndex((v, i) => i > up && !heliOf(v).airborne);
     const over = views.findIndex((v) => Math.hypot(heliOf(v).x + 130, heliOf(v).y - 100) < 5);
@@ -794,6 +799,14 @@ describe('#124 helicopter flight and Landing Zone', () => {
     expect(new Set(sides(false))).toEqual(new Set([-1, 1]));
   });
 
+  it('a dogleg waypoint never lies outside the Play Area, even for a trip along its edge', () => {
+    for (let seed = 1; seed <= 40; seed++) {
+      const m = scene124({ seed });
+      const w = dogleg(m, { x: -400, y: 590 }, { x: 400, y: 590 }, [])!; // 800 m along the north edge (y = 600): one side would be 120-240 m out
+      expect(insidePolygon(m.map.playArea, w.x, w.y), `seed ${seed}: ${w.x.toFixed(0)}, ${w.y.toFixed(0)}`).toBe(true);
+    }
+  });
+
   it('a trip shorter than doglegMinM flies straight', () => {
     const m = scene124({ map: { points: [{ id: 'A', name: 'A', x: -460, y: 0 }] }, tune: { lzM: [30, 30] } });
     const h = m.vehicles[0]!;
@@ -805,14 +818,14 @@ describe('#124 helicopter flight and Landing Zone', () => {
     expect(Math.abs(bulge(out, HQ, m.vehicles[0]!.lz!))).toBeLessThan(0.5);
   });
 
-  it('speeds up by no more than heliAccel (and slows by brakeMul times that), turns by no more than heliTurnDegPerS, and banks through the waypoint without stopping', () => {
+  it('speeds up or slows by no more than heliAccel, turns by no more than heliTurnDegPerS, and banks through the waypoint without stopping', () => {
     const { log } = flight(scene124(), 90);
     const { out, back } = trips(log);
     const turn = (a: { fx: number; fy: number }, b: { fx: number; fy: number }) => Math.acos(Math.min(1, a.fx * b.fx + a.fy * b.fy)) * (180 / Math.PI);
     log.slice(1).forEach((q, i) => {
       const p = log[i]!;
       expect(q.speed - p.speed, `tick ${q.tick}`).toBeLessThanOrEqual(DEFAULT_TUNE.heliAccel / HZ + 1e-9);
-      expect(p.speed - q.speed, `tick ${q.tick}`).toBeLessThanOrEqual((DEFAULT_TUNE.heliAccel * DEFAULT_TUNE.brakeMul) / HZ + 1e-9);
+      expect(p.speed - q.speed, `tick ${q.tick}`).toBeLessThanOrEqual(DEFAULT_TUNE.heliAccel / HZ + 1e-9);
       expect(turn(p, q), `tick ${q.tick}`).toBeLessThanOrEqual(DEFAULT_TUNE.heliTurnDegPerS / HZ + 1e-3);
     });
     expect(Math.max(...out.map((q) => q.speed))).toBeCloseTo(DEFAULT_TUNE.heliMps, 1);

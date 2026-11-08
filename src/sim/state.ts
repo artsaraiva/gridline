@@ -91,7 +91,7 @@ export interface Squad {
   taking: number; // index of the Capture Point it is contributing to taking, -1 = none; see capture.ts
   takingSince: number; // tick it began
   // #120 Traits, drawn once from the Match RNG
-  pref: number[]; // seeded preference per Capture Point, added to its score
+  pointPref: number[]; // seeded preference per Capture Point, added to its score
   aggression: number; // [-1, 1]: bold pushes enemy points and falls back later
   commitUntil: number; // tick its Commitment to `goal` ends
   // #121 Think tempo
@@ -117,6 +117,9 @@ export type Mix = (v: number) => void;
 export const sign = (s: SideId) => (s === 'nato' ? 1 : -1);
 export const sideOf = (n: number): SideId => (n > 0 ? 'nato' : 'pact');
 export const stageTicks = (t: Tune) => t.captureSeconds * t.hz;
+
+/** `seconds` as whole ticks, at least one: a delay is never zero ticks. */
+export const ticksOf = (t: Tune, seconds: number) => Math.max(1, Math.round(seconds * t.hz));
 export const membersOf = (m: Match, sq: Squad) => sq.members.map((id) => m.soldiers[id]!);
 /** The first living member on foot and not Detached, whom the wedge forms on; the first living member when there is none. */
 export const footLeader = (alive: Soldier[]) => alive.find((s) => !s.detached && s.vehicle < 0) ?? alive[0];
@@ -181,7 +184,7 @@ export function hashSquads(m: Match, mix: Mix) {
     mix(sq.commitUntil);
     mix(Math.round(sq.thinkInterval * 1000)); // #121
     mix(sq.nextThink);
-    for (const p of sq.pref) mix(Math.round(p * 1000));
+    for (const p of sq.pointPref) mix(Math.round(p * 1000));
     mix(Math.round(sq.aggression * 1000));
     mix(Math.round(sq.rideM * 1000)); // #122
   }

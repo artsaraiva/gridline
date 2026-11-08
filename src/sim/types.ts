@@ -249,29 +249,12 @@ export interface Tune {
   rejoinM: number; // a Detached Soldier with the Squad's goal rejoins within this of the foot leader
   squadPull: number; // added to the Squad's goal when a Detached Soldier picks its own Capture Point
 
-  // #120 Squad Traits and point choice
-  squadGoalBias: number; // ± a Squad's seeded preference per Capture Point, in point-score units, kept for the match
-  choiceMargin: number; // a self-chosen pick draws among the points scoring within this of the best, weighted by how far each clears best - margin
-  thinkIntervalSeconds: [number, number]; // #121 a Squad's own think interval, seeded between the two
-  thinkOpenSeeded: boolean; // #121 a Squad's first think falls at a seeded tick within its first interval; false = on the tick its id sets (tests)
-  thinkJitter: number; // #121 each think lands the interval ± this fraction after the last
-  reactionSeconds: [number, number]; // #121 a Soldier's own hold before moving off after its Squad's goal, task or mode changes, seeded between the two
-  commitSeconds: [number, number]; // a self-chosen point is held this long (seeded between the two) unless an early-pick event ends it
-  commitThreatM: number; // an own Capture Point this near the leader that is threatened ends a Commitment
-  aggressionValueMul: number; // enemy points are worth x (1 + aggression x this), aggression in [-1, 1]
-  aggressionRetreatMul: number; // the Retreat suppression threshold is x (1 + aggression x this), kept below 1
-
   // #107 Tank tracer (and the #27 shared vehicle rules it brings)
   vehicleRespawnSeconds: number; // a destroyed vehicle's fresh one appears in its slot this long after
   boardMinM: number; // a Soldier boards only when its goal is farther than this ...
   boardM: number; // ... from a friendly vehicle with a free seat within this ...
   sameWayM: number; // ... that is empty, or whose driver's goal is within this of its own
   boardWaitSeconds: number; // a driver waits this long from the claim for its Squad's riders, leaving early when all are aboard
-  // #122 Boarding as an action
-  rideM: [number, number]; // a Squad rides when its goal is farther than this from its foot leader, seeded between the two per Squad
-  heliFitM: number; // the helicopter fits a goal farther than this (or across the river)
-  mountM: number; // a rider within this of its vehicle climbs in
-  mountSeconds: [number, number]; // a rider takes this long to climb in, seeded between the two
   vehicleVisionMul: number; // a ground vehicle sees, and is seen, at this x visionM
   hullM: number; // ground vehicles keep their centre farther than this from anything blocking
   tankRoadMps: number; // on road
@@ -331,10 +314,29 @@ export interface Tune {
   doglegFraction: [number, number]; // a trip's waypoint lies this share of the trip's length off the middle of the line, seeded between the two
   doglegMinM: number; // a shorter trip flies straight
   heliThreatM: number; // a dogleg side passing this close to an enemy-held point's radius, or to a known enemy, loses to the other
-  heliAccel: number; // m/s² a helicopter speeds up by (it slows brakeMul times as fast)
+  heliAccel: number; // m/s² a helicopter speeds up or slows by
   heliTurnDegPerS: number; // how fast it turns toward its way ahead
   flareSeconds: number; // it hovers this long over its Landing Zone (or home slot) before touching down
   spoolSeconds: number; // once it may leave, it spools its rotor this long before lifting off
+
+  // #120 Squad Traits and point choice
+  squadGoalBias: number; // ± a Squad's seeded preference per Capture Point, in point-score units, kept for the match
+  choiceMargin: number; // a self-chosen pick draws among the points scoring within this of the best, weighted by how far each clears best - margin
+  commitSeconds: [number, number]; // a self-chosen point is held this long (seeded between the two) unless an early-pick event ends it
+  commitThreatM: number; // an own Capture Point this near the leader that is threatened ends a Commitment
+  aggressionValueMul: number; // enemy points are worth x (1 + aggression x this), aggression in [-1, 1]
+  aggressionRetreatMul: number; // the Retreat suppression threshold is x (1 + aggression x this), kept below 1
+
+  // #121 Think tempo and staggered set-off
+  thinkIntervalSeconds: [number, number]; // #121 a Squad's own think interval, seeded between the two
+  thinkJitter: number; // #121 each think lands the interval ± this fraction after the last
+  reactionSeconds: [number, number]; // #121 a Soldier's own hold before moving off after its Squad's goal, task or mode changes, seeded between the two
+
+  // #122 Boarding as an action
+  rideM: [number, number]; // a Squad rides when its goal is farther than this from its foot leader, seeded between the two per Squad
+  heliFitM: number; // the helicopter fits a goal farther than this (or across the river)
+  mountM: number; // a rider within this of its vehicle climbs in
+  mountSeconds: [number, number]; // a rider takes this long to climb in, seeded between the two
 }
 
 /** #55: what a Commander Score award is for. */

@@ -1,7 +1,8 @@
 // #120 Squad Traits and point choice: seeded preference, weighted pick, Commitment, aggression (ADR 0006).
 import { describe, expect, it } from 'vitest';
 import { commanderView, createMatch, step, type Match } from './index';
-import { DEFAULT_TUNE, NO_TEMPO } from './tune';
+import { DEFAULT_TUNE } from './tune';
+import { NO_TEMPO } from './test-tune';
 import type { Command, MapData, Tune } from './types';
 
 const HZ = DEFAULT_TUNE.hz;
@@ -81,14 +82,28 @@ describe('#120 Commitment', () => {
       { id: 'A', name: 'A', x: -450, y: -60, owner: 'nato' as const },
       { id: 'B', name: 'B', x: -250, y: 250 },
     ];
-    const quiet = scene({ points, frozen: true, tune: holding });
+    const sure = { ...holding, choiceMargin: 0.05 }; // A outscores B once threatened, whatever the draw
+    const quiet = scene({ points, frozen: true, tune: sure });
     run(quiet, 5);
     expect(point(quiet)).toBe('B');
-    const m = scene({ points, frozen: true, tune: holding });
+    const m = scene({ points, frozen: true, tune: sure });
     run(m, 2);
     Object.assign(m.soldiers[4]!, { x: -450, y: -60 }); // a pact Soldier inside A
     run(m, 2);
     expect(point(m)).toBe('A');
+  });
+
+  it('ends at once when a survival task starts', () => {
+    for (const survival of ['retreat', 'resupply'] as const) {
+      const m = scene({ frozen: true, tune: holding });
+      run(m, 3);
+      expect(m.squads[0]!.commitUntil).toBeGreaterThan(m.tick);
+      for (const i of m.squads[0]!.members) Object.assign(m.soldiers[i]!, { x: -300, y: 0, ...(survival === 'retreat' ? { suppression: 0.99 } : { ammo: 0 }) });
+      m.squads[0]!.aggression = -1;
+      run(m, 1);
+      expect(commanderView(m, 'nato').squads[0]!.task).toBe(survival);
+      expect(m.squads[0]!.commitUntil).toBe(0);
+    }
   });
 
   it('ends when an Order arrives or is cleared', () => {
@@ -137,6 +152,16 @@ describe('#120 aggression', () => {
 });
 
 describe('#120 Detached Soldiers', () => {
+  it('hold a pick that is the Squad\'s own goal for their Commitment too', () => {
+    const m = scene({ points: [{ id: 'N', name: 'N', x: -300, y: -200 }], frozen: true, tune: { squadGoalBias: 0, commitSeconds: [600, 600], squadPull: 0 } });
+    Object.assign(m.soldiers[1]!, { detached: true, x: -100, y: 0 });
+    run(m, 3);
+    const until = m.soldiers[1]!.commitUntil;
+    expect(until).toBeGreaterThan(m.tick);
+    run(m, 5);
+    expect(m.soldiers[1]!.commitUntil).toBe(until); // not re-drawn every think
+  });
+
   it('hold their own pick for their own Commitment', () => {
     const goals = (commitSeconds: [number, number], seed: number) => {
       const m = scene({ seed, frozen: true, tune: { squadGoalBias: 0, choiceMargin: 5, squadPull: 0, commitSeconds } });

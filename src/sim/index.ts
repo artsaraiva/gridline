@@ -15,7 +15,7 @@ import { hashRequests, requests } from './requests';
 import { returnToFight } from './respawn';
 import { between, rnd } from './rng';
 import { hashScore, newScore, type Score } from './score';
-import { hashSoldiers, hashSquads, sign, stageTicks, type Point, type Soldier, type Squad } from './state';
+import { hashSoldiers, hashSquads, sign, stageTicks, ticksOf, type Point, type Soldier, type Squad } from './state';
 import { SIDES, type Command, type MapData, type MatchResult, type SideId, type SimEvent, type Tune } from './types';
 import { drive, hashVehicles, newVehicles, type Vehicle, type Wreck } from './vehicles';
 
@@ -81,9 +81,9 @@ export function createMatch(opts: {
   for (const side of SIDES) {
     const hq = map.hqs[side];
     for (let q = 0; q < opts.squadsPerSide; q++) {
-      const squad: Squad = { id: m.squads.length, side, members: [], goal: -1, lastSeen: -1e9, lastHit: -1e9, memory: [], order: null, pending: null, request: null, requestNext: 0, taking: -1, takingSince: 0, pref: map.points.map(() => (rnd(m) * 2 - 1) * tune.squadGoalBias), aggression: rnd(m) * 2 - 1, commitUntil: 0, thinkInterval: between(m, tune.thinkIntervalSeconds), nextThink: 0, rideM: 0, ...newSquadAi() };
+      const squad: Squad = { id: m.squads.length, side, members: [], goal: -1, lastSeen: -1e9, lastHit: -1e9, memory: [], order: null, pending: null, request: null, requestNext: 0, taking: -1, takingSince: 0, pointPref: map.points.map(() => (rnd(m) * 2 - 1) * tune.squadGoalBias), aggression: rnd(m) * 2 - 1, commitUntil: 0, thinkInterval: between(m, tune.thinkIntervalSeconds), nextThink: 0, rideM: 0, ...newSquadAi() };
       const first = Math.round(squad.thinkInterval * tune.hz);
-      squad.nextThink = tune.thinkOpenSeeded ? Math.floor(rnd(m) * first) : (first - (squad.id % first)) % first; // #121: opens somewhere in its first interval
+      squad.nextThink = Math.floor(rnd(m) * first); // #121: opens somewhere in its first interval
       m.squads.push(squad);
       for (let i = 0; i < tune.squadSize; i++) {
         const ox = (rnd(m) * 2 - 1) * tune.spread;
@@ -112,7 +112,7 @@ export function step(m: Match, commands: Command[]): SimEvent[] {
   for (const sq of m.squads)
     if (m.tick >= sq.nextThink) {
       think(m, sq, events);
-      sq.nextThink = m.tick + Math.max(1, Math.round(sq.thinkInterval * (1 + (t.thinkJitter ? rnd(m) * 2 - 1 : 0) * t.thinkJitter) * t.hz)); // #121
+      sq.nextThink = m.tick + ticksOf(t, sq.thinkInterval * (1 + (t.thinkJitter ? rnd(m) * 2 - 1 : 0) * t.thinkJitter)); // #121
     }
   casualties(m, events);
   perceive(m);

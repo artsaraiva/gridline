@@ -2,7 +2,7 @@
 // (the Simulation's determinism rule): a bearing is one of 72 unit vectors, 5 degrees apart, written out below.
 import type { Match } from './index';
 import { between, rnd } from './rng';
-import { dist2 } from './geometry';
+import { dist2, insidePolygon } from './geometry';
 import { nearestWalkable } from './grid';
 import type { Vec2 } from './types';
 
@@ -58,7 +58,7 @@ function segDist(p: Vec2, a: Vec2, b: Vec2): number {
  * The waypoint of a trip `from` to `to`: `doglegFraction` (seeded) of the trip's length off the middle of the line, to a
  * seeded side, unless the trip is shorter than `doglegMinM` (null: straight). A side whose waypoint or legs pass within
  * `heliThreatM` of a threat (a point of radius `r`, or a known enemy of radius 0) loses to the other; with both threatened, the
- * one with more room wins.
+ * one with more clearance wins. A side outside the Play Area is pulled back inside it.
  */
 export function dogleg(m: Match, from: Vec2, to: Vec2, threats: (Vec2 & { r: number })[]): Vec2 | null {
   const t = m.tune;
@@ -68,7 +68,15 @@ export function dogleg(m: Match, from: Vec2, to: Vec2, threats: (Vec2 & { r: num
   const side = rnd(m) < 0.5 ? -1 : 1;
   const [nx, ny] = [-(to.y - from.y) / len, (to.x - from.x) / len];
   const [mx, my] = [(from.x + to.x) / 2, (from.y + to.y) / 2];
-  const [a, b] = [side, -side].map((s) => ({ x: mx + nx * off * s, y: my + ny * off * s })) as [Vec2, Vec2];
-  const room = (w: Vec2) => Math.min(Infinity, ...threats.map((p) => Math.min(segDist(p, from, w), segDist(p, w, to)) - p.r));
-  return room(a) >= t.heliThreatM || room(a) >= room(b) ? a : b;
+  // a side that would leave the Play Area turns back toward the line in quarters (the middle of the trip is inside it)
+  const waypoint = (s: number) => {
+    for (let k = 1; k > 0; k -= 0.25) {
+      const w = { x: mx + nx * off * s * k, y: my + ny * off * s * k };
+      if (insidePolygon(m.map.playArea, w.x, w.y)) return w;
+    }
+    return { x: mx, y: my };
+  };
+  const [a, b] = [waypoint(side), waypoint(-side)];
+  const clearance = (w: Vec2) => Math.min(Infinity, ...threats.map((p) => Math.min(segDist(p, from, w), segDist(p, w, to)) - p.r));
+  return clearance(a) >= t.heliThreatM || clearance(a) >= clearance(b) ? a : b;
 }

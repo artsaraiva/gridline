@@ -7,8 +7,16 @@ export function approach(speed: number, want: number, accel: number, brakeMul: n
   return Math.abs(want - speed) <= step ? want : speed + Math.sign(want - speed) * step;
 }
 
-/** The highest speed (m/s) from which braking at `accel * brakeMul` still stops within `distM`. */
-export const stopSpeed = (distM: number, accel: number, brakeMul: number) => Math.sqrt(2 * accel * brakeMul * distM);
+/**
+ * The highest speed (m/s) from which braking at `accel * brakeMul` still stops within `distM`. `reserve` is the share of that
+ * braking the curve plans on (1 = all of it). A vehicle that slows tick by tick lags a curve planned on all its braking by a
+ * tick's discrete step, so it reaches the stop still moving and the last step is a jump; one that plans on less than it has
+ * keeps ahead of the curve and comes to rest smoothly. The helicopter, which may brake no harder than it speeds up
+ * (`heliAccel`), plans on `BRAKE_RESERVE` of it.
+ */
+export const stopSpeed = (distM: number, accel: number, brakeMul: number, reserve = 1) => Math.sqrt(2 * accel * brakeMul * reserve * distM);
+
+export const BRAKE_RESERVE = 0.5;
 
 /**
  * The unit heading (fx, fy) turned toward the unit way ahead (tx, ty) by at most `degPerS` over one tick: inside one step it

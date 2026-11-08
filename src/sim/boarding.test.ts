@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { RIVER_FIELD } from '../maps/river-field';
 import { createMatch, step, type Match } from './index';
-import { DEFAULT_TUNE, NO_TEMPO, NO_TRAITS } from './tune';
+import { DEFAULT_TUNE } from './tune';
+import { NO_TEMPO, NO_TRAITS, thinkOnId } from './test-tune';
 import type { MapData, Tune } from './types';
 
 // #122: a Squad decides to ride, claims one vehicle that fits, walks to it and climbs in one by one; tanks stay crewed by pairs.
@@ -26,7 +28,7 @@ function scene(tune: Partial<Tune>, o: { squads?: number; goal?: number } = {}):
   const squads = o.squads ?? 1;
   const map = { ...field, points: [{ ...field.points[0]!, x: o.goal ?? -200 }] };
   const full: Tune = { ...DEFAULT_TUNE, squadSize: 4, speedJitter: 0, spread: 0, strayChance: 0, visionM: 0, drainSeconds: [1e9, 1e9, 1e9, 1e9, 1e9], tanksPerSide: 0, jeepsPerSide: 0, helisPerSide: 0, pointJeeps: false, rideM: [100, 100], ...NO_TRAITS, ...NO_TEMPO, ...tune };
-  const m = createMatch({ seed: 1, map, tune: full, squadsPerSide: squads, commanderSide: 'nato' });
+  const m = thinkOnId(createMatch({ seed: 1, map, tune: full, squadsPerSide: squads, commanderSide: 'nato' }));
   m.soldiers.forEach((s, i) => Object.assign(s, s.side === 'nato' ? { x: -540, y: 4 * (i % 4) - 6 } : FAR));
   m.soldiers.filter((s) => s.side === 'pact').forEach((s) => (s.speed = 0));
   return m;
@@ -91,6 +93,21 @@ describe('#122 which vehicle fits', () => {
     expect(near.soldiers.slice(0, 4).every((s) => s.vehicle < 0)).toBe(true);
   });
 
+  it('a goal across the river fits the helicopter though short of heliFitM; one on its own bank never does', () => {
+    // River field: E is 415 m from the nato HQ over a crossing (short of heliFitM 450); A is 228 m off on the HQ's own bank
+    const heliRiders = (id: string, seed: number) => {
+      const map = { ...RIVER_FIELD, points: RIVER_FIELD.points.filter((p) => p.id === id) };
+      const tune: Tune = { ...DEFAULT_TUNE, squadSize: 4, speedJitter: 0, visionM: 0, tanksPerSide: 0, jeepsPerSide: 0, helisPerSide: 1, pointJeeps: false, rideM: [100, 100], ...NO_TRAITS, ...NO_TEMPO };
+      const m = createMatch({ seed, map, tune, squadsPerSide: 1, commanderSide: 'nato' });
+      for (let t = 0; t < 10 * HZ; t++) step(m, []);
+      return m.soldiers.slice(0, 4).filter((s) => s.vehicle >= 0).length;
+    };
+    for (const seed of [1, 2, 3, 4, 5]) {
+      expect(heliRiders('E', seed), `across, seed ${seed}`).toBeGreaterThan(0);
+      expect(heliRiders('A', seed), `own bank, seed ${seed}`).toBe(0);
+    }
+  });
+
   it('a full Squad and a piloted helicopter: three ride, the farthest walks Detached on the Squad\'s goal', () => {
     const m = scene({ helisPerSide: 1 }, { squads: 2, goal: -50 });
     const heli = m.vehicles.find((v) => v.side === 'nato')!;
@@ -104,6 +121,16 @@ describe('#122 which vehicle fits', () => {
     }
     expect(heli.seats.slice(1).sort()).toEqual([0, 1, 2]);
     expect(detached).toBe(true);
+    // the others are aboard (and gone): the one left over stays Detached on the Squad's goal, then rejoins them there
+    expect(m.soldiers[3]).toMatchObject({ detached: true, goal: -1, vehicle: -1 });
+    let rejoined = -1;
+    for (let t = 0; t < 200 * HZ && rejoined < 0; t++) {
+      step(m, []);
+      if (!m.soldiers[3]!.detached) rejoined = t;
+    }
+    expect(rejoined).toBeGreaterThan(0);
+    expect(dist(m.soldiers[3]!, m.points[0]!)).toBeLessThan(m.points[0]!.radius + m.tune.rejoinM);
+    expect(dist(m.soldiers[3]!, m.soldiers[0]!)).toBeLessThan(m.tune.rejoinM + 1);
   });
 
   it('two Squads never claim the same vehicle', () => {
