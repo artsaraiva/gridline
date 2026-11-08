@@ -170,6 +170,14 @@ export const DEFAULT_TUNE: Tune = {
   rejoinM: 22,
   squadPull: 0.6,
 
+  // #120 Squad Traits and point choice
+  squadGoalBias: 0.5,
+  choiceMargin: 0.3,
+  commitSeconds: [15, 45],
+  commitThreatM: 250,
+  aggressionValueMul: 0.25,
+  aggressionRetreatMul: 0.3,
+
   // #107 Tank tracer
   vehicleRespawnSeconds: 60,
   boardMinM: 150,
@@ -220,3 +228,6 @@ export const DEFAULT_TUNE: Tune = {
   unloadSeconds: 3,
   airVisionM: 250,
 };
+
+/** #120: tests of one rule at a time switch the Squads' Traits off: the best point, no Commitment, no aggression. */
+export const NO_TRAITS: Partial<Tune> = { squadGoalBias: 0, choiceMargin: 0, commitSeconds: [0, 0], aggressionValueMul: 0, aggressionRetreatMul: 0 };

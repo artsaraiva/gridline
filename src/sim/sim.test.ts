@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { commanderView, createMatch, stateHash, step, type Match } from './index';
-import { DEFAULT_TUNE } from './tune';
+import { DEFAULT_TUNE, NO_TRAITS } from './tune';
 import type { Command, CommanderView, MapData, PointView, Tune } from './types';
 
 const HZ = DEFAULT_TUNE.hz;
@@ -21,7 +21,7 @@ function map(points: { x: number; y: number }[], pactHqX = 3000): MapData {
 
 /** Nobody sees anybody, nobody strays (#93) and no vehicles (#107 #108) unless `tune` says so: these tests check capture and drain with Squads arriving whole and no combat in the way. */
 function start(m: MapData, tune: Partial<Tune> = {}, squadsPerSide = 1, seed = 1): Match {
-  return createMatch({ seed, map: m, tune: { ...DEFAULT_TUNE, visionM: 0, strayChance: 0, tanksPerSide: 0, jeepsPerSide: 0, helisPerSide: 0, pointJeeps: false, ...tune }, squadsPerSide, commanderSide: 'nato' });
+  return createMatch({ seed, map: m, tune: { ...DEFAULT_TUNE, visionM: 0, strayChance: 0, tanksPerSide: 0, jeepsPerSide: 0, helisPerSide: 0, pointJeeps: false, ...NO_TRAITS, ...tune }, squadsPerSide, commanderSide: 'nato' });
 }
 
 /** The nato Commander view, plus the pact Soldiers from the pact view: ground truth the fog hides from nato. */

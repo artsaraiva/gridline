@@ -10,7 +10,7 @@ import { gridRef } from '../grid-ref';
 import { lineWalk, nearestWalkable } from '../grid';
 import { quiet } from '../respawn';
 import { rnd } from '../rng';
-import { membersOf, type Soldier, type Squad } from '../state';
+import { membersOf, type Point, type Soldier, type Squad } from '../state';
 import { enemyOf, type SimEvent, type Vec2 } from '../types';
 import { localPath, oct, pickCover, shelter } from './cover';
 import { crateFlow, flowDist, flowLook, hqFlow, pointFlow, routeFlow, type Flow } from './flow';
@@ -67,35 +67,50 @@ export function setDest(m: Match, s: Soldier, d: { at: Vec2; path: Vec2[] } | Ve
   }
 }
 
+/** An enemy inside the point, or in the Squad's memory near it. */
+const threatened = (m: Match, sq: Squad, p: Point) => insideCount(m, p, enemyOf(sq.side)) > 0 || sq.memory.some((c) => dist2(c, p) < sq2(p.radius + m.tune.threatenedM));
+
+/** #120: a self-chosen Commitment to `goal` still holds: not over, the point not its own Side's, no own point near `from` threatened. */
+function committed(m: Match, sq: Squad, goal: number, until: number, from: Vec2): boolean {
+  const p = m.points[goal];
+  if (!p || m.tick >= until || p.owner === sq.side) return false;
+  return !m.points.some((o) => o.owner === sq.side && dist2(from, o) < sq2(m.tune.commitThreatM) && threatened(m, sq, o));
+}
+
+/** #120: the tick a Commitment made now ends, seeded between `commitSeconds`. */
+const commitEnd = (m: Match) => m.tick + Math.round((m.tune.commitSeconds[0] + (m.tune.commitSeconds[1] - m.tune.commitSeconds[0]) * rnd(m)) * m.tune.hz);
+
 /**
- * The best-scoring Capture Point seen from `from`, -1 = none: value by owner, path distance, crowding (pairing up on enemy
- * points), stickiness plus `pull` on the Squad's goal, the Order's bonus. #107: a driver scores by `flow` (its drive grid)
- * and adds its own `bias` per point.
+ * The Capture Point seen from `from` that the Squad takes, -1 = none: value by owner (enemy points x its aggression), path
+ * distance, crowding (pairing up on enemy points), its seeded preference, stickiness plus `pull` on the Squad's goal, the
+ * Order's bonus. #120: it draws among the points within `choiceMargin` of the best, weighted by how far each clears best minus
+ * the margin. #107: a driver scores by `flow` (its drive grid) and adds its own `bias` per point, and takes the best.
  */
 export function bestPoint(m: Match, sq: Squad, from: Vec2, pull = 0, own: { flow?: (i: number) => Flow; bias?: number[] } = {}): number {
   const t = m.tune;
   const foe = enemyOf(sq.side);
-  let best = -1;
-  let bestScore = -Infinity;
+  const scores: number[] = [];
   m.points.forEach((p, i) => {
-    const threatened = insideCount(m, p, foe) > 0 || sq.memory.some((c) => dist2(c, p) < sq2(p.radius + t.threatenedM));
     let v =
       p.owner === null ? t.pointValue.neutral
-      : p.owner === foe ? t.pointValue.enemy
-      : threatened ? t.pointValue.ownedThreatened
+      : p.owner === foe ? t.pointValue.enemy * (own.flow ? 1 : 1 + sq.aggression * t.aggressionValueMul)
+      : threatened(m, sq, p) ? t.pointValue.ownedThreatened
       : t.pointValue.ownedQuiet;
     v -= (t.distancePenaltyPer100m * flowDist(m, (own.flow ?? ((k) => pointFlow(m, k)))(i), from)) / 100;
-    v += own.bias?.[i] ?? 0;
+    v += own.bias?.[i] ?? (own.flow ? 0 : sq.pref[i] ?? 0);
     const others = m.squads.filter((o) => o !== sq && o.side === sq.side && o.task === 'point' && o.goal === i).length;
     v -= p.owner === foe ? (others === 1 ? -t.pairUp : t.crowdPenalty * Math.max(0, others - 1)) : t.crowdPenalty * others;
     if (sq.task === 'point' && sq.goal === i) v += t.stickiness + pull;
     if (sq.order?.point === i) v += t.orderBonus;
-    if (v > bestScore) {
-      bestScore = v;
-      best = i;
-    }
+    scores.push(v);
   });
-  return best;
+  const top = Math.max(...scores);
+  if (own.flow || !scores.length) return scores.indexOf(top);
+  const floor = top - t.choiceMargin;
+  const weights = scores.map((v) => Math.max(0, v - floor));
+  let r = rnd(m) * weights.reduce((a, w) => a + w, 0);
+  const pick = weights.findIndex((w) => w > 0 && (r -= w) < 0);
+  return pick < 0 ? scores.indexOf(top) : pick;
 }
 
 export function think(m: Match, sq: Squad, events: SimEvent[]) {
@@ -118,7 +133,8 @@ export function think(m: Match, sq: Squad, events: SimEvent[]) {
   const inContact = sq.memory.some((c) => m.tick - c.tick < t.contactSeconds * t.hz) || body.some((s) => s.suppression > t.suppressedAt);
 
   // survival outranks everything; a Detached member's fight is its own, so only the body's fire and ammo count (the headcount stays the Squad's)
-  const shaken = body.filter((s) => s.suppression > t.retreatSuppression).length;
+  const retreatAt = Math.min(0.99, t.retreatSuppression * (1 + sq.aggression * t.aggressionRetreatMul)); // #120: bold falls back later
+  const shaken = body.filter((s) => s.suppression > retreatAt).length;
   const dry = body.filter((s) => s.ammo < t.ammoLow).length;
   let survive: 'retreat' | 'resupply' | null = null;
   if (sq.task === 'retreat') survive = quiet(m, sq, members) && alive.length >= members.length - 1 ? null : 'retreat';
@@ -128,8 +144,12 @@ export function think(m: Match, sq: Squad, events: SimEvent[]) {
     else if (dry * 2 > body.length) survive = 'resupply';
   }
 
-  let best = bestPoint(m, sq, lead);
+  // #120: a Commitment ends early on an Order (arriving or cleared) or a survival task, as well as on its own events
+  if (sq.order || survive) sq.commitUntil = 0;
+  const held = sq.task === 'point' && committed(m, sq, sq.goal, sq.commitUntil, lead);
+  let best = survive ? -1 : held ? sq.goal : bestPoint(m, sq, lead);
   if (sq.order) best = sq.order.point; // an Order is never lost to a better-scoring point, whatever the distance
+  else if (!survive && !held && best >= 0) sq.commitUntil = commitEnd(m);
 
   const prevTask = sq.task;
   const prevGoal = sq.goal;
@@ -186,8 +206,11 @@ export function think(m: Match, sq: Squad, events: SimEvent[]) {
 /** #106: a Detached Soldier picks its own Capture Point, pulled toward the Squad's, and rejoins near the foot leader on the Squad's goal. */
 function detached(m: Match, sq: Squad, L: Soldier, s: Soldier) {
   const t = m.tune;
-  const own = sq.task === 'point' ? bestPoint(m, sq, s, t.squadPull) : -1; // survival calls them back to the Squad's goal
+  if (sq.task !== 'point' || sq.order) s.commitUntil = 0;
+  const held = sq.task === 'point' && committed(m, sq, s.goal, s.commitUntil, s);
+  const own = sq.task !== 'point' ? -1 : held ? s.goal : bestPoint(m, sq, s, t.squadPull); // survival calls them back to the Squad's goal
   s.goal = own === sq.goal ? -1 : own;
+  if (!held && s.goal >= 0) s.commitUntil = commitEnd(m);
   if (s.goal < 0 && dist2(s, L) < sq2(t.rejoinM)) s.detached = false;
 }
 

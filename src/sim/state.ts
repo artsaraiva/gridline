@@ -41,6 +41,7 @@ export interface Soldier {
   // #106 Detached Soldiers
   detached: boolean; // away from its Squad on its own goal; out of the wedge, leash, regroup, bounding and flanking
   goal: number; // Detached: index of its own Capture Point, -1 = the Squad's goal
+  commitUntil: number; // #120: tick its Commitment to `goal` ends
   // #107 Tank tracer
   vehicle: number; // id of the vehicle it rides in, -1 = on foot
   rockets: number; // Launcher rockets left (only roster member 1 fires them)
@@ -83,6 +84,10 @@ export interface Squad {
   // #73 Ordered capture
   taking: number; // index of the Capture Point it is contributing to taking, -1 = none; see capture.ts
   takingSince: number; // tick it began
+  // #120 Traits, drawn once from the Match RNG
+  pref: number[]; // seeded preference per Capture Point, added to its score
+  aggression: number; // [-1, 1]: bold pushes enemy points and falls back later
+  commitUntil: number; // tick its Commitment to `goal` ends
 }
 
 export interface Point {
@@ -158,5 +163,8 @@ export function hashSquads(m: Match, mix: Mix) {
     mix(sq.lastHit);
     mix(sq.taking + 1); // #73
     mix(sq.takingSince);
+    mix(sq.commitUntil);
+    for (const p of sq.pref) mix(Math.round(p * 1000));
+    mix(Math.round(sq.aggression * 1000));
   }
 }

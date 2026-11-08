@@ -250,6 +250,14 @@ export interface Tune {
   rejoinM: number; // a Detached Soldier with the Squad's goal rejoins within this of the foot leader
   squadPull: number; // added to the Squad's goal when a Detached Soldier picks its own Capture Point
 
+  // #120 Squad Traits and point choice
+  squadGoalBias: number; // ± a Squad's seeded preference per Capture Point, in point-score units, kept for the match
+  choiceMargin: number; // a self-chosen pick draws among the points scoring within this of the best, weighted by how far each clears best - margin
+  commitSeconds: [number, number]; // a self-chosen point is held this long (seeded between the two) unless an early-pick event ends it
+  commitThreatM: number; // an own Capture Point this near the leader that is threatened ends a Commitment
+  aggressionValueMul: number; // enemy points are worth x (1 + aggression x this), aggression in [-1, 1]
+  aggressionRetreatMul: number; // the Retreat suppression threshold is x (1 + aggression x this), kept below 1
+
   // #107 Tank tracer (and the #27 shared vehicle rules it brings)
   vehicleRespawnSeconds: number; // a destroyed vehicle's fresh one appears in its slot this long after
   boardMinM: number; // a Soldier boards only when its goal is farther than this ...
