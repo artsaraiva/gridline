@@ -37,6 +37,13 @@ export function frameFill(frame: Frame, half: number) {
   return new THREE.CircleGeometry(half * r, segments, start);
 }
 
+/** Merges geometries (non-indexed positions only). */
+export function merge(parts: THREE.BufferGeometry[]) {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(parts.flatMap((p) => [...(p.toNonIndexed().getAttribute('position').array as Float32Array)]), 3));
+  return g;
+}
+
 /** Thin bar from (x0, y0) to (x1, y1), `w` units wide; for the infantry X and the like. */
 export function bar(x0: number, y0: number, x1: number, y1: number, w: number) {
   const g = new THREE.PlaneGeometry(Math.hypot(x1 - x0, y1 - y0), w);

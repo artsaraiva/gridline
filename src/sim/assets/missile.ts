@@ -3,7 +3,7 @@
 // it leaves at once from beyond the Play Area behind the caller's HQ and flies level and straight at the spot; the
 // flight is its warning, and it is in the sky, so both Sides' views carry it.
 import type { Match } from '../index';
-import { dist2 } from '../geometry';
+import { dist2, middlePoint } from '../geometry';
 import type { Mix } from '../state';
 import type { Vec2 } from '../types';
 import { assetRadio, type Effect, type Kind } from './core';
@@ -13,8 +13,6 @@ const CENTRE = { x: 0, y: 0 };
 /** The launch point sits this far beyond the Play Area edge. */
 const BEYOND_M = 1100;
 
-/** The middle Capture Point: the one nearest the map centre (Lane 2 on Kaltenbach); undefined on a map with none. */
-export const middlePoint = (m: Match) => m.points.reduce<Match['points'][number] | undefined>((a, p) => (!a || dist2(p, CENTRE) < dist2(a, CENTRE) ? p : a), undefined);
 
 /** Where the ray from the map centre through `side`'s HQ leaves the Play Area, BEYOND_M further on. */
 export function launchPoint(m: Match, side: 'nato' | 'pact'): Vec2 {
@@ -65,7 +63,7 @@ export const missile: Kind = {
     events.push({ kind: 'impact', side: e.side, x: e.x, y: e.y, asset: 'missile' });
     assetRadio(m, e, 'Splash', events);
     const t = m.tune;
-    blast(m, e.side, e, { killM: t.missileKillM, woundM: t.missileWoundM, suppressM: t.missileSuppressM, suppression: t.missileSuppression }, 'missile', events, { damage: Infinity }); // #107: destroys outright
+    blast(m, e.side, e, { killM: t.missileKillM, woundM: t.missileWoundM, suppressM: t.missileSuppressM, suppression: t.missileSuppression }, 'missile', events, { damage: () => Infinity }); // #107: destroys outright
   },
 
   contacts(m, e) {

@@ -2,7 +2,7 @@
 // They depend only on the map, so they are built on first use and cached per grid; they are not Match state.
 import type { Match } from '../index';
 import type { Grid } from '../grid';
-import { cellCentre, cellIndex } from '../grid';
+import { cellCentre, cellIndex, nearestWalkable } from '../grid';
 import { dist2 } from '../geometry';
 import { SIDES, type SideId, type Vec2 } from '../types';
 
@@ -112,8 +112,11 @@ export const routeFlow = (m: Match, i: number, c: number) => {
   return cached(g, `p${i}x${c}`, () => build(m, g, p, Math.max(m.tune.cellM, p.radius - 6), (k) => g.crossing[k]! >= 0 && g.crossing[k] !== c));
 };
 
+/** #107: where `side`'s vehicles start: its first HQ slot (#108: never a Capture Point's), else the drivable cell nearest its HQ. */
+const homeOf = (m: Match, side: SideId) => m.vehicles.find((v) => v.side === side && v.point < 0)?.slot ?? nearestWalkable(m, m.map.hqs[side], m.drive[side]);
+
 /** #107: from anywhere `side`'s vehicles can drive (their slot's ground) to `side`'s slot. */
-const slotFlow = (m: Match, side: SideId) => cached(m.drive[side], 'slot', () => build(m, m.drive[side], m.vehicles.find((v) => v.side === side)!.slot, m.tune.cellM));
+const slotFlow = (m: Match, side: SideId) => cached(m.drive[side], 'slot', () => build(m, m.drive[side], homeOf(m, side), m.tune.cellM));
 
 /**
  * #107: a `side` vehicle's way to Capture Point `i`: to the drivable cells well inside its radius, or, when it can't reach
@@ -123,7 +126,7 @@ export const driveFlow = (m: Match, side: SideId, i: number) => {
   const g = m.drive[side];
   const p = m.points[i]!;
   const inside = cached(g, `p${i}`, () => build(m, g, p, Math.max(m.tune.cellM, p.radius - 2)));
-  const home = m.vehicles.find((v) => v.side === side)!.slot;
+  const home = homeOf(m, side);
   if (flowDist(m, inside, home) < Infinity) return inside;
   return cached(g, `n${i}`, () => {
     const reach = slotFlow(m, side);
@@ -141,7 +144,7 @@ export function warmFlows(m: Match) {
   }
   for (const side of SIDES) {
     hqFlow(m, side);
-    if (m.vehicles.some((v) => v.side === side)) for (let i = 0; i < m.points.length; i++) driveFlow(m, side, i);
+    if (m.vehicles.length) for (let i = 0; i < m.points.length; i++) driveFlow(m, side, i);
   }
 }
 

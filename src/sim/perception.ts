@@ -2,7 +2,7 @@ import type { Match } from './index';
 import { dist2, inHq } from './geometry';
 import { los } from './grid';
 import { forget, see } from './memory';
-import type { Soldier } from './state';
+import { vehicleOf, type Soldier } from './state';
 import { look as vehicleLook, seeVehicles } from './vehicles';
 
 /** The perception phase: memory ages, then every living Soldier on foot looks around, then #107 every crewed vehicle. */
@@ -14,7 +14,7 @@ export function perceive(m: Match) {
 
 /**
  * Sees every living enemy inside the vision cone and range, in line of sight, and not in its own HQ; each goes into
- * the Squad's memory and the Side's sightings. Engages and turns to the nearest.
+ * the Squad's memory and the Side's sightings. Engages and turns to the nearest (#108: a jeep is a rifle target too).
  */
 function look(m: Match, s: Soldier) {
   const t = m.tune;
@@ -37,12 +37,13 @@ function look(m: Match, s: Soldier) {
     best = e.id;
     bestD2 = d2;
   }
-  seeVehicles(m, s, sq); // #107: never a rifle target
+  const jeep = seeVehicles(m, s, sq, bestD2); // #107: a tank is never a rifle target
+  if (jeep) [best, bestD2] = [jeep.id, dist2(s, jeep)];
   s.target = best;
   if (best < 0) return;
   s.lastTarget = best;
   sq.lastSeen = m.tick;
-  const e = m.soldiers[best]!;
+  const e = m.soldiers[best] ?? vehicleOf(m, best)!;
   const d = Math.sqrt(bestD2);
   if (d > 0) {
     s.fx = (e.x - s.x) / d;

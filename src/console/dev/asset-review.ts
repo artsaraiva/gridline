@@ -34,20 +34,20 @@ function setFocus(asset: AssetKind) {
   camera.updateProjectionMatrix();
 }
 
-/** #107: close tactical zoom that keeps nato's tank (the Simulation drives it) in the middle. */
-function followTank() {
+/** #107: close tactical zoom that keeps nato's tank (#108: or jeep; the Simulation drives it) in the middle. */
+function follow(kind: 'tank' | 'jeep') {
   camera.zoom = 8;
   camera.updateProjectionMatrix();
   setInterval(() => {
-    const v = session.view?.vehicles?.find((x) => x.side === 'nato' && !x.wreck);
+    const v = session.view?.vehicles?.find((x) => x.side === 'nato' && x.kind === kind && !x.wreck);
     if (v) camera.position.set(v.x, v.y, 100);
   }, 100);
 }
 
-/** `?focus=barrage|scan|supply` frames that Asset close up, `?focus=tank` follows nato's tank, `?focus=close` the cluster; anything else is the overview. */
+/** `?focus=barrage|scan|supply` frames that Asset close up, `?focus=tank|jeep` follows nato's tank or jeep, `?focus=close` the cluster; anything else is the overview. */
 function applyFocus(focus: string | null) {
   if (focus === 'close') setClose();
-  else if (focus === 'tank') followTank();
+  else if (focus === 'tank' || focus === 'jeep') follow(focus);
   else if (ASSETS.some((a) => a.asset === focus)) setFocus(focus as AssetKind);
   else setOverview();
 }

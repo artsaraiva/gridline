@@ -6,7 +6,7 @@ import { dist2 } from '../geometry';
 import type { SideId, SimEvent, Vec2 } from '../types';
 import type { Match } from '../index';
 import type { Soldier } from '../state';
-import { hurt, live } from '../vehicles';
+import { hurt, live, type Vehicle } from '../vehicles';
 
 export interface Blast {
   killM: number;
@@ -20,9 +20,9 @@ export interface Blast {
  * One blast fired by `side` at `at`: nobody dodges (a Squad in the ring is the Commander's mistake). `cause` is the Strike
  * the enemy Commander is paid for, null for a main gun. `vehicles`: what it does to a vehicle within its kill radius.
  */
-export function blast(m: Match, side: SideId, at: Vec2, b: Blast, cause: Soldier['cause'], events: SimEvent[], vehicles: { damage: number; foesOnly?: boolean }) {
+export function blast(m: Match, side: SideId, at: Vec2, b: Blast, cause: Soldier['cause'], events: SimEvent[], vehicles: { damage: (v: Vehicle) => number; foesOnly?: boolean }) {
   for (const v of m.vehicles)
-    if (live(v) && !(vehicles.foesOnly && v.side === side) && dist2(v, at) <= b.killM * b.killM) hurt(m, v, vehicles.damage, side, cause, events);
+    if (live(v) && !(vehicles.foesOnly && v.side === side) && dist2(v, at) <= b.killM * b.killM) hurt(m, v, vehicles.damage(v), side, cause, events);
   for (const s of m.soldiers) {
     if (s.state === 'dead' || s.vehicle >= 0) continue;
     const d2 = dist2(s, at);

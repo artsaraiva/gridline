@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { VehicleView } from '../../sim/types';
-import { ROUND_STREAK_M, roundStreak, TANK_EXAGGERATION, TANK_HEADINGS, TANK_SHEET, TANK_WORLD_M, tankIcon, tankPose } from './tank';
+import { ROUND_STREAK_M, roundStreak, TANK_EXAGGERATION, TANK_HEADINGS, TANK_SHEET, TANK_WORLD_M, tankPose } from './tank';
 
 const STEP = (2 * Math.PI) / TANK_HEADINGS;
 const tank = (o: Partial<VehicleView> = {}): VehicleView => ({ id: 9, side: 'nato', kind: 'tank', x: 10, y: -4, fx: 1, fy: 0, tx: 1, ty: 0, ...o });
@@ -34,22 +34,6 @@ describe('tank pose', () => {
     const p = tankPose(tank({ side: 'pact', wreck: true }));
     expect(p.hull.frame).toBe(4 * TANK_HEADINGS);
     expect(p.turret.frame).toBe(5 * TANK_HEADINGS);
-  });
-
-  it('marks a tank with a tactical icon in its Side\'s colour, grey-white while nobody is aboard, none on a Wreck', () => {
-    expect(tankIcon(tank(), 'nato')).toBe('friendly');
-    expect(tankIcon(tank({ side: 'pact' }), 'nato')).toBe('hostile');
-    expect(tankIcon(tank({ empty: true }), 'nato')).toBe('empty');
-    expect(tankIcon(tank({ side: 'pact', empty: true }), 'nato')).toBe('empty');
-    expect(tankIcon(tank({ wreck: true }), 'nato')).toBeNull();
-  });
-
-  it('lights its icon amber while a Squad with anyone aboard is selected, driver or passenger', () => {
-    const own = tank({ seats: [4, 9] });
-    expect(tankIcon(own, 'nato', [4, 5, 6, 7])).toBe('selected');
-    expect(tankIcon(own, 'nato', [8, 9, 10, 11])).toBe('selected');
-    expect(tankIcon(own, 'nato', [0, 1, 2, 3])).toBe('friendly');
-    expect(tankIcon(tank({ side: 'pact' }), 'nato', [4])).toBe('hostile'); // an enemy tank shows no seats
   });
 
   it('draws a main gun round as a short streak at its point along the flight, never reaching back past the muzzle', () => {

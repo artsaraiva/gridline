@@ -10,7 +10,7 @@ import { boardOnReturn, leave } from './vehicles';
 
 function bringBack(m: Match, s: Soldier, at: Vec2) {
   leave(m, s);
-  Object.assign(s, { x: at.x, y: at.y, state: 'alive', hp: m.tune.hp, suppression: 0, target: -1, reviving: -1, nextFire: m.tick, rockets: m.tune.rockets, ...resetSoldierAi(m) });
+  Object.assign(s, { x: at.x, y: at.y, state: 'alive', hp: m.tune.hp, suppression: 0, target: -1, reviving: -1, nextFire: m.tick, rockets: m.tune.rockets, exited: -1, ...resetSoldierAi(m) });
 }
 
 /** A Squad is quiet when no member saw an enemy for `quietSeconds` and no living member is suppressed. */

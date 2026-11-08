@@ -6,7 +6,7 @@ import type { CommanderView, SquadView } from '../../sim/types';
 import { session } from '../session';
 import { clock, orderLine, requestLine, squadAlert, squadCentroid } from '../summary';
 import { answer, clearOrder, select, targeting } from '../targeting';
-import { assetIcon, TANK_BADGE } from './icons';
+import { assetIcon, JEEP_BADGE, TANK_BADGE } from './icons';
 
 const box = document.getElementById('squads')!;
 const tilesBox = box.querySelector<HTMLElement>('.tiles')!;
@@ -31,10 +31,10 @@ function pips(q: SquadView, view: CommanderView): string {
   ).join('');
 }
 
-/** #107: a tank badge per member aboard one; vehicles themselves are never listed. */
+/** #107: a badge per member aboard a vehicle, of its class (#108: tank or jeep); vehicles themselves are never listed. */
 function badges(q: SquadView, view: CommanderView): string {
-  const aboard = view.friendlies.filter((f) => f.squad === q.id && f.vehicle !== undefined).length;
-  return aboard ? `<span class="veh">${TANK_BADGE.repeat(aboard)}</span>` : '';
+  const kinds = view.friendlies.filter((f) => f.squad === q.id && f.vehicle !== undefined).map((f) => view.vehicles?.find((v) => v.id === f.vehicle)?.kind);
+  return kinds.length ? `<span class="veh">${kinds.map((k) => (k === 'jeep' ? JEEP_BADGE : TANK_BADGE)).join('')}</span>` : '';
 }
 
 const alertOf = (q: SquadView, view: CommanderView) => squadAlert(q, view.friendlies.some((f) => f.squad === q.id && f.suppressed));
