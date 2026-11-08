@@ -1,5 +1,5 @@
 // The tank (#107): its baked sheet (hull and turret apart, per paint variant) and the pose that turns them. layers/tank.ts draws it.
-import type { SideId, Vec2, VehicleView } from '../../sim/types';
+import type { Vec2, VehicleView } from '../../sim/types';
 import type { SpriteSheetSpec } from './sheet';
 
 /** Headings baked per part (heading k at k * 360 / TANK_HEADINGS deg from east). */
@@ -53,16 +53,6 @@ export function tankPose(v: VehicleView, exaggeration = TANK_EXAGGERATION): Tank
     turret: part(variant * 2 + 1, v.tx, v.ty),
     shadow: { hull: { frame: shadow, rotation: Math.atan2(v.fy, v.fx) }, turret: { frame: shadow + 1, rotation: Math.atan2(v.ty, v.tx) } },
   };
-}
-
-/**
- * A vehicle's tactical icon's colour role (#107 tank, #108 jeep): the Side's (friendly, hostile), grey-white while nobody is
- * aboard, amber while the selected Squad (Soldier ids `selected`) has anyone aboard, as its chevrons are; a Wreck has none.
- */
-export function vehicleIcon(v: VehicleView, mySide: SideId, selected: number[] = []): 'friendly' | 'hostile' | 'empty' | 'selected' | null {
-  if (v.wreck) return null;
-  if (v.seats?.some((id) => id >= 0 && selected.includes(id))) return 'selected';
-  return v.empty ? 'empty' : v.side === mySide ? 'friendly' : 'hostile';
 }
 
 /** A main gun round's streak trails this far behind its head. */

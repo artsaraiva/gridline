@@ -8,7 +8,8 @@ import { COLOR, metresPerPx, pool } from '../renderer';
 import { session } from '../session';
 import { targeting } from '../targeting';
 import { spriteMesh } from '../sprites/sheet';
-import { roundStreak, TANK_SHEET, vehicleIcon, tankPose } from '../sprites/tank';
+import { roundStreak, TANK_SHEET, tankPose } from '../sprites/tank';
+import { vehicleIcon } from '../sprites/vehicle-icon';
 import { bar, fading, merge, px, shade, streak } from './symbols';
 
 const Z = { wreck: 0.44, shadow: 0.42, hull: 0.46, turret: 0.47, round: 0.6, icon: 0.93 };

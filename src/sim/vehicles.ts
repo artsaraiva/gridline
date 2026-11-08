@@ -308,20 +308,20 @@ export function look(m: Match, v: Vehicle) {
 
 /**
  * A Soldier on foot sees an enemy vehicle at `vehicleVisionMul` x its range, in its cone and line of sight, outside its HQ.
- * #108: the nearest jeep it sees within `within` metres squared, a rifle target, or null.
+ * #108: the nearest jeep it sees closer than `withinD2` (metres squared), a rifle target, or null.
  */
-export function seeVehicles(m: Match, s: Soldier, sq: Squad, within: number): Vehicle | null {
+export function seeVehicles(m: Match, s: Soldier, sq: Squad, withinD2: number): Vehicle | null {
   const t = m.tune;
   const R = t.visionM * t.vehicleVisionMul;
-  let soft: Vehicle | null = null;
+  let jeep: Vehicle | null = null;
   for (const v of m.vehicles) {
     if (v.side === s.side || !live(v)) continue;
     const d2 = dist2(s, v);
     if (d2 > R * R || (v.x - s.x) * s.fx + (v.y - s.y) * s.fy < t.visionCos * Math.sqrt(d2) || inHq(m, v.side, v) || !los(m, s, v)) continue;
     see(m, sq, v);
-    if (v.kind !== 'tank' && d2 < within) [soft, within] = [v, d2];
+    if (v.kind !== 'tank' && d2 < withinD2) [jeep, withinD2] = [v, d2];
   }
-  return soft;
+  return jeep;
 }
 
 /** What `v`'s main gun is laid on: a Soldier or a vehicle, or undefined. */

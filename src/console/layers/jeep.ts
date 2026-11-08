@@ -1,6 +1,6 @@
 // Jeeps on the map (#108): own jeeps, enemy jeeps in sight (the same sprite in its Faction's paint) and Wrecks; the baked body
 // at the nearest heading over its ground shadow. Over each live jeep a light-vehicle tactical icon at constant screen size (a
-// short open frame with its windscreen bar, turning with the sprite), coloured as the tank's (sprites/tank.ts vehicleIcon).
+// short open frame with its windscreen bar, turning with the sprite), coloured as the tank's (sprites/vehicle-icon.ts).
 import * as THREE from 'three/webgpu';
 import type { CommanderView } from '../../sim/types';
 import { COLOR, pool } from '../renderer';
@@ -8,7 +8,7 @@ import { session } from '../session';
 import { targeting } from '../targeting';
 import { spriteMesh } from '../sprites/sheet';
 import { JEEP_SHEET, jeepPose } from '../sprites/jeep';
-import { vehicleIcon } from '../sprites/tank';
+import { vehicleIcon } from '../sprites/vehicle-icon';
 import { bar, fading, merge, px, shade } from './symbols';
 
 const Z = { wreck: 0.44, shadow: 0.42, body: 0.46, icon: 0.93 };

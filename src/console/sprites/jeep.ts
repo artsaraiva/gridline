@@ -36,14 +36,14 @@ export interface JeepPose {
 const STEP = (2 * Math.PI) / JEEP_HEADINGS;
 
 /** The body frame at its nearest baked heading, so the baked sun stays north-east; the shadow is baked facing east. */
-export function jeepPose(v: VehicleView, exaggeration = JEEP_EXAGGERATION): JeepPose {
+export function jeepPose(v: VehicleView): JeepPose {
   const variant = v.wreck ? 2 : v.side === 'nato' ? 0 : 1;
   const heading = Math.atan2(v.fy, v.fx);
   const k = Math.round(heading / STEP);
   return {
     x: v.x,
     y: v.y,
-    size: JEEP_WORLD_M * exaggeration,
+    size: JEEP_WORLD_M * JEEP_EXAGGERATION,
     body: { frame: variant * JEEP_HEADINGS + (((k % JEEP_HEADINGS) + JEEP_HEADINGS) % JEEP_HEADINGS), rotation: heading - k * STEP },
     shadow: { frame: JEEP_SHEET.frames - 1, rotation: heading },
   };
