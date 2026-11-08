@@ -44,6 +44,10 @@ export interface Soldier {
   // #107 Tank tracer
   vehicle: number; // id of the vehicle it rides in, -1 = on foot
   rockets: number; // Launcher rockets left (only roster member 1 fires them)
+  // #108 Jeep: a transport passenger's way out
+  exited: number; // id of the vehicle it last got out of, -1 = none; it never boards that one again while anyone rides it
+  away: number; // aboard: the drive metres from its vehicle to its own Capture Point at its last think, -1 = not yet measured
+  awaySince: number; // aboard: tick that distance began to grow, -1 = it is not growing
   // #55 Commander Score
   cause: 'barrage' | 'missile' | null; // what an enemy Strike did to it: scores for the enemy Commander on death; cleared by Revive
   uavUntil: number; // #75 last tick it counts as UAV-discovered by the enemy Side (the Scan found it unseen, then the grace); see assets/scan.ts
@@ -140,6 +144,9 @@ export function hashSoldiers(m: Match, mix: Mix) {
     mix(+s.uavAssist);
     mix(s.vehicle); // #107
     mix(s.rockets);
+    mix(s.exited); // #108
+    mix(Math.round(s.away * 1000));
+    mix(s.awaySince);
   }
 }
 

@@ -26,7 +26,7 @@ function field(extra: Partial<MapData> = {}): MapData {
  * that. Placing Soldiers (and a tank's hit points) stands in for a map script; everything after it runs through `step`.
  */
 function scene(o: { map?: Partial<MapData>; tune?: Partial<Tune>; place?: Record<number, { x: number; y: number; fx?: number; fy?: number }>; squads?: number }): Match {
-  const tune: Tune = { ...DEFAULT_TUNE, squadSize: 2, speedJitter: 0, spread: 0, strayChance: 0, drainSeconds: [1e9, 1e9, 1e9, 1e9, 1e9], ...o.tune };
+  const tune: Tune = { ...DEFAULT_TUNE, squadSize: 2, speedJitter: 0, spread: 0, strayChance: 0, drainSeconds: [1e9, 1e9, 1e9, 1e9, 1e9], jeepsPerSide: 0, ...o.tune };
   const m = createMatch({ seed: 1, map: field(o.map), tune, squadsPerSide: o.squads ?? 1, commanderSide: 'nato' });
   for (const [id, p] of Object.entries(o.place ?? {})) Object.assign(m.soldiers[Number(id)]!, p);
   return m;
@@ -270,3 +270,123 @@ describe('#107 the tank fights', () => {
     expect(a.moved).not.toEqual([-560, 560]);
   });
 });
+
+describe('#108 the jeep: a Squad rides to its Capture Point and gets out', () => {
+  // No tanks: each Side's jeep waits on its HQ; with four to a Squad the nato Soldiers are 0..3, its jeep 8, the pact's 9
+  const ride = (extra: Partial<Tune> = {}) => scene({ map: { points: [{ id: 'A', name: 'A', x: -200, y: 0 }] }, tune: { visionM: 0, squadSize: 4, tanksPerSide: 0, jeepsPerSide: 1, ...extra } });
+  const jeepOf = (v: CommanderView) => v.vehicles!.find((x) => x.side === v.side && x.kind === 'jeep' && !x.wreck)!;
+
+  it('the Squad fills it at match start, it reaches the point in under a minute, everyone gets out within dismountM of it after a stop, and it stays parked empty', () => {
+    const m = ride();
+    const { views } = play(m, 80 * HZ);
+    expect(jeepOf(views[0]!)).toMatchObject({ id: 8, kind: 'jeep', seats: [0, 1, 2, 3], hp: 1 });
+    const exits = [0, 1, 2, 3].map((id) => views.findIndex((v, i) => i > 0 && v.friendlies.find((f) => f.id === id)!.vehicle === undefined));
+    for (const [n, e] of exits.entries()) {
+      expect(e / HZ).toBeLessThan(60);
+      const me = views[e]!.friendlies.find((f) => f.id === n)!;
+      expect(Math.hypot(me.x + 200, me.y)).toBeLessThanOrEqual(DEFAULT_TUNE.dismountM + 1);
+      const at = (i: number) => jeepOf(views[i]!);
+      expect(at(e - DEFAULT_TUNE.dismountStopSeconds * HZ)).toMatchObject({ x: at(e).x, y: at(e).y }); // it stood for the dismount
+    }
+    const last = jeepOf(views.at(-1)!);
+    expect(last.seats).toEqual([-1, -1, -1, -1]);
+    expect(jeepOf(views.at(-5 * HZ)!)).toMatchObject({ x: last.x, y: last.y });
+  });
+
+  it('a passenger whose own point is another gets out when the jeep drives away from it, walks there Detached and rejoins', () => {
+    // Bravo's leader (Soldier 2) holds B; its Soldier 3 rides Alpha's jeep (Soldiers 0 and 1) from the HQ, bound for A past B
+    const m = scene({
+      map: { points: [{ id: 'A', name: 'A', x: 0, y: 0 }, { id: 'B', name: 'B', x: -200, y: 150 }] },
+      tune: { visionM: 0, tanksPerSide: 0, jeepsPerSide: 1, sameWayM: 300, rockets: 0, captureSeconds: 1e4 }, // nobody fights, B stays worth going to
+      squads: 2,
+      place: { 2: { x: -200, y: 150 } },
+    });
+    const order = (point: number) => ({ point, hold: false, delayed: null, since: 0 });
+    m.squads[0]!.order = order(0);
+    m.squads[1]!.order = order(1);
+    const jeep = m.vehicles.find((v) => v.side === 'nato')!;
+    const s3 = m.soldiers[3]!;
+    let rode = false;
+    let exit: { tick: number; x: number; y: number } | null = null;
+    let detached = false;
+    for (let i = 0; i < 100 * HZ; i++) {
+      step(m, []);
+      rode ||= s3.vehicle === jeep.id;
+      if (rode && !exit && s3.vehicle < 0) exit = { tick: m.tick, x: jeep.x, y: jeep.y };
+      detached ||= !!exit && s3.detached;
+    }
+    expect(rode).toBe(true);
+    expect(exit).not.toBeNull();
+    expect(Math.hypot(exit!.x + 200, exit!.y - 150)).toBeGreaterThan(150 + 30); // well past B and still going
+    expect(Math.hypot(exit!.x, exit!.y)).toBeGreaterThan(m.points[0]!.radius); // short of A
+    expect(jeep.seats[0]).toBe(-1); // Alpha drove on to A and got out
+    expect(detached).toBe(true);
+    expect(s3.detached).toBe(false);
+    expect(Math.hypot(s3.x + 200, s3.y - 150)).toBeLessThan(m.points[1]!.radius);
+  });
+});
+
+describe('#108 the jeep fights and dies', () => {
+  /** Seats Soldiers `ids` (driver first) in vehicle `v` at `at`: a map script's crew. */
+  function seat(m: Match, v: number, ids: number[], at: { x: number; y: number; fx?: number; fy?: number }) {
+    const j = m.vehicles.find((o) => o.id === v)!;
+    Object.assign(j, at);
+    ids.forEach((id, k) => {
+      j.seats[k] = id;
+      Object.assign(m.soldiers[id]!, { x: at.x, y: at.y, vehicle: v });
+    });
+  }
+  const shotsBy = (events: Logged[], from: number) => events.filter((e) => e.kind === 'shot' && e.from === from) as (Logged & { to: number })[];
+
+  it('the MG fires only with a gunner aboard, every mgFireSeconds, at infantry within mgRangeM', () => {
+    // nato's jeep (4) on its HQ facing east; pact Soldier 2 150 m off, Soldier 3 at 170 m
+    const crew = (ids: number[]) => {
+      const m = scene({ tune: { tanksPerSide: 0, jeepsPerSide: 1, hp: 1e9, fireJitterSeconds: 0, walkSpeed: 0 }, place: { 2: { x: -410, y: 0, fx: 1 }, 3: { x: -390, y: 0, fx: 1 } } });
+      seat(m, 4, ids, { x: -560, y: 0 });
+      return play(m, 4 * HZ).events;
+    };
+    const events = crew([0, 1]);
+    const mg = shotsBy(events, 1);
+    expect(mg.length).toBeGreaterThan(10);
+    expect(new Set(mg.map((e) => e.to))).toEqual(new Set([2]));
+    expect(new Set(mg.slice(1).map((e, i) => e.tick - mg[i]!.tick))).toEqual(new Set([Math.round(DEFAULT_TUNE.mgFireSeconds * HZ)]));
+    expect(shotsBy(events, 0)).toEqual([]); // the driver only drives
+    expect(shotsBy(crew([0]), 0)).toEqual([]);
+  });
+
+  it('a rifle Squad shoots an empty jeep to a Wreck, hitting it like a Soldier', () => {
+    const m = scene({ tune: { tanksPerSide: 0, jeepsPerSide: 1, walkSpeed: 0, rockets: 0 }, place: { 2: { x: 100, y: 0, fx: -1 }, 3: { x: 100, y: 5, fx: -1 } } });
+    Object.assign(m.vehicles[0]!, { x: 0, y: 0 });
+    const { events, views } = play(m, 30 * HZ, 'pact');
+    const hits = events.filter((e) => e.kind === 'shot' && e.to === 4);
+    expect(new Set(hits.map((e) => (e as { from: number }).from))).toEqual(new Set([2, 3]));
+    expect(m.vehicles[0]!.deadAt).toBeGreaterThan(0);
+    expect(views.at(-1)!.vehicles!.find((x) => x.wreck)).toMatchObject({ side: 'nato', kind: 'jeep', x: 0, y: 0 });
+  });
+
+  it('a tank round on a full jeep destroys it: four Tickets', () => {
+    // nato's Squad (0..3) in its jeep (9) out in the field; pact's tank (10), crewed by 4 and 5, 150 m east facing it
+    const m = scene({ tune: { squadSize: 4, tanksPerSide: 1, jeepsPerSide: 1, tankAimSeconds: [0, 0] }, place: { 6: { x: 500, y: 400 }, 7: { x: 500, y: 400 } } });
+    seat(m, 9, [0, 1, 2, 3], { x: 0, y: 0 });
+    seat(m, 10, [4, 5], { x: 150, y: 0, fx: -1, fy: 0 });
+    const { events } = play(m, 4 * HZ);
+    expect(events.filter((e) => e.kind === 'death').map((e) => (e as { id: number }).id).sort()).toEqual([0, 1, 2, 3]);
+    expect(m.tickets.nato).toBe(DEFAULT_TUNE.tickets - 4);
+    expect(m.vehicles.find((v) => v.id === 9)!.deadAt).toBeGreaterThan(0);
+  });
+
+  it('hashes the dismount stop, when it last moved, and each passenger\'s way out', () => {
+    const m = scene({ tune: { tanksPerSide: 0, jeepsPerSide: 1 } });
+    const moves = (change: (m: Match) => void) => {
+      const h = stateHash(m);
+      change(m);
+      expect(stateHash(m)).not.toBe(h);
+    };
+    moves((m) => (m.vehicles[0]!.halt = 3));
+    moves((m) => (m.vehicles[0]!.movedAt += 1));
+    moves((m) => (m.soldiers[0]!.exited = 4));
+    moves((m) => (m.soldiers[0]!.away = 120.5));
+    moves((m) => (m.soldiers[0]!.awaySince = 7));
+  });
+});
+

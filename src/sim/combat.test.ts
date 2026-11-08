@@ -34,7 +34,7 @@ interface Placement {
  * interface: it stands in for a map script, everything after it runs through `step`.
  */
 function scene(o: { place: Record<number, Placement>; tune?: Partial<Tune>; map?: Partial<MapData>; squads?: number; seed?: number }): Match {
-  const tune: Tune = { ...DEFAULT_TUNE, squadSize: 1, speedJitter: 0, spread: 0, tanksPerSide: 0, ...o.tune }; // #107: no tanks
+  const tune: Tune = { ...DEFAULT_TUNE, squadSize: 1, speedJitter: 0, spread: 0, tanksPerSide: 0, jeepsPerSide: 0, ...o.tune }; // #107 #108: no vehicles
   const m = createMatch({ seed: o.seed ?? 1, map: field(o.map), tune, squadsPerSide: o.squads ?? 1, commanderSide: 'nato' });
   for (const [id, p] of Object.entries(o.place)) Object.assign(m.soldiers[Number(id)]!, p);
   return m;

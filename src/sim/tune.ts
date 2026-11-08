@@ -199,4 +199,16 @@ export const DEFAULT_TUNE: Tune = {
   rocketRangeM: 100,
   rocketDamage: 35,
   shellVehicleDamage: 35,
+
+  // #108 Jeep
+  jeepsPerSide: 1,
+  jeepRoadMps: 15,
+  jeepOpenMps: 9,
+  jeepHp: 60,
+  mgFireSeconds: 0.12,
+  mgRangeM: 160,
+  dismountM: 40,
+  stillSeconds: 5,
+  awaySeconds: 10,
+  dismountStopSeconds: 1,
 };

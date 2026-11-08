@@ -65,7 +65,7 @@ export const missile: Kind = {
     events.push({ kind: 'impact', side: e.side, x: e.x, y: e.y, asset: 'missile' });
     assetRadio(m, e, 'Splash', events);
     const t = m.tune;
-    blast(m, e.side, e, { killM: t.missileKillM, woundM: t.missileWoundM, suppressM: t.missileSuppressM, suppression: t.missileSuppression }, 'missile', events, { damage: Infinity }); // #107: destroys outright
+    blast(m, e.side, e, { killM: t.missileKillM, woundM: t.missileWoundM, suppressM: t.missileSuppressM, suppression: t.missileSuppression }, 'missile', events, { damage: () => Infinity }); // #107: destroys outright
   },
 
   contacts(m, e) {

@@ -1,6 +1,6 @@
 // Fire, Wounding, revive and bleed-out, suppression; a death settles what the enemy Commander's Assets earn (#72 #75).
 // #107: Soldiers aboard a vehicle fire only its guns (the coax here, the main gun in vehicles.ts) and take no fire; a
-// Launcher's rockets hit vehicles, which rifles never do.
+// Launcher's rockets hit vehicles. #108: rifles hit a jeep like a Soldier in the open; its gunner fires the MG as the coax.
 import type { Match } from './index';
 import { logDeath, resetSoldierAi } from './ai';
 import { dist2 } from './geometry';
@@ -9,7 +9,7 @@ import { rnd } from './rng';
 import { award } from './score';
 import { membersOf, vehicleOf, type Soldier } from './state';
 import { enemyOf, type SimEvent, type Vec2 } from './types';
-import { hurt, isLauncher, leave, mainGuns, rocketTarget, type Vehicle } from './vehicles';
+import { hurt, isLauncher, leave, mainGuns, rocketTarget, specOf, type Vehicle } from './vehicles';
 
 interface Shot {
   shooter: Soldier;
@@ -19,20 +19,20 @@ interface Shot {
   /** Suppressive fire: the aim point, and the enemies close enough to it to be suppressed. */
   at?: Vec2;
   near?: Soldier[];
-  /** #107: a Launcher's rocket at this vehicle. */
-  rocket?: Vehicle;
+  /** #107: a Launcher's rocket, or #108 a rifle shot, at this vehicle. */
+  vehicle?: Vehicle;
 }
 
 const hitMul = (m: Match, s: Soldier, e: Soldier) =>
   (1 - m.tune.suppressAccuracyLoss * s.suppression) * (cellAt(m, e.x, e.y) === COVER ? m.tune.coverHitMul : 1);
 
-function roll(m: Match, s: Soldier, target: Soldier | null, p: number, every = m.tune.fireSeconds): Omit<Shot, 'at' | 'near'> {
+function roll(m: Match, s: Soldier, target: Soldier | null, p: number, every = m.tune.fireSeconds, vehicle?: Vehicle): Omit<Shot, 'at' | 'near'> {
   const t = m.tune;
-  const hit = target !== null && rnd(m) < p;
+  const hit = (target !== null || !!vehicle) && rnd(m) < p;
   const damage = hit ? t.damage[0] + rnd(m) * (t.damage[1] - t.damage[0]) : 0;
   s.nextFire = m.tick + Math.round((every + rnd(m) * t.fireJitterSeconds) * t.hz);
   s.ammo--;
-  return { shooter: s, target, hit, damage };
+  return { shooter: s, target, hit, damage, ...(vehicle && { vehicle }) };
 }
 
 /** #107: a Launcher with rockets left fires one at the nearest enemy vehicle in reach, ahead of its rifle. */
@@ -43,24 +43,27 @@ function rocket(m: Match, s: Soldier): Shot | null {
   if (!v) return null;
   s.rockets--;
   s.nextFire = m.tick + Math.round(t.rocketSeconds * t.hz);
-  return { shooter: s, target: null, hit: true, damage: t.rocketDamage, rocket: v };
+  return { shooter: s, target: null, hit: true, damage: t.rocketDamage, vehicle: v };
 }
 
-/** #107: the gunner aboard fires the coax at the vehicle's infantry target: the rifle shot model, faster and longer. */
+/** #107: the gunner aboard fires the coax (#108: a jeep's MG) at the vehicle's infantry target: the rifle shot model, faster and longer. */
 function coax(m: Match, s: Soldier, v: Vehicle): Shot | null {
   const t = m.tune;
   const e = m.soldiers[v.coax];
-  if (v.seats[1] !== s.id || !e || e.state !== 'alive' || m.tick < s.nextFire || dist2(v, e) > t.coaxRangeM * t.coaxRangeM) return null;
-  return roll(m, s, e, t.hitChance * (cellAt(m, e.x, e.y) === COVER ? t.coverHitMul : 1), t.coaxFireSeconds);
+  const gun = specOf(t, v.kind);
+  if (v.seats[1] !== s.id || !e || e.state !== 'alive' || m.tick < s.nextFire || dist2(v, e) > gun.gunM * gun.gunM) return null;
+  return roll(m, s, e, t.hitChance * (cellAt(m, e.x, e.y) === COVER ? t.coverHitMul : 1), gun.gunSeconds);
 }
 
 /** Decides a shot from the pre-fire state; every shot of the tick is applied together afterwards. */
 function aim(m: Match, s: Soldier): Shot | null {
   const t = m.tune;
   if (s.target < 0 || s.reviving >= 0 || m.tick < s.nextFire || s.ammo <= 0) return null;
-  const e = m.soldiers[s.target]!;
+  const jeep = vehicleOf(m, s.target); // #108: no cover for a jeep
+  const e = m.soldiers[s.target] ?? jeep!;
   if (dist2(s, e) > t.fireRangeM * t.fireRangeM) return null;
-  return roll(m, s, e, t.hitChance * hitMul(m, s, e));
+  if (jeep) return roll(m, s, null, t.hitChance * (1 - t.suppressAccuracyLoss * s.suppression), t.fireSeconds, jeep);
+  return roll(m, s, e as Soldier, t.hitChance * hitMul(m, s, e as Soldier));
 }
 
 /**
@@ -97,10 +100,10 @@ export function fire(m: Match, events: SimEvent[]) {
     const shot = v ? coax(m, s, v) : (rocket(m, s) ?? aim(m, s) ?? suppressive(m, s));
     if (shot) shots.push(shot);
   }
-  for (const { shooter, target: e, hit, damage, at, near, rocket } of shots) {
-    if (rocket) {
-      hurt(m, rocket, damage, shooter.side, null, events);
-      events.push({ kind: 'shot', side: shooter.side, from: shooter.id, to: rocket.id, hit });
+  for (const { shooter, target: e, hit, damage, at, near, vehicle } of shots) {
+    if (vehicle) {
+      if (hit) hurt(m, vehicle, damage, shooter.side, null, events);
+      events.push({ kind: 'shot', side: shooter.side, from: shooter.id, to: vehicle.id, hit });
       continue;
     }
     if (e) e.hp -= damage;

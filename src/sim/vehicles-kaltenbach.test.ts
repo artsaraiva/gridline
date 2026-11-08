@@ -4,11 +4,11 @@ import { describe, expect, it } from 'vitest';
 import { KALTENBACH } from '../../scripts/kaltenbach';
 import { createMatch, step, type Match } from './index';
 import { driveFlow, flowDist } from './ai/flow';
-import { cellCentre } from './grid';
+import { cellCentre, cellIndex } from './grid';
 import { DEFAULT_TUNE } from './tune';
 import type { Command } from './types';
 
-// #107 on the committed Kaltenbach bake: the tanks' roads, crossings and no-go ground, read off the 1 m cover grid.
+// #107 on the committed Kaltenbach bake: the vehicles' roads, crossings and no-go ground, read off the 1 m cover grid; #108 the jeep.
 const HZ = DEFAULT_TUNE.hz;
 const cover = new Uint8Array(readFileSync(new URL(`../../public/maps/kaltenbach/${KALTENBACH.data.cover}`, import.meta.url)));
 const ids = KALTENBACH.data.coverIds;
@@ -35,8 +35,13 @@ function run(seconds: number) {
 describe('#107 tanks on Kaltenbach', () => {
   const { m, track, seats } = run(300);
 
-  it('two tanks a Side wait under the HQ vehicle park\'s camo nets, and Soldiers board them at match start', () => {
-    expect(m.vehicles.map((v) => [v.side, v.slot])).toEqual(['nato', 'nato', 'pact', 'pact'].map((side, k) => [side, KALTENBACH.vehicleSlots![side as 'nato']![k % 2]]));
+  it('two tanks a Side wait under the HQ vehicle park\'s camo nets, the jeep beside them, and Soldiers board them all at match start', () => {
+    const tanks = m.vehicles.filter((v) => v.kind === 'tank');
+    expect(tanks.map((v) => [v.side, v.slot])).toEqual(['nato', 'nato', 'pact', 'pact'].map((side, k) => [side, KALTENBACH.vehicleSlots![side as 'nato']![k % 2]]));
+    for (const j of m.vehicles.filter((v) => v.kind === 'jeep')) {
+      const last = tanks.filter((v) => v.side === j.side).at(-1)!.slot;
+      expect(Math.hypot(j.slot.x - last.x, j.slot.y - last.y)).toBeLessThan(15);
+    }
     for (const s of seats[HZ]!) expect(s.every((id) => id >= 0)).toBe(true);
   });
 
@@ -44,7 +49,8 @@ describe('#107 tanks on Kaltenbach', () => {
     m.vehicles.forEach((v, k) => {
       const hq = KALTENBACH.hqs[v.side === 'nato' ? 'pact' : 'nato'];
       for (const p of track[k]!) {
-        expect(NO_GO.has(at1m(p.x, p.y)), `${v.side} at ${p.x.toFixed(1)}, ${p.y.toFixed(1)}`).toBe(false);
+        const road = m.drive[v.side].cost[cellIndex(m, p.x, p.y)] === 10; // a road cell takes a vehicle however close the hedges come (2 m cells)
+        expect(!road && NO_GO.has(at1m(p.x, p.y)), `${v.kind} ${v.side} at ${p.x.toFixed(1)}, ${p.y.toFixed(1)}`).toBe(false);
         expect(Math.hypot(p.x - hq.x, p.y - hq.y)).toBeGreaterThan(hq.radius);
         for (const c of KALTENBACH.crossings.filter((c) => c.kind === 'footbridge')) expect(Math.hypot(p.x - c.x, p.y - c.y)).toBeGreaterThan(8);
       }
@@ -70,7 +76,7 @@ describe('#107 tanks on Kaltenbach', () => {
       return g.vehicles.map((v) => g.points[v.goal]?.id).join('');
     });
     expect(new Set(goals).size, goals.join(" ")).toBeGreaterThan(2);
-    expect(goals.every((g) => g.length === 4)).toBe(true); // every tank has a driver and a point
+    expect(goals.every((g) => g.length === 6)).toBe(true); // every tank and jeep has a driver and a point
   }, 20_000); // four fresh Kaltenbach matches, each building its flow fields
 
   it('reaches every Capture Point from both HQs: the hull margin keeps off hedges and walls, but not off the roads through them', () => {
@@ -85,3 +91,42 @@ describe('#107 tanks on Kaltenbach', () => {
     }
   });
 });
+
+describe('#108 the jeep on Kaltenbach', () => {
+  // No tanks: each Side's jeep waits in its HQ vehicle park; nobody sees anybody or carries rockets
+  const m: Match = createMatch({ seed: 3, map: KALTENBACH, tune: { ...DEFAULT_TUNE, visionM: 0, rockets: 0, tanksPerSide: 0 }, squadsPerSide: 4, commanderSide: 'nato' });
+  const jeeps = m.vehicles.filter((v) => v.kind === 'jeep');
+  const crews = jeeps.map(() => [] as number[]);
+  const exits: { side: string; id: number; tick: number; x: number; y: number; goal: number }[] = [];
+  const road: boolean[][] = jeeps.map(() => []);
+  for (let i = 0; i < 90 * HZ; i++) {
+    const before = m.soldiers.map((s) => s.vehicle);
+    step(m, []);
+    jeeps.forEach((j, k) => {
+      if (i === HZ) crews[k] = [...j.seats];
+      if (j.movedAt === m.tick - 1) road[k]!.push(at1m(j.x, j.y) === ids.road);
+    });
+    for (const s of m.soldiers) {
+      const j = jeeps.find((v) => v.id === before[s.id]);
+      if (j && s.vehicle < 0) exits.push({ side: j.side, id: s.id, tick: m.tick, x: s.x, y: s.y, goal: j.goal });
+    }
+  }
+
+  it('a Squad fills each jeep at match start, it reaches a Capture Point by road in under a minute, and everyone gets out within dismountM of it', () => {
+    jeeps.forEach((j, k) => {
+      const crew = crews[k]!;
+      expect(crew.every((id) => id >= 0), `${j.side} jeep full`).toBe(true);
+      const squads = crew.map((id) => m.soldiers[id]!.squad);
+      expect(squads.filter((q) => q === squads[0]).length, `${j.side}: one Squad, or three and a stray`).toBeGreaterThanOrEqual(3);
+      const out = exits.filter((e) => crew.includes(e.id));
+      expect(out.map((e) => e.id).sort()).toEqual([...crew].sort());
+      for (const e of out) {
+        const p = m.points[e.goal]!;
+        expect(e.tick / HZ, `${j.side} Soldier ${e.id} out in time`).toBeLessThan(60);
+        expect(Math.hypot(e.x - p.x, e.y - p.y), `${j.side} Soldier ${e.id} out near ${p.id}`).toBeLessThanOrEqual(DEFAULT_TUNE.dismountM + 1);
+      }
+      expect(road[k]!.filter(Boolean).length / road[k]!.length, `${j.side} by road`).toBeGreaterThan(0.5);
+    });
+  });
+});
+

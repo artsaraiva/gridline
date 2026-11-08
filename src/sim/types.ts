@@ -277,6 +277,18 @@ export interface Tune {
   rocketRangeM: number; // ... at the nearest enemy vehicle this close, in line of sight ...
   rocketDamage: number; // ... for this much
   shellVehicleDamage: number; // a Barrage shell within its kill radius of the hull; a Cruise Missile destroys outright
+
+  // #108 Jeep (and the #27 passenger rule for every transport)
+  jeepsPerSide: number; // jeeps in each HQ, each slot past the tanks'; 0 = none
+  jeepRoadMps: number; // on road
+  jeepOpenMps: number; // off road
+  jeepHp: number; // rifles hit it like a Soldier (no cover), rockets and shells as any vehicle, a tank's main gun destroys it
+  mgFireSeconds: number; // the gunner's MG: the rifle shot model this often ...
+  mgRangeM: number; // ... at infantry this close
+  dismountM: number; // a passenger gets out within this of its own Capture Point ...
+  stillSeconds: number; // ... or once the transport has stood still this long away from it ...
+  awaySeconds: number; // ... or once its drive distance to it has grown for this long
+  dismountStopSeconds: number; // a vehicle stands this long before anyone gets out; nobody bails at speed
 }
 
 /** #55: what a Commander Score award is for. */
@@ -322,10 +334,13 @@ export interface FriendlyView extends SoldierView {
  * #107: a vehicle on the map: the Side's own (live, with `hp` and `seats`), an enemy one a friendly sees right now (position
  * and facing only), or a Wreck (`wreck`, no id: -1).
  */
+/** #107 #108: the vehicle classes on the ground. */
+export type VehicleKind = 'tank' | 'jeep';
+
 export interface VehicleView {
   id: number;
   side: SideId;
-  kind: 'tank';
+  kind: VehicleKind;
   x: number;
   y: number;
   /** Unit hull facing. */
@@ -341,7 +356,7 @@ export interface VehicleView {
   seats?: number[];
   /** Nobody aboard (it shows as an unmanned vehicle). Absent when someone is. */
   empty?: boolean;
-  /** Main gun rounds in the air: from the muzzle spot to where each lands, `flight` 0..1 along. */
+  /** Main gun rounds in the air (a tank's): from the muzzle spot to where each lands, `flight` 0..1 along. */
   rounds?: { from: Vec2; to: Vec2; flight: number }[];
 }
 
