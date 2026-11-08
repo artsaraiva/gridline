@@ -37,9 +37,11 @@ export function terrainOf(map: BakedMap, cover: Uint8Array, cellM: number): Terr
       if (t.cells[k] === WALL || t.cells[k] === WATER) continue;
       t.wade[k] = (c[id.ford!] ?? 0) > 0 ? 1 : 0;
       deck[k] = t.wade[k]! || (c[id.road!] ?? 0) > 0 ? 1 : 0;
-      // #107: a vehicle is stopped by half a cell of anything solid or wet (props are no obstacle: no collisions)
-      const stop = (c[id.hedge!] ?? 0) + (c[id.woods!] ?? 0) + (c[id.wall!] ?? 0) + (c[id.building!] ?? 0) + water;
-      t.drive[k] = stop >= half ? 0 : t.wade[k] ? 30 : (c[id.road!] ?? 0) >= half ? 10 : 20;
+      // #107: a vehicle is stopped by any wall or building in the cell, and half a cell of hedge, woods or water (props are no
+      // obstacle: no collisions)
+      const built = (c[id.wall!] ?? 0) + (c[id.building!] ?? 0);
+      const stop = (c[id.hedge!] ?? 0) + (c[id.woods!] ?? 0) + water;
+      t.drive[k] = built > 0 || stop >= half ? 0 : t.wade[k] ? 30 : (c[id.road!] ?? 0) > 0 ? 10 : 20; // a cell the road runs through, however thin the track
     }
   // #107: how close the nearest solid or wet 1 m cell comes to each cell's centre, for the vehicles' hull margin
   const stop = new Uint8Array(n * n);

@@ -190,7 +190,7 @@ export const DEFAULT_TUNE: Tune = {
   tankVsVehicleDamage: 50,
   tankShellMps: 154,
   tankAimSeconds: [1, 3],
-  tankGoalBias: 0.5,
+  tankGoalBias: 0.7,
   tanksPerSide: null,
   coaxFireSeconds: 0.15,
   coaxRangeM: 160,

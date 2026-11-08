@@ -85,7 +85,7 @@ function terrainGrid(map: MapData, t: Terrain, g: { x0: number; y0: number; cols
 /**
  * #107: `side`'s ground-vehicle grid: the sight grid with the drive cost (road 10, open 20, ford 30; from the baked terrain,
  * or on a hand-written map open 20, a bridge 10, a ford 30 and cover, walls, water and footbridges blocked), every cell within
- * `hullM` of a blocked one blocked too, and the enemy HQ circle blocked.
+ * `hullM` of a blocked one blocked too (on a baked map, every such cell off the road), and the enemy HQ circle blocked.
  */
 export function driveGrid(map: MapData, g: Grid, side: SideId, t: Tune): Grid {
   const { x0, y0, cols, rows, cells, crossing } = g;
@@ -99,7 +99,8 @@ export function driveGrid(map: MapData, g: Grid, side: SideId, t: Tune): Grid {
         const ti = Math.floor((x0 + (i + 0.5) * t.cellM - tr.x0) / tr.cellM);
         const tj = Math.floor((y0 + (j + 0.5) * t.cellM - tr.y0) / tr.cellM);
         const tk = tj * tr.cols + ti;
-        if (ti >= 0 && tj >= 0 && ti < tr.cols && tj < tr.rows && tr.clear[tk]! > t.hullM * 10) base[k] = tr.drive[tk]!; // the hull margin, to the metre
+        // the hull margin, to the metre, off the road; a road the bake drew takes a tank however close the hedges come
+        if (ti >= 0 && tj >= 0 && ti < tr.cols && tj < tr.rows && (tr.clear[tk]! > t.hullM * 10 || tr.drive[tk] === 10)) base[k] = tr.drive[tk]!;
       } else if (cells[k] === 0) base[k] = 20;
       else if (cells[k] === WATER) base[k] = { bridge: 10, ford: 30, footbridge: 0 }[map.crossings![crossing[k]!]!.kind];
     }

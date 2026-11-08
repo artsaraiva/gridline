@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { KALTENBACH } from '../../scripts/kaltenbach';
 import { createMatch, step, type Match } from './index';
+import { driveFlow, flowDist } from './ai/flow';
+import { cellCentre } from './grid';
 import { DEFAULT_TUNE } from './tune';
 import type { Command } from './types';
 
@@ -70,4 +72,16 @@ describe('#107 tanks on Kaltenbach', () => {
     expect(new Set(goals).size, goals.join(" ")).toBeGreaterThan(2);
     expect(goals.every((g) => g.length === 4)).toBe(true); // every tank has a driver and a point
   }, 20_000); // four fresh Kaltenbach matches, each building its flow fields
+
+  it('reaches every Capture Point from both HQs: the hull margin keeps off hedges and walls, but not off the roads through them', () => {
+    for (const side of ['nato', 'pact'] as const) {
+      const slot = m.vehicles.find((v) => v.side === side)!.slot;
+      m.points.forEach((p, i) => {
+        const f = driveFlow(m, side, i);
+        expect(flowDist(m, f, slot), `${side} to ${p.id}`).toBeLessThan(Infinity);
+        const ends = [...f.keys()].filter((k) => f[k] === 0).map((k) => cellCentre(m, k));
+        expect(ends.every((c) => Math.hypot(c.x - p.x, c.y - p.y) < p.radius), `${side} parks inside ${p.id}`).toBe(true);
+      });
+    }
+  });
 });

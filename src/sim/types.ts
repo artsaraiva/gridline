@@ -54,7 +54,7 @@ export interface MapData {
  * #42: terrain on a cell grid, row-major, row 0 at the south edge (y up). `x0`, `y0` is the south-west corner in metres.
  * `cells` holds 0 open, or WALL / COVER / WATER from grid.ts; `wade` marks fords (slow going); `crossing` is the index into
  * `MapData.crossings` of the crossing the cell belongs to, -1 for none. #107: `drive` is the ground-vehicle cost per cell before the
- * hull margin: road 10, open 20, ford 30, 0 blocked (half a cell of hedge, woods, building, wall or water; a footbridge);
+ * hull margin: road 10, open 20, ford 30, 0 blocked (any wall or building, half a cell of hedge, woods or water; a footbridge);
  * `clear` is the distance from the cell's centre to the nearest 1 m cell of any of those, in decimetres, 255 for 5 m or more.
  */
 export interface Terrain {
