@@ -190,7 +190,7 @@ describe('commander review timeline (#69)', () => {
     expect(shown.slice(first, last + 1).some((e) => e!.airborne)).toBe(true);
     expect(shown.slice(first, last + 1).some((e) => !e!.airborne)).toBe(true);
     shown.forEach((e, i) => e && expect(range(flights[i]!, e)).toBeLessThanOrEqual(SIGHT));
-    expect(range(flights[first]!, shown[first]!)).toBeGreaterThan(SIGHT - 10);
+    expect(range(flights[first]!, shown[first]!)).toBeGreaterThan(SIGHT - 10); // it shows as it comes into sight (a frame's flight short of the edge), not later
     expect(range(flights[last]!, shown[last]!)).toBeGreaterThan(SIGHT - 10);
     expect(flights.slice(0, last + 1).every((v) => !v.lastKnown!.length)).toBe(true);
     const [lkp, ...more] = flights[last + 1]!.lastKnown!;

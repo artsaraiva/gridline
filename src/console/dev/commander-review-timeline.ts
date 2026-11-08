@@ -117,7 +117,14 @@ const ENEMY_UNLOADED = ENEMY_LANDS + DEFAULT_TUNE.unloadSeconds;
 const ENEMY_HOME = ENEMY_UNLOADED + leg(ENEMY_LZ, ENEMY_PAD);
 const ENEMY_PATH: Key[] = [[0, ENEMY_PAD.x, ENEMY_PAD.y], [LIFT, ENEMY_PAD.x, ENEMY_PAD.y], [ENEMY_LANDS, ENEMY_LZ.x, ENEMY_LZ.y], [ENEMY_UNLOADED, ENEMY_LZ.x, ENEMY_LZ.y], [ENEMY_HOME, ENEMY_PAD.x, ENEMY_PAD.y], [LENGTH, ENEMY_PAD.x, ENEMY_PAD.y]];
 const SIGHT = DEFAULT_TUNE.visionM * DEFAULT_TUNE.vehicleVisionMul;
-const spotted = (t: number) => { const e = at(ENEMY_PATH, t); return MEN.some((m) => m.squad === 0 && !inSpan(m.dead, t) && Math.hypot(at(m.path, t).x - e.x, at(m.path, t).y - e.y) <= SIGHT); };
+// Alpha faces east and the helicopter is always east of it, so in its cone: range decides
+const spotted = (t: number) => {
+  const e = at(ENEMY_PATH, t);
+  return MEN.some((m) => {
+    const p = at(m.path, t);
+    return m.squad === 0 && !inSpan(m.dead, t) && Math.hypot(p.x - e.x, p.y - e.y) <= SIGHT;
+  });
+};
 
 /** Where Alpha last saw the enemy helicopter, fading over `lkpSeconds`; none while it is in sight or long gone. */
 function lostHeli(t: number): LastKnownView[] {
@@ -138,10 +145,10 @@ function helisAt(t: number): VehicleView[] {
   const flying = (t > LIFT && t < LAND) || (t > UNLOADED && t < HOME);
   const own: VehicleView = { id: HELI_ID, side: 'nato', kind: 'helicopter', ...p, ...hull, tx: hull.fx, ty: hull.fy, hp: 1, seats, ...(seats[0] === -1 && { empty: true }), ...(flying && { airborne: true }) };
   const span = Math.hypot(ENEMY_LZ.x - ENEMY_PAD.x, ENEMY_LZ.y - ENEMY_PAD.y);
-  const out = { fx: (ENEMY_LZ.x - ENEMY_PAD.x) / span, fy: (ENEMY_LZ.y - ENEMY_PAD.y) / span };
-  const hdg = t < ENEMY_UNLOADED ? out : { fx: -out.fx, fy: -out.fy };
+  const toC = { fx: (ENEMY_LZ.x - ENEMY_PAD.x) / span, fy: (ENEMY_LZ.y - ENEMY_PAD.y) / span };
+  const heading = t < ENEMY_UNLOADED ? toC : { fx: -toC.fx, fy: -toC.fy };
   const enemyFlying = (t > LIFT && t < ENEMY_LANDS) || (t > ENEMY_UNLOADED && t < ENEMY_HOME);
-  const enemy: VehicleView = { id: 36, side: 'pact', kind: 'helicopter', ...at(ENEMY_PATH, t), ...hdg, tx: hdg.fx, ty: hdg.fy, ...(enemyFlying && { airborne: true }) };
+  const enemy: VehicleView = { id: 36, side: 'pact', kind: 'helicopter', ...at(ENEMY_PATH, t), ...heading, tx: heading.fx, ty: heading.fy, ...(enemyFlying && { airborne: true }) };
   const wreck: VehicleView = { id: -1, side: 'pact', kind: 'helicopter', x: 70, y: -150, fx: -0.6, fy: 0.8, tx: -0.6, ty: 0.8, wreck: true };
   return [own, wreck, ...(spotted(t) ? [enemy] : [])];
 }
