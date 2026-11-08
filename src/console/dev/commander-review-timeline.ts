@@ -1,11 +1,12 @@
 // DEV-only Commander look review timeline (#69): a hand-written, deterministic script of CommanderViews and Events on
 // Kaltenbach coordinates, so the Console's readability treatments (#70 firing pulse, #71 selection and Squad Leader
-// markers), the Cruise Missile's marks (#99) and the tank (#107: sprite, turret, Wreck, badge, main gun) are judged on every
+// markers), the Cruise Missile's marks (#99), the tank (#107: sprite, turret, Wreck, badge, main gun) and the jeep (#108:
+// sprite, Wreck, badge, MG, dismount) are judged on every
 // Squad Leader state without a Simulation. `viewAt` and `eventsBetween` are pure.
 import { DEFAULT_TUNE } from '../../sim/tune';
 import type { CommanderView, EffectView, FriendlyView, SimEvent, SoldierView, SquadView, VehicleView } from '../../sim/types';
 
-export const LENGTH = 92;
+export const LENGTH = 112;
 
 /** Where each state starts, for scrubbing. */
 export const CHAPTERS = [
@@ -17,6 +18,7 @@ export const CHAPTERS = [
   { at: 50, title: 'Wipe' },
   { at: 62, title: 'Redeploy' },
   { at: 72, title: 'Tank' },
+  { at: 92, title: 'Jeep' },
 ];
 
 /** Centre of the overlapping Squads, for the close zoom preset. */
@@ -68,6 +70,28 @@ function tanksAt(t: number): VehicleView[] {
   return [wreck, own, abandoned, ...(seen ? [enemy] : [])];
 }
 
+// #108: Bravo, back from its Redeploy, walks to the jeep parked off the HQ (nobody aboard: grey-white), boards it and drives
+// east; the gunner (Bravo's 5) fires the MG at the Contacts as it closes. It stops for a second and everyone gets out beside
+// it. A nato jeep Wreck lies by the way, and an enemy jeep stands in sight past the centre.
+const JEEP_AT = CHAPTERS[8]!.at;
+const JEEP_ID = 33;
+const JEEP_PATH: Key[] = [[0, -372, 18], [JEEP_AT + 1, -372, 18], [JEEP_AT + 3, -342, 20], [JEEP_AT + 13, -152, 26], [JEEP_AT + 14, -140, 26], [LENGTH, -140, 26]];
+const JEEP_OUT = JEEP_AT + 15; // a second's stop, then the dismount
+const MG_FROM = 5;
+const inJeep = (id: number, t: number) => t >= JEEP_AT && t < JEEP_OUT && id >= 4 && id <= 7;
+
+function jeepsAt(t: number): VehicleView[] {
+  const p = at(JEEP_PATH, t);
+  const ahead = at(JEEP_PATH, t + 0.5);
+  const d = Math.hypot(ahead.x - p.x, ahead.y - p.y);
+  const hull = d > 0.01 ? { fx: (ahead.x - p.x) / d, fy: (ahead.y - p.y) / d } : { fx: 1, fy: 0.05 };
+  const aboard = t >= JEEP_AT && t < JEEP_OUT;
+  const own: VehicleView = { id: JEEP_ID, side: 'nato', kind: 'jeep', ...p, ...hull, tx: hull.fx, ty: hull.fy, hp: 1, seats: aboard ? [4, 5, 6, 7] : [-1, -1, -1, -1], ...(!aboard && { empty: true }) };
+  const wreck: VehicleView = { id: -1, side: 'nato', kind: 'jeep', x: -250, y: -22, fx: 0.8, fy: -0.6, tx: 0.8, ty: -0.6, wreck: true };
+  const enemy: VehicleView = { id: 34, side: 'pact', kind: 'jeep', x: 40, y: 62, fx: -0.9, fy: -0.44, tx: -0.9, ty: -0.44 };
+  return [own, wreck, ...(t >= JEEP_AT + 4 ? [enemy] : [])];
+}
+
 type Span = [number, number];
 type Key = [t: number, x: number, y: number];
 interface Man {
@@ -104,10 +128,10 @@ const MEN: Man[] = [
   { id: 1, squad: 0, path: [[0, -66, 26], [LENGTH, -63, 27]], ...east },
   { id: 2, squad: 0, path: [[0, -58, 14], [LENGTH, -56, 16]], ...east },
   { id: 3, squad: 0, path: [[0, -70, 10], [LENGTH, -68, 12]], ...east },
-  { id: 4, squad: 1, path: [[0, -72, 18], [50, -70, 19], [62, -400, 4], [LENGTH, -360, 8]], dead: [[50, 62]], ...east },
-  { id: 5, squad: 1, path: [[0, -62, 20], [50, -60, 21], [62, -404, -4], [LENGTH, -366, 0]], dead: [[50, 62]], ...east },
-  { id: 6, squad: 1, path: [[0, -54, 24], [50, -52, 25], [62, -410, 10], [LENGTH, -372, 14]], dead: [[50, 62]], ...east },
-  { id: 7, squad: 1, path: [[0, -64, 8], [50, -62, 9], [62, -412, -8], [LENGTH, -374, -4]], dead: [[50, 62]], ...east },
+  { id: 4, squad: 1, path: [[0, -72, 18], [50, -70, 19], [62, -400, 4], [92, -368, 14], [107, -134, 30], [LENGTH, -130, 32]], dead: [[50, 62]], ...east },
+  { id: 5, squad: 1, path: [[0, -62, 20], [50, -60, 21], [62, -404, -4], [92, -370, 12], [107, -138, 20], [LENGTH, -134, 19]], dead: [[50, 62]], ...east },
+  { id: 6, squad: 1, path: [[0, -54, 24], [50, -52, 25], [62, -410, 10], [92, -375, 22], [107, -144, 32], [LENGTH, -146, 34]], dead: [[50, 62]], ...east },
+  { id: 7, squad: 1, path: [[0, -64, 8], [50, -62, 9], [62, -412, -8], [92, -376, 15], [107, -146, 21], [LENGTH, -150, 20]], dead: [[50, 62]], ...east },
   { id: 8, squad: 2, path: [[0, -150, -118]], fx: 0.7, fy: 0.7 },
   { id: 9, squad: 2, path: [[0, -142, -126]], fx: 0.7, fy: 0.7 },
   { id: 10, squad: 2, path: [[0, -158, -128]], fx: 0.7, fy: 0.7 },
@@ -173,6 +197,7 @@ export function viewAt(t: number): CommanderView {
     suppressed: false,
     ammo: 0.8,
     ...(aboard(m.id, t) && { ...at(TANK_PATH, t), vehicle: TANK_ID }),
+    ...(inJeep(m.id, t) && { ...at(JEEP_PATH, t), vehicle: JEEP_ID }),
   }));
   return {
     side: 'nato',
@@ -187,7 +212,7 @@ export function viewAt(t: number): CommanderView {
     result: null,
     assets: [{ asset: 'missile', readyIn: t < MISSILE.at ? 0 : Math.max(0, MISSILE.at + DEFAULT_TUNE.missileCooldownSeconds - t), cooldown: DEFAULT_TUNE.missileCooldownSeconds, radius: DEFAULT_TUNE.missileSuppressM }],
     effects: missileAt(t),
-    vehicles: tanksAt(t),
+    vehicles: [...tanksAt(t), ...jeepsAt(t)],
   };
 }
 
@@ -196,8 +221,8 @@ export function eventsBetween(t0: number, t1: number): SimEvent[] {
   return EVENTS.filter(([t]) => t > t0 && t <= t1).map(([, e]) => e);
 }
 
-/** Fit to fire at `t`: not down, and not going down within the next second (so the shooter is still drawn when the tracer lands). */
-const fit = (m: Man, t: number) => !inSpan(m.dead, t) && !inSpan(m.wounded, t) && !inSpan(m.dead, t + 1) && !inSpan(m.wounded, t + 1);
+/** Fit to fire at `t`: not down, and not going down within the next second (so the shooter is still drawn when the tracer lands); #108 not aboard the jeep. */
+const fit = (m: Man, t: number) => !inSpan(m.dead, t) && !inSpan(m.wounded, t) && !inSpan(m.dead, t + 1) && !inSpan(m.wounded, t + 1) && !inJeep(m.id, t) && !inJeep(m.id, t + 1);
 
 /** The firefight: from the Firing chapter on, Alpha and Bravo trade fire with the Contacts; both sides also fire suppressive at the other's ground. */
 function firefight(): [number, SimEvent][] {
@@ -260,4 +285,12 @@ const strike = (): [number, SimEvent][] => [
 /** #107: the tank's main gun on the enemy tank: the shared explosion, crater and plume. */
 const gun = (): [number, SimEvent][] => SHOTS.map((t) => [t, { kind: 'impact', side: 'nato', x: ENEMY_TANK.x, y: ENEMY_TANK.y, asset: 'tank', from: TANK_ID }]);
 
-const EVENTS: [number, SimEvent][] = [...casualties(), ...firefight(), ...strike(), ...gun()].sort((a, b) => a[0] - b[0]);
+/** #108: the jeep's MG on the Contacts as it closes, a short burst at a time. */
+function mg(): [number, SimEvent][] {
+  const events: [number, SimEvent][] = [];
+  let i = 0;
+  for (let t = JEEP_AT + 9; t < JEEP_AT + 14; t += i % 4 === 3 ? 0.8 : 0.15, i++) events.push([t, { kind: 'shot', side: 'nato', from: MG_FROM, to: CONTACTS[i % 2]!.id, hit: i % 5 === 0 }]);
+  return events;
+}
+
+const EVENTS: [number, SimEvent][] = [...casualties(), ...firefight(), ...strike(), ...gun(), ...mg()].sort((a, b) => a[0] - b[0]);

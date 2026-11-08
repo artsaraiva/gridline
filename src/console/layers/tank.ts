@@ -8,8 +8,8 @@ import { COLOR, metresPerPx, pool } from '../renderer';
 import { session } from '../session';
 import { targeting } from '../targeting';
 import { spriteMesh } from '../sprites/sheet';
-import { roundStreak, TANK_SHEET, tankIcon, tankPose } from '../sprites/tank';
-import { bar, fading, px, shade, streak } from './symbols';
+import { roundStreak, TANK_SHEET, vehicleIcon, tankPose } from '../sprites/tank';
+import { bar, fading, merge, px, shade, streak } from './symbols';
 
 const Z = { wreck: 0.44, shadow: 0.42, hull: 0.46, turret: 0.47, round: 0.6, icon: 0.93 };
 const SHADOW_OPACITY = 0.5;
@@ -17,13 +17,6 @@ const SHADOW_OPACITY = 0.5;
 const ICON_SCALE = 1.15;
 const ROUND_PX = 1.8;
 const ICON_COLOR = { friendly: COLOR.friendly, hostile: COLOR.hostile, empty: 0xd4d8d6, selected: COLOR.amber };
-
-/** Merges geometries (non-indexed positions only). */
-function merge(parts: THREE.BufferGeometry[]) {
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(parts.flatMap((p) => [...(p.toNonIndexed().getAttribute('position').array as Float32Array)]), 3));
-  return g;
-}
 
 // BF4's tank icon, in chevrons, nose +y, a little taller than a Soldier's chevron; `g` grows a piece for its dark halo.
 // The hull: a bold frame open at the front where the gun leaves it, its back bar a touch wider (the track ends). Over it the
@@ -66,6 +59,7 @@ const rounds = pool(() => new THREE.Mesh(new THREE.PlaneGeometry(1, 1), streak(0
 export function drawTanks(view: CommanderView, scale: number) {
   const selected = view.friendlies.filter((f) => f.squad === targeting.selected).map((f) => f.id);
   for (const v of view.vehicles ?? []) {
+    if (v.kind !== 'tank') continue; // #108: layers/jeep.ts draws jeeps
     const p = tankPose(v);
     for (const s of [p.shadow.hull, p.shadow.turret]) {
       const m = shadows.next();
@@ -81,7 +75,7 @@ export function drawTanks(view: CommanderView, scale: number) {
       m.scale.setScalar(p.size);
       m.frame.value = s.frame;
     });
-    const role = tankIcon(v, session.commanderSide, selected);
+    const role = vehicleIcon(v, session.commanderSide, selected);
     if (role) {
       const icon = icons.next();
       icon.position.set(p.x, p.y, Z.icon);

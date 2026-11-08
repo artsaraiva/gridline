@@ -14,6 +14,8 @@ const PATHS: Record<AssetKind, string> = {
 
 /** #107: the Squad tile and card's badge for one member aboard a tank: a filled side-on hull, turret and gun. */
 export const TANK_BADGE = '<svg class="tank" viewBox="0 0 24 14" fill="currentColor"><path d="M2 8h20l-2 5H4z"/><path d="M7 4h8l1 4H6z"/><path d="M15 5h8v1.4h-8z"/></svg>';
+/** #108: the badge for one member aboard a jeep: a filled side-on body with its bonnet, windscreen and two wheels. */
+export const JEEP_BADGE = '<svg class="jeep" viewBox="0 0 24 14" fill="currentColor"><path d="M2 5h12l2 3h6v3H2z"/><path d="M12 1h1.6l1.4 4h-1.6z"/><circle cx="6" cy="11.5" r="2.5"/><circle cx="18" cy="11.5" r="2.5"/></svg>';
 
 export const assetIcon = (asset: AssetKind, strokeWidth = 1.6) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${strokeWidth}" stroke-linejoin="round" stroke-linecap="round">${PATHS[asset]}</svg>`;

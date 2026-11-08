@@ -118,12 +118,36 @@ describe('commander review timeline (#69)', () => {
     expect(own(late).x).not.toBe(own(early).x);
     const enemy = late.vehicles!.find((x) => x.side === 'pact')!;
     expect(Math.atan2(own(late).ty, own(late).tx)).toBeCloseTo(Math.atan2(enemy.y - own(late).y, enemy.x - own(late).x));
-    expect(late.vehicles!.filter((x) => x.wreck)).toHaveLength(1);
+    expect(late.vehicles!.filter((x) => x.kind === 'tank' && x.wreck)).toHaveLength(1);
     expect(eventsBetween(t, LENGTH).filter((e) => e.kind === 'impact' && e.asset === 'tank')).toHaveLength(2);
     const shot = eventsBetween(t, LENGTH).find((e) => e.kind === 'impact')!;
     const before = CHAPTERS.find((c) => c.title === 'Tank')!.at + 11.6; // the first round in the air
     expect(viewAt(before).vehicles!.find((x) => x.side === 'nato' && x.seats?.[0] === 8)!.rounds![0]!.to).toMatchObject({ x: (shot as { x: number }).x });
-    expect(late.vehicles!.filter((x) => x.empty)).toHaveLength(1); // the abandoned tank, grey-white
+    expect(late.vehicles!.filter((x) => x.kind === 'tank' && x.empty)).toHaveLength(1); // the abandoned tank, grey-white
+    for (const v of late.vehicles!) expect(insidePolygon(PLAY_AREA, v.x, v.y)).toBe(true);
+  });
+
+  it('#108 Jeep: Bravo boards its parked jeep (badged, no chevrons), drives east while its gunner fires the MG, stops and gets out by it; a jeep Wreck and an enemy jeep in sight', () => {
+    const t = chapter('Jeep');
+    const jeep = (v: ReturnType<typeof viewAt>) => v.vehicles!.find((x) => x.kind === 'jeep' && x.side === 'nato' && !x.wreck)!;
+    const bravo = (v: ReturnType<typeof viewAt>) => v.friendlies.filter((f) => f.squad === 1);
+    expect(jeep(viewAt(t - 2)).empty).toBe(true);
+    const riding = viewAt(t + 2);
+    expect(jeep(riding).seats).toEqual([4, 5, 6, 7]);
+    expect(bravo(riding).map((f) => f.vehicle)).toEqual([jeep(riding).id, jeep(riding).id, jeep(riding).id, jeep(riding).id]);
+    expect(jeep(viewAt(t + 10)).x).toBeGreaterThan(jeep(riding).x + 100);
+    const mg = eventsBetween(t, t + 14).filter((e) => e.kind === 'shot' && e.side === 'nato' && bravo(riding).some((f) => f.id === e.from));
+    expect(mg.length).toBeGreaterThan(5);
+    expect(new Set(mg.map((e) => (e as { from: number }).from))).toEqual(new Set([5])); // only the gunner fires from the jeep
+    const late = viewAt(LENGTH - 1);
+    expect(jeep(late).empty).toBe(true);
+    for (const f of bravo(late)) {
+      expect(f.vehicle).toBeUndefined();
+      expect(Math.hypot(f.x - jeep(late).x, f.y - jeep(late).y)).toBeLessThan(15);
+    }
+    expect(late.vehicles!.filter((x) => x.kind === 'jeep' && x.wreck)).toHaveLength(1);
+    expect(late.vehicles!.filter((x) => x.kind === 'jeep' && x.side === 'pact')).toHaveLength(1);
     for (const v of late.vehicles!) expect(insidePolygon(PLAY_AREA, v.x, v.y)).toBe(true);
   });
 });
+

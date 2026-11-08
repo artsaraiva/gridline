@@ -1,0 +1,10 @@
+{
+  "frames": 49,
+  "framePx": 160,
+  "cols": 16,
+  "constants": {
+    "JEEP_HEADINGS": 16,
+    "JEEP_VARIANTS": 3,
+    "JEEP_WORLD_M": 6.0
+  }
+}
