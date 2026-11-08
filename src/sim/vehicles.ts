@@ -458,7 +458,7 @@ export function hurt(m: Match, v: Vehicle, damage: number, by: SideId, cause: So
   }
   const seen = v.airborne || m.sightings[enemyOf(v.side)].some((o) => o.id === v.id && o.tick >= m.tick - 1); // #109: everyone sees the sky
   m.wrecks.push({ side: v.side, kind: v.kind, x: v.x, y: v.y, fx: v.fx, fy: v.fy, seen });
-  Object.assign(v, { hp: 0, deadAt: m.tick, target: -1, coax: -1 });
+  Object.assign(v, { hp: 0, deadAt: m.tick, target: -1, coax: -1, airborne: false });
 }
 
 /** A Soldier leaves its seat (it died, or came back from the dead). */
