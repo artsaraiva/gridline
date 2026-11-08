@@ -1,6 +1,6 @@
 // Jeeps on the map (#108): own jeeps, enemy jeeps in sight (the same sprite in its Faction's paint) and Wrecks; the baked body
 // at the nearest heading over its ground shadow. Over each live jeep BF4's light-vehicle icon at constant screen size (a solid
-// rounded block in the role colour with a dark arch cut into it, turning with the sprite), coloured as the tank's (sprites/vehicle-icon.ts).
+// rounded block in a deep shade of the role colour, a bright light arch on it, turning with the sprite), coloured as the tank's (sprites/vehicle-icon.ts).
 import * as THREE from 'three/webgpu';
 import type { CommanderView } from '../../sim/types';
 import { COLOR, pool } from '../renderer';
@@ -17,8 +17,9 @@ const SHADOW_OPACITY = 0.5;
 const ICON_SCALE = 1.6;
 const ICON_COLOR = { friendly: COLOR.friendly, hostile: COLOR.hostile, empty: 0xd4d8d6, selected: COLOR.amber };
 
-// BF4's icon, in chevrons, nose +y: a solid rounded block (`g` grows it for the dark halo), and cut into it a dark arch, open
-// toward the back: the windscreen across and the two sides of the open cab.
+// BF4's icon, in chevrons, nose +y: a solid rounded block (`g` grows it for the dark halo), and on it a bright arch, open toward
+// the back: the windscreen across and the two sides of the open cab. The block is a deep shade of the role colour with no glow,
+// so the feed's bloom leaves the arch standing out of it, as in BF4 where the block is dim and the arch bright.
 function block(g = 0) {
   const [hw, hh, r] = [0.36 + g / 2, 0.44 + g / 2, 0.11 + g / 2];
   const s = new THREE.Shape();
@@ -34,19 +35,23 @@ function block(g = 0) {
   return new THREE.ShapeGeometry(s, 4);
 }
 // Small in the middle, so the block stays mostly solid colour and never reads as a frame.
-const [W, AW, AT, AB] = [0.12, 0.12, 0.14, -0.14]; // stroke (about 2.7 px), half width, top, leg ends
+const [W, AW, AT, AB] = [0.11, 0.14, 0.16, -0.16]; // stroke (about 2.5 px), half width, top, leg ends
 const arch = () => merge([bar(-AW - W / 2, AT, AW + W / 2, AT, W), bar(-AW, AT, -AW, AB, W), bar(AW, AT, AW, AB, W)]);
 const HALO = px(2.5);
+/** The block sits this far from the role colour toward black; the arch this far toward white. */
+const [DEEPEN, LIGHTEN] = [0.12, 0.75];
+const BLACK = new THREE.Color(0x000000);
+const WHITE = new THREE.Color(0xffffff);
 
 const shadows = pool(() => spriteMesh(JEEP_SHEET, { shadow: true, opacity: SHADOW_OPACITY }));
 const bodies = pool(() => spriteMesh(JEEP_SHEET));
 const icons = pool(() => {
-  const m = new THREE.Mesh(block(), fading(COLOR.friendly));
+  const m = new THREE.Mesh(block(), shade(COLOR.friendly, 1));
   m.add(new THREE.Mesh(block(HALO), shade(0x000000, 0.45)).translateZ(-0.01));
-  const inner = new THREE.Mesh(arch(), shade(0x0b0f0e, 0.9)); // no glow: bloom washed a lighter arch into the block
+  const inner = new THREE.Mesh(arch(), fading(0xffffff));
   inner.position.z = 0.005;
   m.add(inner);
-  return m;
+  return Object.assign(m, { inner });
 });
 
 /** `scale` is the chevron size in metres (constant on screen), for the icon. */
@@ -71,7 +76,8 @@ export function drawJeeps(view: CommanderView, scale: number) {
       icon.position.set(p.x, p.y, Z.icon);
       icon.scale.setScalar(scale * ICON_SCALE);
       icon.rotation.z = Math.atan2(v.fy, v.fx) - Math.PI / 2;
-      icon.material.color.setHex(ICON_COLOR[role]);
+      icon.material.color.setHex(ICON_COLOR[role]).lerp(BLACK, DEEPEN);
+      icon.inner.material.color.setHex(ICON_COLOR[role]).lerp(WHITE, LIGHTEN);
     }
   }
   shadows.end();
