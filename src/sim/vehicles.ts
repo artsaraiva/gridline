@@ -263,7 +263,7 @@ export function drive(m: Match) {
       if (side && (v.deadAt === DORMANT || side !== v.side || m.tick - v.deadAt >= t.vehicleRespawnSeconds * t.hz)) Object.assign(v, fresh(m, side, v.kind, v.slot));
       continue;
     }
-    const halted = v.halt >= 0 && m.tick - v.halt < Math.round((t.dismountStopSeconds + t.thinkSeconds) * t.hz);
+    const halted = v.halt >= 0 && m.tick - v.halt < Math.round((t.dismountStopSeconds + t.thinkIntervalSeconds[1] * (1 + t.thinkJitter)) * t.hz);
     if (!halted) v.halt = -1;
     const full = !v.seats.includes(-1);
     if (air(v)) {

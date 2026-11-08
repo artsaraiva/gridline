@@ -8,3 +8,6 @@ export function rnd(m: Match): number {
   t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
   return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 }
+
+/** Uniform in [lo, hi]; a range of one value draws nothing. */
+export const between = (m: Match, [lo, hi]: [number, number]) => (lo === hi ? lo : lo + (hi - lo) * rnd(m));

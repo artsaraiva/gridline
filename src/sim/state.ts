@@ -52,6 +52,9 @@ export interface Soldier {
   // #55 Commander Score
   cause: 'barrage' | 'missile' | null; // what an enemy Strike did to it: scores for the enemy Commander on death; cleared by Revive
   uavUntil: number; // #75 last tick it counts as UAV-discovered by the enemy Side (the Scan found it unseen, then the grace); see assets/scan.ts
+  // #121 Staggered set-off
+  reaction: number; // seconds it holds before moving off after its Squad's change, seeded
+  holdUntil: number; // tick it may move off; taking fire clears it
   uavAssist: boolean; // #75 the shot that downed it landed while UAV-discovered: scores for the enemy Commander on death; cleared by Revive
 }
 
@@ -88,6 +91,9 @@ export interface Squad {
   pref: number[]; // seeded preference per Capture Point, added to its score
   aggression: number; // [-1, 1]: bold pushes enemy points and falls back later
   commitUntil: number; // tick its Commitment to `goal` ends
+  // #121 Think tempo
+  thinkInterval: number; // seconds between its thinks, seeded
+  nextThink: number; // tick of its next think
 }
 
 export interface Point {
@@ -152,6 +158,8 @@ export function hashSoldiers(m: Match, mix: Mix) {
     mix(s.exited); // #108
     mix(Math.round(s.away * 1000));
     mix(s.awaySince);
+    mix(Math.round(s.reaction * 1000)); // #121
+    mix(s.holdUntil);
   }
 }
 
@@ -164,6 +172,8 @@ export function hashSquads(m: Match, mix: Mix) {
     mix(sq.taking + 1); // #73
     mix(sq.takingSince);
     mix(sq.commitUntil);
+    mix(Math.round(sq.thinkInterval * 1000)); // #121
+    mix(sq.nextThink);
     for (const p of sq.pref) mix(Math.round(p * 1000));
     mix(Math.round(sq.aggression * 1000));
   }

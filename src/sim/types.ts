@@ -87,7 +87,6 @@ export interface Tune {
   walkSpeed: number; // m/s
   speedJitter: number; // ± fraction of walkSpeed, seeded per Soldier
   spread: number; // ± metres around the Squad's goal, seeded per Soldier
-  thinkSeconds: number; // how often a Squad re-picks its Capture Point
 
   // Capture Points
   captureRadius: number;
@@ -253,6 +252,10 @@ export interface Tune {
   // #120 Squad Traits and point choice
   squadGoalBias: number; // ± a Squad's seeded preference per Capture Point, in point-score units, kept for the match
   choiceMargin: number; // a self-chosen pick draws among the points scoring within this of the best, weighted by how far each clears best - margin
+  thinkIntervalSeconds: [number, number]; // #121 a Squad's own think interval, seeded between the two
+  thinkOpenSeeded: boolean; // #121 a Squad's first think falls at a seeded tick within its first interval; false = on the tick its id sets (tests)
+  thinkJitter: number; // #121 each think lands the interval ± this fraction after the last
+  reactionSeconds: [number, number]; // #121 a Soldier's own hold before moving off after its Squad's goal, task or mode changes, seeded between the two
   commitSeconds: [number, number]; // a self-chosen point is held this long (seeded between the two) unless an early-pick event ends it
   commitThreatM: number; // an own Capture Point this near the leader that is threatened ends a Commitment
   aggressionValueMul: number; // enemy points are worth x (1 + aggression x this), aggression in [-1, 1]

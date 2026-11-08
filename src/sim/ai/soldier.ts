@@ -18,6 +18,10 @@ export function walk(m: Match, s: Soldier) {
     return;
   }
   const sq = m.squads[s.squad]!;
+  if (m.tick < s.holdUntil) { // #121: reaction; under fire nobody waits
+    if (m.tick - sq.lastHit > t.takingFireSeconds * t.hz) return;
+    s.holdUntil = 0;
+  }
   const alive = membersOf(m, sq).filter((o) => o.state === 'alive');
   const body = alive.filter((o) => !o.detached && o.vehicle < 0); // #106; #107 nobody aboard
   const L = body[0]!;

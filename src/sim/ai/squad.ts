@@ -184,7 +184,7 @@ export function think(m: Match, sq: Squad, events: SimEvent[]) {
     for (const s of body)
       if (!s.chaseUntil) {
         setDest(m, s, null);
-        Object.assign(s, { cover: null, role: null, strayUntil: 0 });
+        Object.assign(s, { cover: null, role: null, strayUntil: 0, holdUntil: m.tick + Math.round(s.reaction * t.hz) }); // #121: sets off after its reaction
       }
     Object.assign(sq, { mode, phase: 1, phaseUntil: 0, holdAt: 0, flankSign: 0, flankSince: -1, flankDone: false });
   }
@@ -209,7 +209,9 @@ function detached(m: Match, sq: Squad, L: Soldier, s: Soldier) {
   if (sq.task !== 'point' || sq.order) s.commitUntil = 0;
   const held = sq.task === 'point' && committed(m, sq, s.goal, s.commitUntil, s);
   const own = sq.task !== 'point' ? -1 : held ? s.goal : bestPoint(m, sq, s, t.squadPull); // survival calls them back to the Squad's goal
+  const prev = s.goal;
   s.goal = own === sq.goal ? -1 : own;
+  if (s.goal >= 0 && s.goal !== prev) s.holdUntil = m.tick + Math.round(s.reaction * t.hz); // #121
   if (!held && s.goal >= 0) s.commitUntil = commitEnd(m);
   if (s.goal < 0 && dist2(s, L) < sq2(t.rejoinM)) s.detached = false;
 }

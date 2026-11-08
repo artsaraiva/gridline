@@ -1,7 +1,7 @@
 // #120 Squad Traits and point choice: seeded preference, weighted pick, Commitment, aggression (ADR 0006).
 import { describe, expect, it } from 'vitest';
 import { commanderView, createMatch, step, type Match } from './index';
-import { DEFAULT_TUNE } from './tune';
+import { DEFAULT_TUNE, NO_TEMPO } from './tune';
 import type { Command, MapData, Tune } from './types';
 
 const HZ = DEFAULT_TUNE.hz;
@@ -25,7 +25,7 @@ const MIRROR = [
 ];
 
 function scene(o: { points?: MapData['points']; tune?: Partial<Tune>; seed?: number; frozen?: boolean } = {}): Match {
-  const tune: Tune = { ...DEFAULT_TUNE, speedJitter: 0, visionM: 0, tanksPerSide: 0, jeepsPerSide: 0, helisPerSide: 0, pointJeeps: false, ...(o.frozen && { walkSpeed: 0 }), ...o.tune };
+  const tune: Tune = { ...DEFAULT_TUNE, speedJitter: 0, visionM: 0, tanksPerSide: 0, jeepsPerSide: 0, helisPerSide: 0, pointJeeps: false, ...NO_TEMPO, ...(o.frozen && { walkSpeed: 0 }), ...o.tune };
   return createMatch({ seed: o.seed ?? 1, map: field(o.points ?? MIRROR), tune, squadsPerSide: 1, commanderSide: 'nato' });
 }
 const run = (m: Match, seconds: number, cmds: Command[] = []) => {

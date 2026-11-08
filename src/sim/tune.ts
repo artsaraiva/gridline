@@ -7,7 +7,6 @@ export const DEFAULT_TUNE: Tune = {
   walkSpeed: 5.06, // 4.4 until the visual round 2 review: the game felt slow, +15 %
   speedJitter: 0.1,
   spread: 8,
-  thinkSeconds: 1,
 
   // Capture Points
   captureRadius: 25,
@@ -178,6 +177,12 @@ export const DEFAULT_TUNE: Tune = {
   aggressionValueMul: 0.25,
   aggressionRetreatMul: 0.3,
 
+  // #121 Think tempo and staggered set-off
+  thinkIntervalSeconds: [0.8, 1.5],
+  thinkJitter: 0.15,
+  thinkOpenSeeded: true,
+  reactionSeconds: [0.2, 0.8],
+
   // #107 Tank tracer
   vehicleRespawnSeconds: 60,
   boardMinM: 150,
@@ -231,3 +236,6 @@ export const DEFAULT_TUNE: Tune = {
 
 /** #120: tests of one rule at a time switch the Squads' Traits off: the best point, no Commitment, no aggression. */
 export const NO_TRAITS: Partial<Tune> = { squadGoalBias: 0, choiceMargin: 0, commitSeconds: [0, 0], aggressionValueMul: 0, aggressionRetreatMul: 0 };
+
+/** #121: every Squad thinks each second, opening on its id's tick and every Soldier sets off at once, as before the tempo rules. */
+export const NO_TEMPO: Partial<Tune> = { thinkIntervalSeconds: [1, 1], thinkJitter: 0, thinkOpenSeeded: false, reactionSeconds: [0, 0] };

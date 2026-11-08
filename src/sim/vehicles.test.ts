@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { commanderView, createMatch, stateHash, step, type Match } from './index';
-import { DEFAULT_TUNE, NO_TRAITS } from './tune';
+import { DEFAULT_TUNE, NO_TEMPO, NO_TRAITS } from './tune';
 import type { Command, CommanderView, MapData, SideId, SimEvent, Tune } from './types';
 
 const HZ = DEFAULT_TUNE.hz;
@@ -26,7 +26,7 @@ function field(extra: Partial<MapData> = {}): MapData {
  * that. Placing Soldiers (and a tank's hit points) stands in for a map script; everything after it runs through `step`.
  */
 function scene(o: { map?: Partial<MapData>; tune?: Partial<Tune>; place?: Record<number, { x: number; y: number; fx?: number; fy?: number }>; squads?: number }): Match {
-  const tune: Tune = { ...DEFAULT_TUNE, squadSize: 2, speedJitter: 0, spread: 0, strayChance: 0, drainSeconds: [1e9, 1e9, 1e9, 1e9, 1e9], jeepsPerSide: 0, helisPerSide: 0, pointJeeps: false, ...NO_TRAITS, ...o.tune };
+  const tune: Tune = { ...DEFAULT_TUNE, squadSize: 2, speedJitter: 0, spread: 0, strayChance: 0, drainSeconds: [1e9, 1e9, 1e9, 1e9, 1e9], jeepsPerSide: 0, helisPerSide: 0, pointJeeps: false, ...NO_TRAITS, ...NO_TEMPO, ...o.tune };
   const m = createMatch({ seed: 1, map: field(o.map), tune, squadsPerSide: o.squads ?? 1, commanderSide: 'nato' });
   for (const [id, p] of Object.entries(o.place ?? {})) Object.assign(m.soldiers[Number(id)]!, p);
   return m;
@@ -180,7 +180,7 @@ describe('#107 the tank fights', () => {
 
   it('the main gun fires on a new target only after a seeded aim time of tankAimSeconds', () => {
     const firsts = [1, 2, 3, 4].map((seed) => {
-      const m = createMatch({ seed, map: field(), tune: { ...DEFAULT_TUNE, ...NO_TRAITS, squadSize: 2, spread: 0, speedJitter: 0 }, squadsPerSide: 1, commanderSide: 'nato' });
+      const m = createMatch({ seed, map: field(), tune: { ...DEFAULT_TUNE, ...NO_TRAITS, ...NO_TEMPO, squadSize: 2, spread: 0, speedJitter: 0 }, squadsPerSide: 1, commanderSide: 'nato' });
       Object.assign(m.soldiers[2]!, { x: -500, y: 0 });
       Object.assign(m.soldiers[3]!, { x: -500, y: 0 });
       crewed(m, [0, 1]);
