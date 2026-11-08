@@ -4,7 +4,7 @@
 // sprite, Wreck, badge, MG, dismount) and the transport helicopter (#109: lift-off, flight, landing, unload, home) are judged on every
 // Squad Leader state without a Simulation. `viewAt` and `eventsBetween` are pure.
 import { DEFAULT_TUNE } from '../../sim/tune';
-import type { CommanderView, EffectView, FriendlyView, SimEvent, SoldierView, SquadView, VehicleView } from '../../sim/types';
+import type { CommanderView, EffectView, FriendlyView, LastKnownView, SimEvent, SoldierView, SquadView, VehicleView } from '../../sim/types';
 
 export const LENGTH = 152;
 
@@ -95,8 +95,9 @@ function jeepsAt(t: number): VehicleView[] {
 
 // #109: Delta waits by the nato helipad all along, beside the helicopter (nobody aboard: rotor still, grey-white). It boards,
 // the helicopter lifts off a second later and flies straight to D at `heliMps`, lands, sits `unloadSeconds` while Delta gets
-// out, and flies home with its pilot (Delta's 12). Pact's lifts off as nato's does and shows the whole time it flies to B,
-// then is lost once it lands out of sight; a pact helicopter Wreck lies south of C.
+// out, and flies home with its pilot (Delta's 12). #119: pact's lifts off as nato's does, flies to C, sets its Squad down and
+// flies home; it shows only while Alpha sees it (a Soldier's sight of a vehicle, the widest reach of any friendly's here), then
+// fades to a Last Known Position. A pact helicopter Wreck lies south of C.
 const HELI_AT = CHAPTERS[9]!.at;
 const HELI_ID = 35;
 const PAD = { x: -409.01, y: 0.3 }; // Kaltenbach's nato helipad (map.json)
@@ -110,8 +111,21 @@ const HELI_PATH: Key[] = [[0, PAD.x, PAD.y], [LIFT, PAD.x, PAD.y], [LAND, D.x, D
 const OUT = LAND + 1; // a second on the ground, then everyone but the pilot is out
 const inHeli = (id: number, t: number) => t >= HELI_AT && (id === 12 || (t < OUT && id >= 13 && id <= 15));
 const ENEMY_PAD = { x: 420.96, y: -0.72 };
-const B = { x: 0, y: 300 };
-const ENEMY_LANDS = LIFT + leg(ENEMY_PAD, B);
+const ENEMY_LZ = { x: 14, y: -14 }; // inside C, east of the Contacts
+const ENEMY_LANDS = LIFT + leg(ENEMY_PAD, ENEMY_LZ);
+const ENEMY_UNLOADED = ENEMY_LANDS + DEFAULT_TUNE.unloadSeconds;
+const ENEMY_HOME = ENEMY_UNLOADED + leg(ENEMY_LZ, ENEMY_PAD);
+const ENEMY_PATH: Key[] = [[0, ENEMY_PAD.x, ENEMY_PAD.y], [LIFT, ENEMY_PAD.x, ENEMY_PAD.y], [ENEMY_LANDS, ENEMY_LZ.x, ENEMY_LZ.y], [ENEMY_UNLOADED, ENEMY_LZ.x, ENEMY_LZ.y], [ENEMY_HOME, ENEMY_PAD.x, ENEMY_PAD.y], [LENGTH, ENEMY_PAD.x, ENEMY_PAD.y]];
+const SIGHT = DEFAULT_TUNE.visionM * DEFAULT_TUNE.vehicleVisionMul;
+const spotted = (t: number) => { const e = at(ENEMY_PATH, t); return MEN.some((m) => m.squad === 0 && !inSpan(m.dead, t) && Math.hypot(at(m.path, t).x - e.x, at(m.path, t).y - e.y) <= SIGHT); };
+
+/** Where Alpha last saw the enemy helicopter, fading over `lkpSeconds`; none while it is in sight or long gone. */
+function lostHeli(t: number): LastKnownView[] {
+  const lkp = DEFAULT_TUNE.lkpSeconds;
+  if (spotted(t)) return [];
+  for (let s = t - 1 / HZ; s > t - lkp; s -= 1 / HZ) if (spotted(s)) return [{ ...at(ENEMY_PATH, s), fade: 1 - (t - s) / lkp }];
+  return [];
+}
 
 function helisAt(t: number): VehicleView[] {
   const p = at(HELI_PATH, t);
@@ -123,12 +137,13 @@ function helisAt(t: number): VehicleView[] {
   const seats = [12, 13, 14, 15].map((id) => (inHeli(id, t) ? id : -1));
   const flying = (t > LIFT && t < LAND) || (t > UNLOADED && t < HOME);
   const own: VehicleView = { id: HELI_ID, side: 'nato', kind: 'helicopter', ...p, ...hull, tx: hull.fx, ty: hull.fy, hp: 1, seats, ...(seats[0] === -1 && { empty: true }), ...(flying && { airborne: true }) };
-  const k = Math.max(0, Math.min(1, (t - LIFT) / (ENEMY_LANDS - LIFT)));
-  const span = Math.hypot(B.x - ENEMY_PAD.x, B.y - ENEMY_PAD.y);
-  const towardB = { fx: (B.x - ENEMY_PAD.x) / span, fy: (B.y - ENEMY_PAD.y) / span };
-  const enemy: VehicleView = { id: 36, side: 'pact', kind: 'helicopter', x: ENEMY_PAD.x + (B.x - ENEMY_PAD.x) * k, y: ENEMY_PAD.y + (B.y - ENEMY_PAD.y) * k, ...towardB, tx: towardB.fx, ty: towardB.fy, airborne: true };
+  const span = Math.hypot(ENEMY_LZ.x - ENEMY_PAD.x, ENEMY_LZ.y - ENEMY_PAD.y);
+  const out = { fx: (ENEMY_LZ.x - ENEMY_PAD.x) / span, fy: (ENEMY_LZ.y - ENEMY_PAD.y) / span };
+  const hdg = t < ENEMY_UNLOADED ? out : { fx: -out.fx, fy: -out.fy };
+  const enemyFlying = (t > LIFT && t < ENEMY_LANDS) || (t > ENEMY_UNLOADED && t < ENEMY_HOME);
+  const enemy: VehicleView = { id: 36, side: 'pact', kind: 'helicopter', ...at(ENEMY_PATH, t), ...hdg, tx: hdg.fx, ty: hdg.fy, ...(enemyFlying && { airborne: true }) };
   const wreck: VehicleView = { id: -1, side: 'pact', kind: 'helicopter', x: 70, y: -150, fx: -0.6, fy: 0.8, tx: -0.6, ty: 0.8, wreck: true };
-  return [own, wreck, ...(t > LIFT && t < ENEMY_LANDS ? [enemy] : [])];
+  return [own, wreck, ...(spotted(t) ? [enemy] : [])];
 }
 
 type Span = [number, number];
@@ -250,7 +265,7 @@ export function viewAt(t: number): CommanderView {
     seconds: t,
     friendlies,
     contacts: CONTACTS.map((c) => soldier(c, t)),
-    lastKnown: [],
+    lastKnown: lostHeli(t),
     squads: SQUADS.map((q) => squadView(q, t)),
     points: POINTS,
     tickets: { nato: 150, pact: 150 },

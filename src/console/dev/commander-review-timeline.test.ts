@@ -150,7 +150,7 @@ describe('commander review timeline (#69)', () => {
     for (const v of late.vehicles!) expect(insidePolygon(PLAY_AREA, v.x, v.y)).toBe(true);
   });
 
-  it('#109 Helicopter: Delta boards the empty helicopter on the pad, it lifts off, flies straight to D, lands, they get out within unloadSeconds and it flies home with its pilot; an enemy one shows only while it flies', () => {
+  it('#109 Helicopter: Delta boards the empty helicopter on the pad, it lifts off, flies straight to D, lands, they get out within unloadSeconds and it flies home with its pilot; an enemy one shows only while Alpha sees it, then fades to a Last Known Position', () => {
     const t = chapter('Helicopter') - 1;
     const heli = (v: ReturnType<typeof viewAt>) => v.vehicles!.find((x) => x.kind === 'helicopter' && x.side === 'nato')!;
     const enemy = (v: ReturnType<typeof viewAt>) => v.vehicles!.find((x) => x.kind === 'helicopter' && x.side === 'pact' && !x.wreck);
@@ -178,9 +178,27 @@ describe('commander review timeline (#69)', () => {
     const home = heli(viewAt(LENGTH - 1));
     expect(home).toMatchObject({ x: pad.x, y: pad.y, seats: [12, -1, -1, -1] });
     expect(home.airborne).toBeUndefined();
-    const seen = flights.map((v) => enemy(v));
-    expect(seen.some((e) => e?.airborne)).toBe(true);
-    expect(seen.every((e) => !e || e.airborne)).toBe(true); // gone once it lands out of sight
+    // #119: the enemy one shows only while Alpha sees it (a Soldier sees a vehicle at visionM 150 x vehicleVisionMul 1.5),
+    // from the moment it comes into that sight, in the air and on the ground; lost, a Last Known Position fades out
+    const SIGHT = 225;
+    const range = (v: ReturnType<typeof viewAt>, e: { x: number; y: number }) => Math.min(...v.friendlies.filter((f) => f.squad === 0).map((f) => Math.hypot(f.x - e.x, f.y - e.y)));
+    const shown = flights.map((v) => enemy(v));
+    const first = shown.findIndex((e) => e);
+    const last = shown.length - 1 - [...shown].reverse().findIndex((e) => e);
+    expect(first).toBeGreaterThan(lift);
+    expect(shown.slice(first, last + 1).every((e) => e)).toBe(true);
+    expect(shown.slice(first, last + 1).some((e) => e!.airborne)).toBe(true);
+    expect(shown.slice(first, last + 1).some((e) => !e!.airborne)).toBe(true);
+    shown.forEach((e, i) => e && expect(range(flights[i]!, e)).toBeLessThanOrEqual(SIGHT));
+    expect(range(flights[first]!, shown[first]!)).toBeGreaterThan(SIGHT - 10);
+    expect(range(flights[last]!, shown[last]!)).toBeGreaterThan(SIGHT - 10);
+    expect(flights.slice(0, last + 1).every((v) => !v.lastKnown!.length)).toBe(true);
+    const [lkp, ...more] = flights[last + 1]!.lastKnown!;
+    expect(more).toEqual([]);
+    expect(Math.hypot(lkp!.x - shown[last]!.x, lkp!.y - shown[last]!.y)).toBeLessThan(30 / 4); // within a frame's flight (heliMps)
+    expect(range(flights[last + 1]!, lkp!)).toBeLessThanOrEqual(SIGHT);
+    expect(lkp!.fade).toBeCloseTo(1, 1);
+    expect(flights[last + 1 + 4 * 4]!.lastKnown).toEqual([]); // gone lkpSeconds (3.5) later
     expect(viewAt(LENGTH - 1).vehicles!.filter((x) => x.kind === 'helicopter' && x.wreck)).toHaveLength(1);
     expect(viewAt(LENGTH - 1).squads.find((q) => q.id === 3)!.name).toBe('Delta');
   });

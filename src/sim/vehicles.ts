@@ -3,7 +3,8 @@
 // its passengers get out by the shared passenger rule (`wantsOut`), and its second seat fires an MG where the tank's has the coax. Soldiers and vehicles share one
 // id space: a vehicle's id comes after every Soldier's (`vehicleOf` in state.ts), so sightings, targets and `shot` events
 // address either. #109 adds the transport helicopter: it flies straight over the ground grid (`fly`), ferries its passengers to their
-// majority's goal and home again, sees over walls, and is seen by both Sides while airborne.
+// majority's goal and home again, sees over walls, and is seen over walls while airborne. #119: the enemy's Console shows it only
+// when someone of theirs sees it, as any vehicle.
 import type { Match } from './index';
 import { driveFlow, flowDist, flowLook } from './ai/flow';
 import { bestPoint } from './ai/squad';
@@ -446,7 +447,7 @@ export function rocketTarget(m: Match, s: Soldier): Vehicle | null {
 /**
  * `damage` to `v` from Side `by`; at 0 hit points it is destroyed: every occupant dies outright (a Ticket each), and a Strike
  * (`cause`) of the enemy's scores them for that Commander at the shell tariff; it leaves a Wreck where it died (#109: a helicopter
- * falls in place, and the enemy sees one that dies in the air).
+ * falls in place), seen by the enemy only if they saw it in the last perception phase (#119: in the air too).
  */
 export function hurt(m: Match, v: Vehicle, damage: number, by: SideId, cause: Soldier['cause'], events: SimEvent[]) {
   if (!live(v)) return;
@@ -456,7 +457,7 @@ export function hurt(m: Match, v: Vehicle, damage: number, by: SideId, cause: So
     if (cause && by !== s.side) s.cause = cause;
     die(m, s, events);
   }
-  const seen = v.airborne || m.sightings[enemyOf(v.side)].some((o) => o.id === v.id && o.tick >= m.tick - 1); // #109: everyone sees the sky
+  const seen = m.sightings[enemyOf(v.side)].some((o) => o.id === v.id && o.tick >= m.tick - 1);
   m.wrecks.push({ side: v.side, kind: v.kind, x: v.x, y: v.y, fx: v.fx, fy: v.fy, seen });
   Object.assign(v, { hp: 0, deadAt: m.tick, target: -1, coax: -1, airborne: false });
 }
@@ -476,7 +477,7 @@ export function vehicleViews(m: Match, side: SideId, seen: Set<number>): Vehicle
   };
   const views: VehicleView[] = [];
   for (const v of m.vehicles) {
-    if (!live(v) || (v.side !== side && !seen.has(v.id) && !v.airborne)) continue; // #109: the sky is in both Sides' views (#58)
+    if (!live(v) || (v.side !== side && !seen.has(v.id))) continue; // #119: an airborne one too, only when spotted
     const base = { id: v.id, side: v.side, kind: v.kind, x: v.x, y: v.y, fx: v.fx, fy: v.fy, ...turret(v) };
     const rounds = v.rounds.map((r) => ({ from: { x: r.x0, y: r.y0 }, to: { x: r.x, y: r.y }, flight: (m.tick - r.launch) / (r.land - r.launch) }));
     views.push({ ...base, ...(v.side === side && { hp: v.hp / specOf(m.tune, v.kind).hp, seats: [...v.seats] }), ...(rounds.length && { rounds }), ...(v.seats.every((id) => id < 0) && { empty: true }), ...(v.airborne && { airborne: true }) });

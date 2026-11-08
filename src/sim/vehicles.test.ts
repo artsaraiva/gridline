@@ -478,16 +478,10 @@ describe('#109 the transport helicopter ferries a Squad', () => {
     expect(views[landed]!.points[0]!.progress).toBeGreaterThan(-1); // the tick it sets down, before anyone is out
   });
 
-  it('the enemy Console shows it for as long as it flies, though nobody sees it, and loses it once it has landed out of sight', () => {
+  it('the enemy Console never shows it while nobody of theirs sees it, in the air or on the ground', () => {
     const { views } = play(ferry(), 40 * HZ, 'pact');
-    const enemyHeli = (v: CommanderView) => v.vehicles!.find((x) => x.id === 8);
-    const landed = views.findIndex((v, i) => i > 0 && !enemyHeli(v));
-    expect(landed / HZ).toBeCloseTo(Math.hypot(A.x + 560, A.y) / DEFAULT_TUNE.heliMps, 0);
-    for (const v of views.slice(0, landed)) expect(enemyHeli(v)).toEqual(expect.objectContaining({ side: 'nato', kind: 'helicopter', airborne: true }));
-    expect(enemyHeli(views[0]!)!.seats).toBeUndefined(); // an enemy's: position and facing only
-    const lift = views.findIndex((v, i) => i > landed && enemyHeli(v));
-    expect((lift - landed) / HZ).toBeCloseTo(DEFAULT_TUNE.unloadSeconds, 0); // gone while it sits on the ground, back once it lifts off for home
-    expect(enemyHeli(views[lift]!)!.airborne).toBe(true);
+    expect(views.some((v) => v.vehicles!.some((x) => x.id === 8))).toBe(false);
+    expect(views.every((v) => !v.lastKnown!.length)).toBe(true);
   });
 
   it('a rifle Squad under its landing zone shoots it down: everyone aboard dies, a Ticket each; the Wreck lies where it fell; a fresh one stands on the helipad vehicleRespawnSeconds later', () => {
@@ -606,7 +600,25 @@ describe('#109 the helicopter\'s sight, and being seen', () => {
     expect(new Set(shots)).toEqual(new Set([1]));
   });
 
-  it('a Barrage shell hurts it only on the ground; a Cruise Missile destroys it in the air, and the enemy sees the Wreck fall', () => {
+  it('the enemy Console shows an airborne one only while a Soldier of theirs sees it, over a wall; lost, it leaves a fading Last Known Position', () => {
+    // pact's 2 and 3 face east behind the wall; the empty helicopter hovers out of their sight, then over the wall in it, then out again
+    const m = sky({ 2: { x: -120, y: 0, fx: 1, fy: 0 }, 3: { x: -120, y: 4, fx: 1, fy: 0 } }, { airborne: true, seats: [-1, -1, -1, -1] }, { heliHp: 1e9 });
+    const out = { x: -120 + DEFAULT_TUNE.visionM * DEFAULT_TUNE.vehicleVisionMul + 20, y: 0 };
+    const heli = (v: CommanderView) => v.vehicles!.find((x) => x.id === 4);
+    Object.assign(m.vehicles[0]!, out);
+    expect(play(m, HZ, 'pact').views.some(heli)).toBe(false);
+    Object.assign(m.vehicles[0]!, { x: 0, y: 0 });
+    const seen = play(m, HZ, 'pact').views;
+    for (const v of seen) expect(heli(v)).toMatchObject({ side: 'nato', kind: 'helicopter', x: 0, y: 0, airborne: true });
+    expect(heli(seen[0]!)!.seats).toBeUndefined(); // an enemy's: position and facing only
+    Object.assign(m.vehicles[0]!, out);
+    const lost = play(m, 4 * HZ, 'pact').views;
+    expect(lost.some(heli)).toBe(false);
+    expect(lost[0]!.lastKnown).toEqual([{ x: 0, y: 0, fade: expect.closeTo(1, 1) }]);
+    expect(lost.at(-1)!.lastKnown).toEqual([]); // gone lkpSeconds later
+  });
+
+  it('a Barrage shell hurts it only on the ground; a Cruise Missile destroys it in the air, and the enemy sees the Wreck only when they saw it die', () => {
     const shell = (airborne: boolean) => {
       const m = sky({}, { airborne, seats: [-1, -1, -1, -1] }, { visionM: 0, barrageCooldownSeconds: 0, barrageShells: 1, barrageSpreadM: 0 });
       play(m, 20 * HZ, 'nato', (m) => (m.tick === 0 ? [{ tick: 0, side: 'pact', kind: 'asset', asset: 'barrage', at: { x: 0, y: 0 } }] : []));
@@ -615,10 +627,16 @@ describe('#109 the helicopter\'s sight, and being seen', () => {
     expect(shell(true)).toBe(DEFAULT_TUNE.heliHp);
     expect(shell(false)).toBe(DEFAULT_TUNE.heliHp - DEFAULT_TUNE.shellVehicleDamage);
 
-    const m = sky({}, { airborne: true, seats: [-1, -1, -1, -1] }, { visionM: 0, missileCooldownSeconds: 0, missileGated: false });
-    const { views } = play(m, 30 * HZ, 'pact', (m) => (m.tick === 0 ? [{ tick: 0, side: 'pact', kind: 'asset', asset: 'missile', at: { x: 0, y: 0 } }] : []));
-    expect(m.vehicles[0]!.deadAt).toBeGreaterThan(0);
-    expect(views.at(-1)!.vehicles!.find((x) => x.wreck)).toMatchObject({ side: 'nato', kind: 'helicopter', x: 0, y: 0 });
+    const wreck = (watching: boolean) => {
+      // pact's 2 and 3 behind the wall, facing it (east) or away; rifles never bring it down (heliHp), the missile does
+      const fx = watching ? 1 : -1;
+      const m = sky({ 2: { x: -120, y: 0, fx, fy: 0 }, 3: { x: -120, y: 4, fx, fy: 0 } }, { airborne: true, seats: [-1, -1, -1, -1] }, { heliHp: 1e9, missileCooldownSeconds: 0, missileGated: false });
+      const { views } = play(m, 30 * HZ, 'pact', (m) => (m.tick === 0 ? [{ tick: 0, side: 'pact', kind: 'asset', asset: 'missile', at: { x: 0, y: 0 } }] : []));
+      expect(m.vehicles[0]!.deadAt).toBeGreaterThan(0);
+      return views.at(-1)!.vehicles!.find((x) => x.wreck);
+    };
+    expect(wreck(true)).toMatchObject({ side: 'nato', kind: 'helicopter', x: 0, y: 0 });
+    expect(wreck(false)).toBeUndefined();
   });
 });
 
