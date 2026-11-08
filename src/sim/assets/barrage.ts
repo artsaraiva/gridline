@@ -55,7 +55,7 @@ export const barrage: Kind = {
         e.told = true;
         assetRadio(m, e, 'Splash', events);
       }
-      blast(m, e.side, shell, { killM: t.barrageKillM, woundM: t.barrageWoundM, suppressM: t.barrageSuppressM, suppression: t.barrageSuppression }, 'barrage', events, { damage: () => t.shellVehicleDamage });
+      blast(m, e.side, shell, { killM: t.barrageKillM, woundM: t.barrageWoundM, suppressM: t.barrageSuppressM, suppression: t.barrageSuppression }, 'barrage', events, { damage: (v) => (v.airborne ? 0 : t.shellVehicleDamage) }); // #109: a shell never reaches the air
     }
   },
 

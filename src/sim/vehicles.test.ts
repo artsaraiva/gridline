@@ -26,7 +26,7 @@ function field(extra: Partial<MapData> = {}): MapData {
  * that. Placing Soldiers (and a tank's hit points) stands in for a map script; everything after it runs through `step`.
  */
 function scene(o: { map?: Partial<MapData>; tune?: Partial<Tune>; place?: Record<number, { x: number; y: number; fx?: number; fy?: number }>; squads?: number }): Match {
-  const tune: Tune = { ...DEFAULT_TUNE, squadSize: 2, speedJitter: 0, spread: 0, strayChance: 0, drainSeconds: [1e9, 1e9, 1e9, 1e9, 1e9], jeepsPerSide: 0, pointJeeps: false, ...o.tune };
+  const tune: Tune = { ...DEFAULT_TUNE, squadSize: 2, speedJitter: 0, spread: 0, strayChance: 0, drainSeconds: [1e9, 1e9, 1e9, 1e9, 1e9], jeepsPerSide: 0, helisPerSide: 0, pointJeeps: false, ...o.tune };
   const m = createMatch({ seed: 1, map: field(o.map), tune, squadsPerSide: o.squads ?? 1, commanderSide: 'nato' });
   for (const [id, p] of Object.entries(o.place ?? {})) Object.assign(m.soldiers[Number(id)]!, p);
   return m;
@@ -426,6 +426,199 @@ describe('#108 a jeep at every Capture Point but the middle one, for its owner',
     expect((back + 1) / HZ).toBeCloseTo(DEFAULT_TUNE.vehicleRespawnSeconds, 0);
     expect(m.tick - dead).toBeGreaterThan(back);
     expect(jeepAt(views.at(-1)!, { x: -300, y: 0 })).toMatchObject({ side: 'nato', hp: 1 });
+  });
+});
+
+describe('#109 the transport helicopter ferries a Squad', () => {
+  // No ground vehicles: each Side's helicopter waits on its HQ. Nato's Squad is Soldiers 0..3, its helicopter 8, the pact's 9;
+  // the pact Squad stands far off its own, so only nato flies. A is far across the field.
+  const A = { x: 300, y: 200 };
+  const away = { x: 500, y: -500 };
+  const ferry = (extra: Partial<Tune> = {}, place: Record<number, { x: number; y: number; fx?: number; fy?: number }> = {}) =>
+    scene({ map: { points: [{ id: 'A', name: 'A', ...A }] }, tune: { visionM: 0, squadSize: 4, tanksPerSide: 0, helisPerSide: 1, ...extra }, place: { 4: away, 5: away, 6: away, 7: away, ...place } });
+  const heliOf = (v: CommanderView) => v.vehicles!.find((x) => x.side === v.side && x.kind === 'helicopter' && !x.wreck)!;
+
+  it('the Squad boards at match start, it flies straight to the far point, lands inside its radius, unloads in unloadSeconds and flies home empty', () => {
+    const m = ferry();
+    const { views } = play(m, 90 * HZ);
+    expect(heliOf(views[0]!)).toMatchObject({ id: 8, seats: [0, 1, 2, 3], airborne: true });
+    const landed = views.findIndex((v, i) => i > 0 && !heliOf(v).airborne);
+    const lz = heliOf(views[landed]!);
+    expect(Math.hypot(lz.x - A.x, lz.y - A.y)).toBeLessThan(DEFAULT_TUNE.captureRadius);
+    expect(landed / HZ).toBeCloseTo(Math.hypot(A.x + 560, A.y) / DEFAULT_TUNE.heliMps, 0);
+    for (const v of views.slice(0, landed)) {
+      const h = heliOf(v); // on the straight line from the HQ to A
+      expect(Math.abs((h.x + 560) * A.y - h.y * (A.x + 560)) / Math.hypot(A.x + 560, A.y)).toBeLessThan(0.5);
+    }
+    const lift = views.findIndex((v, i) => i > landed && heliOf(v).airborne);
+    expect((lift - landed) / HZ).toBeCloseTo(DEFAULT_TUNE.unloadSeconds, 0);
+    expect(heliOf(views[lift]!).seats).toEqual([0, -1, -1, -1]); // the pilot never gets out
+    const home = heliOf(views.at(-1)!);
+    expect(home).toMatchObject({ x: -560, y: 0, seats: [0, -1, -1, -1] });
+    expect(home.airborne).toBeUndefined();
+    for (const id of [1, 2, 3]) expect(Math.hypot(m.soldiers[id]!.x - A.x, m.soldiers[id]!.y - A.y)).toBeLessThan(DEFAULT_TUNE.captureRadius + 10);
+    expect(views.at(-1)!.points[0]!.owner).toBe('nato');
+  });
+
+  it('its riders never count in a Capture Point it flies over, and count in the one it lands in', () => {
+    // pact's B lies on the line to A, out of boarding reach of the passengers' goal choice (A, pact's too, scores higher)
+    const m = scene({
+      map: { points: [{ id: 'A', name: 'A', ...A, owner: 'pact' }, { id: 'B', name: 'B', x: -130, y: 100, owner: 'pact' }] },
+      tune: { visionM: 0, squadSize: 4, tanksPerSide: 0, helisPerSide: 1 },
+      place: { 4: away, 5: away, 6: away, 7: away },
+    });
+    m.squads[0]!.order = { point: 0, hold: false, delayed: null, since: 0 };
+    const { views } = play(m, 40 * HZ);
+    const landed = views.findIndex((v, i) => i > 0 && !heliOf(v).airborne);
+    const over = views.findIndex((v) => Math.hypot(heliOf(v).x + 130, heliOf(v).y - 100) < 5);
+    expect(over).toBeGreaterThan(0);
+    expect(over).toBeLessThan(landed);
+    expect(views.every((v) => v.points[1]!.progress === -1)).toBe(true);
+    expect(views[landed - 1]!.points[0]!.progress).toBe(-1);
+    expect(views[landed]!.points[0]!.progress).toBeGreaterThan(-1); // the tick it sets down, before anyone is out
+  });
+
+  it('the enemy Console shows it for as long as it flies, though nobody sees it, and loses it once it has landed out of sight', () => {
+    const { views } = play(ferry(), 40 * HZ, 'pact');
+    const enemyHeli = (v: CommanderView) => v.vehicles!.find((x) => x.id === 8);
+    const landed = views.findIndex((v, i) => i > 0 && !enemyHeli(v));
+    expect(landed / HZ).toBeCloseTo(Math.hypot(A.x + 560, A.y) / DEFAULT_TUNE.heliMps, 0);
+    for (const v of views.slice(0, landed)) expect(enemyHeli(v)).toEqual(expect.objectContaining({ side: 'nato', kind: 'helicopter', airborne: true }));
+    expect(enemyHeli(views[0]!)!.seats).toBeUndefined(); // an enemy's: position and facing only
+    const lift = views.findIndex((v, i) => i > landed && enemyHeli(v));
+    expect((lift - landed) / HZ).toBeCloseTo(DEFAULT_TUNE.unloadSeconds, 0); // gone while it sits on the ground, back once it lifts off for home
+    expect(enemyHeli(views[lift]!)!.airborne).toBe(true);
+  });
+
+  it('a rifle Squad under its landing zone shoots it down: everyone aboard dies, a Ticket each; the Wreck lies where it fell; a fresh one stands on the helipad vehicleRespawnSeconds later', () => {
+    // pact's Squad stands at A facing the way it comes; nobody is Wounded (hp), so only the helicopter dies
+    const atA = (dy: number) => ({ x: A.x, y: A.y + dy, fx: -1, fy: 0 });
+    const m = ferry({ visionM: DEFAULT_TUNE.visionM, walkSpeed: 0, hp: 1e9, rockets: 0 }, { 4: atA(-6), 5: atA(-2), 6: atA(2), 7: atA(6) });
+    const aboard: number[] = [];
+    let dead = -1;
+    let back: { tick: number; x: number; y: number; hp: number } | null = null;
+    const events: Logged[] = [];
+    const views: CommanderView[] = [];
+    for (let i = 0; i < 120 * HZ; i++) {
+      const v = m.vehicles[0]!;
+      const was = v.seats.filter((id) => id >= 0);
+      const tick = m.tick;
+      for (const e of step(m, [])) events.push({ ...e, tick });
+      views.push(commanderView(m, 'pact'));
+      if (dead < 0 && v.deadAt >= 0) [dead, aboard[0]] = [tick, was.length];
+      if (dead >= 0 && !back && v.deadAt === -1) back = { tick, x: v.x, y: v.y, hp: v.hp };
+    }
+    expect(dead).toBeGreaterThan(0);
+    expect(new Set(events.filter((e) => e.kind === 'shot' && e.to === 8 && e.hit).map((e) => (e as { from: number }).from)).size).toBeGreaterThan(1);
+    const deaths = events.filter((e) => e.kind === 'death' && e.tick === dead);
+    expect(deaths).toHaveLength(aboard[0]!);
+    expect(m.tickets.nato).toBe(DEFAULT_TUNE.tickets - aboard[0]!);
+    const wreck = views.at(-1)!.vehicles!.find((x) => x.wreck)!;
+    expect(wreck).toMatchObject({ side: 'nato', kind: 'helicopter' });
+    expect(Math.hypot(wreck.x - A.x, wreck.y - A.y)).toBeLessThan(DEFAULT_TUNE.fireRangeM);
+    expect(back).toMatchObject({ x: -560, y: 0, hp: DEFAULT_TUNE.heliHp });
+    expect((back!.tick - dead) / HZ).toBeCloseTo(DEFAULT_TUNE.vehicleRespawnSeconds, 0);
+  });
+});
+
+describe('#109 where the helicopter flies', () => {
+  // Two nato Squads (0..3 Ordered to A, 4..7 to B) and their helicopter 16 on the HQ; everyone not seated stands far off
+  const A = { x: 300, y: 200 };
+  const B = { x: 300, y: -200 };
+  const away = (id: number) => (id < 8 ? { x: -300, y: 550 } : { x: 300, y: -550 }); // apart: even blind eyes see at 0 m
+  function lands(seats: number[]) {
+    const place = Object.fromEntries([...Array(16).keys()].filter((id) => !seats.includes(id)).map((id) => [id, away(id)]));
+    const m = scene({ map: { points: [{ id: 'A', name: 'A', ...A }, { id: 'B', name: 'B', ...B }] }, tune: { visionM: 0, squadSize: 4, tanksPerSide: 0, helisPerSide: 1 }, squads: 2, place });
+    m.squads[0]!.order = { point: 0, hold: false, delayed: null, since: 0 };
+    m.squads[1]!.order = { point: 1, hold: false, delayed: null, since: 0 };
+    const h = m.vehicles[0]!;
+    seats.forEach((id, k) => (h.seats[k] = id) >= 0 && Object.assign(m.soldiers[id]!, { x: h.x, y: h.y, vehicle: h.id }));
+    for (let i = 0; i < 40 * HZ && (i < HZ || h.airborne); i++) step(m, []);
+    return h;
+  }
+
+  it('to its passengers\' majority goal, the pilot\'s goal breaking a tie', () => {
+    const near = (h: { x: number; y: number }, p: { x: number; y: number }) => Math.hypot(h.x - p.x, h.y - p.y) < DEFAULT_TUNE.captureRadius;
+    expect(near(lands([0, 4, 5, 1]), B)).toBe(true); // two for B, one for A
+    expect(near(lands([0, 4, 1, -1]), A)).toBe(true); // one each: the pilot (Alpha) is for A
+    expect(near(lands([4, 0, 5, 1]), A)).toBe(true);
+  });
+
+  it('a dead member never comes back into its Squad Leader\'s helicopter while it is in the air', () => {
+    const m = scene({ map: { points: [{ id: 'A', name: 'A', ...A }] }, tune: { visionM: 0, squadSize: 3, tanksPerSide: 0, helisPerSide: 1 }, place: { 2: { x: 500, y: 0 }, 3: { x: 500, y: -500 }, 4: { x: 500, y: -500 }, 5: { x: 500, y: -500 } } });
+    const h = m.vehicles[0]!;
+    [0, 1].forEach((id, k) => (h.seats[k] = id) >= 0 && Object.assign(m.soldiers[id]!, { x: h.x, y: h.y, vehicle: h.id }));
+    Object.assign(m.soldiers[2]!, { state: 'dead', deadAt: 0 });
+    for (let i = 0; i < (DEFAULT_TUNE.respawnSeconds + 1) * HZ; i++) step(m, []);
+    expect(h.airborne).toBe(true); // A is over 30 s away
+    expect(m.soldiers[2]!).toMatchObject({ state: 'alive', vehicle: -1 });
+  });
+
+  it('round the enemy HQ circle, never into it', () => {
+    const behind = { x: 588, y: 24 }; // past the pact HQ (560, 0) from nato's
+    const m = scene({ map: { points: [{ id: 'A', name: 'A', ...behind }] }, tune: { visionM: 0, squadSize: 4, tanksPerSide: 0, helisPerSide: 1 }, place: { 4: { x: 0, y: 550 }, 5: { x: 0, y: 550 }, 6: { x: 0, y: 550 }, 7: { x: 0, y: 550 } } });
+    const h = m.vehicles[0]!;
+    let closest = Infinity;
+    for (let i = 0; i < 60 * HZ; i++) {
+      step(m, []);
+      closest = Math.min(closest, Math.hypot(h.x - 560, h.y));
+    }
+    expect(closest).toBeGreaterThanOrEqual(DEFAULT_TUNE.hqRadius - 1e-6);
+    expect(m.soldiers.slice(1, 4).some((s) => Math.hypot(s.x - behind.x, s.y - behind.y) < 40)).toBe(true); // it got them there
+  });
+});
+
+describe('#109 the helicopter\'s sight, and being seen', () => {
+  // A wall north-south at x = -60; nato's helicopter (4) at the centre. Pact's Soldiers 2 and 3.
+  const wall = { walls: [{ x0: -64, y0: -80, x1: -56, y1: 80 }] };
+  const sky = (place: Record<number, { x: number; y: number; fx?: number; fy?: number }>, heli: { airborne: boolean; seats: number[] }, tune: Partial<Tune> = {}) => {
+    const m = scene({ map: wall, tune: { tanksPerSide: 0, helisPerSide: 1, walkSpeed: 0, rockets: 0, ...tune }, place: { 0: { x: 500, y: 500 }, 1: { x: 500, y: 500 }, ...place } });
+    Object.assign(m.vehicles[0]!, { x: 0, y: 0, ...heli });
+    heli.seats.forEach((id) => id >= 0 && Object.assign(m.soldiers[id]!, { x: 0, y: 0, vehicle: 4 }));
+    return m;
+  };
+
+  it('a crewed one sees all round over walls out to airVisionM', () => {
+    // Soldier 2 behind the wall and behind its facing, 200 m off; Soldier 3 past airVisionM
+    const m = sky({ 2: { x: -200, y: 0 }, 3: { x: 0, y: DEFAULT_TUNE.airVisionM + 10 } }, { airborne: false, seats: [0, -1, -1, -1] }, { visionM: 0 });
+    const { views } = play(m, 1); // it faces east as it looks (it turns for home only after)
+    expect(views[0]!.contacts.map((c) => c.id)).toEqual([2]);
+  });
+
+  it('a Soldier sees and shoots an airborne one over a wall, never a landed one', () => {
+    const fires = (airborne: boolean) => {
+      const m = sky({ 2: { x: -120, y: 0, fx: 1, fy: 0 }, 3: { x: -120, y: 4, fx: 1, fy: 0 } }, { airborne, seats: [-1, -1, -1, -1] });
+      return play(m, 5 * HZ, 'pact').events.filter((e) => e.kind === 'shot' && e.to === 4).length;
+    };
+    expect(fires(true)).toBeGreaterThan(0);
+    expect(fires(false)).toBe(0);
+  });
+
+  it('the door gun fires over walls only with a passenger aboard, from the first passenger\'s seat', () => {
+    const doorGun = (seats: number[]) => {
+      const m = sky({ 2: { x: -120, y: 0 }, 3: { x: -120, y: 4 } }, { airborne: false, seats }, { hp: 1e9, visionM: 0 }); // behind the wall
+      m.vehicles[0]!.slot = { x: 0, y: 0 }; // home is here: it stays put
+      return play(m, 3 * HZ).events.filter((e) => e.kind === 'shot' && e.side === 'nato').map((e) => (e as { from: number }).from);
+    };
+    expect(doorGun([0, -1, -1, -1])).toEqual([]);
+    const shots = doorGun([0, -1, 1, -1]);
+    expect(shots.length).toBeGreaterThan(10);
+    expect(new Set(shots)).toEqual(new Set([1]));
+  });
+
+  it('a Barrage shell hurts it only on the ground; a Cruise Missile destroys it in the air, and the enemy sees the Wreck fall', () => {
+    const shell = (airborne: boolean) => {
+      const m = sky({}, { airborne, seats: [-1, -1, -1, -1] }, { visionM: 0, barrageCooldownSeconds: 0, barrageShells: 1, barrageSpreadM: 0 });
+      play(m, 20 * HZ, 'nato', (m) => (m.tick === 0 ? [{ tick: 0, side: 'pact', kind: 'asset', asset: 'barrage', at: { x: 0, y: 0 } }] : []));
+      return m.vehicles[0]!.hp;
+    };
+    expect(shell(true)).toBe(DEFAULT_TUNE.heliHp);
+    expect(shell(false)).toBe(DEFAULT_TUNE.heliHp - DEFAULT_TUNE.shellVehicleDamage);
+
+    const m = sky({}, { airborne: true, seats: [-1, -1, -1, -1] }, { visionM: 0, missileCooldownSeconds: 0, missileGated: false });
+    const { views } = play(m, 30 * HZ, 'pact', (m) => (m.tick === 0 ? [{ tick: 0, side: 'pact', kind: 'asset', asset: 'missile', at: { x: 0, y: 0 } }] : []));
+    expect(m.vehicles[0]!.deadAt).toBeGreaterThan(0);
+    expect(views.at(-1)!.vehicles!.find((x) => x.wreck)).toMatchObject({ side: 'nato', kind: 'helicopter', x: 0, y: 0 });
   });
 });
 

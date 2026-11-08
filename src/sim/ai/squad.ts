@@ -7,7 +7,7 @@ import { insideCount } from '../capture';
 import { nearestCrate } from '../assets/crate';
 import { canStand, dist2 } from '../geometry';
 import { gridRef } from '../grid-ref';
-import { lineWalk } from '../grid';
+import { lineWalk, nearestWalkable } from '../grid';
 import { quiet } from '../respawn';
 import { rnd } from '../rng';
 import { membersOf, type Soldier, type Squad } from '../state';
@@ -102,15 +102,16 @@ export function think(m: Match, sq: Squad, events: SimEvent[]) {
   const t = m.tune;
   const members = membersOf(m, sq);
   const alive = members.filter((s) => s.state === 'alive');
-  const lead = alive[0]; // #106: the Squad scores from its Squad Leader (member 0) while alive, wherever they are
-  if (!lead) {
+  const leader = alive[0]; // #106: the Squad scores from its Squad Leader (member 0) while alive, wherever they are
+  if (!leader) {
     sq.task = 'none';
     return;
   }
+  const lead = { ...leader, ...nearestWalkable(m, leader) }; // #109: from the ground under them when they fly over a roof or the river
   const foot = alive.filter((s) => s.vehicle < 0); // #107
   if (foot.length && foot.every((s) => s.detached)) Object.assign(foot[0]!, { detached: false, goal: -1 }); // someone on foot is always the Squad's body
   const body = foot.filter((s) => !s.detached); // #106: the members moving as one
-  const L = body[0] ?? lead; // the foot leader: the wedge forms on them; with everyone aboard, the Squad Leader's vehicle stands in
+  const L = body[0] ?? leader; // the foot leader: the wedge forms on them; with everyone aboard, the Squad Leader's vehicle stands in
   const foe = enemyOf(sq.side);
   let threat: Vec2 | null = null;
   for (const c of sq.memory) if (!threat || dist2(c, L) < dist2(threat, L)) threat = c;
