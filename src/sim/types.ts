@@ -266,7 +266,12 @@ export interface Tune {
   boardMinM: number; // a Soldier boards only when its goal is farther than this ...
   boardM: number; // ... from a friendly vehicle with a free seat within this ...
   sameWayM: number; // ... that is empty, or whose driver's goal is within this of its own
-  boardWaitSeconds: number; // a fresh driver waits this long for others, leaving early when full
+  boardWaitSeconds: number; // a driver waits this long from the claim for its Squad's riders, leaving early when all are aboard
+  // #122 Boarding as an action
+  rideM: [number, number]; // a Squad rides when its goal is farther than this from its foot leader, seeded between the two per Squad
+  heliFitM: number; // the helicopter fits a goal farther than this (or across the river)
+  mountM: number; // a rider within this of its vehicle climbs in
+  mountSeconds: [number, number]; // a rider takes this long to climb in, seeded between the two
   vehicleVisionMul: number; // a ground vehicle sees, and is seen, at this x visionM
   hullM: number; // ground vehicles keep their centre farther than this from anything blocking
   tankRoadMps: number; // on road

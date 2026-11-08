@@ -183,6 +183,12 @@ export const DEFAULT_TUNE: Tune = {
   thinkOpenSeeded: true,
   reactionSeconds: [0.2, 0.8],
 
+  // #122 Boarding as an action
+  rideM: [120, 250],
+  heliFitM: 450,
+  mountM: 3,
+  mountSeconds: [1, 2],
+
   // #107 Tank tracer
   vehicleRespawnSeconds: 60,
   boardMinM: 150,
@@ -234,8 +240,8 @@ export const DEFAULT_TUNE: Tune = {
   airVisionM: 250,
 };
 
-/** #120: tests of one rule at a time switch the Squads' Traits off: the best point, no Commitment, no aggression. */
-export const NO_TRAITS: Partial<Tune> = { squadGoalBias: 0, choiceMargin: 0, commitSeconds: [0, 0], aggressionValueMul: 0, aggressionRetreatMul: 0 };
+/** #120: tests of one rule at a time switch the Squads' Traits off: the best point, no Commitment, no aggression, one ride distance (#122). */
+export const NO_TRAITS: Partial<Tune> = { squadGoalBias: 0, choiceMargin: 0, commitSeconds: [0, 0], aggressionValueMul: 0, aggressionRetreatMul: 0, rideM: [180, 180] };
 
 /** #121: every Squad thinks each second, opening on its id's tick and every Soldier sets off at once, as before the tempo rules. */
 export const NO_TEMPO: Partial<Tune> = { thinkIntervalSeconds: [1, 1], thinkJitter: 0, thinkOpenSeeded: false, reactionSeconds: [0, 0] };

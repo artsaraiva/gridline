@@ -10,5 +10,6 @@ it('plays whole matches over seeds, summarises them, and takes tune overrides', 
   expect(Object.keys(b.picks).length).toBeGreaterThan(0);
   expect(Object.values(b.firstPicks).reduce((a, n) => a + n, 0)).toBe(2 * 2 * 3); // #120: every Squad's first point, three a Side
   expect(b.opening.nato).toBeGreaterThanOrEqual(1);
+  expect(b.matches.every((r) => r.heliSquads.nato.length <= 1)).toBe(true); // #122: one helicopter a Side, boarded once
   expect(balance({ seeds: 2, squads: 3, map: RIVER_FIELD, tune: { matchSeconds: 90 } })).toEqual(b); // deterministic
 }, 15_000); // four matches: ~2 s alone, past 5 s beside the rest of the suite

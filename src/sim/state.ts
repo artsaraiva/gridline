@@ -55,6 +55,9 @@ export interface Soldier {
   // #121 Staggered set-off
   reaction: number; // seconds it holds before moving off after its Squad's change, seeded
   holdUntil: number; // tick it may move off; taking fire clears it
+  // #122 Boarding
+  boarding: number; // id of the vehicle its Squad claimed for it and it is walking to, -1 = none
+  climbAt: number; // tick it has climbed in, once within `mountM`; 0 = not climbing
   uavAssist: boolean; // #75 the shot that downed it landed while UAV-discovered: scores for the enemy Commander on death; cleared by Revive
 }
 
@@ -94,6 +97,8 @@ export interface Squad {
   // #121 Think tempo
   thinkInterval: number; // seconds between its thinks, seeded
   nextThink: number; // tick of its next think
+  // #122 Boarding
+  rideM: number; // a goal farther than this from its foot leader makes it ride, if a vehicle fits; seeded
 }
 
 export interface Point {
@@ -160,6 +165,8 @@ export function hashSoldiers(m: Match, mix: Mix) {
     mix(s.awaySince);
     mix(Math.round(s.reaction * 1000)); // #121
     mix(s.holdUntil);
+    mix(s.boarding); // #122
+    mix(s.climbAt);
   }
 }
 
@@ -176,5 +183,6 @@ export function hashSquads(m: Match, mix: Mix) {
     mix(sq.nextThink);
     for (const p of sq.pref) mix(Math.round(p * 1000));
     mix(Math.round(sq.aggression * 1000));
+    mix(Math.round(sq.rideM * 1000)); // #122
   }
 }

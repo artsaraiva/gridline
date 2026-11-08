@@ -279,8 +279,11 @@ describe('#108 the jeep: a Squad rides to its Capture Point and gets out', () =>
   it('the Squad fills it at match start, it reaches the point in under a minute, everyone gets out within dismountM of it after a stop, and it stays parked empty', () => {
     const m = ride();
     const { views } = play(m, 80 * HZ);
-    expect(jeepOf(views[0]!)).toMatchObject({ id: 8, kind: 'jeep', seats: [0, 1, 2, 3], hp: 1 });
-    const exits = [0, 1, 2, 3].map((id) => views.findIndex((v, i) => i > 0 && v.friendlies.find((f) => f.id === id)!.vehicle === undefined));
+    const filled = views.findIndex((v) => jeepOf(v).seats!.every((id) => id >= 0)); // #122: they walk to it and climb in one by one
+    expect(filled).toBeGreaterThan(0);
+    expect(filled / HZ).toBeLessThan(4);
+    expect(jeepOf(views[filled]!)).toMatchObject({ id: 8, kind: 'jeep', hp: 1 });
+    const exits = [0, 1, 2, 3].map((id) => views.findIndex((v, i) => i > filled + 2 * HZ && v.friendlies.find((f) => f.id === id)!.vehicle === undefined));
     for (const [n, e] of exits.entries()) {
       expect(e / HZ).toBeLessThan(60);
       const me = views[e]!.friendlies.find((f) => f.id === n)!;
@@ -306,6 +309,8 @@ describe('#108 the jeep: a Squad rides to its Capture Point and gets out', () =>
     m.squads[1]!.order = order(1);
     const jeep = m.vehicles.find((v) => v.side === 'nato')!;
     const s3 = m.soldiers[3]!;
+    jeep.seats.splice(0, 3, 0, 1, 3); // a map script's ride: Bravo's Soldier 3 aboard Alpha's jeep (Squads no longer board together)
+    for (const id of [0, 1, 3]) m.soldiers[id]!.vehicle = jeep.id;
     let rode = false;
     let exit: { tick: number; x: number; y: number } | null = null;
     let detached = false;
@@ -441,11 +446,16 @@ describe('#109 the transport helicopter ferries a Squad', () => {
   it('the Squad boards at match start, it flies straight to the far point, lands inside its radius, unloads in unloadSeconds and flies home empty', () => {
     const m = ferry();
     const { views } = play(m, 90 * HZ);
-    expect(heliOf(views[0]!)).toMatchObject({ id: 8, seats: [0, 1, 2, 3], airborne: true });
-    const landed = views.findIndex((v, i) => i > 0 && !heliOf(v).airborne);
+    const filled = views.findIndex((v) => heliOf(v).seats!.every((id) => id >= 0)); // #122: they walk to it and climb in one by one
+    expect(filled).toBeGreaterThan(0);
+    expect(filled / HZ).toBeLessThan(4);
+    expect(heliOf(views[filled]!)).toMatchObject({ id: 8 });
+    const up = views.findIndex((v) => heliOf(v).airborne);
+    expect(up).toBeGreaterThanOrEqual(filled);
+    const landed = views.findIndex((v, i) => i > up && !heliOf(v).airborne);
     const lz = heliOf(views[landed]!);
     expect(Math.hypot(lz.x - A.x, lz.y - A.y)).toBeLessThan(DEFAULT_TUNE.captureRadius);
-    expect(landed / HZ).toBeCloseTo(Math.hypot(A.x + 560, A.y) / DEFAULT_TUNE.heliMps, 0);
+    expect((landed - up) / HZ).toBeCloseTo(Math.hypot(A.x + 560, A.y) / DEFAULT_TUNE.heliMps, 0);
     for (const v of views.slice(0, landed)) {
       const h = heliOf(v); // on the straight line from the HQ to A
       expect(Math.abs((h.x + 560) * A.y - h.y * (A.x + 560)) / Math.hypot(A.x + 560, A.y)).toBeLessThan(0.5);
@@ -469,7 +479,8 @@ describe('#109 the transport helicopter ferries a Squad', () => {
     });
     m.squads[0]!.order = { point: 0, hold: false, delayed: null, since: 0 };
     const { views } = play(m, 40 * HZ);
-    const landed = views.findIndex((v, i) => i > 0 && !heliOf(v).airborne);
+    const up = views.findIndex((v) => heliOf(v).airborne);
+    const landed = views.findIndex((v, i) => i > up && !heliOf(v).airborne);
     const over = views.findIndex((v) => Math.hypot(heliOf(v).x + 130, heliOf(v).y - 100) < 5);
     expect(over).toBeGreaterThan(0);
     expect(over).toBeLessThan(landed);

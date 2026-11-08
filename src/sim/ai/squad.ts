@@ -15,7 +15,7 @@ import { enemyOf, type SimEvent, type Vec2 } from '../types';
 import { localPath, oct, pickCover, shelter } from './cover';
 import { crateFlow, flowDist, flowLook, hqFlow, pointFlow, routeFlow, type Flow } from './flow';
 import { chooseRoute } from './routes';
-import { board, ride } from '../vehicles';
+import { board, decideRide, ride } from '../vehicles';
 
 const sq2 = (r: number) => r * r;
 
@@ -200,6 +200,7 @@ export function think(m: Match, sq: Squad, events: SimEvent[]) {
   if ((mode === 'travel' || mode === 'fallback') && goal && dist2(L, goal) > sq2(goal.r + t.leashM)) stray(m, sq, L, body); // #93: closes up within a leash of the goal
   for (const s of foot) if (s.detached) detached(m, sq, L, s);
   for (const s of alive) if (s.vehicle >= 0) ride(m, sq, s); // #107
+  decideRide(m, sq, body, L);
   for (const s of foot) if (s.vehicle < 0) board(m, sq, s);
 }
 

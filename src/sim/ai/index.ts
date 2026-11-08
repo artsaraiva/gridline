@@ -8,8 +8,8 @@ export { think } from './squad';
 export { walk } from './soldier';
 export { logDeath, type Death } from './routes';
 
-type SquadAi = Omit<Squad, 'id' | 'side' | 'members' | 'goal' | 'lastSeen' | 'lastHit' | 'memory' | 'order' | 'pending' | 'request' | 'requestNext' | 'taking' | 'takingSince' | 'pref' | 'aggression' | 'commitUntil' | 'thinkInterval' | 'nextThink'>;
-type SoldierAi = Pick<Soldier, 'ammo' | 'lastTarget' | 'dest' | 'path' | 'cover' | 'chaseUntil' | 'role' | 'regroup' | 'strayUntil' | 'slot' | 'blocked' | 'detached' | 'goal' | 'commitUntil'>;
+type SquadAi = Omit<Squad, 'id' | 'side' | 'members' | 'goal' | 'lastSeen' | 'lastHit' | 'memory' | 'order' | 'pending' | 'request' | 'requestNext' | 'taking' | 'takingSince' | 'pref' | 'aggression' | 'commitUntil' | 'thinkInterval' | 'nextThink' | 'rideM'>;
+type SoldierAi = Pick<Soldier, 'ammo' | 'lastTarget' | 'dest' | 'path' | 'cover' | 'chaseUntil' | 'role' | 'regroup' | 'strayUntil' | 'slot' | 'blocked' | 'detached' | 'goal' | 'commitUntil' | 'boarding' | 'climbAt'>;
 
 export const newSquadAi = (): SquadAi => ({
   task: 'none', mode: 'travel', route: -1, slow: false, phase: 0, phaseUntil: 0, holdAt: 0, holdOct: -1, flankSign: 0, flankSince: -1, flankDone: false,
@@ -20,7 +20,7 @@ export const newSoldierAi = (m: Match): SoldierAi => ({ ...resetSoldierAi(m), sl
 
 /** What a Soldier forgets when Wounded or brought back. */
 export const resetSoldierAi = (m: Match) => ({
-  ammo: m.tune.ammo, lastTarget: -1, dest: null, path: [], cover: null, chaseUntil: 0, role: null, regroup: false, strayUntil: 0, detached: false, goal: -1, commitUntil: 0,
+  ammo: m.tune.ammo, lastTarget: -1, dest: null, path: [], cover: null, chaseUntil: 0, role: null, regroup: false, strayUntil: 0, detached: false, goal: -1, commitUntil: 0, boarding: -1, climbAt: 0,
 });
 
 const MODE = { travel: 0, bound: 1, hold: 2, fallback: 3 };

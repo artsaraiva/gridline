@@ -7,6 +7,7 @@ import { membersOf, type Soldier } from '../state';
 import type { Vec2 } from '../types';
 import { flowLook, pointFlow } from './flow';
 import { flowOf, goalOf, setDest, wedgeSlot } from './squad';
+import { boardStep } from '../vehicles';
 
 /** One tick of walking. Faces where it walks unless it has a target. A Soldier in its own HQ gets a full load of ammo. */
 export function walk(m: Match, s: Soldier) {
@@ -21,6 +22,11 @@ export function walk(m: Match, s: Soldier) {
   if (m.tick < s.holdUntil) { // #121: reaction; under fire nobody waits
     if (m.tick - sq.lastHit > t.takingFireSeconds * t.hz) return;
     s.holdUntil = 0;
+  }
+  if (s.boarding >= 0) { // #122: walks to the vehicle its Squad claimed, steps in as it climbs
+    const v = boardStep(m, s);
+    if (v && dist2(s, v) > 0.04) step(m, s, v, s.speed * (10 / (walkCost(m, s.x, s.y) || 10)));
+    if (v || s.vehicle >= 0) return;
   }
   const alive = membersOf(m, sq).filter((o) => o.state === 'alive');
   const body = alive.filter((o) => !o.detached && o.vehicle < 0); // #106; #107 nobody aboard

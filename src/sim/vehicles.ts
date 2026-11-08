@@ -8,7 +8,7 @@
 import type { Match } from './index';
 import { driveFlow, flowDist, flowLook } from './ai/flow';
 import { bestPoint } from './ai/squad';
-import { rnd } from './rng';
+import { between, rnd } from './rng';
 import { blast } from './assets/strike';
 import { die } from './combat';
 import { dist2, inHq, middlePoint } from './geometry';
@@ -43,6 +43,8 @@ export interface Vehicle {
   halt: number; // #108 tick it stopped for someone to get out, -1 = not stopping
   airborne: boolean; // #109 a helicopter in the air
   landedAt: number; // #109 tick a helicopter last touched down, -1 = not since it was fresh
+  claim: number; // #122 id of the Squad whose riders are walking to it, -1 = none
+  claimUntil: number; // #122 tick the claim runs out
 }
 
 /** A main gun round: fired from (x0, y0) at tick `launch`, landing on (x, y) at tick `land`. */
@@ -90,7 +92,7 @@ export const gunner = (v: Vehicle) => (air(v) ? (v.seats.find((id, k) => k > 0 &
 const fresh = (m: Match, side: SideId, kind: VehicleKind, slot: Vec2) => ({
   side, kind, ...slot, fx: side === 'nato' ? 1 : -1, fy: 0, hp: specOf(m.tune, kind).hp, seats: Array<number>(specOf(m.tune, kind).seats).fill(-1), slot,
   parked: true, deadAt: -1, goal: -1, departAt: 0, target: -1, coax: -1, nextFire: 0, laid: -1, bias: [] as number[], movedAt: m.tick, halt: -1,
-  airborne: false, landedAt: -1,
+  airborne: false, landedAt: -1, claim: -1, claimUntil: 0,
 });
 
 /**
@@ -126,23 +128,22 @@ export function newVehicles(m: Match): Vehicle[] {
 const goalOf = (m: Match, sq: Squad, s: Soldier) => (s.detached && s.goal >= 0 ? s.goal : sq.task === 'point' ? sq.goal : -1);
 
 /**
- * At its Squad's think: a Soldier on foot whose Capture Point is farther than `boardMinM` boards the nearest friendly vehicle
+ * At its Squad's think: a Soldier on foot whose Capture Point is farther than `boardMinM` boards the nearest friendly tank
  * within `boardM` with a free seat that is empty (it drives, to its own goal) or whose driver's goal is within `sameWayM` of
- * its own; a vehicle with a squad mate aboard comes first. #109: a helicopter only on the ground, and one waiting for
- * passengers (no goal) takes anyone.
+ * its own; a tank with a squad mate aboard comes first. #122: only tanks; a Squad rides jeeps and helicopters together (`ride`).
  */
 export function board(m: Match, sq: Squad, s: Soldier) {
   const t = m.tune;
   const goal = goalOf(m, sq, s);
   const p = m.points[goal];
-  if (!p || s.reviving >= 0 || dist2(s, p) <= squared(t.boardMinM)) return;
+  if (!p || s.reviving >= 0 || s.boarding >= 0 || dist2(s, p) <= squared(t.boardMinM)) return;
   let best: Vehicle | null = null;
   let bestKey = Infinity;
   for (const v of m.vehicles) {
-    if (v.side !== s.side || !live(v) || v.airborne || crippled(m, v) || !v.seats.includes(-1) || dist2(s, v) > squared(t.boardM)) continue;
+    if (v.kind !== 'tank' || v.side !== s.side || !live(v) || crippled(m, v) || !v.seats.includes(-1) || dist2(s, v) > squared(t.boardM)) continue;
     if (v.id === s.exited && v.seats.some((id) => id >= 0)) continue; // #108: not back into the ride it just left
     const driving = m.points[v.goal];
-    if (v.seats[0]! >= 0 && !(air(v) && v.goal < 0) && (!driving || dist2(driving, p) > squared(t.sameWayM))) continue;
+    if (v.seats[0]! >= 0 && (!driving || dist2(driving, p) > squared(t.sameWayM))) continue;
     const key = dist2(s, v) + (riders(m, v).some((o) => o.squad === s.squad) ? 0 : 1e9);
     if (key < bestKey) [best, bestKey] = [v, key];
   }
@@ -158,10 +159,10 @@ export function mount(m: Match, v: Vehicle, s: Soldier, sq: Squad) {
   const t = m.tune;
   const seat = v.seats.indexOf(-1);
   const wait = m.tick + Math.round(t.boardWaitSeconds * t.hz);
-  if (air(v) && seat > 0 && gunner(v) < 0) v.departAt = wait;
+  if (v.claim < 0 && air(v) && seat > 0 && gunner(v) < 0) v.departAt = wait;
   v.seats[seat] = s.id;
   if (seat === 0) {
-    Object.assign(v, { goal: -1, bias: m.points.map(() => (rnd(m) * 2 - 1) * t.tankGoalBias), departAt: wait, parked: true });
+    Object.assign(v, { goal: -1, bias: m.points.map(() => (rnd(m) * 2 - 1) * t.tankGoalBias), parked: true, ...(v.claim < 0 && { departAt: wait }) });
     if (!air(v)) v.goal = drivePoint(m, sq, s, v);
   }
   Object.assign(s, {
@@ -182,6 +183,57 @@ export function boardOnReturn(m: Match, sq: Squad, s: Soldier): boolean {
   if (!v) return false;
   mount(m, v, s, sq);
   return true;
+}
+
+/**
+ * #122, at a Squad's think: with a goal farther than its `rideM` from the foot leader `L` it rides, if a vehicle fits: a
+ * friendly jeep or helicopter, live, on the ground, fit to fight, unclaimed, within `boardM` of `L`, with no one aboard (a
+ * helicopter's pilot apart) and a free seat for every member of the body but at most one; the helicopter only for a goal beyond
+ * `heliFitM` or across the river. It draws one at random, claims it for `boardWaitSeconds` and sends the body to it (after each
+ * one's reaction); with one seat short the member farthest from it stays on foot, Detached on the Squad's goal.
+ */
+export function decideRide(m: Match, sq: Squad, body: Soldier[], L: Soldier) {
+  const t = m.tune;
+  const p = m.points[sq.goal];
+  if (sq.task !== 'point' || !p || !body.length || dist2(L, p) <= squared(sq.rideM) || m.vehicles.some((v) => v.claim === sq.id)) return;
+  const fits = m.vehicles.filter((v) => {
+    const free = v.seats.filter((id) => id < 0).length;
+    return v.kind !== 'tank' && v.side === sq.side && live(v) && !v.airborne && !crippled(m, v) && v.claim < 0 && dist2(L, v) <= squared(t.boardM) &&
+      v.seats.every((id, k) => id < 0 || (air(v) && k === 0)) && free >= Math.max(1, body.length - 1) &&
+      (!air(v) || dist2(L, p) > squared(t.heliFitM) || sq.route >= 0);
+  });
+  if (!fits.length) return;
+  const v = fits[Math.floor(rnd(m) * fits.length)]!;
+  const seats = v.seats.filter((id) => id < 0).length;
+  const left = body.length > seats ? body.reduce((a, s) => (dist2(s, v) > dist2(a, v) ? s : a)) : null;
+  if (left) Object.assign(left, { detached: true, goal: -1 });
+  const claimUntil = m.tick + Math.round(t.boardWaitSeconds * t.hz);
+  Object.assign(v, { claim: sq.id, claimUntil, departAt: claimUntil });
+  for (const s of body)
+    if (s !== left) Object.assign(s, { boarding: v.id, climbAt: 0, dest: null, path: [], cover: null, holdUntil: m.tick + Math.round(s.reaction * t.hz) });
+}
+
+/**
+ * #122, one tick of a Soldier its Squad sent to a vehicle: the vehicle it is still walking to, or null when it is not boarding
+ * (the claim ended or the vehicle is gone) or has just climbed in. Within `mountM` it takes a seeded `mountSeconds`, still
+ * stepping in, then takes the first free seat.
+ */
+export function boardStep(m: Match, s: Soldier): Vehicle | null {
+  const t = m.tune;
+  const v = vehicleOf(m, s.boarding);
+  if (!v || !live(v) || v.claim !== s.squad || !v.seats.includes(-1)) {
+    Object.assign(s, { boarding: -1, climbAt: 0 });
+    return null;
+  }
+  if (dist2(s, v) <= squared(t.mountM)) {
+    if (!s.climbAt) s.climbAt = m.tick + Math.max(1, Math.round(between(m, t.mountSeconds) * t.hz));
+    if (m.tick >= s.climbAt) {
+      mount(m, v, s, m.squads[s.squad]!);
+      Object.assign(s, { boarding: -1, climbAt: 0 });
+      return null;
+    }
+  }
+  return v;
 }
 
 /**
@@ -262,6 +314,13 @@ export function drive(m: Match) {
       const side = v.point < 0 ? v.side : m.points[v.point]!.owner;
       if (side && (v.deadAt === DORMANT || side !== v.side || m.tick - v.deadAt >= t.vehicleRespawnSeconds * t.hz)) Object.assign(v, fresh(m, side, v.kind, v.slot));
       continue;
+    }
+    if (v.claim >= 0) {
+      const walking = m.soldiers.filter((s) => s.boarding === v.id && s.state === 'alive' && s.vehicle < 0);
+      if (!walking.length || m.tick >= v.claimUntil) { // everyone is in, or the wait is out: it leaves with whoever is aboard
+        for (const s of walking) Object.assign(s, { boarding: -1, climbAt: 0 });
+        Object.assign(v, { claim: -1, departAt: m.tick });
+      }
     }
     const halted = v.halt >= 0 && m.tick - v.halt < Math.round((t.dismountStopSeconds + t.thinkIntervalSeconds[1] * (1 + t.thinkJitter)) * t.hz);
     if (!halted) v.halt = -1;
@@ -490,7 +549,7 @@ export function vehicleViews(m: Match, side: SideId, seen: Set<number>): Vehicle
 export function hashVehicles(m: Match, mix: Mix) {
   for (const v of m.vehicles) {
     for (const n of [v.x, v.y, v.fx, v.fy, v.hp]) mix(Math.round(n * 1000));
-    for (const n of [+(v.side === 'nato'), ...v.seats, +v.parked, v.deadAt, v.goal, v.departAt, v.target, v.coax, v.nextFire, v.laid, v.movedAt, v.halt, +v.airborne, v.landedAt]) mix(n);
+    for (const n of [+(v.side === 'nato'), ...v.seats, +v.parked, v.deadAt, v.goal, v.departAt, v.target, v.coax, v.nextFire, v.laid, v.movedAt, v.halt, +v.airborne, v.landedAt, v.claim, v.claimUntil]) mix(n);
     for (const b of v.bias) mix(Math.round(b * 1000));
     mix(v.rounds.length);
     for (const r of v.rounds) for (const n of [Math.round(r.x0 * 1000), Math.round(r.y0 * 1000), Math.round(r.x * 1000), Math.round(r.y * 1000), r.launch, r.land]) mix(n);
