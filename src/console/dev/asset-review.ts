@@ -34,9 +34,20 @@ function setFocus(asset: AssetKind) {
   camera.updateProjectionMatrix();
 }
 
-/** `?focus=barrage|scan|supply` frames that Asset close up, `?focus=close` the cluster; anything else is the overview. */
+/** #107: close tactical zoom that keeps nato's tank (the Simulation drives it) in the middle. */
+function followTank() {
+  camera.zoom = 8;
+  camera.updateProjectionMatrix();
+  setInterval(() => {
+    const v = session.view?.vehicles?.find((x) => x.side === 'nato' && !x.wreck);
+    if (v) camera.position.set(v.x, v.y, 100);
+  }, 100);
+}
+
+/** `?focus=barrage|scan|supply` frames that Asset close up, `?focus=tank` follows nato's tank, `?focus=close` the cluster; anything else is the overview. */
 function applyFocus(focus: string | null) {
   if (focus === 'close') setClose();
+  else if (focus === 'tank') followTank();
   else if (ASSETS.some((a) => a.asset === focus)) setFocus(focus as AssetKind);
   else setOverview();
 }

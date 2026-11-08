@@ -3,11 +3,13 @@ import { dist2, inHq } from './geometry';
 import { los } from './grid';
 import { forget, see } from './memory';
 import type { Soldier } from './state';
+import { look as vehicleLook, seeVehicles } from './vehicles';
 
-/** The perception phase: memory ages, then every living Soldier looks around. */
+/** The perception phase: memory ages, then every living Soldier on foot looks around, then #107 every crewed vehicle. */
 export function perceive(m: Match) {
   forget(m);
-  for (const s of m.soldiers) if (s.state === 'alive') look(m, s);
+  for (const s of m.soldiers) if (s.state === 'alive' && s.vehicle < 0) look(m, s);
+  for (const v of m.vehicles) vehicleLook(m, v);
 }
 
 /**
@@ -20,7 +22,7 @@ function look(m: Match, s: Soldier) {
   let best = -1;
   let bestD2 = t.visionM * t.visionM;
   for (const e of m.soldiers) {
-    if (e.side === s.side || e.state !== 'alive') continue;
+    if (e.side === s.side || e.state !== 'alive' || e.vehicle >= 0) continue; // #107: aboard, it is the vehicle that is seen
     const d2 = dist2(s, e);
     if (d2 > t.visionM * t.visionM) continue;
     const dx = e.x - s.x;
@@ -35,6 +37,7 @@ function look(m: Match, s: Soldier) {
     best = e.id;
     bestD2 = d2;
   }
+  seeVehicles(m, s, sq); // #107: never a rifle target
   s.target = best;
   if (best < 0) return;
   s.lastTarget = best;

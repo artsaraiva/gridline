@@ -1,6 +1,7 @@
 // The Squad layer: survival first (Retreat, Resupply), else the Capture Point with the best score; then how to move there
 // (travel in a wedge, bound under fire, flank, hold), plus the Soldier jobs it hands out (peel-off, cover when pinned, regroup,
-// #93 straying from the wedge), and the #106 Detached members who pick their own goal.
+// #93 straying from the wedge), and the #106 Detached members who pick their own goal. #107: members aboard a vehicle are
+// out of all of it (the wedge forms on the first on foot); each Soldier on foot may board one, each aboard may get out.
 import type { Match } from '../index';
 import { insideCount } from '../capture';
 import { nearestCrate } from '../assets/crate';
@@ -14,6 +15,7 @@ import { enemyOf, type SimEvent, type Vec2 } from '../types';
 import { localPath, oct, pickCover, shelter } from './cover';
 import { crateFlow, flowDist, flowLook, hqFlow, pointFlow, routeFlow, type Flow } from './flow';
 import { chooseRoute } from './routes';
+import { board, ride } from '../vehicles';
 
 const sq2 = (r: number) => r * r;
 
@@ -67,9 +69,10 @@ export function setDest(m: Match, s: Soldier, d: { at: Vec2; path: Vec2[] } | Ve
 
 /**
  * The best-scoring Capture Point seen from `from`, -1 = none: value by owner, path distance, crowding (pairing up on enemy
- * points), stickiness plus `pull` on the Squad's goal, the Order's bonus.
+ * points), stickiness plus `pull` on the Squad's goal, the Order's bonus. #107: a driver scores by `flow` (its drive grid)
+ * and adds its own `bias` per point.
  */
-function bestPoint(m: Match, sq: Squad, from: Vec2, pull = 0): number {
+export function bestPoint(m: Match, sq: Squad, from: Vec2, pull = 0, own: { flow?: (i: number) => Flow; bias?: number[] } = {}): number {
   const t = m.tune;
   const foe = enemyOf(sq.side);
   let best = -1;
@@ -81,7 +84,8 @@ function bestPoint(m: Match, sq: Squad, from: Vec2, pull = 0): number {
       : p.owner === foe ? t.pointValue.enemy
       : threatened ? t.pointValue.ownedThreatened
       : t.pointValue.ownedQuiet;
-    v -= (t.distancePenaltyPer100m * flowDist(m, pointFlow(m, i), from)) / 100;
+    v -= (t.distancePenaltyPer100m * flowDist(m, (own.flow ?? ((k) => pointFlow(m, k)))(i), from)) / 100;
+    v += own.bias?.[i] ?? 0;
     const others = m.squads.filter((o) => o !== sq && o.side === sq.side && o.task === 'point' && o.goal === i).length;
     v -= p.owner === foe ? (others === 1 ? -t.pairUp : t.crowdPenalty * Math.max(0, others - 1)) : t.crowdPenalty * others;
     if (sq.task === 'point' && sq.goal === i) v += t.stickiness + pull;
@@ -103,9 +107,10 @@ export function think(m: Match, sq: Squad, events: SimEvent[]) {
     sq.task = 'none';
     return;
   }
-  if (alive.every((s) => s.detached)) Object.assign(lead, { detached: false, goal: -1 }); // someone is always the Squad's body
-  const body = alive.filter((s) => !s.detached); // #106: the members moving as one
-  const L = body[0]!; // the foot leader: the wedge forms on them
+  const foot = alive.filter((s) => s.vehicle < 0); // #107
+  if (foot.length && foot.every((s) => s.detached)) Object.assign(foot[0]!, { detached: false, goal: -1 }); // someone on foot is always the Squad's body
+  const body = foot.filter((s) => !s.detached); // #106: the members moving as one
+  const L = body[0] ?? lead; // the foot leader: the wedge forms on them; with everyone aboard, the Squad Leader's vehicle stands in
   const foe = enemyOf(sq.side);
   let threat: Vec2 | null = null;
   for (const c of sq.memory) if (!threat || dist2(c, L) < dist2(threat, L)) threat = c;
@@ -170,9 +175,11 @@ export function think(m: Match, sq: Squad, events: SimEvent[]) {
     if (threat && team.length >= 3 && !sq.flankDone && dist2(threat, L) < sq2(t.flankRangeM)) flank(m, sq, L, goal, threat, flow, team, alive, events);
     else bound(m, sq, threat, flow, team, alive);
   }
-  soldierJobs(m, sq, L, goal, threat, alive);
+  soldierJobs(m, sq, L, goal, threat, foot);
   if ((mode === 'travel' || mode === 'fallback') && goal && dist2(L, goal) > sq2(goal.r + t.leashM)) stray(m, sq, L, body); // #93: closes up within a leash of the goal
-  for (const s of alive) if (s.detached) detached(m, sq, L, s);
+  for (const s of foot) if (s.detached) detached(m, sq, L, s);
+  for (const s of alive) if (s.vehicle >= 0) ride(m, sq, s); // #107
+  for (const s of foot) if (s.vehicle < 0) board(m, sq, s);
 }
 
 /** #106: a Detached Soldier picks its own Capture Point, pulled toward the Squad's, and rejoins near the foot leader on the Squad's goal. */

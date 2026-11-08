@@ -11,7 +11,7 @@ import { flowOf, goalOf, setDest, wedgeSlot } from './squad';
 /** One tick of walking. Faces where it walks unless it has a target. A Soldier in its own HQ gets a full load of ammo. */
 export function walk(m: Match, s: Soldier) {
   const t = m.tune;
-  if (inHq(m, s.side, s)) s.ammo = t.ammo; // Capture Points never refill
+  if (inHq(m, s.side, s)) Object.assign(s, { ammo: t.ammo, rockets: t.rockets }); // Capture Points never refill
   const w = m.soldiers[s.reviving];
   if (w) {
     if (dist2(s, w) > t.reviveReachM * t.reviveReachM) step(m, s, w, s.speed);
@@ -19,7 +19,7 @@ export function walk(m: Match, s: Soldier) {
   }
   const sq = m.squads[s.squad]!;
   const alive = membersOf(m, sq).filter((o) => o.state === 'alive');
-  const body = alive.filter((o) => !o.detached); // #106
+  const body = alive.filter((o) => !o.detached && o.vehicle < 0); // #106; #107 nobody aboard
   const L = body[0]!;
   const flow = flowOf(m, sq);
   let to: Vec2 | null = null;

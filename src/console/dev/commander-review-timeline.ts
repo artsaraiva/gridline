@@ -1,11 +1,11 @@
 // DEV-only Commander look review timeline (#69): a hand-written, deterministic script of CommanderViews and Events on
 // Kaltenbach coordinates, so the Console's readability treatments (#70 firing pulse, #71 selection and Squad Leader
-// markers) and the Cruise Missile's marks (#99) are judged on every Squad Leader state without a Simulation. `viewAt`
-// and `eventsBetween` are pure.
+// markers), the Cruise Missile's marks (#99) and the tank (#107: sprite, turret, Wreck, badge, main gun) are judged on every
+// Squad Leader state without a Simulation. `viewAt` and `eventsBetween` are pure.
 import { DEFAULT_TUNE } from '../../sim/tune';
-import type { CommanderView, EffectView, FriendlyView, SimEvent, SoldierView, SquadView } from '../../sim/types';
+import type { CommanderView, EffectView, FriendlyView, SimEvent, SoldierView, SquadView, VehicleView } from '../../sim/types';
 
-export const LENGTH = 72;
+export const LENGTH = 92;
 
 /** Where each state starts, for scrubbing. */
 export const CHAPTERS = [
@@ -16,6 +16,7 @@ export const CHAPTERS = [
   { at: 34, title: 'Cruise Missile' },
   { at: 50, title: 'Wipe' },
   { at: 62, title: 'Redeploy' },
+  { at: 72, title: 'Tank' },
 ];
 
 /** Centre of the overlapping Squads, for the close zoom preset. */
@@ -37,6 +38,34 @@ function missileAt(t: number): EffectView[] {
   if (t < MISSILE.at || t >= MISSILE_LANDS + contact) return [];
   const flight = Math.min(1, (t - MISSILE.at) / MISSILE_FLIGHT);
   return [{ asset: 'missile', ...MISSILE.to, radius: DEFAULT_TUNE.missileSuppressM, left: MISSILE_LANDS + contact - t, total: MISSILE_FLIGHT + contact, impactIn: Math.max(0, MISSILE_LANDS - t), side: 'nato', from: MISSILE.from, flight }];
+}
+
+// #107: Charlie's first two board their tank where they stand and drive it east up the road; an enemy tank comes into sight
+// by the bridge and the main gun fires on it twice, each round flying out to it. A nato Wreck from earlier lies by the road
+// all along, and an abandoned nato tank (nobody aboard: the grey-white icon) stands off it.
+const TANK_AT = CHAPTERS[7]!.at;
+const TANK_ID = 30;
+const ENEMY_TANK_ID = 31;
+const TANK_PATH: Key[] = [[0, -150, -122], [TANK_AT + 2, -150, -122], [TANK_AT + 10, -96, -84], [TANK_AT + 14, -70, -76], [LENGTH, -70, -76]];
+const ENEMY_TANK = { x: 34, y: -58, fx: -0.94, fy: -0.34 };
+const SHOTS = [TANK_AT + 12, TANK_AT + 18];
+const ROUND_S = 0.8; // each round's flight
+const aboard = (id: number, t: number) => t >= TANK_AT && (id === 8 || id === 9);
+
+function tanksAt(t: number): VehicleView[] {
+  const wreck: VehicleView = { id: -1, side: 'nato', kind: 'tank', x: -126, y: -64, fx: 0.6, fy: 0.8, tx: 0.98, ty: 0.2, wreck: true };
+  const p = at(TANK_PATH, t);
+  const ahead = at(TANK_PATH, t + 0.5);
+  const d = Math.hypot(ahead.x - p.x, ahead.y - p.y);
+  const hull = d > 0.01 ? { fx: (ahead.x - p.x) / d, fy: (ahead.y - p.y) / d } : { fx: 0.96, fy: 0.28 };
+  const seen = t >= TANK_AT + 6;
+  const lay = Math.hypot(ENEMY_TANK.x - p.x, ENEMY_TANK.y - p.y);
+  const turret = seen ? { tx: (ENEMY_TANK.x - p.x) / lay, ty: (ENEMY_TANK.y - p.y) / lay } : { tx: hull.fx, ty: hull.fy };
+  const rounds = SHOTS.filter((s) => t >= s - ROUND_S && t < s).map((s) => ({ from: at(TANK_PATH, s - ROUND_S), to: { x: ENEMY_TANK.x, y: ENEMY_TANK.y }, flight: (t - s + ROUND_S) / ROUND_S }));
+  const own: VehicleView = { id: TANK_ID, side: 'nato', kind: 'tank', ...p, ...hull, ...turret, hp: t >= SHOTS[1]! ? 0.65 : 1, seats: t >= TANK_AT ? [8, 9] : [-1, -1], ...(t < TANK_AT && { empty: true }), ...(rounds.length && { rounds }) };
+  const enemy: VehicleView = { id: ENEMY_TANK_ID, side: 'pact', kind: 'tank', ...ENEMY_TANK, tx: -0.99, ty: -0.12 };
+  const abandoned: VehicleView = { id: 32, side: 'nato', kind: 'tank', x: -112, y: -40, fx: -0.3, fy: 0.95, tx: 0.5, ty: 0.87, hp: 0.3, seats: [-1, -1], empty: true };
+  return [wreck, own, abandoned, ...(seen ? [enemy] : [])];
 }
 
 type Span = [number, number];
@@ -143,6 +172,7 @@ export function viewAt(t: number): CommanderView {
     state: inSpan(m.wounded, t) ? 'wounded' : 'alive',
     suppressed: false,
     ammo: 0.8,
+    ...(aboard(m.id, t) && { ...at(TANK_PATH, t), vehicle: TANK_ID }),
   }));
   return {
     side: 'nato',
@@ -157,6 +187,7 @@ export function viewAt(t: number): CommanderView {
     result: null,
     assets: [{ asset: 'missile', readyIn: t < MISSILE.at ? 0 : Math.max(0, MISSILE.at + DEFAULT_TUNE.missileCooldownSeconds - t), cooldown: DEFAULT_TUNE.missileCooldownSeconds, radius: DEFAULT_TUNE.missileSuppressM }],
     effects: missileAt(t),
+    vehicles: tanksAt(t),
   };
 }
 
@@ -226,4 +257,7 @@ const strike = (): [number, SimEvent][] => [
   [MISSILE_LANDS, { kind: 'radio', side: 'nato', squad: null, type: 'asset', text: 'Splash', grid: 'G7', priority: 1 }],
 ];
 
-const EVENTS: [number, SimEvent][] = [...casualties(), ...firefight(), ...strike()].sort((a, b) => a[0] - b[0]);
+/** #107: the tank's main gun on the enemy tank: the shared explosion, crater and plume. */
+const gun = (): [number, SimEvent][] => SHOTS.map((t) => [t, { kind: 'impact', side: 'nato', x: ENEMY_TANK.x, y: ENEMY_TANK.y, asset: 'tank', from: TANK_ID }]);
+
+const EVENTS: [number, SimEvent][] = [...casualties(), ...firefight(), ...strike(), ...gun()].sort((a, b) => a[0] - b[0]);

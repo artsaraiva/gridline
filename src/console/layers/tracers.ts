@@ -32,7 +32,7 @@ function lineMaterial() {
 
 /** Adds the marks for a `shot` or `suppressive` event, placed from the view's Soldiers. */
 export function addShot(e: Extract<SimEvent, { kind: 'shot' | 'suppressive' }>, view: CommanderView, now: number) {
-  const at = (id: number) => view.friendlies.find((s) => s.id === id) ?? view.contacts.find((s) => s.id === id);
+  const at = (id: number) => view.friendlies.find((s) => s.id === id) ?? view.contacts.find((s) => s.id === id) ?? view.vehicles?.find((v) => v.id === id); // #107: a rocket's target
   const from = at(e.from);
   if (!from) return;
   const target = e.kind === 'shot' ? at(e.to) : e;

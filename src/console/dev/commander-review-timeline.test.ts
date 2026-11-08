@@ -107,4 +107,23 @@ describe('commander review timeline (#69)', () => {
       }
     }
   });
+
+  it('#107 Tank: two of Charlie ride their tank (badged, no chevrons), it drives with its turret on an enemy tank in sight, fires its main gun, and a Wreck lies by the road', () => {
+    const t = chapter('Tank');
+    const early = viewAt(t);
+    const late = viewAt(LENGTH - 1);
+    const own = (v: typeof late) => v.vehicles!.find((x) => x.side === 'nato' && !x.wreck)!;
+    expect(own(early).seats).toEqual([8, 9]);
+    expect(early.friendlies.filter((f) => f.vehicle === own(early).id).map((f) => f.id)).toEqual([8, 9]);
+    expect(own(late).x).not.toBe(own(early).x);
+    const enemy = late.vehicles!.find((x) => x.side === 'pact')!;
+    expect(Math.atan2(own(late).ty, own(late).tx)).toBeCloseTo(Math.atan2(enemy.y - own(late).y, enemy.x - own(late).x));
+    expect(late.vehicles!.filter((x) => x.wreck)).toHaveLength(1);
+    expect(eventsBetween(t, LENGTH).filter((e) => e.kind === 'impact' && e.asset === 'tank')).toHaveLength(2);
+    const shot = eventsBetween(t, LENGTH).find((e) => e.kind === 'impact')!;
+    const before = CHAPTERS.find((c) => c.title === 'Tank')!.at + 11.6; // the first round in the air
+    expect(viewAt(before).vehicles!.find((x) => x.side === 'nato' && x.seats?.[0] === 8)!.rounds![0]!.to).toMatchObject({ x: (shot as { x: number }).x });
+    expect(late.vehicles!.filter((x) => x.empty)).toHaveLength(1); // the abandoned tank, grey-white
+    for (const v of late.vehicles!) expect(insidePolygon(PLAY_AREA, v.x, v.y)).toBe(true);
+  });
 });

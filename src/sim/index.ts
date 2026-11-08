@@ -6,7 +6,7 @@ import { capture, drain, end, hashCapture } from './capture';
 import { casualties, fire, suppressionDecay } from './combat';
 import { assetEffects, hashAssets, newAssets, type Assets } from './assets/core';
 import { applyCommands } from './commands';
-import { buildGrid, type Grid } from './grid';
+import { buildGrid, driveGrid, type Grid } from './grid';
 import { hashMemory, hear, type Sighting } from './memory';
 import { hashOrders, orders } from './orders';
 import { perceive } from './perception';
@@ -17,6 +17,7 @@ import { rnd } from './rng';
 import { hashScore, newScore, type Score } from './score';
 import { hashSoldiers, hashSquads, sign, stageTicks, type Point, type Soldier, type Squad } from './state';
 import { SIDES, type Command, type MapData, type MatchResult, type SideId, type SimEvent, type Tune } from './types';
+import { drive, hashVehicles, newVehicles, type Vehicle, type Wreck } from './vehicles';
 
 export * from './types';
 export { commanderEvents, commanderView } from './view';
@@ -32,6 +33,9 @@ export interface Match {
   squads: Squad[];
   points: Point[];
   grid: Grid;
+  drive: Record<SideId, Grid>; // #107: each Side's ground-vehicle grid (the enemy HQ closed); see grid.ts driveGrid
+  vehicles: Vehicle[]; // #107: one per slot, reused through respawns; see vehicles.ts
+  wrecks: Wreck[];
   tickets: Record<SideId, number>;
   pointLead: number; // nato points - pact points
   drainTicks: number; // ticks the current point lead has been draining
@@ -51,6 +55,7 @@ export function createMatch(opts: {
   commanderSide: SideId;
 }): Match {
   const { map, tune } = opts;
+  const grid = buildGrid(map, tune.cellM);
   const m: Match = {
     tick: 0,
     rng: opts.seed | 0,
@@ -59,7 +64,10 @@ export function createMatch(opts: {
     soldiers: [],
     squads: [],
     points: map.points.map((p) => ({ ...p, radius: p.radius ?? tune.captureRadius, owner: p.owner ?? null, progress: p.owner ? sign(p.owner) * stageTicks(tune) : 0 })),
-    grid: buildGrid(map, tune.cellM),
+    grid,
+    drive: { nato: driveGrid(map, grid, 'nato', tune), pact: driveGrid(map, grid, 'pact', tune) },
+    vehicles: [],
+    wrecks: [],
     tickets: { nato: tune.tickets, pact: tune.tickets },
     pointLead: 0,
     drainTicks: 0,
@@ -83,11 +91,12 @@ export function createMatch(opts: {
         m.soldiers.push({
           id: m.soldiers.length, side, squad: squad.id, x: hq.x + ox, y: hq.y + oy, fx: sign(side), fy: 0, speed, ox, oy,
           state: 'alive', hp: tune.hp, suppression: 0, target: -1, nextFire: 0, bleed: 0, revive: 0, reviving: -1, deadAt: 0,
-          ...newSoldierAi(m), cause: null, uavUntil: -1, uavAssist: false,
+          ...newSoldierAi(m), cause: null, uavUntil: -1, uavAssist: false, vehicle: -1, rockets: tune.rockets,
         });
       }
     }
   }
+  m.vehicles = newVehicles(m);
   return m;
 }
 
@@ -103,7 +112,8 @@ export function step(m: Match, commands: Command[]): SimEvent[] {
   assetEffects(m, events);
   fire(m, events);
   hear(m, events);
-  for (const s of m.soldiers) if (s.state === 'alive') walk(m, s);
+  for (const s of m.soldiers) if (s.state === 'alive' && s.vehicle < 0) walk(m, s);
+  drive(m);
   suppressionDecay(m);
   returnToFight(m, events);
   for (const p of m.points) capture(m, p, events);
@@ -135,5 +145,6 @@ export function stateHash(m: Match): string {
   hashRadio(m, mix);
   hashRequests(m, mix);
   hashScore(m, mix);
+  hashVehicles(m, mix);
   return h.toString(16).padStart(8, '0');
 }

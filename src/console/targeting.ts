@@ -83,8 +83,8 @@ export function confirm() {
 
 /**
  * A tap on the map at `p`. With an Asset armed it pins or confirms (within `sameM` metres of the pinned spot is the same
- * spot). Otherwise a friendly Soldier within `pickM` selects its Squad, and a Capture Point (its ring, at least `pickM` wide)
- * gives the selected Squad its Order.
+ * spot). Otherwise a friendly Soldier within `pickM` selects its Squad, a Capture Point (its ring, at least `pickM` wide)
+ * gives the selected Squad its Order, and empty ground drops the selection.
  */
 export function tap(p: Vec2, sameM: number, pickM = sameM) {
   const { armed, spot } = targeting;
@@ -99,7 +99,8 @@ export function tap(p: Vec2, sameM: number, pickM = sameM) {
   const friend = view?.friendlies.find((f) => near(f, pickM));
   if (friend) return select(friend.squad);
   const point = view?.points.find((q) => near(q, Math.max(q.radius, pickM)));
-  if (point && targeting.selected !== null) session.host?.send({ side: session.commanderSide, kind: 'order', squad: targeting.selected, point: point.id });
+  if (!point) return select(null); // a tap on empty ground drops the selection
+  if (targeting.selected !== null) session.host?.send({ side: session.commanderSide, kind: 'order', squad: targeting.selected, point: point.id });
 }
 
 export interface Box {

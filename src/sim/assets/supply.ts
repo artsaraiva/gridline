@@ -28,6 +28,7 @@ export const supply: Kind = {
       if (s.state === 'alive' && dist2(s, e) <= t.supplyRadiusM * t.supplyRadiusM) {
         const { hp, ammo } = s;
         s.ammo = t.ammo;
+        s.rockets = t.rockets; // #107
         s.hp = Math.min(t.hp, s.hp + t.supplyHealPerSecond / t.hz);
         // #74 Commander Score: what the crate restored, capped per Soldier per drop; the ledger moves every tick
         const soFar = given[s.id] ?? 0;

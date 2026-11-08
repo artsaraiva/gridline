@@ -16,7 +16,7 @@ export const DEFAULT_TUNE: Tune = {
   captureMaxMultiplier: 3,
 
   // Squad point choice
-  pointValue: { neutral: 1.1, enemy: 1.0, ownedThreatened: 0.95, ownedQuiet: 0.35 },
+  pointValue: { neutral: 1.1, enemy: 1.0, ownedThreatened: 0.95, ownedQuiet: -2 }, // quiet owned was 0.35: Squads sat on points nothing happened at (#107 review); now they always go for one that needs them
   distancePenaltyPer100m: 0.17,
   crowdPenalty: 0.4,
   stickiness: 0.2,
@@ -169,4 +169,34 @@ export const DEFAULT_TUNE: Tune = {
   detachM: 80,
   rejoinM: 22,
   squadPull: 0.6,
+
+  // #107 Tank tracer
+  vehicleRespawnSeconds: 60,
+  boardMinM: 150,
+  boardM: 40,
+  sameWayM: 150,
+  boardWaitSeconds: 8,
+  vehicleVisionMul: 1.5,
+  hullM: 3,
+  tankRoadMps: 8,
+  tankOpenMps: 5,
+  tankHp: 100,
+  tankFireSeconds: 6,
+  tankRangeM: 200,
+  tankKillM: 4,
+  tankWoundM: 7,
+  tankSuppressM: 12,
+  tankSuppression: 0.9,
+  tankVsVehicleDamage: 50,
+  tankShellMps: 154,
+  tankAimSeconds: [1, 3],
+  tankGoalBias: 0.7,
+  tanksPerSide: null,
+  coaxFireSeconds: 0.15,
+  coaxRangeM: 160,
+  rockets: 2,
+  rocketSeconds: 4,
+  rocketRangeM: 100,
+  rocketDamage: 35,
+  shellVehicleDamage: 35,
 };

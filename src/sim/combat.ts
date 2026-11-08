@@ -1,12 +1,15 @@
 // Fire, Wounding, revive and bleed-out, suppression; a death settles what the enemy Commander's Assets earn (#72 #75).
+// #107: Soldiers aboard a vehicle fire only its guns (the coax here, the main gun in vehicles.ts) and take no fire; a
+// Launcher's rockets hit vehicles, which rifles never do.
 import type { Match } from './index';
 import { logDeath, resetSoldierAi } from './ai';
 import { dist2 } from './geometry';
 import { cellAt, COVER, los } from './grid';
 import { rnd } from './rng';
 import { award } from './score';
-import { membersOf, type Soldier } from './state';
+import { membersOf, vehicleOf, type Soldier } from './state';
 import { enemyOf, type SimEvent, type Vec2 } from './types';
+import { hurt, isLauncher, leave, mainGuns, rocketTarget, type Vehicle } from './vehicles';
 
 interface Shot {
   shooter: Soldier;
@@ -16,18 +19,39 @@ interface Shot {
   /** Suppressive fire: the aim point, and the enemies close enough to it to be suppressed. */
   at?: Vec2;
   near?: Soldier[];
+  /** #107: a Launcher's rocket at this vehicle. */
+  rocket?: Vehicle;
 }
 
 const hitMul = (m: Match, s: Soldier, e: Soldier) =>
   (1 - m.tune.suppressAccuracyLoss * s.suppression) * (cellAt(m, e.x, e.y) === COVER ? m.tune.coverHitMul : 1);
 
-function roll(m: Match, s: Soldier, target: Soldier | null, p: number): Omit<Shot, 'at' | 'near'> {
+function roll(m: Match, s: Soldier, target: Soldier | null, p: number, every = m.tune.fireSeconds): Omit<Shot, 'at' | 'near'> {
   const t = m.tune;
   const hit = target !== null && rnd(m) < p;
   const damage = hit ? t.damage[0] + rnd(m) * (t.damage[1] - t.damage[0]) : 0;
-  s.nextFire = m.tick + Math.round((t.fireSeconds + rnd(m) * t.fireJitterSeconds) * t.hz);
+  s.nextFire = m.tick + Math.round((every + rnd(m) * t.fireJitterSeconds) * t.hz);
   s.ammo--;
   return { shooter: s, target, hit, damage };
+}
+
+/** #107: a Launcher with rockets left fires one at the nearest enemy vehicle in reach, ahead of its rifle. */
+function rocket(m: Match, s: Soldier): Shot | null {
+  const t = m.tune;
+  if (s.rockets <= 0 || s.reviving >= 0 || m.tick < s.nextFire || !isLauncher(m, s)) return null;
+  const v = rocketTarget(m, s);
+  if (!v) return null;
+  s.rockets--;
+  s.nextFire = m.tick + Math.round(t.rocketSeconds * t.hz);
+  return { shooter: s, target: null, hit: true, damage: t.rocketDamage, rocket: v };
+}
+
+/** #107: the gunner aboard fires the coax at the vehicle's infantry target: the rifle shot model, faster and longer. */
+function coax(m: Match, s: Soldier, v: Vehicle): Shot | null {
+  const t = m.tune;
+  const e = m.soldiers[v.coax];
+  if (v.seats[1] !== s.id || !e || e.state !== 'alive' || m.tick < s.nextFire || dist2(v, e) > t.coaxRangeM * t.coaxRangeM) return null;
+  return roll(m, s, e, t.hitChance * (cellAt(m, e.x, e.y) === COVER ? t.coverHitMul : 1), t.coaxFireSeconds);
 }
 
 /** Decides a shot from the pre-fire state; every shot of the tick is applied together afterwards. */
@@ -51,14 +75,14 @@ function suppressive(m: Match, s: Soldier): Shot | null {
   let best = t.fireRangeM * t.fireRangeM;
   for (const c of m.squads[s.squad]!.memory) {
     const d2 = dist2(c, s);
-    if (c.source !== 'seen' || m.tick - c.tick > t.suppressiveSeconds * t.hz || d2 >= best || d2 < 64) continue;
+    if (c.source !== 'seen' || !m.soldiers[c.id] || m.tick - c.tick > t.suppressiveSeconds * t.hz || d2 >= best || d2 < 64) continue; // #107: never at a vehicle
     best = d2;
     lkp = c;
   }
   if (!lkp || !los(m, s, lkp)) return null;
   const scatter = () => (rnd(m) * 2 - 1) * t.suppressiveScatterM;
   const at = { x: lkp.x + scatter(), y: lkp.y + scatter() };
-  const near = m.soldiers.filter((o) => o.side !== s.side && o.state === 'alive' && dist2(o, at) < t.suppressiveRadiusM * t.suppressiveRadiusM);
+  const near = m.soldiers.filter((o) => o.side !== s.side && o.state === 'alive' && o.vehicle < 0 && dist2(o, at) < t.suppressiveRadiusM * t.suppressiveRadiusM);
   let e: Soldier | null = null;
   for (const o of near) if (dist2(o, at) < 16 && (!e || dist2(o, at) < dist2(e, at))) e = o;
   return { ...roll(m, s, e, e ? t.hitChance * t.suppressiveHitMul * hitMul(m, s, e) : 0), at, near };
@@ -69,10 +93,16 @@ export function fire(m: Match, events: SimEvent[]) {
   const shots: Shot[] = [];
   for (const s of m.soldiers) {
     if (s.state !== 'alive') continue;
-    const shot = aim(m, s) ?? suppressive(m, s);
+    const v = vehicleOf(m, s.vehicle);
+    const shot = v ? coax(m, s, v) : (rocket(m, s) ?? aim(m, s) ?? suppressive(m, s));
     if (shot) shots.push(shot);
   }
-  for (const { shooter, target: e, hit, damage, at, near } of shots) {
+  for (const { shooter, target: e, hit, damage, at, near, rocket } of shots) {
+    if (rocket) {
+      hurt(m, rocket, damage, shooter.side, null, events);
+      events.push({ kind: 'shot', side: shooter.side, from: shooter.id, to: rocket.id, hit });
+      continue;
+    }
     if (e) e.hp -= damage;
     if (at) {
       for (const o of near!) {
@@ -91,6 +121,7 @@ export function fire(m: Match, events: SimEvent[]) {
     e.uavAssist ||= m.tick <= e.uavUntil; // #75: the downing shot fixes whether the UAV gets the assist
     wound(m, e, events);
   }
+  mainGuns(m, events); // #107
 }
 
 /** Shot down: bleeding out, not dead. */
@@ -101,6 +132,7 @@ export function wound(m: Match, e: Soldier, events: SimEvent[]) {
 }
 
 export function die(m: Match, s: Soldier, events: SimEvent[]) {
+  leave(m, s); // #107
   s.state = 'dead';
   s.deadAt = m.tick;
   for (const o of membersOf(m, m.squads[s.squad]!)) if (o.reviving === s.id) o.reviving = -1; // a reviver must not keep a job on the dead
@@ -132,7 +164,7 @@ export function casualties(m: Match, events: SimEvent[]) {
     if (!r) {
       let best = t.reviveRangeM * t.reviveRangeM;
       for (const s of mates) {
-        if (s.state !== 'alive' || s.reviving >= 0 || s.suppression > t.pinnedAt || dist2(s, w) > best) continue;
+        if (s.state !== 'alive' || s.vehicle >= 0 || s.reviving >= 0 || s.suppression > t.pinnedAt || dist2(s, w) > best) continue; // #107: nobody aboard revives
         best = dist2(s, w);
         r = s;
       }

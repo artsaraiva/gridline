@@ -16,7 +16,7 @@ export const scan: Kind = {
   work(m, e, events) {
     const t = m.tune;
     const r = t.scanRadiusM;
-    const found = m.soldiers.filter((s) => s.side !== e.side && s.state === 'alive' && dist2(s, e) <= r * r && !inHq(m, s.side, s));
+    const found = m.soldiers.filter((s) => s.side !== e.side && s.state === 'alive' && s.vehicle < 0 && dist2(s, e) <= r * r && !inHq(m, s.side, s)); // #107: Vehicle Scan is #58's
     const seen = (s: { id: number }) => m.sightings[e.side].some((o) => o.id === s.id && o.tick === m.tick);
     for (const s of found) if (m.tick <= s.uavUntil || !seen(s)) s.uavUntil = m.tick + t.scoreUavGraceSeconds * t.hz; // #75
     for (const sq of m.squads) if (sq.side === e.side) for (const s of found) see(m, sq, s);

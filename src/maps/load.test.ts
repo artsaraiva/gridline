@@ -84,6 +84,23 @@ describe('map loader: 1 m bake data to the Simulation\'s 2 m cells', () => {
     expect(Math.hypot(at.x - a.x, at.y - a.y)).toBeLessThan(10);
   });
 
+  it('#107: writes the ground-vehicle drive cost: road 10, open 20, ford 30; hedges, woods, buildings, walls, water and footbridges blocked', () => {
+    const t = map.terrain;
+    const drive = (x: number, y: number) => t.drive[Math.floor((y - t.y0) / t.cellM) * t.cols + Math.floor((x - t.x0) / t.cellM)]!;
+    const r = find(ids.road!);
+    expect(drive(r.x, r.y)).toBe(10);
+    expect(at1m(100, 300)).toBe(ids.open);
+    expect(drive(100, 300)).toBe(20);
+    const f = find(ids.ford!, 1);
+    expect(drive(f.x, f.y)).toBe(30);
+    for (const id of [ids.hedge!, ids.woods!, ids.building!, ids.water!]) {
+      const b = find(id);
+      expect(drive(b.x, b.y), `cover id ${id}`).toBe(0);
+    }
+    expect(drive(5, 0), 'the road bridge').toBe(10);
+    for (const c of meta.crossings.filter((c) => c.kind === 'footbridge')) expect(drive(c.x, c.y), c.id).toBe(0);
+  });
+
   it('opens the river only at the five crossings, each one on its own', () => {
     const m = match();
     const from = m.map.hqs.nato;

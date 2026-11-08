@@ -10,7 +10,7 @@ export type MatchRecord = MatchSetup & { map: string; log: Command[] };
 
 export type ToHost =
   /** `map`: 'test' for the small hand-written field, the baked Kaltenbach otherwise. */
-  | ({ kind: 'start'; map?: 'test' | 'kaltenbach'; dev?: { freeAssets?: boolean } } & MatchSetup)
+  | ({ kind: 'start'; map?: 'test' | 'kaltenbach'; dev?: { freeAssets?: boolean; tanks?: number } } & MatchSetup)
   | { kind: 'command'; command: UnstampedCommand };
 
 export type FromHost =

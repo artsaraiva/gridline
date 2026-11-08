@@ -1,0 +1,10 @@
+{
+  "frames": 98,
+  "framePx": 160,
+  "cols": 16,
+  "constants": {
+    "TANK_HEADINGS": 16,
+    "TANK_VARIANTS": 3,
+    "TANK_WORLD_M": 12.0
+  }
+}
