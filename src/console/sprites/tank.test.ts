@@ -44,6 +44,14 @@ describe('tank pose', () => {
     expect(tankIcon(tank({ wreck: true }), 'nato')).toBeNull();
   });
 
+  it('lights its icon amber while a Squad with anyone aboard is selected, driver or passenger', () => {
+    const own = tank({ seats: [4, 9] });
+    expect(tankIcon(own, 'nato', [4, 5, 6, 7])).toBe('selected');
+    expect(tankIcon(own, 'nato', [8, 9, 10, 11])).toBe('selected');
+    expect(tankIcon(own, 'nato', [0, 1, 2, 3])).toBe('friendly');
+    expect(tankIcon(tank({ side: 'pact' }), 'nato', [4])).toBe('hostile'); // an enemy tank shows no seats
+  });
+
   it('draws a main gun round as a short streak at its point along the flight, never reaching back past the muzzle', () => {
     const r = { from: { x: 0, y: 0 }, to: { x: 140, y: 0 }, flight: 0.5 };
     expect(roundStreak(r)).toEqual({ x: 70 - ROUND_STREAK_M / 2, y: 0, length: ROUND_STREAK_M, angle: 0 });

@@ -133,6 +133,14 @@ describe('point choice', () => {
   it('Squads spread out over neutral points', () => {
     expect(picks(2, null)).toEqual(['P', 'R']);
   });
+  it('a Squad on its own quiet point leaves it for an enemy point, however far; one under threat it holds', () => {
+    const points = [{ id: 'A', name: 'A', x: -300, y: 0, owner: 'nato' as const }, { id: 'E', name: 'E', x: 450, y: 0, owner: 'pact' as const }];
+    const quiet = scene({ map: field({ points }), place: { 0: { x: -300, y: 0 } }, tune: { squadSize: 1, visionM: 0, spread: 0 } });
+    expect(play(quiet, 2 * HZ).nato.at(-1)!.squads[0]!.point).toBe('E');
+    const pact = { x: -300, y: 10 }; // the pact Soldier stands inside A
+    const held = scene({ map: field({ points }), place: { 0: { x: -300, y: 0 }, 1: pact }, tune: { squadSize: 1, visionM: 0, spread: 0, walkSpeed: 0 } });
+    expect(play(held, 2 * HZ).nato.at(-1)!.squads[0]!.point).toBe('A');
+  });
 });
 
 describe('loose squads', () => {

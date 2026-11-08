@@ -16,7 +16,7 @@ export const DEFAULT_TUNE: Tune = {
   captureMaxMultiplier: 3,
 
   // Squad point choice
-  pointValue: { neutral: 1.1, enemy: 1.0, ownedThreatened: 0.95, ownedQuiet: 0.35 },
+  pointValue: { neutral: 1.1, enemy: 1.0, ownedThreatened: 0.95, ownedQuiet: -2 }, // quiet owned was 0.35: Squads sat on points nothing happened at (#107 review); now they always go for one that needs them
   distancePenaltyPer100m: 0.17,
   crowdPenalty: 0.4,
   stickiness: 0.2,

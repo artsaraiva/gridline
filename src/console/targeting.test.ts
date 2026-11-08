@@ -109,12 +109,12 @@ describe('Order targeting', () => {
     expect(sent.at(-1)).toEqual({ side: 'nato', kind: 'order', squad: 0, point: 'B' });
   });
 
-  it('with no Squad selected a tap on a point does nothing; nor does a tap on empty ground with one selected', () => {
+  it('with no Squad selected a tap on a point does nothing; a tap on empty ground drops the selection and sends nothing', () => {
     tap({ x: 0, y: 190 }, 5, 6);
     select(0);
     tap({ x: 300, y: 300 }, 5, 6);
     expect(sent).toEqual([]);
-    expect(targeting.selected).toBe(0);
+    expect(targeting.selected).toBeNull();
   });
 
   it('a chevron wins over the point ring it stands in: that taps selects the other Squad instead of ordering', () => {

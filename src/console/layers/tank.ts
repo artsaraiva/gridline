@@ -1,11 +1,12 @@
 // Tanks on the map (#107): own tanks, enemy tanks in sight (the same sprite in its Faction's paint) and Wrecks; the baked hull
 // at the nearest heading with the turret laid on its target over it, each with its ground shadow. Over each live tank BF4's
-// tactical tank icon at constant screen size (hull outline, turret and gun turning with the sprite's), in its Side's colour or
-// grey-white while nobody is aboard; and each main gun round in the air as a short bright streak. sprites/tank.ts says how.
+// tactical tank icon at constant screen size (hull outline, turret and gun turning with the sprite's), in its Side's colour,
+// grey-white while nobody is aboard, amber while the selected Squad has anyone aboard; and each main gun round in the air as a short bright streak. sprites/tank.ts says how.
 import * as THREE from 'three/webgpu';
 import type { CommanderView } from '../../sim/types';
 import { COLOR, metresPerPx, pool } from '../renderer';
 import { session } from '../session';
+import { targeting } from '../targeting';
 import { spriteMesh } from '../sprites/sheet';
 import { roundStreak, TANK_SHEET, tankIcon, tankPose } from '../sprites/tank';
 import { bar, fading, px, shade, streak } from './symbols';
@@ -15,7 +16,7 @@ const SHADOW_OPACITY = 0.5;
 /** Icon size in chevrons: BF4's tank icon stands just taller than a Soldier's. */
 const ICON_SCALE = 1.15;
 const ROUND_PX = 1.8;
-const ICON_COLOR = { friendly: COLOR.friendly, hostile: COLOR.hostile, empty: 0xd4d8d6 };
+const ICON_COLOR = { friendly: COLOR.friendly, hostile: COLOR.hostile, empty: 0xd4d8d6, selected: COLOR.amber };
 
 /** Merges geometries (non-indexed positions only). */
 function merge(parts: THREE.BufferGeometry[]) {
@@ -63,6 +64,7 @@ const rounds = pool(() => new THREE.Mesh(new THREE.PlaneGeometry(1, 1), streak(0
 
 /** `scale` is the chevron size in metres (constant on screen), for the icon. */
 export function drawTanks(view: CommanderView, scale: number) {
+  const selected = view.friendlies.filter((f) => f.squad === targeting.selected).map((f) => f.id);
   for (const v of view.vehicles ?? []) {
     const p = tankPose(v);
     for (const s of [p.shadow.hull, p.shadow.turret]) {
@@ -79,7 +81,7 @@ export function drawTanks(view: CommanderView, scale: number) {
       m.scale.setScalar(p.size);
       m.frame.value = s.frame;
     });
-    const role = tankIcon(v, session.commanderSide);
+    const role = tankIcon(v, session.commanderSide, selected);
     if (role) {
       const icon = icons.next();
       icon.position.set(p.x, p.y, Z.icon);
