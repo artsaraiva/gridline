@@ -32,6 +32,14 @@ _Avoid_: Team, army
 The identity a Side wears in a match, such as NATO or the Warsaw Pact: its name, emblems and look. The two Factions always oppose each other, and the player may command either.
 _Avoid_: Side (for the identity), nation, country
 
+**Trait**:
+A seeded value of a Squad's or Soldier's character, fixed for the match: a Squad's preference per Capture Point, aggression, think tempo and how far it walks before it rides; a Soldier's reaction. Traits shape only what they choose for themselves, never an Order, and never show on the Console.
+_Avoid_: Personality (as a mechanic), stat, skill level, difficulty
+
+**Commitment**:
+How long a Squad (or a Detached Soldier) holds a Capture Point it chose for itself before it weighs the points again; only a real event ends it early.
+_Avoid_: Stickiness (the score bonus at a re-pick), lock, cooldown
+
 ### Match
 
 **Skirmish**:
@@ -99,6 +107,10 @@ _Avoid_: Debris, corpse, destroyed vehicle (as a thing on the map)
 **Launcher**:
 The rocket weapon one Soldier of every Squad carries against Vehicles; rifles cannot hurt an armoured Vehicle.
 _Avoid_: RPG, AT, bazooka
+
+**Landing Zone**:
+Where a transport helicopter sets down for its passengers' goal: a spot near the Capture Point, away from the enemies they know about, chosen afresh each trip; the passengers walk in from there.
+_Avoid_: LZ (in prose), drop point, helipad (the helicopter's slot at its HQ)
 
 ### Commander view
 
