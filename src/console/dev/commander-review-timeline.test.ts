@@ -149,5 +149,40 @@ describe('commander review timeline (#69)', () => {
     expect(late.vehicles!.filter((x) => x.kind === 'jeep' && x.side === 'pact')).toHaveLength(1);
     for (const v of late.vehicles!) expect(insidePolygon(PLAY_AREA, v.x, v.y)).toBe(true);
   });
+
+  it('#109 Helicopter: Delta boards the empty helicopter on the pad, it lifts off, flies straight to D, lands, they get out within unloadSeconds and it flies home with its pilot; an enemy one shows only while it flies', () => {
+    const t = chapter('Helicopter') - 1;
+    const heli = (v: ReturnType<typeof viewAt>) => v.vehicles!.find((x) => x.kind === 'helicopter' && x.side === 'nato')!;
+    const enemy = (v: ReturnType<typeof viewAt>) => v.vehicles!.find((x) => x.kind === 'helicopter' && x.side === 'pact' && !x.wreck);
+    const delta = (v: ReturnType<typeof viewAt>) => v.friendlies.filter((f) => f.squad === 3);
+    const pad = heli(viewAt(0));
+    expect(pad).toMatchObject({ x: -409.01, y: 0.3, empty: true });
+    expect(pad.airborne).toBeUndefined();
+    expect(heli(viewAt(t + 0.5)).seats).toEqual([12, 13, 14, 15]);
+    expect(delta(viewAt(t + 0.5)).every((f) => f.vehicle === pad.id)).toBe(true);
+    const flights = [...Array((LENGTH - t) * 4).keys()].map((k) => viewAt(t + k / 4));
+    const air = flights.map((v) => !!heli(v).airborne);
+    const lift = air.indexOf(true);
+    const land = air.indexOf(false, lift);
+    const D = { x: 0, y: -300 };
+    expect(Math.hypot(heli(flights[land]!).x - D.x, heli(flights[land]!).y - D.y)).toBeLessThan(25);
+    expect((land - lift) / 4).toBeCloseTo(Math.hypot(pad.x - D.x, pad.y - D.y) / 30, 0); // heliMps
+    for (const v of flights.slice(lift, land)) {
+      const h = heli(v); // on the line from the pad to D
+      expect(Math.abs((h.x - pad.x) * (D.y - pad.y) - (h.y - pad.y) * (D.x - pad.x)) / Math.hypot(D.x - pad.x, D.y - pad.y)).toBeLessThan(0.5);
+    }
+    const again = air.indexOf(true, land);
+    expect((again - land) / 4).toBeCloseTo(3, 0); // unloadSeconds
+    expect(heli(flights[again]!).seats).toEqual([12, -1, -1, -1]);
+    for (const f of delta(flights[again]!).filter((f) => f.id !== 12)) expect(Math.hypot(f.x - D.x, f.y - D.y)).toBeLessThan(25);
+    const home = heli(viewAt(LENGTH - 1));
+    expect(home).toMatchObject({ x: pad.x, y: pad.y, seats: [12, -1, -1, -1] });
+    expect(home.airborne).toBeUndefined();
+    const seen = flights.map((v) => enemy(v));
+    expect(seen.some((e) => e?.airborne)).toBe(true);
+    expect(seen.every((e) => !e || e.airborne)).toBe(true); // gone once it lands out of sight
+    expect(viewAt(LENGTH - 1).vehicles!.filter((x) => x.kind === 'helicopter' && x.wreck)).toHaveLength(1);
+    expect(viewAt(LENGTH - 1).squads.find((q) => q.id === 3)!.name).toBe('Delta');
+  });
 });
 

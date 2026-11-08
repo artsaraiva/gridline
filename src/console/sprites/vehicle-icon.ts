@@ -1,4 +1,4 @@
-// The colour role of a vehicle's tactical icon (#107 tank, #108 jeep), shared by layers/tank.ts and layers/jeep.ts.
+// The colour role of a vehicle's tactical icon (#107 tank, #108 jeep, #109 helicopter), shared by their layers.
 import type { SideId, VehicleView } from '../../sim/types';
 
 /**

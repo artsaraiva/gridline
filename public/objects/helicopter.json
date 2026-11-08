@@ -1,0 +1,10 @@
+{
+  "frames": 50,
+  "framePx": 256,
+  "cols": 16,
+  "constants": {
+    "HELI_HEADINGS": 16,
+    "HELI_VARIANTS": 3,
+    "HELI_WORLD_M": 18.0
+  }
+}

@@ -1,12 +1,12 @@
 // DEV-only Commander look review timeline (#69): a hand-written, deterministic script of CommanderViews and Events on
 // Kaltenbach coordinates, so the Console's readability treatments (#70 firing pulse, #71 selection and Squad Leader
-// markers), the Cruise Missile's marks (#99), the tank (#107: sprite, turret, Wreck, badge, main gun) and the jeep (#108:
-// sprite, Wreck, badge, MG, dismount) are judged on every
+// markers), the Cruise Missile's marks (#99), the tank (#107: sprite, turret, Wreck, badge, main gun), the jeep (#108:
+// sprite, Wreck, badge, MG, dismount) and the transport helicopter (#109: lift-off, flight, landing, unload, home) are judged on every
 // Squad Leader state without a Simulation. `viewAt` and `eventsBetween` are pure.
 import { DEFAULT_TUNE } from '../../sim/tune';
 import type { CommanderView, EffectView, FriendlyView, SimEvent, SoldierView, SquadView, VehicleView } from '../../sim/types';
 
-export const LENGTH = 112;
+export const LENGTH = 152;
 
 /** Where each state starts, for scrubbing. */
 export const CHAPTERS = [
@@ -19,6 +19,7 @@ export const CHAPTERS = [
   { at: 62, title: 'Redeploy' },
   { at: 72, title: 'Tank' },
   { at: 92, title: 'Jeep' },
+  { at: 112, title: 'Helicopter' },
 ];
 
 /** Centre of the overlapping Squads, for the close zoom preset. */
@@ -92,6 +93,44 @@ function jeepsAt(t: number): VehicleView[] {
   return [own, wreck, ...(t >= JEEP_AT + 4 ? [enemy] : [])];
 }
 
+// #109: Delta waits by the nato helipad all along, beside the helicopter (nobody aboard: rotor still, grey-white). It boards,
+// the helicopter lifts off a second later and flies straight to D at `heliMps`, lands, sits `unloadSeconds` while Delta gets
+// out, and flies home with its pilot (Delta's 12). Pact's lifts off as nato's does and shows the whole time it flies to B,
+// then is lost once it lands out of sight; a pact helicopter Wreck lies south of C.
+const HELI_AT = CHAPTERS[9]!.at;
+const HELI_ID = 35;
+const PAD = { x: -409.01, y: 0.3 }; // Kaltenbach's nato helipad (map.json)
+const D = { x: 0, y: -300 };
+const leg = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(b.x - a.x, b.y - a.y) / DEFAULT_TUNE.heliMps;
+const LIFT = HELI_AT + 1;
+const LAND = LIFT + leg(PAD, D);
+const UNLOADED = LAND + DEFAULT_TUNE.unloadSeconds;
+const HOME = UNLOADED + leg(D, PAD);
+const HELI_PATH: Key[] = [[0, PAD.x, PAD.y], [LIFT, PAD.x, PAD.y], [LAND, D.x, D.y], [UNLOADED, D.x, D.y], [HOME, PAD.x, PAD.y], [LENGTH, PAD.x, PAD.y]];
+const OUT = LAND + 1; // a second on the ground, then everyone but the pilot is out
+const inHeli = (id: number, t: number) => t >= HELI_AT && (id === 12 || (t < OUT && id >= 13 && id <= 15));
+const ENEMY_PAD = { x: 420.96, y: -0.72 };
+const B = { x: 0, y: 300 };
+const ENEMY_LANDS = LIFT + leg(ENEMY_PAD, B);
+
+function helisAt(t: number): VehicleView[] {
+  const p = at(HELI_PATH, t);
+  const ahead = at(HELI_PATH, t + 0.5);
+  const behind = at(HELI_PATH, t - 0.5);
+  const [dx, dy] = Math.hypot(ahead.x - p.x, ahead.y - p.y) > 0.01 ? [ahead.x - p.x, ahead.y - p.y] : [p.x - behind.x, p.y - behind.y];
+  const d = Math.hypot(dx, dy);
+  const hull = d > 0.01 ? { fx: dx / d, fy: dy / d } : { fx: 1, fy: 0 };
+  const seats = [12, 13, 14, 15].map((id) => (inHeli(id, t) ? id : -1));
+  const flying = (t > LIFT && t < LAND) || (t > UNLOADED && t < HOME);
+  const own: VehicleView = { id: HELI_ID, side: 'nato', kind: 'helicopter', ...p, ...hull, tx: hull.fx, ty: hull.fy, hp: 1, seats, ...(seats[0] === -1 && { empty: true }), ...(flying && { airborne: true }) };
+  const k = Math.max(0, Math.min(1, (t - LIFT) / (ENEMY_LANDS - LIFT)));
+  const span = Math.hypot(B.x - ENEMY_PAD.x, B.y - ENEMY_PAD.y);
+  const towardB = { fx: (B.x - ENEMY_PAD.x) / span, fy: (B.y - ENEMY_PAD.y) / span };
+  const enemy: VehicleView = { id: 36, side: 'pact', kind: 'helicopter', x: ENEMY_PAD.x + (B.x - ENEMY_PAD.x) * k, y: ENEMY_PAD.y + (B.y - ENEMY_PAD.y) * k, ...towardB, tx: towardB.fx, ty: towardB.fy, airborne: true };
+  const wreck: VehicleView = { id: -1, side: 'pact', kind: 'helicopter', x: 70, y: -150, fx: -0.6, fy: 0.8, tx: -0.6, ty: 0.8, wreck: true };
+  return [own, wreck, ...(t > LIFT && t < ENEMY_LANDS ? [enemy] : [])];
+}
+
 type Span = [number, number];
 type Key = [t: number, x: number, y: number];
 interface Man {
@@ -136,6 +175,10 @@ const MEN: Man[] = [
   { id: 9, squad: 2, path: [[0, -142, -126]], fx: 0.7, fy: 0.7 },
   { id: 10, squad: 2, path: [[0, -158, -128]], fx: 0.7, fy: 0.7 },
   { id: 11, squad: 2, path: [[0, -146, -136]], fx: 0.7, fy: 0.7 },
+  { id: 12, squad: 3, path: [[0, -414, 8], [LENGTH, -414, 8]], ...east },
+  { id: 13, squad: 3, path: [[0, -412, -7], [LAND, -412, -7], [OUT, -6, -292], [LENGTH, -4, -286]], ...east },
+  { id: 14, squad: 3, path: [[0, -403, 9], [LAND, -403, 9], [OUT, 7, -295], [LENGTH, 10, -290]], ...east },
+  { id: 15, squad: 3, path: [[0, -402, -8], [LAND, -402, -8], [OUT, -2, -306], [LENGTH, 2, -310]], ...east },
 ];
 const CONTACTS: Man[] = [
   { id: 20, squad: -1, path: [[0, -14, 30], [LENGTH, -18, 28]], fx: -1, fy: 0 },
@@ -153,6 +196,7 @@ const SQUADS: Sq[] = [
   { id: 0, name: 'Alpha', members: [0, 1, 2, 3] },
   { id: 1, name: 'Bravo', members: [4, 5, 6, 7], wiped: [50, 62] },
   { id: 2, name: 'Charlie', members: [8, 9, 10, 11] },
+  { id: 3, name: 'Delta', members: [12, 13, 14, 15] },
 ];
 
 const POINTS = [
@@ -198,6 +242,7 @@ export function viewAt(t: number): CommanderView {
     ammo: 0.8,
     ...(aboard(m.id, t) && { ...at(TANK_PATH, t), vehicle: TANK_ID }),
     ...(inJeep(m.id, t) && { ...at(JEEP_PATH, t), vehicle: JEEP_ID }),
+    ...(inHeli(m.id, t) && { ...at(HELI_PATH, t), vehicle: HELI_ID }),
   }));
   return {
     side: 'nato',
@@ -212,7 +257,7 @@ export function viewAt(t: number): CommanderView {
     result: null,
     assets: [{ asset: 'missile', readyIn: t < MISSILE.at ? 0 : Math.max(0, MISSILE.at + DEFAULT_TUNE.missileCooldownSeconds - t), cooldown: DEFAULT_TUNE.missileCooldownSeconds, radius: DEFAULT_TUNE.missileSuppressM }],
     effects: missileAt(t),
-    vehicles: [...tanksAt(t), ...jeepsAt(t)],
+    vehicles: [...tanksAt(t), ...jeepsAt(t), ...helisAt(t)],
   };
 }
 

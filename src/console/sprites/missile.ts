@@ -24,9 +24,9 @@ export const MISSILE_SHEET: SpriteSheetSpec = {
 };
 
 /** It flies level at this stylised altitude until it is over the target, then drops on it from DROP_FROM of the flight. */
-const CRUISE_ALTITUDE_M = 50;
+export const CRUISE_ALTITUDE_M = 50;
 export const DROP_FROM = 0.91;
-const ALTITUDE_LIFT_PER_M = 0.4;
+export const ALTITUDE_LIFT_PER_M = 0.4;
 /** The contrail reaches this many seconds of flight back from the missile. */
 const TRAIL_S = 8;
 
