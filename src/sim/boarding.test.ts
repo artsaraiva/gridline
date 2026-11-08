@@ -94,9 +94,9 @@ describe('#122 which vehicle fits', () => {
   });
 
   it('a goal across the river fits the helicopter though short of heliFitM; one on its own bank never does', () => {
-    // River field: E is 415 m from the nato HQ over a crossing (short of heliFitM 450); A is 228 m off on the HQ's own bank
+    // River field, E moved in to 326 m from the nato HQ across the river (short of heliFitM 350); A is 228 m off on the HQ's own bank
     const heliRiders = (id: string, seed: number) => {
-      const map = { ...RIVER_FIELD, points: RIVER_FIELD.points.filter((p) => p.id === id) };
+      const map = { ...RIVER_FIELD, points: RIVER_FIELD.points.filter((p) => p.id === id).map((p) => (p.id === 'E' ? { ...p, x: 40, y: 60 } : p)) };
       const tune: Tune = { ...DEFAULT_TUNE, squadSize: 4, speedJitter: 0, visionM: 0, tanksPerSide: 0, jeepsPerSide: 0, helisPerSide: 1, pointJeeps: false, rideM: [100, 100], ...NO_TRAITS, ...NO_TEMPO };
       const m = createMatch({ seed, map, tune, squadsPerSide: 1, commanderSide: 'nato' });
       for (let t = 0; t < 10 * HZ; t++) step(m, []);

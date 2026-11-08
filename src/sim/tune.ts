@@ -254,7 +254,7 @@ export const DEFAULT_TUNE: Tune = {
 
   // #122 Boarding as an action
   rideM: [120, 250],
-  heliFitM: 450,
+  heliFitM: 350,
   mountM: 3,
   mountSeconds: [1, 2],
 };
