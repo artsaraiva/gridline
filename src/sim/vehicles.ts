@@ -11,6 +11,7 @@ import { bestPoint } from './ai/squad';
 import { between, rnd } from './rng';
 import { blast } from './assets/strike';
 import { die } from './combat';
+import { approach, stopSpeed, turnToward } from './momentum';
 import { dist2, inHq, middlePoint } from './geometry';
 import { cellIndex, los, nearestWalkable } from './grid';
 import { see } from './memory';
@@ -25,6 +26,7 @@ export interface Vehicle {
   y: number;
   fx: number; // unit hull facing
   fy: number;
+  speed: number; // #123 m/s along the facing; a fresh one stands still
   hp: number;
   seats: number[]; // Soldier ids, -1 free; seat 0 drives (and fires a tank's main gun), seat 1 is the gunner on the coax or MG, any more ride
   slot: Vec2; // where it waits at the start and a fresh one appears
@@ -90,7 +92,7 @@ export const gunner = (v: Vehicle) => (air(v) ? (v.seats.find((id, k) => k > 0 &
 
 /** A vehicle as it stands fresh in its slot. */
 const fresh = (m: Match, side: SideId, kind: VehicleKind, slot: Vec2) => ({
-  side, kind, ...slot, fx: side === 'nato' ? 1 : -1, fy: 0, hp: specOf(m.tune, kind).hp, seats: Array<number>(specOf(m.tune, kind).seats).fill(-1), slot,
+  side, kind, ...slot, fx: side === 'nato' ? 1 : -1, fy: 0, speed: 0, hp: specOf(m.tune, kind).hp, seats: Array<number>(specOf(m.tune, kind).seats).fill(-1), slot,
   parked: true, deadAt: -1, goal: -1, departAt: 0, target: -1, coax: -1, nextFire: 0, laid: -1, bias: [] as number[], movedAt: m.tick, halt: -1,
   airborne: false, landedAt: -1, claim: -1, claimUntil: 0,
 });
@@ -322,43 +324,63 @@ export function drive(m: Match) {
         Object.assign(v, { claim: -1, departAt: m.tick });
       }
     }
+    if (v.halt >= 0 && v.speed > 0) v.halt = m.tick; // the stop counts from when it has come to a stop
     const halted = v.halt >= 0 && m.tick - v.halt < Math.round((t.dismountStopSeconds + t.thinkIntervalSeconds[1] * (1 + t.thinkJitter)) * t.hz);
     if (!halted) v.halt = -1;
     const full = !v.seats.includes(-1);
     if (air(v)) {
       if (!halted && v.seats[0]! >= 0) fly(m, v);
-    } else if (!halted && v.seats[0]! >= 0 && v.goal >= 0 && (full || m.tick >= v.departAt)) step(m, v);
+    } else if (v.seats[0]! >= 0 && v.goal >= 0 && (full || m.tick >= v.departAt)) step(m, v, halted);
+    else v.speed = 0; // no driver, or waiting to set off
     for (const s of riders(m, v)) Object.assign(s, { x: v.x, y: v.y, fx: v.fx, fy: v.fy, ammo: t.ammo, suppression: 0 }); // no ammo worries
   }
 }
 
-/** One tick along the drive flow field to its goal at the speed of the ground under it; parked once there. */
-function step(m: Match, v: Vehicle) {
+/**
+ * #123: one tick along the drive flow field. The hull turns toward the way ahead (a few cells down the flow field, or the next
+ * cell when a step toward that would clip blocked ground) by at most its class's turn rate, and its speed moves toward the
+ * speed it wants by at most its acceleration (braking `brakeMul` times that). It wants the road or open speed of the ground
+ * under it, less the sharper the turn ahead, and no more than lets it stop at the end of the flow field (`halt`: none at all,
+ * for a dismount). A step that would end on blocked ground is not taken: it stops there and keeps turning. Parked once there.
+ */
+function step(m: Match, v: Vehicle, halt: boolean) {
   const t = m.tune;
   const g = m.drive[v.side];
   const f = driveFlow(m, v.side, v.goal);
-  v.parked = flowDist(m, f, v) === 0;
-  if (v.parked) return;
+  const left = flowDist(m, f, v);
+  v.parked = left === 0;
   const k = cellIndex(m, v.x, v.y);
   const cost = (k >= 0 && g.cost[k]) || 20;
+  const tank = v.kind === 'tank';
+  const accel = tank ? t.tankAccel : t.jeepAccel;
   const { roadMps, openMps } = specOf(t, v.kind);
-  const speed = (cost === 10 ? roadMps : (openMps * 20) / cost) / t.hz;
-  const go = (to: Vec2 | null) => {
-    if (!to) return false;
-    const dx = to.x - v.x;
-    const dy = to.y - v.y;
-    const d = Math.sqrt(dx * dx + dy * dy);
-    if (d < 0.01) return false;
-    const u = Math.min(speed, d);
-    const x = v.x + (dx / d) * u;
-    const y = v.y + (dy / d) * u;
-    const nk = cellIndex(m, x, y);
-    if (nk < 0 || !g.cost[nk]) return false;
-    Object.assign(v, { x, y, fx: dx / d, fy: dy / d, movedAt: m.tick });
-    return true;
+  /** The tick if the way ahead is `n` flow cells on: where the hull points, how fast it goes, where that lands. */
+  const attempt = (n: number) => {
+    const to = flowLook(m, f, v, n, g);
+    const d = to ? Math.sqrt(dist2(v, to)) : 0;
+    let { fx, fy } = v;
+    let want = 0;
+    if (to && d >= 0.01) {
+      const way = { x: (to.x - v.x) / d, y: (to.y - v.y) / d };
+      ({ fx, fy } = turnToward(fx, fy, way.x, way.y, tank ? t.tankTurnDegPerS : t.jeepTurnDegPerS, t.hz));
+      if (!halt && !v.parked) {
+        const align = Math.max(0, fx * way.x + fy * way.y); // 1 straight on, 0 at a right angle or worse
+        const base = cost === 10 ? roadMps : (openMps * 20) / cost;
+        want = Math.min(base * (t.turnSpeedMin + (1 - t.turnSpeedMin) * align), stopSpeed(left, accel, t.brakeMul));
+      }
+    }
+    const speed = approach(v.speed, want, accel, t.brakeMul, t.hz);
+    return { speed, fx, fy, x: v.x + (fx * speed) / t.hz, y: v.y + (fy * speed) / t.hz };
   };
-  // a few cells ahead for a smooth line; the next cell's centre when that line would clip something blocked
-  if (!go(flowLook(m, f, v, 3, g))) go(flowLook(m, f, v, 1, g));
+  const blocked = (a: { speed: number; x: number; y: number }) => {
+    const nk = cellIndex(m, a.x, a.y);
+    return a.speed > 0 && (nk < 0 || !g.cost[nk]);
+  };
+  let a = attempt(3);
+  if (blocked(a)) a = attempt(1);
+  v.speed = blocked(a) ? 0 : a.speed;
+  Object.assign(v, { fx: a.fx, fy: a.fy });
+  if (v.speed > 0) Object.assign(v, { x: a.x, y: a.y, movedAt: m.tick });
 }
 
 /** #109: where a helicopter sets down for Capture Point `i`: the ground nearest its centre that a Soldier can stand on. */
@@ -548,7 +570,7 @@ export function vehicleViews(m: Match, side: SideId, seen: Set<number>): Vehicle
 
 export function hashVehicles(m: Match, mix: Mix) {
   for (const v of m.vehicles) {
-    for (const n of [v.x, v.y, v.fx, v.fy, v.hp]) mix(Math.round(n * 1000));
+    for (const n of [v.x, v.y, v.fx, v.fy, v.speed, v.hp]) mix(Math.round(n * 1000));
     for (const n of [+(v.side === 'nato'), ...v.seats, +v.parked, v.deadAt, v.goal, v.departAt, v.target, v.coax, v.nextFire, v.laid, v.movedAt, v.halt, +v.airborne, v.landedAt, v.claim, v.claimUntil]) mix(n);
     for (const b of v.bias) mix(Math.round(b * 1000));
     mix(v.rounds.length);

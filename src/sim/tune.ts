@@ -232,6 +232,14 @@ export const DEFAULT_TUNE: Tune = {
   awaySeconds: 10,
   dismountStopSeconds: 1,
 
+  // #123 Ground-vehicle momentum
+  tankAccel: 2,
+  jeepAccel: 4,
+  brakeMul: 2,
+  tankTurnDegPerS: 45,
+  jeepTurnDegPerS: 90,
+  turnSpeedMin: 0.35,
+
   // #109 Transport helicopter
   helisPerSide: 1,
   heliMps: 30,

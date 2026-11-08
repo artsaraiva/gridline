@@ -651,3 +651,58 @@ describe('#109 the helicopter\'s sight, and being seen', () => {
   });
 });
 
+describe('#123 ground-vehicle momentum', () => {
+  const jeepScene = (extra: Partial<Tune> = {}, points = [{ id: 'A', name: 'A', x: -200, y: 0, owner: 'pact' as const }]) =>
+    scene({ map: { points }, tune: { visionM: 0, squadSize: 4, tanksPerSide: 0, jeepsPerSide: 1, ...extra } });
+  const turned = (a: { fx: number; fy: number }, b: { fx: number; fy: number }) => (Math.acos(Math.min(1, a.fx * b.fx + a.fy * b.fy)) * 180) / Math.PI;
+  /** Plays on, logging every tick of the first vehicle. */
+  function log(m: Match, ticks: number) {
+    const v = m.vehicles[0]!;
+    const rows = [{ speed: v.speed, x: v.x, y: v.y, fx: v.fx, fy: v.fy }];
+    for (let i = 0; i < ticks; i++) (step(m, []), rows.push({ speed: v.speed, x: v.x, y: v.y, fx: v.fx, fy: v.fy }));
+    return rows;
+  }
+
+  it('a fresh vehicle stands still; a jeep takes about speed / jeepAccel seconds to reach open-ground speed, never gaining more than jeepAccel a tick', () => {
+    const m = jeepScene();
+    expect(m.vehicles[0]!.speed).toBe(0);
+    const rows = log(m, 30 * HZ);
+    const start = rows.findIndex((r) => r.speed > 0);
+    const top = rows.findIndex((r) => r.speed >= DEFAULT_TUNE.jeepOpenMps - 1e-9);
+    expect(start).toBeGreaterThan(0);
+    expect((top - start) / HZ).toBeCloseTo(DEFAULT_TUNE.jeepOpenMps / DEFAULT_TUNE.jeepAccel, 0);
+    rows.forEach((r, i) => i && expect(r.speed - rows[i - 1]!.speed).toBeLessThanOrEqual(DEFAULT_TUNE.jeepAccel / HZ + 1e-9));
+    rows.forEach((r, i) => i && expect(rows[i - 1]!.speed - r.speed).toBeLessThanOrEqual((DEFAULT_TUNE.jeepAccel * DEFAULT_TUNE.brakeMul) / HZ + 1e-9));
+  });
+
+  it('a tank sent to a point comes to a stop inside it and never leaves it again', () => {
+    const m = scene({ map: { points: [{ id: 'A', name: 'A', x: -200, y: 0, owner: 'pact' as const }] }, tune: { visionM: 0 } });
+    const rows = log(m, 150 * HZ);
+    const inside = (r: { x: number; y: number }) => Math.hypot(r.x + 200, r.y) < 25;
+    const first = rows.findIndex(inside);
+    expect(first).toBeGreaterThan(0);
+    expect(rows.slice(first).every(inside)).toBe(true);
+    expect(rows.at(-1)!.speed).toBe(0);
+  });
+
+  it('turns by at most the class\'s turn rate a tick, and slows into a right-angle corner and speeds up out of it', () => {
+    const m = jeepScene();
+    play(m, 6 * HZ); // the Squad climbs in
+    Object.assign(m.vehicles[0]!, { x: -400, y: 0, fx: 0, fy: 1, speed: DEFAULT_TUNE.jeepOpenMps }); // rolling north, the way ahead is east
+    const rows = log(m, 25 * HZ);
+    const cap = DEFAULT_TUNE.jeepTurnDegPerS / HZ + 0.01;
+    rows.forEach((r, i) => i && expect(turned(rows[i - 1]!, r)).toBeLessThanOrEqual(cap));
+    const speeds = rows.map((r) => r.speed);
+    const low = Math.min(...speeds.slice(0, 5 * HZ));
+    expect(low).toBeLessThan(DEFAULT_TUNE.jeepOpenMps * 0.8);
+    expect(Math.max(...speeds.slice(speeds.indexOf(low)))).toBeGreaterThan(DEFAULT_TUNE.jeepOpenMps - 0.5);
+  });
+
+  it('hashes speed', () => {
+    const m = scene({});
+    const h = stateHash(m);
+    m.vehicles[0]!.speed = 3;
+    expect(stateHash(m)).not.toBe(h);
+  });
+});
+

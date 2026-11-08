@@ -106,7 +106,7 @@ describe('#108 the jeep on Kaltenbach', () => {
   const crews = jeeps.map(() => [] as number[]);
   const exits: { side: string; id: number; tick: number; x: number; y: number; goal: number }[] = [];
   const road: boolean[][] = jeeps.map(() => []);
-  for (let i = 0; i < 90 * HZ; i++) {
+  for (let i = 0; i < 110 * HZ; i++) {
     const before = m.soldiers.map((s) => s.vehicle);
     step(m, []);
     jeeps.forEach((j, k) => {
@@ -128,7 +128,7 @@ describe('#108 the jeep on Kaltenbach', () => {
       expect(out.map((e) => e.id).sort()).toEqual([...crew].sort());
       for (const e of out) {
         const p = m.points[e.goal]!;
-        expect(e.tick / HZ, `${j.side} Soldier ${e.id} out in time`).toBeLessThan(90); // the long way round, over the bridge, to the far side's B or D
+        expect(e.tick / HZ, `${j.side} Soldier ${e.id} out in time`).toBeLessThan(105); // the long way round, over the bridge, to the far side's B or D; #123: measured 99 s, a pull-away from rest and a dismount stop braked to
         expect(Math.hypot(e.x - p.x, e.y - p.y), `${j.side} Soldier ${e.id} out near ${p.id}`).toBeLessThanOrEqual(DEFAULT_TUNE.dismountM + 1);
       }
       expect(road[k]!.filter(Boolean).length / road[k]!.length, `${j.side} by road`).toBeGreaterThan(0.4);

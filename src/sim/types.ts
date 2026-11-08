@@ -309,6 +309,14 @@ export interface Tune {
   awaySeconds: number; // ... or once its drive distance to it has grown for this long
   dismountStopSeconds: number; // a vehicle stands this long before anyone gets out; nobody bails at speed
 
+  // #123 Ground-vehicle momentum
+  tankAccel: number; // m/s² a tank speeds up by ...
+  jeepAccel: number; // ... a jeep
+  brakeMul: number; // slowing is this many times faster than speeding up
+  tankTurnDegPerS: number; // how fast a tank turns its hull toward its way ahead
+  jeepTurnDegPerS: number; // ... a jeep
+  turnSpeedMin: number; // the share of full speed it wants at a 90° or sharper turn ahead
+
   // #109 Transport helicopter
   helisPerSide: number; // transport helicopters in each HQ, on its helipad; 0 = none
   heliMps: number; // straight-line flight speed, over the ground grid
