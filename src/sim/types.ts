@@ -366,7 +366,7 @@ export interface VehicleView {
   seats?: number[];
   /** Nobody aboard (it shows as an unmanned vehicle). Absent when someone is. */
   empty?: boolean;
-  /** #109: a helicopter in the air (drawn at altitude over its ground shadow; seen by both Sides). Absent on the ground. */
+  /** #109: a helicopter in the air (drawn at altitude over its ground shadow). Absent on the ground. */
   airborne?: boolean;
   /** Main gun rounds in the air (a tank's): from the muzzle spot to where each lands, `flight` 0..1 along. */
   rounds?: { from: Vec2; to: Vec2; flight: number }[];
