@@ -17,9 +17,17 @@ const ids = KALTENBACH.data.coverIds;
 const at1m = (x: number, y: number) => cover[Math.floor(KALTENBACH.sizeM / 2 - y) * KALTENBACH.data.cells + Math.floor(x + KALTENBACH.sizeM / 2)]!;
 const NO_GO = new Set([ids.hedge, ids.woods, ids.building, ids.wall, ids.water]);
 
+/** The share of a trail's distance driven on road cells: "mostly by road" is about the route, not about how long the vehicle idles or crawls off road. */
+const roadShare = (t: { x: number; y: number; road: boolean }[]) => {
+  let on = 0, all = 0;
+  t.forEach((p, i) => { const d = i ? Math.hypot(p.x - t[i - 1]!.x, p.y - t[i - 1]!.y) : 0; all += d; if (p.road) on += d; });
+  return on / all;
+};
+const SEEDS = [10, 1, 2, 3, 4];
+
 /** Four Squads a Side, nobody sees anybody and nobody carries rockets; nato Squad 0 is Ordered to D across the river, pact Squad 7 to C on the bridge. */
-function run(seconds: number) {
-  const m: Match = thinkOnId(createMatch({ seed: 10, map: KALTENBACH, tune: { ...DEFAULT_TUNE, ...NO_TRAITS, ...NO_TEMPO, visionM: 0, rockets: 0, helisPerSide: 0 }, squadsPerSide: 4, commanderSide: 'nato' }));
+function run(seconds: number, seed = 10) {
+  const m: Match = thinkOnId(createMatch({ seed, map: KALTENBACH, tune: { ...DEFAULT_TUNE, ...NO_TRAITS, ...NO_TEMPO, visionM: 0, rockets: 0, helisPerSide: 0 }, squadsPerSide: 4, commanderSide: 'nato' }));
   const orders: Command[] = [
     { tick: 0, side: 'nato', kind: 'order', squad: 0, point: 'D' },
     { tick: 0, side: 'pact', kind: 'order', squad: 7, point: 'C' }, // the first pact Squad to think: its two pairs take both tanks
@@ -66,8 +74,6 @@ describe('#107 tanks on Kaltenbach', () => {
   });
 
   it('drives by road, crosses the river where it can (nato to D), and parks within the point it was sent to', () => {
-    const moving = (t: (typeof track)[number]) => t.filter((p, i) => i > 0 && (p.x !== t[i - 1]!.x || p.y !== t[i - 1]!.y));
-    for (const t of track) if (moving(t).length > 30 * HZ) expect(moving(t).filter((p) => p.road).length / moving(t).length).toBeGreaterThan(0.5);
     const drivenBy = (squad: number) => m.vehicles.find((v, k) => seats.some((s) => m.soldiers[s[k]![0]!]?.squad === squad))!; // #122: a Squad's jeep is empty again by the end
     for (const [squad, id] of [[0, 'D'], [7, 'C']] as const) {
       const v = drivenBy(squad);
@@ -76,6 +82,14 @@ describe('#107 tanks on Kaltenbach', () => {
       expect(v.parked).toBe(true);
     }
   });
+
+  // Per seed, not pooled: a seed whose route leaves the roads is a route fault an average over the others would hide.
+  it('drives mostly by road, by distance, in every one of several seeds', () => {
+    for (const seed of SEEDS) {
+      const r = seed === 10 ? { track } : run(300, seed);
+      r.track.forEach((t, k) => { if (Number.isNaN(roadShare(t))) return; /* never left its slot */ expect(roadShare(t), `seed ${seed} vehicle ${k}`).toBeGreaterThan(0.5); });
+    }
+  }, 60_000);
 
   it('no two matches send the tanks the same way: each driver brings its own seeded preference per point', () => {
     const goals = [1, 2, 3, 4].map((seed) => {
@@ -106,13 +120,11 @@ describe('#108 the jeep on Kaltenbach', () => {
   const jeeps = m.vehicles.filter((v) => v.kind === 'jeep' && v.point < 0);
   const crews = jeeps.map(() => [] as number[]);
   const exits: { side: string; id: number; tick: number; x: number; y: number; goal: number }[] = [];
-  const road: boolean[][] = jeeps.map(() => []);
   for (let i = 0; i < 110 * HZ; i++) {
     const before = m.soldiers.map((s) => s.vehicle);
     step(m, []);
     jeeps.forEach((j, k) => {
       if (i === 10 * HZ) crews[k] = j.seats.filter((id) => id >= 0);
-      if (j.movedAt === m.tick - 1) road[k]!.push(at1m(j.x, j.y) === ids.road);
     });
     for (const s of m.soldiers) {
       const j = jeeps.find((v) => v.id === before[s.id]);
@@ -129,16 +141,31 @@ describe('#108 the jeep on Kaltenbach', () => {
       expect(out.map((e) => e.id).sort()).toEqual([...crew].sort());
       for (const e of out) {
         const p = m.points[e.goal]!;
-        expect(e.tick / HZ, `${j.side} Soldier ${e.id} out in time`).toBeLessThan(105); // the long way round, over the bridge, to the far side's B or D; #123: measured 99 s, a pull-away from rest and a dismount stop braked to
+        expect(e.tick / HZ, `${j.side} Soldier ${e.id} out in time`).toBeLessThan(105); // the long way round, over the bridge, to the far side's B or D; #123: measured 99 s; momentum's honest cost (a pull-away from rest, slowing for turns, a dismount stop braked to)
         expect(Math.hypot(e.x - p.x, e.y - p.y), `${j.side} Soldier ${e.id} out near ${p.id}`).toBeLessThanOrEqual(DEFAULT_TUNE.dismountM + 1);
       }
-      expect(road[k]!.filter(Boolean).length / road[k]!.length, `${j.side} by road`).toBeGreaterThan(0.4);
     });
     for (const side of ['nato', 'pact']) {
       const done = jeeps.map((j, k) => (j.side === side ? Math.max(...exits.filter((e) => crews[k]!.includes(e.id)).map((e) => e.tick)) : Infinity));
       expect(Math.min(...done) / HZ, `a ${side} jeep there and empty`).toBeLessThan(60);
     }
   });
+});
+
+describe('#108 the jeeps drive mostly by road', () => {
+  // Per seed, not pooled (see #107): the jeeps' routes should hold whatever the seed
+  it('by distance, in every one of several seeds', () => {
+    for (const seed of SEEDS) {
+      const m: Match = thinkOnId(createMatch({ seed, map: KALTENBACH, tune: { ...DEFAULT_TUNE, ...NO_TRAITS, ...NO_TEMPO, visionM: 0, rockets: 0, tanksPerSide: 0, helisPerSide: 0 }, squadsPerSide: 4, commanderSide: 'nato' }));
+      const jeeps = m.vehicles.filter((v) => v.kind === 'jeep' && v.point < 0);
+      const trails = jeeps.map(() => [] as { x: number; y: number; road: boolean }[]);
+      for (let i = 0; i < 110 * HZ; i++) {
+        step(m, []);
+        jeeps.forEach((j, k) => trails[k]!.push({ x: j.x, y: j.y, road: at1m(j.x, j.y) === ids.road }));
+      }
+      trails.forEach((t, k) => { if (Number.isNaN(roadShare(t))) return; expect(roadShare(t), `seed ${seed} ${jeeps[k]!.side} jeep`).toBeGreaterThan(0.5); });
+    }
+  }, 60_000);
 });
 
 describe('#109 the transport helicopter on Kaltenbach', () => {
