@@ -212,4 +212,11 @@ export const DEFAULT_TUNE: Tune = {
   stillSeconds: 5,
   awaySeconds: 10,
   dismountStopSeconds: 1,
+
+  // #109 Transport helicopter
+  helisPerSide: 1,
+  heliMps: 30,
+  heliHp: 120,
+  unloadSeconds: 3,
+  airVisionM: 250,
 };

@@ -64,6 +64,7 @@ _HALF_AREA = [(456, -12), (452, 90), (460, 200), (447, 310), (438, 425), (330, 4
 PLAY_AREA = _HALF_AREA + [(-x, -y) for x, y in _HALF_AREA]  # cut corners north-west and south-east
 HQS = {"nato": (-415.0, 0.0), "pact": (415.0, 0.0)}
 VEHICLE_SLOTS = {}  # #107: per side, where its tanks wait: one under each vehicle-park camo net (build_hq)
+HELIPADS = {}  # #109: per side, where its transport helicopter waits: open sand between the camo nets (build_hq); no pad drawn yet
 HQ_RADIUS = 35.0
 POINTS = [("A", -262.0, -322.0, "nato"), ("B", 0.0, 300.0, None), ("C", 0.0, 0.0, None), ("D", 0.0, -300.0, None),
           ("E", 262.0, 322.0, "pact")]
@@ -1373,6 +1374,7 @@ def build_hq(tag, cx, cy, a):
         wx, wy = W(nx0 - 1, ny0)
         make_obj(f"hq_{tag}_net{net}", verts, faces, ["camonet"], loc=(wx, wy, height(wx, wy)), rot=a, cover="prop")
         VEHICLE_SLOTS.setdefault(tag, []).append((wx, wy))
+    HELIPADS[tag] = W(6, 0)
     FOOT.append((cx, cy, 46))
 
 
@@ -1967,6 +1969,7 @@ def write_meta():
                    for i, x, y, o in POINTS],
         "crossings": [{"id": i, "kind": k, "x": r2(x), "y": r2(y), "halfWidth": hw} for i, k, x, y, hw in CROSSINGS],
         "vehicleSlots": {side: [{"x": r2(x), "y": r2(y)} for x, y in slots] for side, slots in VEHICLE_SLOTS.items()},
+        "helipad": {side: {"x": r2(x), "y": r2(y)} for side, (x, y) in HELIPADS.items()},
         "grid": {"cols": 13, "rows": 13, "squareM": 2 * HALF / 13, "letters": "ABCDEFGHIJKLM"},
         "data": {"cells": int(2 * HALF), "cellM": 1, "cover": "cover_u8.bin", "ground": "ground_f32.bin", "top": "top_f32.bin",
                  "coverIds": COVER_IDS},

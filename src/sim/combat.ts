@@ -9,7 +9,7 @@ import { rnd } from './rng';
 import { award } from './score';
 import { membersOf, vehicleOf, type Soldier } from './state';
 import { enemyOf, type SimEvent, type Vec2 } from './types';
-import { hurt, isLauncher, leave, mainGuns, rocketTarget, specOf, type Vehicle } from './vehicles';
+import { gunner, hurt, isLauncher, leave, mainGuns, rocketTarget, specOf, type Vehicle } from './vehicles';
 
 interface Shot {
   shooter: Soldier;
@@ -46,12 +46,12 @@ function rocket(m: Match, s: Soldier): Shot | null {
   return { shooter: s, target: null, hit: true, damage: t.rocketDamage, vehicle: v };
 }
 
-/** #107: the gunner aboard fires the coax (#108: a jeep's MG) at the vehicle's infantry target: the rifle shot model, faster and longer. */
+/** #107: the gunner aboard fires the coax (#108: a jeep's MG, #109 a helicopter's door gun) at the vehicle's infantry target: the rifle shot model, faster and longer. */
 function coax(m: Match, s: Soldier, v: Vehicle): Shot | null {
   const t = m.tune;
   const e = m.soldiers[v.coax];
   const gun = specOf(t, v.kind);
-  if (v.seats[1] !== s.id || !e || e.state !== 'alive' || m.tick < s.nextFire || dist2(v, e) > gun.gunM * gun.gunM) return null;
+  if (gunner(v) !== s.id || !e || e.state !== 'alive' || m.tick < s.nextFire || dist2(v, e) > gun.gunM * gun.gunM) return null;
   return roll(m, s, e, t.hitChance * (cellAt(m, e.x, e.y) === COVER ? t.coverHitMul : 1), gun.gunSeconds);
 }
 

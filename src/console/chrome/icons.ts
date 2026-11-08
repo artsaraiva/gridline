@@ -1,5 +1,5 @@
 // Hand-drawn SVG line icons (1.6 px stroke) for the Assets.
-import type { AssetKind } from '../../sim/types';
+import type { AssetKind, VehicleKind } from '../../sim/types';
 import { MISSILE_OUTLINE } from '../sprites/missile';
 
 /** The same missile, filled, nose up-right, for the Asset row. */
@@ -16,6 +16,10 @@ const PATHS: Record<AssetKind, string> = {
 export const TANK_BADGE = '<svg class="tank" viewBox="0 0 24 14" fill="currentColor"><path d="M2 8h20l-2 5H4z"/><path d="M7 4h8l1 4H6z"/><path d="M15 5h8v1.4h-8z"/></svg>';
 /** #108: the badge for one member aboard a jeep: a filled side-on body with its bonnet, windscreen and two wheels. */
 export const JEEP_BADGE = '<svg class="jeep" viewBox="0 0 24 14" fill="currentColor"><path d="M2 5h12l2 3h6v3H2z"/><path d="M12 1h1.6l1.4 4h-1.6z"/><circle cx="6" cy="11.5" r="2.5"/><circle cx="18" cy="11.5" r="2.5"/></svg>';
+/** #109: the badge for one member aboard a helicopter: a filled side-on cabin and glazed nose, tail boom and fin, skids, the rotor over it. */
+export const HELI_BADGE = '<svg class="heli" viewBox="0 0 24 14" fill="currentColor"><path d="M1 2.2h22v1.2H1z"/><path d="M11.4 3.4h1.2v1.6h-1.2z"/><path d="M6 5h9.5l2.5 2.4v2.6H6z"/><path d="M16 6.4h3l-1-1.4z"/><path d="M1 6.2h5v1.6H1z"/><path d="M0.6 4.4h1.4l0.8 3.4H1.2z"/><path d="M5 12h14v1H5z"/><path d="M8 10h1v2H8zM15 10h1v2h-1z"/></svg>';
+/** The badge of each vehicle class, for the Squad tile and card. */
+export const VEHICLE_BADGE: Record<VehicleKind, string> = { tank: TANK_BADGE, jeep: JEEP_BADGE, helicopter: HELI_BADGE };
 
 export const assetIcon = (asset: AssetKind, strokeWidth = 1.6) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${strokeWidth}" stroke-linejoin="round" stroke-linecap="round">${PATHS[asset]}</svg>`;

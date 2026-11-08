@@ -2,13 +2,16 @@
 import type { Match } from './index';
 import { dist2 } from './geometry';
 import { award } from './score';
-import { callName, sideOf, sign, stageTicks, type Mix, type Point } from './state';
+import { callName, sideOf, sign, stageTicks, vehicleOf, type Mix, type Point, type Soldier } from './state';
 import { enemyOf, type SideId, type SimEvent } from './types';
 
-/** Living Soldiers of `side` inside the point; the Wounded and the dead don't count. */
+/** A living Soldier inside the point, and not #109 up in a helicopter: they count for it. */
+const counts = (m: Match, s: Soldier, p: Point) => s.state === 'alive' && dist2(s, p) < p.radius * p.radius && !vehicleOf(m, s.vehicle)?.airborne;
+
+/** Living Soldiers of `side` inside the point; the Wounded, the dead and #109 the airborne don't count. */
 export function insideCount(m: Match, p: Point, side: SideId): number {
   let n = 0;
-  for (const s of m.soldiers) if (s.side === side && s.state === 'alive' && dist2(s, p) < p.radius * p.radius) n++;
+  for (const s of m.soldiers) if (s.side === side && counts(m, s, p)) n++;
   return n;
 }
 
@@ -35,7 +38,7 @@ export function capture(m: Match, p: Point, events: SimEvent[]) {
 function contribute(m: Match, p: Point, side: SideId) {
   const i = m.points.indexOf(p);
   for (const s of m.soldiers) {
-    if (s.side !== side || s.state !== 'alive' || dist2(s, p) >= p.radius * p.radius) continue;
+    if (s.side !== side || !counts(m, s, p)) continue;
     const sq = m.squads[s.squad]!;
     if (sq.taking !== i) Object.assign(sq, { taking: i, takingSince: m.tick });
   }

@@ -48,6 +48,8 @@ export interface MapData {
   terrain?: Terrain;
   /** #107: where each Side's tanks wait and respawn (its HQ vehicle park), one per tank; unset = one, on the drivable ground nearest the HQ. */
   vehicleSlots?: Partial<Record<SideId, Vec2[]>>;
+  /** #109: where each Side's transport helicopter waits and respawns; unset = the next HQ park slot past its ground vehicles. */
+  helipad?: Partial<Record<SideId, Vec2>>;
 }
 
 /**
@@ -290,6 +292,13 @@ export interface Tune {
   stillSeconds: number; // ... or once the transport has stood still this long away from it ...
   awaySeconds: number; // ... or once its drive distance to it has grown for this long
   dismountStopSeconds: number; // a vehicle stands this long before anyone gets out; nobody bails at speed
+
+  // #109 Transport helicopter
+  helisPerSide: number; // transport helicopters in each HQ, on its helipad; 0 = none
+  heliMps: number; // straight-line flight speed, over the ground grid
+  heliHp: number; // rifles hit it like a Soldier (airborne or landed), rockets as any vehicle, a tank's main gun destroys it
+  unloadSeconds: number; // landed at its passengers' goal, it sits this long before it flies on (or home)
+  airVisionM: number; // its eyes: a full circle this far, over walls
 }
 
 /** #55: what a Commander Score award is for. */
@@ -335,8 +344,8 @@ export interface FriendlyView extends SoldierView {
  * #107: a vehicle on the map: the Side's own (live, with `hp` and `seats`), an enemy one a friendly sees right now (position
  * and facing only), or a Wreck (`wreck`, no id: -1).
  */
-/** #107 #108: the vehicle classes on the ground. */
-export type VehicleKind = 'tank' | 'jeep';
+/** #107 #108: the vehicle classes on the ground; #109 the transport helicopter, in the air. */
+export type VehicleKind = 'tank' | 'jeep' | 'helicopter';
 
 export interface VehicleView {
   id: number;
@@ -357,6 +366,8 @@ export interface VehicleView {
   seats?: number[];
   /** Nobody aboard (it shows as an unmanned vehicle). Absent when someone is. */
   empty?: boolean;
+  /** #109: a helicopter in the air (drawn at altitude over its ground shadow; seen by both Sides). Absent on the ground. */
+  airborne?: boolean;
   /** Main gun rounds in the air (a tank's): from the muzzle spot to where each lands, `flight` 0..1 along. */
   rounds?: { from: Vec2; to: Vec2; flight: number }[];
 }

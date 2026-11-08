@@ -8,7 +8,8 @@ import { cellCentre, cellIndex } from './grid';
 import { DEFAULT_TUNE } from './tune';
 import type { Command } from './types';
 
-// #107 on the committed Kaltenbach bake: the vehicles' roads, crossings and no-go ground, read off the 1 m cover grid; #108 the jeep.
+// #107 on the committed Kaltenbach bake: the vehicles' roads, crossings and no-go ground, read off the 1 m cover grid; #108 the jeep;
+// #109 the transport helicopter (the ground runs leave it out: it would take Soldiers off the roads).
 const HZ = DEFAULT_TUNE.hz;
 const cover = new Uint8Array(readFileSync(new URL(`../../public/maps/kaltenbach/${KALTENBACH.data.cover}`, import.meta.url)));
 const ids = KALTENBACH.data.coverIds;
@@ -17,7 +18,7 @@ const NO_GO = new Set([ids.hedge, ids.woods, ids.building, ids.wall, ids.water])
 
 /** Four Squads a Side, nobody sees anybody and nobody carries rockets; nato Squad 0 is Ordered to D across the river, pact Squad 7 to C on the bridge. */
 function run(seconds: number) {
-  const m: Match = createMatch({ seed: 3, map: KALTENBACH, tune: { ...DEFAULT_TUNE, visionM: 0, rockets: 0 }, squadsPerSide: 4, commanderSide: 'nato' });
+  const m: Match = createMatch({ seed: 3, map: KALTENBACH, tune: { ...DEFAULT_TUNE, visionM: 0, rockets: 0, helisPerSide: 0 }, squadsPerSide: 4, commanderSide: 'nato' });
   const orders: Command[] = [
     { tick: 0, side: 'nato', kind: 'order', squad: 0, point: 'D' },
     { tick: 0, side: 'pact', kind: 'order', squad: 7, point: 'C' }, // the first pact Squad to think: its two pairs take both tanks
@@ -77,7 +78,7 @@ describe('#107 tanks on Kaltenbach', () => {
 
   it('no two matches send the tanks the same way: each driver brings its own seeded preference per point', () => {
     const goals = [1, 2, 3, 4].map((seed) => {
-      const g = createMatch({ seed, map: KALTENBACH, tune: DEFAULT_TUNE, squadsPerSide: 4, commanderSide: 'nato' });
+      const g = createMatch({ seed, map: KALTENBACH, tune: { ...DEFAULT_TUNE, helisPerSide: 0 }, squadsPerSide: 4, commanderSide: 'nato' });
       for (let i = 0; i < HZ; i++) step(g, []);
       return g.vehicles.filter((v) => v.point < 0).map((v) => g.points[v.goal]?.id).join('');
     });
@@ -100,7 +101,7 @@ describe('#107 tanks on Kaltenbach', () => {
 
 describe('#108 the jeep on Kaltenbach', () => {
   // No tanks: each Side's two jeeps wait in its HQ vehicle park; nobody sees anybody or carries rockets
-  const m: Match = createMatch({ seed: 3, map: KALTENBACH, tune: { ...DEFAULT_TUNE, visionM: 0, rockets: 0, tanksPerSide: 0 }, squadsPerSide: 4, commanderSide: 'nato' });
+  const m: Match = createMatch({ seed: 3, map: KALTENBACH, tune: { ...DEFAULT_TUNE, visionM: 0, rockets: 0, tanksPerSide: 0, helisPerSide: 0 }, squadsPerSide: 4, commanderSide: 'nato' });
   const jeeps = m.vehicles.filter((v) => v.kind === 'jeep' && v.point < 0);
   const crews = jeeps.map(() => [] as number[]);
   const exits: { side: string; id: number; tick: number; x: number; y: number; goal: number }[] = [];
@@ -137,6 +138,40 @@ describe('#108 the jeep on Kaltenbach', () => {
       const done = jeeps.map((j, k) => (j.side === side ? Math.max(...exits.filter((e) => crews[k]!.includes(e.id)).map((e) => e.tick)) : Infinity));
       expect(Math.min(...done) / HZ, `a ${side} jeep there and empty`).toBeLessThan(60);
     }
+  });
+});
+
+describe('#109 the transport helicopter on Kaltenbach', () => {
+  // Everything on, nobody sees anybody or carries rockets
+  const m: Match = createMatch({ seed: 3, map: KALTENBACH, tune: { ...DEFAULT_TUNE, visionM: 0, rockets: 0 }, squadsPerSide: 4, commanderSide: 'nato' });
+  const helis = m.vehicles.filter((v) => v.kind === 'helicopter');
+  const flights = helis.map(() => ({ track: [] as { x: number; y: number }[], seats: [] as number[], landed: -1, lift: -1, lz: { x: 0, y: 0 } }));
+  for (let i = 0; i < 120 * HZ; i++) {
+    step(m, []);
+    helis.forEach((h, k) => {
+      const f = flights[k]!;
+      if (f.landed < 0 && h.airborne) (f.track.push({ x: h.x, y: h.y }), f.seats.length || f.seats.push(...h.seats));
+      if (f.landed < 0 && f.track.length && !h.airborne) Object.assign(f, { landed: m.tick, lz: { x: h.x, y: h.y } });
+      if (f.landed >= 0 && f.lift < 0 && h.airborne) f.lift = m.tick;
+    });
+  }
+
+  it('waits on its HQ\'s helipad; a Squad boards at match start, it flies straight over the river to a point on the other bank, lands inside it, unloads in unloadSeconds, and comes home to the pad', () => {
+    helis.forEach((h, k) => {
+      const f = flights[k]!;
+      expect(h.slot).toEqual(KALTENBACH.helipad![h.side]);
+      expect(f.seats.every((id) => id >= 0), `${h.side} full`).toBe(true);
+      const p = m.points.find((q) => Math.hypot(f.lz.x - q.x, f.lz.y - q.y) < q.radius);
+      expect(p, `${h.side} lands in a point`).toBeDefined();
+      expect(Math.sign(f.track[0]!.x) !== Math.sign(f.lz.x) || f.lz.x === 0, `${h.side} crosses to ${p!.id}`).toBe(true);
+      const [a, b] = [f.track[0]!, f.lz];
+      for (const q of f.track) expect(Math.abs((q.x - a.x) * (b.y - a.y) - (q.y - a.y) * (b.x - a.x)) / Math.hypot(b.x - a.x, b.y - a.y)).toBeLessThan(0.5);
+      expect(m.grid.cost[cellIndex(m, f.lz.x, f.lz.y)], `${h.side} sets down where a Soldier can stand`).toBeGreaterThan(0);
+      expect((f.lift - f.landed) / HZ).toBeCloseTo(DEFAULT_TUNE.unloadSeconds, 0);
+      expect(h).toMatchObject({ ...h.slot, airborne: false });
+      expect(h.seats.slice(1)).toEqual([-1, -1, -1]);
+      expect(f.seats.slice(1).every((id) => m.soldiers[id]!.vehicle !== h.id)).toBe(true);
+    });
   });
 });
 
