@@ -443,7 +443,7 @@ describe('#109 the transport helicopter ferries a Squad', () => {
     scene({ map: { points: [{ id: 'A', name: 'A', ...A }] }, tune: { visionM: 0, squadSize: 4, tanksPerSide: 0, helisPerSide: 1, ...extra }, place: { 4: away, 5: away, 6: away, 7: away, ...place } });
   const heliOf = (v: CommanderView) => v.vehicles!.find((x) => x.side === v.side && x.kind === 'helicopter' && !x.wreck)!;
 
-  it('the Squad boards at match start, it flies straight to the far point, lands inside its radius, unloads in unloadSeconds and flies home empty', () => {
+  it('the Squad boards at match start, it flies a dogleg to the far point, lands off it, unloads, and flies home empty', () => {
     const m = ferry();
     const { views } = play(m, 90 * HZ);
     const filled = views.findIndex((v) => heliOf(v).seats!.every((id) => id >= 0)); // #122: they walk to it and climb in one by one
@@ -454,14 +454,12 @@ describe('#109 the transport helicopter ferries a Squad', () => {
     expect(up).toBeGreaterThanOrEqual(filled);
     const landed = views.findIndex((v, i) => i > up && !heliOf(v).airborne);
     const lz = heliOf(views[landed]!);
-    expect(Math.hypot(lz.x - A.x, lz.y - A.y)).toBeLessThan(DEFAULT_TUNE.captureRadius);
-    expect((landed - up) / HZ).toBeCloseTo(Math.hypot(A.x + 560, A.y) / DEFAULT_TUNE.heliMps, 0);
-    for (const v of views.slice(0, landed)) {
-      const h = heliOf(v); // on the straight line from the HQ to A
-      expect(Math.abs((h.x + 560) * A.y - h.y * (A.x + 560)) / Math.hypot(A.x + 560, A.y)).toBeLessThan(0.5);
-    }
+    const off = Math.hypot(lz.x - A.x, lz.y - A.y); // #124: a Landing Zone lzM from the point's centre
+    expect(off).toBeGreaterThanOrEqual(DEFAULT_TUNE.lzM[0] - 0.01);
+    expect(off).toBeLessThanOrEqual(DEFAULT_TUNE.lzM[1] + 0.01);
+    expect(Math.hypot(lz.x - A.x, lz.y - A.y)).toBeGreaterThan(DEFAULT_TUNE.captureRadius); // so the passengers walk in
     const lift = views.findIndex((v, i) => i > landed && heliOf(v).airborne);
-    expect((lift - landed) / HZ).toBeCloseTo(DEFAULT_TUNE.unloadSeconds, 0);
+    expect((lift - landed) / HZ).toBeCloseTo(DEFAULT_TUNE.unloadSeconds + DEFAULT_TUNE.spoolSeconds, 0); // #124: unloaded, then the rotor spools up
     expect(heliOf(views[lift]!).seats).toEqual([0, -1, -1, -1]); // the pilot never gets out
     const home = heliOf(views.at(-1)!);
     expect(home).toMatchObject({ x: -560, y: 0, seats: [0, -1, -1, -1] });
@@ -474,7 +472,7 @@ describe('#109 the transport helicopter ferries a Squad', () => {
     // pact's B lies on the line to A, out of boarding reach of the passengers' goal choice (A, pact's too, scores higher)
     const m = scene({
       map: { points: [{ id: 'A', name: 'A', ...A, owner: 'pact' }, { id: 'B', name: 'B', x: -130, y: 100, owner: 'pact' }] },
-      tune: { visionM: 0, squadSize: 4, tanksPerSide: 0, helisPerSide: 1 },
+      tune: { visionM: 0, squadSize: 4, tanksPerSide: 0, helisPerSide: 1, doglegMinM: 1e9, lzM: [0, 0] }, // #124: straight, down on the centre
       place: { 4: away, 5: away, 6: away, 7: away },
     });
     m.squads[0]!.order = { point: 0, hold: false, delayed: null, since: 0 };
@@ -498,7 +496,7 @@ describe('#109 the transport helicopter ferries a Squad', () => {
   it('a rifle Squad under its landing zone shoots it down: everyone aboard dies, a Ticket each; the Wreck lies where it fell; a fresh one stands on the helipad vehicleRespawnSeconds later', () => {
     // pact's Squad stands at A facing the way it comes; nobody is Wounded (hp), so only the helicopter dies
     const atA = (dy: number) => ({ x: A.x, y: A.y + dy, fx: -1, fy: 0 });
-    const m = ferry({ visionM: DEFAULT_TUNE.visionM, walkSpeed: 0, hp: 1e9, rockets: 0 }, { 4: atA(-6), 5: atA(-2), 6: atA(2), 7: atA(6) });
+    const m = ferry({ visionM: DEFAULT_TUNE.visionM, walkSpeed: 0, hp: 1e9, rockets: 0, lzM: [0, 0] }, { 4: atA(-6), 5: atA(-2), 6: atA(2), 7: atA(6) });
     const aboard: number[] = [];
     let dead = -1;
     let back: { tick: number; x: number; y: number; hp: number } | null = null;
@@ -533,12 +531,12 @@ describe('#109 where the helicopter flies', () => {
   const away = (id: number) => (id < 8 ? { x: -300, y: 550 } : { x: 300, y: -550 }); // apart: even blind eyes see at 0 m
   function lands(seats: number[]) {
     const place = Object.fromEntries([...Array(16).keys()].filter((id) => !seats.includes(id)).map((id) => [id, away(id)]));
-    const m = scene({ map: { points: [{ id: 'A', name: 'A', ...A }, { id: 'B', name: 'B', ...B }] }, tune: { visionM: 0, squadSize: 4, tanksPerSide: 0, helisPerSide: 1 }, squads: 2, place });
+    const m = scene({ map: { points: [{ id: 'A', name: 'A', ...A }, { id: 'B', name: 'B', ...B }] }, tune: { visionM: 0, squadSize: 4, tanksPerSide: 0, helisPerSide: 1, lzM: [0, 0] }, squads: 2, place }); // #124: down on the centre
     m.squads[0]!.order = { point: 0, hold: false, delayed: null, since: 0 };
     m.squads[1]!.order = { point: 1, hold: false, delayed: null, since: 0 };
     const h = m.vehicles[0]!;
     seats.forEach((id, k) => (h.seats[k] = id) >= 0 && Object.assign(m.soldiers[id]!, { x: h.x, y: h.y, vehicle: h.id }));
-    for (let i = 0; i < 40 * HZ && (i < HZ || h.airborne); i++) step(m, []);
+    for (let flown = false, i = 0; i < 40 * HZ && !(flown && !h.airborne); i++) (step(m, []), (flown ||= h.airborne));
     return h;
   }
 
@@ -561,7 +559,7 @@ describe('#109 where the helicopter flies', () => {
 
   it('round the enemy HQ circle, never into it', () => {
     const behind = { x: 588, y: 24 }; // past the pact HQ (560, 0) from nato's
-    const m = scene({ map: { points: [{ id: 'A', name: 'A', ...behind }] }, tune: { visionM: 0, squadSize: 4, tanksPerSide: 0, helisPerSide: 1 }, place: { 4: { x: 0, y: 550 }, 5: { x: 0, y: 550 }, 6: { x: 0, y: 550 }, 7: { x: 0, y: 550 } } });
+    const m = scene({ map: { points: [{ id: 'A', name: 'A', ...behind }] }, tune: { visionM: 0, squadSize: 4, tanksPerSide: 0, helisPerSide: 1, lzM: [0, 0] }, place: { 4: { x: 0, y: 550 }, 5: { x: 0, y: 550 }, 6: { x: 0, y: 550 }, 7: { x: 0, y: 550 } } });
     const h = m.vehicles[0]!;
     let closest = Infinity;
     for (let i = 0; i < 60 * HZ; i++) {
@@ -706,3 +704,141 @@ describe('#123 ground-vehicle momentum', () => {
   });
 });
 
+
+describe('#124 helicopter flight and Landing Zone', () => {
+  // As the #109 ferry: nato's Squad 0..3 boards helicopter 8 on its HQ (-560, 0) and goes to A; the pact's Soldiers stand far off.
+  const HQ = { x: -560, y: 0 };
+  const A = { x: 300, y: 200 };
+  const away = { x: 500, y: -500 };
+  const scene124 = (o: { tune?: Partial<Tune>; map?: Partial<MapData>; seed?: number } = {}) => {
+    const m = scene({ map: { points: [{ id: 'A', name: 'A', ...A }], ...o.map }, tune: { visionM: 0, squadSize: 4, tanksPerSide: 0, helisPerSide: 1, ...o.tune }, place: { 4: away, 5: away, 6: away, 7: away } });
+    if (o.seed) m.rng = o.seed * 7919;
+    return m;
+  };
+  /** The helicopter's state every tick for `seconds`. */
+  function flight(m: Match, seconds: number) {
+    const h = m.vehicles[0]!;
+    const log: { x: number; y: number; fx: number; fy: number; speed: number; airborne: boolean; tick: number }[] = [];
+    for (let i = 0; i < seconds * HZ; i++) {
+      step(m, []);
+      log.push({ x: h.x, y: h.y, fx: h.fx, fy: h.fy, speed: h.speed, airborne: h.airborne, tick: m.tick });
+    }
+    return { h, log };
+  }
+  const trips = (log: ReturnType<typeof flight>['log']) => {
+    const up = log.findIndex((p) => p.airborne);
+    const down = log.findIndex((p, i) => i > up && !p.airborne);
+    const up2 = log.findIndex((p, i) => i > down && p.airborne);
+    const down2 = log.findIndex((p, i) => i > up2 && !p.airborne);
+    return { out: log.slice(up, down), back: log.slice(up2, down2), up, down, up2, down2 };
+  };
+  /** The signed distance from line a-b of the track's point farthest from it. */
+  const bulge = (track: { x: number; y: number }[], a: { x: number; y: number }, b: { x: number; y: number }) => {
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
+    return track.map((q) => ((q.x - a.x) * (b.y - a.y) - (q.y - a.y) * (b.x - a.x)) / len).reduce((far, d) => (Math.abs(d) > Math.abs(far) ? d : far), 0);
+  };
+  const farthest = (track: { x: number; y: number }[], a: { x: number; y: number }, b: { x: number; y: number }) =>
+    track.reduce((f, q) => (Math.abs(bulge([q], a, b)) > Math.abs(bulge([f], a, b)) ? q : f));
+
+  it('each trip out and home is a dogleg, and the one home is not the one out', () => {
+    const { h, log } = flight(scene124(), 90);
+    const { out, back } = trips(log);
+    const outLen = Math.hypot(h.lz!.x - HQ.x, h.lz!.y - HQ.y);
+    expect(Math.abs(bulge(out, HQ, h.lz!))).toBeGreaterThan(0.05 * outLen); // it banks through a waypoint off the line (the turn cuts the corner)
+    expect(Math.abs(bulge(back, h.lz!, HQ))).toBeGreaterThan(0.05 * outLen);
+    const [p, q] = [farthest(out, HQ, h.lz!), farthest(back, h.lz!, HQ)];
+    expect(Math.hypot(p.x - q.x, p.y - q.y)).toBeGreaterThan(10);
+  });
+
+  it('a Landing Zone lies lzM from the point on standable ground, and each seed draws its own', () => {
+    const zones = [1, 2, 3, 4, 5, 6].map((seed) => {
+      const m = scene124({ seed });
+      flight(m, 45);
+      return m.vehicles[0]!.lz!;
+    });
+    for (const z of zones) {
+      const d = Math.hypot(z.x - A.x, z.y - A.y);
+      expect(d).toBeGreaterThanOrEqual(DEFAULT_TUNE.lzM[0] - 0.01);
+      expect(d).toBeLessThanOrEqual(DEFAULT_TUNE.lzM[1] + 0.01);
+    }
+    expect(new Set(zones.map((z) => `${Math.round(z.x)} ${Math.round(z.y)}`)).size).toBeGreaterThan(3);
+  });
+
+  it('the Landing Zone is on the far side from an enemy its Squad knows by the point, within lzSpreadDeg of straight away', () => {
+    for (const seed of [1, 2, 3, 4, 5, 6]) {
+      const m = scene124({ seed });
+      m.squads[0]!.memory.push({ id: 4, x: A.x + 100, y: A.y, tick: 0, source: 'seen' }); // known east of A: it lands west
+      flight(m, 45);
+      const z = m.vehicles[0]!.lz!;
+      const cos = (A.x - z.x) / Math.hypot(z.x - A.x, z.y - A.y); // against straight away (west)
+      expect(cos, `seed ${seed}`).toBeGreaterThanOrEqual(Math.cos(((DEFAULT_TUNE.lzSpreadDeg + 2.5) * Math.PI) / 180) - 0.01); // bearings are 5° apart: the away one is snapped to the nearest
+    }
+  });
+
+  it('a dogleg keeps off an enemy-held point on one side and takes the clear side; with nothing in the way both sides turn up', () => {
+    const mid = { x: (HQ.x + A.x) / 2, y: (HQ.y + A.y) / 2 };
+    const L = Math.hypot(A.x - HQ.x, A.y - HQ.y);
+    const n = { x: -(A.y - HQ.y) / L, y: (A.x - HQ.x) / L };
+    const P = { x: mid.x + 200 * n.x, y: mid.y + 200 * n.y }; // an enemy-held point 200 m off the middle, on the + side
+    const sides = (threat: boolean) =>
+      [1, 2, 3, 4, 5, 6, 7, 8].map((seed) => {
+        const m = scene124({ seed, map: { points: [{ id: 'A', name: 'A', ...A }, ...(threat ? [{ id: 'B', name: 'B', ...P, owner: 'pact' as const }] : [])] }, tune: { lzM: [0, 0] } });
+        m.squads[0]!.order = { point: 0, hold: false, delayed: null, since: 0 };
+        const { log } = flight(m, 45);
+        const { out } = trips(log);
+        const closest = Math.min(...out.map((q) => Math.hypot(q.x - P.x, q.y - P.y)));
+        if (threat) expect(closest, `seed ${seed}`).toBeGreaterThanOrEqual(m.points[1]!.radius + DEFAULT_TUNE.heliThreatM);
+        return Math.sign(bulge(out, HQ, A));
+      });
+    expect(new Set(sides(true))).toEqual(new Set([1])); // the clear side
+    expect(new Set(sides(false))).toEqual(new Set([-1, 1]));
+  });
+
+  it('a trip shorter than doglegMinM flies straight', () => {
+    const m = scene124({ map: { points: [{ id: 'A', name: 'A', x: -460, y: 0 }] }, tune: { lzM: [30, 30] } });
+    const h = m.vehicles[0]!;
+    [0, 1, 2, 3].forEach((id, k) => (h.seats[k] = id) >= 0 && Object.assign(m.soldiers[id]!, { x: h.x, y: h.y, vehicle: h.id }));
+    m.squads[0]!.order = { point: 0, hold: false, delayed: null, since: 0 };
+    const { log } = flight(m, 20);
+    const { out } = trips(log);
+    expect(out.length).toBeGreaterThan(0);
+    expect(Math.abs(bulge(out, HQ, m.vehicles[0]!.lz!))).toBeLessThan(0.5);
+  });
+
+  it('speeds up by no more than heliAccel (and slows by brakeMul times that), turns by no more than heliTurnDegPerS, and banks through the waypoint without stopping', () => {
+    const { log } = flight(scene124(), 90);
+    const { out, back } = trips(log);
+    const turn = (a: { fx: number; fy: number }, b: { fx: number; fy: number }) => Math.acos(Math.min(1, a.fx * b.fx + a.fy * b.fy)) * (180 / Math.PI);
+    log.slice(1).forEach((q, i) => {
+      const p = log[i]!;
+      expect(q.speed - p.speed, `tick ${q.tick}`).toBeLessThanOrEqual(DEFAULT_TUNE.heliAccel / HZ + 1e-9);
+      expect(p.speed - q.speed, `tick ${q.tick}`).toBeLessThanOrEqual((DEFAULT_TUNE.heliAccel * DEFAULT_TUNE.brakeMul) / HZ + 1e-9);
+      expect(turn(p, q), `tick ${q.tick}`).toBeLessThanOrEqual(DEFAULT_TUNE.heliTurnDegPerS / HZ + 1e-3);
+    });
+    expect(Math.max(...out.map((q) => q.speed))).toBeCloseTo(DEFAULT_TUNE.heliMps, 1);
+    for (const trip of [out, back]) expect(Math.min(...trip.slice(Math.floor(trip.length * 0.35), Math.floor(trip.length * 0.65)).map((q) => q.speed))).toBeGreaterThan(0.8 * DEFAULT_TUNE.heliMps); // round the waypoint at the middle
+    expect(Math.max(...out.slice(0, 3).map((q) => q.speed))).toBeLessThan(1); // a pull-away from rest
+  });
+
+  it('hovers flareSeconds over its Landing Zone before touching down, and spools spoolSeconds before lift-off', () => {
+    const { h, log } = flight(scene124(), 90);
+    const { down, up2 } = trips(log);
+    let hover = down;
+    while (log[hover - 1]!.speed === 0 && log[hover - 1]!.airborne) hover--;
+    expect(Math.hypot(log[down]!.x - h.lz!.x, log[down]!.y - h.lz!.y)).toBeLessThan(1e-6);
+    expect((down - hover) / HZ).toBeCloseTo(DEFAULT_TUNE.flareSeconds, 0);
+    expect(log[down - 1]!.airborne).toBe(true); // still airborne while it hovers
+    expect(log.slice(down, up2).every((q) => q.speed === 0)).toBe(true);
+    expect((up2 - down) / HZ).toBeCloseTo(DEFAULT_TUNE.unloadSeconds + DEFAULT_TUNE.spoolSeconds, 0);
+  });
+
+  it('the Landing Zone, waypoint, flare and spool timers are in the hash', () => {
+    const m = scene124();
+    const h = m.vehicles[0]!;
+    for (const change of [() => (h.lz = { x: 1, y: 2 }), () => (h.wp = { x: 3, y: 4 }), () => (h.flareUntil = 9), () => (h.spoolUntil = 9)]) {
+      const before = stateHash(m);
+      change();
+      expect(stateHash(m)).not.toBe(before);
+    }
+  });
+});

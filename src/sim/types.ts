@@ -319,10 +319,22 @@ export interface Tune {
 
   // #109 Transport helicopter
   helisPerSide: number; // transport helicopters in each HQ, on its helipad; 0 = none
-  heliMps: number; // straight-line flight speed, over the ground grid
+  heliMps: number; // top flight speed, over the ground grid
   heliHp: number; // rifles hit it like a Soldier (airborne or landed), rockets as any vehicle, a tank's main gun destroys it
   unloadSeconds: number; // landed at its passengers' goal, it sits this long before it flies on (or home)
   airVisionM: number; // its eyes: a full circle this far, over walls
+
+  // #124 Helicopter flight and Landing Zone
+  lzM: [number, number]; // a Landing Zone lies this far from its goal's centre, seeded between the two
+  lzThreatM: number; // enemies its passengers' Squads know within this of the goal push the Landing Zone to the far side
+  lzSpreadDeg: number; // the Landing Zone's bearing is seeded this far either way of straight away from them
+  doglegFraction: [number, number]; // a trip's waypoint lies this share of the trip's length off the middle of the line, seeded between the two
+  doglegMinM: number; // a shorter trip flies straight
+  heliThreatM: number; // a dogleg side passing this close to an enemy-held point's radius, or to a known enemy, loses to the other
+  heliAccel: number; // m/s² a helicopter speeds up by (it slows brakeMul times as fast)
+  heliTurnDegPerS: number; // how fast it turns toward its way ahead
+  flareSeconds: number; // it hovers this long over its Landing Zone (or home slot) before touching down
+  spoolSeconds: number; // once it may leave, it spools its rotor this long before lifting off
 }
 
 /** #55: what a Commander Score award is for. */

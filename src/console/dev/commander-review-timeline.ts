@@ -1,12 +1,12 @@
 // DEV-only Commander look review timeline (#69): a hand-written, deterministic script of CommanderViews and Events on
 // Kaltenbach coordinates, so the Console's readability treatments (#70 firing pulse, #71 selection and Squad Leader
 // markers), the Cruise Missile's marks (#99), the tank (#107: sprite, turret, Wreck, badge, main gun), the jeep (#108:
-// sprite, Wreck, badge, MG, dismount) and the transport helicopter (#109: lift-off, flight, landing, unload, home) are judged on every
+// sprite, Wreck, badge, MG, dismount) and the transport helicopter (#109: lift-off, flight, landing, unload, home; #124: dogleg, flare, Landing Zone) are judged on every
 // Squad Leader state without a Simulation. `viewAt` and `eventsBetween` are pure.
 import { DEFAULT_TUNE } from '../../sim/tune';
 import type { CommanderView, EffectView, FriendlyView, LastKnownView, SimEvent, SoldierView, SquadView, VehicleView } from '../../sim/types';
 
-export const LENGTH = 152;
+export const LENGTH = 170;
 
 /** Where each state starts, for scrubbing. */
 export const CHAPTERS = [
@@ -94,20 +94,37 @@ function jeepsAt(t: number): VehicleView[] {
 }
 
 // #109: Delta waits by the nato helipad all along, beside the helicopter (nobody aboard: rotor still, grey-white). It boards,
-// the helicopter lifts off a second later and flies straight to D at `heliMps`, lands, sits `unloadSeconds` while Delta gets
-// out, and flies home with its pilot (Delta's 12). #119: pact's lifts off as nato's does, flies to C, sets its Squad down and
-// flies home; it shows only while Alpha sees it (a Soldier's sight of a vehicle, the widest reach of any friendly's here), then
-// fades to a Last Known Position. A pact helicopter Wreck lies south of C.
+// the rotor spools `spoolSeconds` and the helicopter lifts off a second later and flies a dogleg to D at `heliMps` (#124: banking
+// through a waypoint to the side away from the Contacts at C, with the momentum's ramp up and down), hovers `flareSeconds` over
+// its Landing Zone south of D, still in the air, touches down, sits `unloadSeconds` while Delta gets out and walks in to D, spools
+// again and flies home with its pilot (Delta's 12) by a different dogleg, on the other side. #119: pact's lifts off as nato's does,
+// flies straight to C, sets its Squad down and flies home; it shows only while Alpha sees it (a Soldier's sight of a vehicle, the
+// widest reach of any friendly's here), then fades to a Last Known Position. A pact helicopter Wreck lies south of C.
 const HELI_AT = CHAPTERS[9]!.at;
 const HELI_ID = 35;
 const PAD = { x: -409.01, y: 0.3 }; // Kaltenbach's nato helipad (map.json)
 const D = { x: 0, y: -300 };
+const LZ = { x: -30, y: -358 }; // 65 m from D, on the side away from the Contacts at C
+const WAY_OUT = { x: -291, y: -255 }; // 0.2 of the trip off the middle of the line, west of it, away from C
+const WAY_HOME = { x: -166, y: -122 }; // 0.15 of the trip off the middle, east of it
 const leg = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(b.x - a.x, b.y - a.y) / DEFAULT_TUNE.heliMps;
-const LIFT = HELI_AT + 1;
-const LAND = LIFT + leg(PAD, D);
+const RAMP = DEFAULT_TUNE.heliMps / (2 * DEFAULT_TUNE.heliAccel) + DEFAULT_TUNE.heliMps / (2 * DEFAULT_TUNE.heliAccel * DEFAULT_TUNE.brakeMul); // the time lost to speeding up and slowing down
+/** Keys from `start` along `points` at heliMps, the ramp's time spread over the whole trip. */
+function trip(start: number, points: { x: number; y: number }[]): Key[] {
+  const total = points.slice(1).reduce((a, p, i) => a + leg(points[i]!, p), 0);
+  let t = start;
+  return points.map((p, i) => [i ? (t += ((leg(points[i - 1]!, p) / total) * (total + RAMP))) : start, p.x, p.y]);
+}
+const LIFT = HELI_AT + 1; // the rotor starts
+const AIR = LIFT + DEFAULT_TUNE.spoolSeconds;
+const OUT_TRIP = trip(AIR, [PAD, WAY_OUT, LZ]);
+const ARRIVE = OUT_TRIP.at(-1)![0];
+const LAND = ARRIVE + DEFAULT_TUNE.flareSeconds; // touchdown
 const UNLOADED = LAND + DEFAULT_TUNE.unloadSeconds;
-const HOME = UNLOADED + leg(D, PAD);
-const HELI_PATH: Key[] = [[0, PAD.x, PAD.y], [LIFT, PAD.x, PAD.y], [LAND, D.x, D.y], [UNLOADED, D.x, D.y], [HOME, PAD.x, PAD.y], [LENGTH, PAD.x, PAD.y]];
+const AIR2 = UNLOADED + DEFAULT_TUNE.spoolSeconds;
+const HOME_TRIP = trip(AIR2, [LZ, WAY_HOME, PAD]);
+const HOME = HOME_TRIP.at(-1)![0];
+const HELI_PATH: Key[] = [[0, PAD.x, PAD.y], [LIFT, PAD.x, PAD.y], ...OUT_TRIP, [LAND, LZ.x, LZ.y], [AIR2, LZ.x, LZ.y], ...HOME_TRIP, [LENGTH, PAD.x, PAD.y]];
 const OUT = LAND + 1; // a second on the ground, then everyone but the pilot is out
 const inHeli = (id: number, t: number) => t >= HELI_AT && (id === 12 || (t < OUT && id >= 13 && id <= 15));
 const ENEMY_PAD = { x: 420.96, y: -0.72 };
@@ -137,12 +154,13 @@ function lostHeli(t: number): LastKnownView[] {
 function helisAt(t: number): VehicleView[] {
   const p = at(HELI_PATH, t);
   const ahead = at(HELI_PATH, t + 0.5);
-  const behind = at(HELI_PATH, t - 0.5);
+  let behind = at(HELI_PATH, t - 0.5);
+  for (let back = 1; back < 8 && Math.hypot(p.x - behind.x, p.y - behind.y) < 0.01; back += 0.5) behind = at(HELI_PATH, t - back); // hovering or sitting: it keeps the heading it came in on
   const [dx, dy] = Math.hypot(ahead.x - p.x, ahead.y - p.y) > 0.01 ? [ahead.x - p.x, ahead.y - p.y] : [p.x - behind.x, p.y - behind.y];
   const d = Math.hypot(dx, dy);
   const hull = d > 0.01 ? { fx: dx / d, fy: dy / d } : { fx: 1, fy: 0 };
   const seats = [12, 13, 14, 15].map((id) => (inHeli(id, t) ? id : -1));
-  const flying = (t > LIFT && t < LAND) || (t > UNLOADED && t < HOME);
+  const flying = (t > AIR && t < LAND) || (t > AIR2 && t < HOME); // the flare hover is still in the air
   const own: VehicleView = { id: HELI_ID, side: 'nato', kind: 'helicopter', ...p, ...hull, tx: hull.fx, ty: hull.fy, hp: 1, seats, ...(seats[0] === -1 && { empty: true }), ...(flying && { airborne: true }) };
   const span = Math.hypot(ENEMY_LZ.x - ENEMY_PAD.x, ENEMY_LZ.y - ENEMY_PAD.y);
   const toC = { fx: (ENEMY_LZ.x - ENEMY_PAD.x) / span, fy: (ENEMY_LZ.y - ENEMY_PAD.y) / span };
@@ -198,9 +216,9 @@ const MEN: Man[] = [
   { id: 10, squad: 2, path: [[0, -158, -128]], fx: 0.7, fy: 0.7 },
   { id: 11, squad: 2, path: [[0, -146, -136]], fx: 0.7, fy: 0.7 },
   { id: 12, squad: 3, path: [[0, -414, 8], [LENGTH, -414, 8]], ...east },
-  { id: 13, squad: 3, path: [[0, -412, -7], [LAND, -412, -7], [OUT, -6, -292], [LENGTH, -4, -286]], ...east },
-  { id: 14, squad: 3, path: [[0, -403, 9], [LAND, -403, 9], [OUT, 7, -295], [LENGTH, 10, -290]], ...east },
-  { id: 15, squad: 3, path: [[0, -402, -8], [LAND, -402, -8], [OUT, -2, -306], [LENGTH, 2, -310]], ...east },
+  { id: 13, squad: 3, path: [[0, -412, -7], [LAND, -412, -7], [OUT, LZ.x - 6, LZ.y + 4], [OUT + 20, -6, -292], [LENGTH, -4, -286]], ...east },
+  { id: 14, squad: 3, path: [[0, -403, 9], [LAND, -403, 9], [OUT, LZ.x + 6, LZ.y + 6], [OUT + 20, 7, -295], [LENGTH, 10, -290]], ...east },
+  { id: 15, squad: 3, path: [[0, -402, -8], [LAND, -402, -8], [OUT, LZ.x, LZ.y - 5], [OUT + 20, -2, -306], [LENGTH, 2, -310]], ...east },
 ];
 const CONTACTS: Man[] = [
   { id: 20, squad: -1, path: [[0, -14, 30], [LENGTH, -18, 28]], fx: -1, fy: 0 },

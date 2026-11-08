@@ -62,7 +62,7 @@ describe('#120 Commitment', () => {
     for (const seed of seeds) expect(new Set(trail(scene({ seed, frozen: true, tune: { ...open, commitSeconds: [600, 600] } }), 40)).size).toBe(1);
     const flips = seeds.filter((seed) => new Set(trail(scene({ seed, frozen: true, tune: { ...open, commitSeconds: [0, 0] } }), 40)).size > 1);
     expect(flips.length).toBeGreaterThan(0);
-  });
+  }, 15_000); // sixteen 40 s matches: 3.2 s alone, past the 5 s default beside the rest of the suite
 
   const holding = { ...open, commitSeconds: [600, 600] as [number, number] };
   const other = (p: string | null | undefined) => (p === 'N' ? 'S' : 'N');

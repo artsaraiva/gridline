@@ -2,7 +2,7 @@
 // Soldier, the drive step, the tank's eyes and guns, the kill table, Wrecks and the respawn. #108 adds the jeep, a transport:
 // its passengers get out by the shared passenger rule (`wantsOut`), and its second seat fires an MG where the tank's has the coax. Soldiers and vehicles share one
 // id space: a vehicle's id comes after every Soldier's (`vehicleOf` in state.ts), so sightings, targets and `shot` events
-// address either. #109 adds the transport helicopter: it flies straight over the ground grid (`fly`), ferries its passengers to their
+// address either. #109 adds the transport helicopter: it flies over the ground grid (`fly`; #124 by dogleg, in `flight.ts`), ferries its passengers to their
 // majority's goal and home again, sees over walls, and is seen over walls while airborne. #119: the enemy's Console shows it only
 // when someone of theirs sees it, as any vehicle.
 import type { Match } from './index';
@@ -13,6 +13,7 @@ import { blast } from './assets/strike';
 import { die } from './combat';
 import { approach, stopSpeed, turnToward } from './momentum';
 import { dist2, inHq, middlePoint } from './geometry';
+import { dogleg, landingZone } from './flight';
 import { cellIndex, los, nearestWalkable } from './grid';
 import { see } from './memory';
 import { footLeader, membersOf, vehicleOf, type Mix, type Soldier, type Squad } from './state';
@@ -47,6 +48,10 @@ export interface Vehicle {
   landedAt: number; // #109 tick a helicopter last touched down, -1 = not since it was fresh
   claim: number; // #122 id of the Squad whose riders are walking to it, -1 = none
   claimUntil: number; // #122 tick the claim runs out
+  lz: Vec2 | null; // #124 a helicopter's Landing Zone for its trip out (kept after touchdown: its passengers get out there), null = none yet
+  wp: Vec2 | null; // #124 the waypoint of its dogleg still ahead, null = none (or passed)
+  flareUntil: number; // #124 tick it touches down after hovering over its Landing Zone or slot, -1 = not hovering
+  spoolUntil: number; // #124 tick its rotor is up and it lifts off, -1 = not spooling
 }
 
 /** A main gun round: fired from (x0, y0) at tick `launch`, landing on (x, y) at tick `land`. */
@@ -94,7 +99,7 @@ export const gunner = (v: Vehicle) => (air(v) ? (v.seats.find((id, k) => k > 0 &
 const fresh = (m: Match, side: SideId, kind: VehicleKind, slot: Vec2) => ({
   side, kind, ...slot, fx: side === 'nato' ? 1 : -1, fy: 0, speed: 0, hp: specOf(m.tune, kind).hp, seats: Array<number>(specOf(m.tune, kind).seats).fill(-1), slot,
   parked: true, deadAt: -1, goal: -1, departAt: 0, target: -1, coax: -1, nextFire: 0, laid: -1, bias: [] as number[], movedAt: m.tick, halt: -1,
-  airborne: false, landedAt: -1, claim: -1, claimUntil: 0,
+  airborne: false, landedAt: -1, claim: -1, claimUntil: 0, lz: null as Vec2 | null, wp: null as Vec2 | null, flareUntil: -1, spoolUntil: -1,
 });
 
 /**
@@ -287,7 +292,7 @@ function wantsOut(m: Match, sq: Squad, s: Soldier, v: Vehicle): boolean {
   if (air(v) && (v.seats[0] === s.id || v.airborne)) return false;
   if (crippled(m, v)) return true;
   if (v.kind === 'tank') return false;
-  if (v.goal >= 0 && (air(v) ? dist2(v, landing(m, v.goal)) < 1 : flowDist(m, driveFlow(m, v.side, v.goal), v) === 0)) return true;
+  if (v.goal >= 0 && (air(v) ? !!v.lz && dist2(v, v.lz) < 1 : flowDist(m, driveFlow(m, v.side, v.goal), v) === 0)) return true;
   if (v.seats[0] === s.id) return false;
   if (m.tick - Math.max(v.movedAt, v.departAt) >= t.stillSeconds * t.hz) return true;
   const own = goalOf(m, sq, s);
@@ -383,9 +388,6 @@ function step(m: Match, v: Vehicle, halt: boolean) {
   if (v.speed > 0) Object.assign(v, { x: a.x, y: a.y, movedAt: m.tick });
 }
 
-/** #109: where a helicopter sets down for Capture Point `i`: the ground nearest its centre that a Soldier can stand on. */
-const landing = (m: Match, i: number) => nearestWalkable(m, m.points[i]!);
-
 /** #109: the passengers' majority goal (the pilot's breaks a tie), -1 = none aboard with a Capture Point: home. */
 function ferryGoal(m: Match, v: Vehicle): number {
   const goals = v.seats.map((id) => {
@@ -397,27 +399,80 @@ function ferryGoal(m: Match, v: Vehicle): number {
   return votes.reduce((a, g) => (count(g) > count(a) || (count(g) === count(a) && g === goals[0]) ? g : a), votes[0] ?? -1);
 }
 
+/** `p` pushed out of the enemy HQ circle (a helicopter never enters it); `margin` metres past the rim. */
+function clearOfHq(m: Match, side: SideId, p: Vec2, margin = 0): Vec2 {
+  const hq = m.map.hqs[enemyOf(side)];
+  const r = (hq.radius ?? m.tune.hqRadius) + margin;
+  const e2 = dist2(p, hq);
+  return e2 < r * r ? { x: hq.x + ((p.x - hq.x) * r) / Math.sqrt(e2), y: hq.y + ((p.y - hq.y) * r) / Math.sqrt(e2) } : p; // ponytail: slides round the rim; stalls only on a line through its exact centre
+}
+
 /**
- * #109, one tick of a piloted helicopter: it takes its passengers to their goal's landing spot, empty it goes home to its slot,
- * in a straight line at `heliMps` (skirting the enemy HQ circle), and sets down on arrival. On the ground it lifts off only
- * `unloadSeconds` after it landed, and with free seats not before its first passenger's wait is over.
+ * #124, as it lifts off: the trip. Going out, a Landing Zone for the passengers' goal (`landingZone`: away from the enemies its
+ * riders' Squads know); out or home, a dogleg waypoint (`dogleg`) that keeps off enemy-held points and known enemies.
+ */
+function plan(m: Match, v: Vehicle) {
+  const squads = [...new Set(riders(m, v).map((s) => m.squads[s.squad]!))];
+  const known = squads.flatMap((sq) => sq.memory);
+  const threats = [...m.points.filter((p) => p.owner === enemyOf(v.side)).map((p) => ({ x: p.x, y: p.y, r: p.radius })), ...known.map((e) => ({ x: e.x, y: e.y, r: 0 }))];
+  if (v.goal >= 0) v.lz = landingZone(m, m.points[v.goal]!, known, (p) => clearOfHq(m, v.side, p, 1));
+  v.wp = dogleg(m, v, v.goal >= 0 ? v.lz! : v.slot, threats);
+}
+
+/**
+ * #109, one tick of a piloted helicopter: it takes its passengers to their goal's Landing Zone (#124), empty it goes home to its
+ * slot, and sets down there. On the ground it lifts off only `unloadSeconds` after it landed, with free seats not before its first
+ * passenger's wait is over, and spools its rotor `spoolSeconds` first (`plan` draws the trip as it lifts); it never stays at a goal
+ * its passengers are leaving. Airborne, see `cruise`.
  */
 function fly(m: Match, v: Vehicle) {
   const t = m.tune;
   v.goal = ferryGoal(m, v);
-  const to = v.goal >= 0 ? landing(m, v.goal) : v.slot;
-  const d = Math.sqrt(dist2(v, to));
-  if (d < 0.01) return;
-  if (!v.airborne && ((v.landedAt >= 0 && m.tick - v.landedAt < Math.round(t.unloadSeconds * t.hz)) || (v.seats.includes(-1) && m.tick < v.departAt))) return;
-  const u = Math.min(t.heliMps / t.hz, d);
-  let x = v.x + ((to.x - v.x) / d) * u;
-  let y = v.y + ((to.y - v.y) / d) * u;
-  const hq = m.map.hqs[enemyOf(v.side)];
-  const r = hq.radius ?? t.hqRadius;
-  const e2 = dist2({ x, y }, hq);
-  if (e2 < r * r) [x, y] = [hq.x + ((x - hq.x) * r) / Math.sqrt(e2), hq.y + ((y - hq.y) * r) / Math.sqrt(e2)]; // ponytail: slides round the rim; stalls only on a line through its exact centre
-  const landed = u === d;
-  Object.assign(v, { x, y, fx: (to.x - v.x) / d, fy: (to.y - v.y) / d, movedAt: m.tick, airborne: !landed, parked: landed, ...(landed && { landedAt: m.tick }) });
+  if (v.airborne) return cruise(m, v);
+  const there = v.goal >= 0 ? !!v.lz && dist2(v, v.lz) < 1 : dist2(v, v.slot) < 1e-4;
+  const held = (v.landedAt >= 0 && m.tick - v.landedAt < Math.round(t.unloadSeconds * t.hz)) || (v.seats.includes(-1) && m.tick < v.departAt);
+  if (there || held) return void (v.spoolUntil = -1);
+  if (v.spoolUntil < 0) v.spoolUntil = m.tick + Math.round(t.spoolSeconds * t.hz);
+  if (m.tick < v.spoolUntil) return;
+  v.spoolUntil = -1;
+  plan(m, v);
+  Object.assign(v, { airborne: true, parked: false });
+}
+
+/**
+ * #124, one tick in the air: heading toward the waypoint, then the destination (the Landing Zone out, the slot home), by at
+ * most `heliTurnDegPerS`; speed toward `heliMps` (less the sharper the turn ahead) and no more than lets it stop on the
+ * destination, by `heliAccel` (braking `brakeMul` times that), as #123's ground vehicles. It banks through the waypoint
+ * within a second's flight of it. On arrival it hovers `flareSeconds`, still airborne, then touches down. Never into the enemy HQ circle.
+ */
+function cruise(m: Match, v: Vehicle) {
+  const t = m.tune;
+  if (v.flareUntil >= 0) {
+    v.speed = approach(v.speed, 0, t.heliAccel, t.brakeMul, t.hz); // the last of the braking
+    if (m.tick >= v.flareUntil) Object.assign(v, { airborne: false, parked: true, landedAt: m.tick, flareUntil: -1 });
+    return;
+  }
+  const to = v.goal >= 0 && v.lz ? v.lz : v.slot;
+  let aim = v.wp ?? to;
+  let d = Math.sqrt(dist2(v, aim));
+  if (v.wp && d <= Math.max(2, v.speed)) {
+    v.wp = null;
+    aim = to;
+    d = Math.sqrt(dist2(v, aim));
+  }
+  const left = d + (v.wp ? Math.sqrt(dist2(v.wp, to)) : 0);
+  let { fx, fy } = v;
+  let want = 0;
+  if (d >= 0.01) {
+    const way = { x: (aim.x - v.x) / d, y: (aim.y - v.y) / d };
+    ({ fx, fy } = turnToward(fx, fy, way.x, way.y, t.heliTurnDegPerS, t.hz));
+    const align = Math.max(0, fx * way.x + fy * way.y);
+    want = Math.min(t.heliMps * (t.turnSpeedMin + (1 - t.turnSpeedMin) * align), stopSpeed(left, t.heliAccel, t.brakeMul / 2)) // half the braking in reserve, so slowing tick by tick keeps up with the stop curve and the last step is no jump;
+  }
+  const speed = approach(v.speed, want, t.heliAccel, t.brakeMul, t.hz);
+  const arrived = !v.wp && (d < 0.01 || speed / t.hz >= d);
+  const at = arrived ? aim : clearOfHq(m, v.side, { x: v.x + (fx * speed) / t.hz, y: v.y + (fy * speed) / t.hz });
+  Object.assign(v, { x: at.x, y: at.y, fx, fy, speed, movedAt: m.tick, ...(arrived && { flareUntil: m.tick + Math.max(1, Math.round(t.flareSeconds * t.hz)) }) });
 }
 
 /**
@@ -570,8 +625,8 @@ export function vehicleViews(m: Match, side: SideId, seen: Set<number>): Vehicle
 
 export function hashVehicles(m: Match, mix: Mix) {
   for (const v of m.vehicles) {
-    for (const n of [v.x, v.y, v.fx, v.fy, v.speed, v.hp]) mix(Math.round(n * 1000));
-    for (const n of [+(v.side === 'nato'), ...v.seats, +v.parked, v.deadAt, v.goal, v.departAt, v.target, v.coax, v.nextFire, v.laid, v.movedAt, v.halt, +v.airborne, v.landedAt, v.claim, v.claimUntil]) mix(n);
+    for (const n of [v.x, v.y, v.fx, v.fy, v.speed, v.hp, v.lz?.x ?? 0, v.lz?.y ?? 0, v.wp?.x ?? 0, v.wp?.y ?? 0]) mix(Math.round(n * 1000));
+    for (const n of [+(v.side === 'nato'), ...v.seats, +v.parked, v.deadAt, v.goal, v.departAt, v.target, v.coax, v.nextFire, v.laid, v.movedAt, v.halt, +v.airborne, v.landedAt, v.claim, v.claimUntil, +!!v.lz, +!!v.wp, v.flareUntil, v.spoolUntil]) mix(n);
     for (const b of v.bias) mix(Math.round(b * 1000));
     mix(v.rounds.length);
     for (const r of v.rounds) for (const n of [Math.round(r.x0 * 1000), Math.round(r.y0 * 1000), Math.round(r.x * 1000), Math.round(r.y * 1000), r.launch, r.land]) mix(n);

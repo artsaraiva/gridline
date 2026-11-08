@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { insidePolygon } from '../../sim/geometry';
+import { DEFAULT_TUNE } from '../../sim/tune';
 import type { SimEvent } from '../../sim/types';
 import { CHAPTERS, eventsBetween, LENGTH, viewAt } from './commander-review-timeline';
 
@@ -150,7 +151,7 @@ describe('commander review timeline (#69)', () => {
     for (const v of late.vehicles!) expect(insidePolygon(PLAY_AREA, v.x, v.y)).toBe(true);
   });
 
-  it('#109 Helicopter: Delta boards the empty helicopter on the pad, it lifts off, flies straight to D, lands, they get out within unloadSeconds and it flies home with its pilot; an enemy one shows only while Alpha sees it, then fades to a Last Known Position', () => {
+  it('#109 Helicopter: Delta boards the empty helicopter on the pad, it spools and lifts off, flies a dogleg to D, flares over its Landing Zone off the point, lands, they get out and walk in, and it flies home with its pilot by another dogleg; an enemy one shows only while Alpha sees it, then fades to a Last Known Position', () => {
     const t = chapter('Helicopter') - 1;
     const heli = (v: ReturnType<typeof viewAt>) => v.vehicles!.find((x) => x.kind === 'helicopter' && x.side === 'nato')!;
     const enemy = (v: ReturnType<typeof viewAt>) => v.vehicles!.find((x) => x.kind === 'helicopter' && x.side === 'pact' && !x.wreck);
@@ -165,16 +166,24 @@ describe('commander review timeline (#69)', () => {
     const lift = air.indexOf(true);
     const land = air.indexOf(false, lift);
     const D = { x: 0, y: -300 };
-    expect(Math.hypot(heli(flights[land]!).x - D.x, heli(flights[land]!).y - D.y)).toBeLessThan(25);
-    expect((land - lift) / 4).toBeCloseTo(Math.hypot(pad.x - D.x, pad.y - D.y) / 30, 0); // heliMps
-    for (const v of flights.slice(lift, land)) {
-      const h = heli(v); // on the line from the pad to D
-      expect(Math.abs((h.x - pad.x) * (D.y - pad.y) - (h.y - pad.y) * (D.x - pad.x)) / Math.hypot(D.x - pad.x, D.y - pad.y)).toBeLessThan(0.5);
-    }
+    const lz = heli(flights[land]!);
+    expect(Math.hypot(lz.x - D.x, lz.y - D.y)).toBeGreaterThan(DEFAULT_TUNE.lzM[0]); // #124: a Landing Zone off the point, within lzM
+    expect(Math.hypot(lz.x - D.x, lz.y - D.y)).toBeLessThan(DEFAULT_TUNE.lzM[1]);
+    const hover = flights.slice(0, land).filter((v) => heli(v).airborne && Math.hypot(heli(v).x - lz.x, heli(v).y - lz.y) < 0.01).length;
+    expect(hover / 4).toBeCloseTo(DEFAULT_TUNE.flareSeconds, 0); // it hovers over it, still airborne, before it touches down
+    expect(air.indexOf(true) - flights.findIndex((v) => heli(v).seats![0] === 12 && heli(v).seats![1] === 13)).toBeGreaterThanOrEqual((1 + DEFAULT_TUNE.spoolSeconds) * 4 - 1); // the rotor spools before lift-off
+    const bulge = (track: { x: number; y: number }[], a: { x: number; y: number }, b: { x: number; y: number }) =>
+      track.map((q) => ((q.x - a.x) * (b.y - a.y) - (q.y - a.y) * (b.x - a.x)) / Math.hypot(b.x - a.x, b.y - a.y)).reduce((far, d) => (Math.abs(d) > Math.abs(far) ? d : far), 0);
     const again = air.indexOf(true, land);
-    expect((again - land) / 4).toBeCloseTo(3, 0); // unloadSeconds
+    const out = flights.slice(lift, land).map(heli);
+    expect(Math.abs(bulge(out, pad, lz))).toBeGreaterThan(0.05 * Math.hypot(lz.x - pad.x, lz.y - pad.y)); // a dogleg out
+    expect((again - land) / 4).toBeCloseTo(3 + 1.5, 0); // unloadSeconds, then spoolSeconds
     expect(heli(flights[again]!).seats).toEqual([12, -1, -1, -1]);
-    for (const f of delta(flights[again]!).filter((f) => f.id !== 12)) expect(Math.hypot(f.x - D.x, f.y - D.y)).toBeLessThan(25);
+    for (const f of delta(flights[again]!).filter((f) => f.id !== 12)) expect(Math.hypot(f.x - D.x, f.y - D.y)).toBeGreaterThan(DEFAULT_TUNE.captureRadius); // still walking in
+    for (const f of delta(viewAt(LENGTH - 1)).filter((f) => f.id !== 12)) expect(Math.hypot(f.x - D.x, f.y - D.y)).toBeLessThan(DEFAULT_TUNE.captureRadius);
+    const back = flights.slice(again, flights.findIndex((v, i) => i > again && !heli(v).airborne)).map(heli);
+    expect(Math.abs(bulge(back, lz, pad))).toBeGreaterThan(0.05 * Math.hypot(lz.x - pad.x, lz.y - pad.y)); // a dogleg home ...
+    expect(Math.sign(bulge(back, lz, pad))).not.toBe(Math.sign(bulge(out, lz, pad))); // ... on the other side
     const home = heli(viewAt(LENGTH - 1));
     expect(home).toMatchObject({ x: pad.x, y: pad.y, seats: [12, -1, -1, -1] });
     expect(home.airborne).toBeUndefined();

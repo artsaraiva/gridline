@@ -246,6 +246,18 @@ export const DEFAULT_TUNE: Tune = {
   heliHp: 120,
   unloadSeconds: 3,
   airVisionM: 250,
+
+  // #124 Helicopter flight and Landing Zone
+  lzM: [40, 120],
+  lzThreatM: 200,
+  lzSpreadDeg: 60,
+  doglegFraction: [0.15, 0.3],
+  doglegMinM: 150,
+  heliThreatM: 60,
+  heliAccel: 6,
+  heliTurnDegPerS: 60,
+  flareSeconds: 1,
+  spoolSeconds: 1.5,
 };
 
 /** #120: tests of one rule at a time switch the Squads' Traits off: the best point, no Commitment, no aggression, one ride distance (#122). */

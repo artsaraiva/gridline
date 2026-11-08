@@ -16,7 +16,19 @@ export interface MatchSummary {
   picks: Record<string, number>; // times a Squad took up each crossing (a route change on a Squad counts as one pick)
   first: Record<SideId, string[]>; // #120: the Capture Point each Squad took first, by Side
   heliSquads: Record<SideId, number[]>; // #122: the Squad whose Soldier first got aboard each of the Side's helicopters
+  zones: Zone[]; // #124: every Landing Zone a helicopter drew, in order
 }
+
+/** #124: a helicopter's Landing Zone and the Capture Point it was drawn for. */
+export interface Zone {
+  side: SideId;
+  goal: string;
+  x: number;
+  y: number;
+}
+
+/** #124: Landing Zones this far apart or less count as the same spot. */
+export const ZONE_APART_M = 15;
 
 export interface Balance {
   matches: MatchSummary[];
@@ -27,6 +39,7 @@ export interface Balance {
   firstPicks: Record<string, number>; // #120: Squads' first Capture Points, all matches
   opening: Record<SideId, number>; // #120: mean number of different points a Side's Squads opened on per match
   heliSquads: Record<SideId, number>; // #122: different Squads a Side's helicopter took its first riders from, across all matches
+  zoneSpread: Record<string, { zones: number; apart: number }>; // #124: per goal, the Landing Zones drawn across all matches, and the share of their pairs more than ZONE_APART_M apart
 }
 
 export function balance(o: { seeds: number; squads: number; map: MapData; tune?: Partial<Tune>; firstSeed?: number }): Balance {
@@ -40,9 +53,13 @@ export function balance(o: { seeds: number; squads: number; map: MapData; tune?:
     const first = new Map<number, { side: SideId; point: string }>();
     const heliSquads: Record<SideId, number[]> = { nato: [], pact: [] };
     const boarded = new Set<number>();
+    const zones: Zone[] = [];
+    const lastZone = new Map<number, unknown>();
     while (!m.result) {
       step(m, []);
       for (const v of m.vehicles) {
+        if (v.kind === 'helicopter' && v.lz && v.lz !== lastZone.get(v.id)) zones.push({ side: v.side, goal: m.points[v.goal]!.id, x: v.lz.x, y: v.lz.y });
+        if (v.kind === 'helicopter') lastZone.set(v.id, v.lz);
         const rider = v.kind === 'helicopter' && !boarded.has(v.id) ? v.seats.find((id) => id >= 0) : undefined;
         if (rider === undefined) continue;
         boarded.add(v.id);
@@ -55,13 +72,14 @@ export function balance(o: { seeds: number; squads: number; map: MapData; tune?:
           if (sq.point && !first.has(sq.id)) first.set(sq.id, { side, point: sq.point });
         }
     }
-    matches.push({ seed, seconds: m.tick / tune.hz, winner: m.result.winner, reason: m.result.reason, tickets: { ...m.tickets }, picks, first: { nato: [...first.values()].filter((f) => f.side === 'nato').map((f) => f.point), pact: [...first.values()].filter((f) => f.side === 'pact').map((f) => f.point) }, heliSquads });
+    matches.push({ seed, seconds: m.tick / tune.hz, winner: m.result.winner, reason: m.result.reason, tickets: { ...m.tickets }, picks, first: { nato: [...first.values()].filter((f) => f.side === 'nato').map((f) => f.point), pact: [...first.values()].filter((f) => f.side === 'pact').map((f) => f.point) }, heliSquads, zones });
   }
   const wins = { nato: 0, pact: 0, draw: 0 };
   const picks: Record<string, number> = {};
   const sum = { nato: 0, pact: 0 };
   const firstPicks: Record<string, number> = {};
   const opened = { nato: 0, pact: 0 };
+  const byGoal: Record<string, Zone[]> = {};
   const heli = { nato: new Set<number>(), pact: new Set<number>() };
   for (const r of matches) {
     wins[r.winner ?? 'draw']++;
@@ -71,8 +89,15 @@ export function balance(o: { seeds: number; squads: number; map: MapData; tune?:
       for (const q of r.heliSquads[side]) heli[side].add(q);
       for (const k of r.first[side]) firstPicks[k] = (firstPicks[k] ?? 0) + 1;
     }
+    for (const z of r.zones) (byGoal[z.goal] ??= []).push(z);
     for (const [k, v] of Object.entries(r.picks)) picks[k] = (picks[k] ?? 0) + v;
   }
+  const zoneSpread = Object.fromEntries(
+    Object.entries(byGoal).map(([goal, zs]) => {
+      const pairs = zs.flatMap((a, i) => zs.slice(i + 1).map((b) => Math.hypot(a.x - b.x, a.y - b.y)));
+      return [goal, { zones: zs.length, apart: pairs.length ? pairs.filter((d) => d > ZONE_APART_M).length / pairs.length : 1 }];
+    }),
+  );
   const n = matches.length || 1;
   return {
     matches,
@@ -83,12 +108,13 @@ export function balance(o: { seeds: number; squads: number; map: MapData; tune?:
     firstPicks,
     opening: { nato: opened.nato / n, pact: opened.pact / n },
     heliSquads: { nato: heli.nato.size, pact: heli.pact.size },
+    zoneSpread,
   };
 }
 
 export function report(b: Balance): string {
   const lines = b.matches.map(
-    (r) => `seed ${String(r.seed).padStart(3)}  ${String(Math.round(r.seconds)).padStart(5)} s  ${(r.winner ?? 'draw').padEnd(5)} (${r.reason})  tickets nato ${r.tickets.nato} pact ${r.tickets.pact}  crossings ${JSON.stringify(r.picks)}  first nato ${r.first.nato.join('')} pact ${r.first.pact.join('')}  helicopter riders from Squads nato ${r.heliSquads.nato.join(',') || '-'} pact ${r.heliSquads.pact.join(',') || '-'}`,
+    (r) => `seed ${String(r.seed).padStart(3)}  ${String(Math.round(r.seconds)).padStart(5)} s  ${(r.winner ?? 'draw').padEnd(5)} (${r.reason})  tickets nato ${r.tickets.nato} pact ${r.tickets.pact}  crossings ${JSON.stringify(r.picks)}  first nato ${r.first.nato.join('')} pact ${r.first.pact.join('')}  helicopter riders from Squads nato ${r.heliSquads.nato.join(',') || '-'} pact ${r.heliSquads.pact.join(',') || '-'}  Landing Zones ${r.zones.map((z) => `${z.side} ${z.goal}(${z.x.toFixed(0)},${z.y.toFixed(0)})`).join(' ') || '-'}`,
   );
   lines.push(
     `--`,
@@ -99,6 +125,7 @@ export function report(b: Balance): string {
     `first points ${JSON.stringify(b.firstPicks)}`,
     `different opening points per match nato ${b.opening.nato.toFixed(2)}  pact ${b.opening.pact.toFixed(2)}`,
     `different Squads the helicopter took its first riders from, all matches: nato ${b.heliSquads.nato}  pact ${b.heliSquads.pact}`,
+    ...Object.entries(b.zoneSpread).map(([goal, z]) => `Landing Zones for ${goal}: ${z.zones}, ${(z.apart * 100).toFixed(0)}% of pairs more than ${ZONE_APART_M} m apart`),
   );
   return lines.join('\n');
 }
