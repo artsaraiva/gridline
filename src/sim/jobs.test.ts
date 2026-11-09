@@ -164,6 +164,29 @@ describe('#131 ferry', () => {
   });
 });
 
+describe('#131 ferry pickup wait', () => {
+  it('a landed helicopter whose Squad never claims it (no seats fit it) waits boardWaitSeconds at the pickup, then drops the fetch and flies on', () => {
+    const m = scene([P], { squadSize: 6 });
+    m.squads[1]!.rideM = 100;
+    const h = heliOf(m);
+    load(m, h, [1, 2, 3, -1, -1, -1]); // three crew leave three seats: a Squad of six never fits
+    const squad = m.soldiers.filter((s) => s.squad === 1);
+    const spots = squad.map((_, k) => ({ x: -100 + 3 * k, y: 0 }));
+    let down = -1;
+    let off = -1;
+    for (let i = 0; i < 200 * HZ && off < 0; i++) {
+      squad.forEach((s, k) => Object.assign(s, spots[k]!)); // it stands there, calling
+      step(m, []);
+      if (down < 0 && !h.airborne && h.landedAt > 0 && dist(h, h.slot) > 50) down = m.tick;
+      if (down >= 0 && h.airborne) off = m.tick;
+    }
+    expect(down).toBeGreaterThan(0);
+    expect(off).toBeGreaterThan(0);
+    expect((off - down) / HZ).toBeGreaterThanOrEqual(T.boardWaitSeconds);
+    expect((off - down) / HZ).toBeLessThan(T.boardWaitSeconds + T.spoolSeconds + 12);
+  });
+});
+
 describe('#131 support', () => {
   const A: Vec2 = { x: -200, y: 0 };
   const B: Vec2 = { x: 300, y: 0 };

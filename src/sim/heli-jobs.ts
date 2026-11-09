@@ -50,7 +50,8 @@ export function decideJob(m: Match, v: Vehicle) {
     return;
   }
   const calling = callers(m, v);
-  if (v.job === 'ferry' && calling.some((c) => c.sq.id === v.fetch)) return;
+  const waited = !v.airborne && !!v.spot && v.landedAt >= 0 && dist2(v, v.spot) < 1 && m.tick - v.landedAt >= Math.round(t.boardWaitSeconds * t.hz); // landed at its pickup and nobody claimed it in time: the fetch is dropped
+  if (v.job === 'ferry' && !waited && calling.some((c) => c.sq.id === v.fetch)) return;
   if (calling.length) {
     const near = calling.map((c) => 1 / Math.max(50, Math.sqrt(dist2(c.L, v)))); // the nearest likeliest
     let r = rnd(m) * near.reduce((a, w) => a + w, 0);
