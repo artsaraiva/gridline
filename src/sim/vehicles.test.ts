@@ -821,7 +821,7 @@ describe('#124 helicopter flight and Landing Zone', () => {
 
   it('a goal changed in flight draws a fresh Landing Zone: it sets down by the new point and its riders get out there, once', () => {
     const B = { x: 300, y: -250 };
-    const m = scene124({ map: { points: [{ id: 'A', name: 'A', ...A }, { id: 'B', name: 'B', ...B }] }, tune: { heliHp: 1e9 } }); // #131: a helicopter wounded below half would drop its riders and fly home to repair; this one is about the Landing Zone
+    const m = scene124({ map: { points: [{ id: 'A', name: 'A', ...A }, { id: 'B', name: 'B', ...B }] }, tune: { rockets: 0 } }); // the pact's Launcher (Soldier 5, parked far off) would rocket the airborne helicopter without line of sight (`rocketTarget`: airborne vehicles need none, `rocketRangeM` applies regardless of `visionM: 0`); #131: below half its hit points it would drop its riders and fly home to repair, and this test is about the Landing Zone
     const h = m.vehicles[0]!;
     [0, 1, 2, 3].forEach((id, k) => (h.seats[k] = id) >= 0 && Object.assign(m.soldiers[id]!, { x: h.x, y: h.y, vehicle: h.id }));
     m.squads[0]!.order = { point: 0, hold: false, delayed: null, since: 0 };
