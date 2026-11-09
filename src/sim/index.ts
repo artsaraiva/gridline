@@ -13,9 +13,9 @@ import { perceive } from './perception';
 import { hashRadio, newRadio, radio, type Radio } from './radio';
 import { hashRequests, requests } from './requests';
 import { returnToFight } from './respawn';
-import { rnd } from './rng';
+import { between, rnd } from './rng';
 import { hashScore, newScore, type Score } from './score';
-import { hashSoldiers, hashSquads, sign, stageTicks, type Point, type Soldier, type Squad } from './state';
+import { hashSoldiers, hashSquads, sign, stageTicks, ticksOf, type Point, type Soldier, type Squad } from './state';
 import { SIDES, type Command, type MapData, type MatchResult, type SideId, type SimEvent, type Tune } from './types';
 import { drive, hashVehicles, newVehicles, type Vehicle, type Wreck } from './vehicles';
 
@@ -81,7 +81,9 @@ export function createMatch(opts: {
   for (const side of SIDES) {
     const hq = map.hqs[side];
     for (let q = 0; q < opts.squadsPerSide; q++) {
-      const squad: Squad = { id: m.squads.length, side, members: [], goal: -1, lastSeen: -1e9, lastHit: -1e9, memory: [], order: null, pending: null, request: null, requestNext: 0, taking: -1, takingSince: 0, ...newSquadAi() };
+      const squad: Squad = { id: m.squads.length, side, members: [], goal: -1, lastSeen: -1e9, lastHit: -1e9, memory: [], order: null, pending: null, request: null, requestNext: 0, taking: -1, takingSince: 0, pointPref: map.points.map(() => (rnd(m) * 2 - 1) * tune.squadGoalBias), aggression: rnd(m) * 2 - 1, commitUntil: 0, thinkInterval: between(m, tune.thinkIntervalSeconds), nextThink: 0, rideM: 0, ...newSquadAi() };
+      const first = Math.round(squad.thinkInterval * tune.hz);
+      squad.nextThink = Math.floor(rnd(m) * first); // #121: opens somewhere in its first interval
       m.squads.push(squad);
       for (let i = 0; i < tune.squadSize; i++) {
         const ox = (rnd(m) * 2 - 1) * tune.spread;
@@ -91,11 +93,12 @@ export function createMatch(opts: {
         m.soldiers.push({
           id: m.soldiers.length, side, squad: squad.id, x: hq.x + ox, y: hq.y + oy, fx: sign(side), fy: 0, speed, ox, oy,
           state: 'alive', hp: tune.hp, suppression: 0, target: -1, nextFire: 0, bleed: 0, revive: 0, reviving: -1, deadAt: 0,
-          ...newSoldierAi(m), cause: null, uavUntil: -1, uavAssist: false, vehicle: -1, rockets: tune.rockets, exited: -1, away: -1, awaySince: -1,
+          ...newSoldierAi(m), cause: null, uavUntil: -1, uavAssist: false, vehicle: -1, chute: null, rockets: tune.rockets, exited: -1, away: -1, awaySince: -1, reaction: between(m, tune.reactionSeconds), holdUntil: 0,
         });
       }
     }
   }
+  for (const sq of m.squads) sq.rideM = between(m, tune.rideM); // #122: after every other draw, so no earlier Trait moves
   m.vehicles = newVehicles(m);
   return m;
 }
@@ -106,13 +109,17 @@ export function step(m: Match, commands: Command[]): SimEvent[] {
   const t = m.tune;
   const events: SimEvent[] = [];
   applyCommands(m, commands, events);
-  for (const sq of m.squads) if ((m.tick + sq.id) % Math.round(t.thinkSeconds * t.hz) === 0) think(m, sq, events);
+  for (const sq of m.squads)
+    if (m.tick >= sq.nextThink) {
+      think(m, sq, events);
+      sq.nextThink = m.tick + ticksOf(t, sq.thinkInterval * (1 + (t.thinkJitter ? rnd(m) * 2 - 1 : 0) * t.thinkJitter)); // #121
+    }
   casualties(m, events);
   perceive(m);
   assetEffects(m, events);
   fire(m, events);
   hear(m, events);
-  for (const s of m.soldiers) if (s.state === 'alive' && s.vehicle < 0) walk(m, s);
+  for (const s of m.soldiers) if (s.state === 'alive' && s.vehicle < 0 && !s.chute) walk(m, s); // #130: a parachute descent is not a walk
   drive(m);
   suppressionDecay(m);
   returnToFight(m, events);

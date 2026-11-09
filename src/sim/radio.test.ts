@@ -35,8 +35,8 @@ interface Placement {
 
 /** Soldier ids run nato first, squad by squad, `squadSize` each. Placing Soldiers is the one reach past the interface. */
 function scene(o: { place?: Record<number, Placement>; tune?: Partial<Tune>; points?: MapData['points']; squads?: number; seed?: number } = {}): Match {
-  const tune: Tune = { ...DEFAULT_TUNE, speedJitter: 0, spread: 0, ...o.tune };
-  const m = createMatch({ seed: o.seed ?? 1, map: field(o.points), tune, squadsPerSide: o.squads ?? 1, commanderSide: 'nato' });
+  const tune: Tune = { ...DEFAULT_TUNE, speedJitter: 0, spread: 0, rideM: [180, 180], ...o.tune };
+  const m = createMatch({ seed: o.seed ?? 2, map: field(o.points), tune, squadsPerSide: o.squads ?? 1, commanderSide: 'nato' });
   for (const [id, p] of Object.entries(o.place ?? {})) Object.assign(m.soldiers[Number(id)]!, p);
   return m;
 }

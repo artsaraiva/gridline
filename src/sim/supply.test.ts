@@ -24,7 +24,7 @@ type Placement = { x?: number; y?: number; ammo?: number; hp?: number };
 
 /** Placing Soldiers (and their ammo and health) stands in for a map script; everything after runs through `step`. Nobody sees anybody. */
 function scene(place: Record<number, Placement> = {}, o: { tune?: Partial<Tune>; squads?: number; squadSize?: number; points?: MapData['points'] } = {}): Match {
-  const tune: Tune = { ...DEFAULT_TUNE, squadSize: o.squadSize ?? 1, speedJitter: 0, spread: 0, visionM: 0, ...o.tune };
+  const tune: Tune = { ...DEFAULT_TUNE, squadSize: o.squadSize ?? 1, speedJitter: 0, spread: 0, visionM: 0, rideM: [180, 180], ...o.tune };
   const m = createMatch({ seed: 1, map: field(o.points), tune, squadsPerSide: o.squads ?? 1, commanderSide: 'nato' });
   for (const [id, p] of Object.entries(place)) Object.assign(m.soldiers[Number(id)]!, p);
   return m;

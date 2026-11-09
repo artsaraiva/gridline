@@ -8,14 +8,15 @@ import { nearestCrate } from '../assets/crate';
 import { canStand, dist2 } from '../geometry';
 import { gridRef } from '../grid-ref';
 import { lineWalk, nearestWalkable } from '../grid';
+import { sideKnown } from '../memory';
 import { quiet } from '../respawn';
-import { rnd } from '../rng';
-import { membersOf, type Soldier, type Squad } from '../state';
+import { between, pickWeighted, rnd } from '../rng';
+import { membersOf, vehicleOf, type Point, type Soldier, type Squad } from '../state';
 import { enemyOf, type SimEvent, type Vec2 } from '../types';
 import { localPath, oct, pickCover, shelter } from './cover';
 import { crateFlow, flowDist, flowLook, hqFlow, pointFlow, routeFlow, type Flow } from './flow';
 import { chooseRoute } from './routes';
-import { board, ride } from '../vehicles';
+import { board, decideCrew, decideRide, ride } from '../vehicles';
 
 const sq2 = (r: number) => r * r;
 
@@ -67,36 +68,61 @@ export function setDest(m: Match, s: Soldier, d: { at: Vec2; path: Vec2[] } | Ve
   }
 }
 
+/** An enemy inside the point, or known to the Side (#133) near it. */
+const threatened = (m: Match, sq: Squad, p: Point) => insideCount(m, p, enemyOf(sq.side)) > 0 || sideKnown(m, sq.side).some((c) => dist2(c, p) < sq2(p.radius + m.tune.threatenedM));
+
+/** #120: a self-chosen Commitment to `goal` still holds: not over, the point not its own Side's, no own point near `from` threatened. */
+function committed(m: Match, sq: Squad, goal: number, until: number, from: Vec2): boolean {
+  const p = m.points[goal];
+  if (!p || m.tick >= until || p.owner === sq.side) return false;
+  return !m.points.some((o) => o.owner === sq.side && dist2(from, o) < sq2(m.tune.commitThreatM) && threatened(m, sq, o));
+}
+
+/** #120: the tick a Commitment made now ends, seeded between `commitSeconds`. */
+const commitEnd = (m: Match) => m.tick + Math.round(between(m, m.tune.commitSeconds) * m.tune.hz);
+
+/** #120: a pick that is not a held Commitment starts a new one on `who` (a Squad or a Detached Soldier). */
+const commit = (m: Match, who: { commitUntil: number }, held: boolean) => {
+  if (!held) who.commitUntil = commitEnd(m);
+};
+
+/** #121: the tick `s` sets off, after its own reaction from now. */
+export const reactAt = (m: Match, s: Soldier) => m.tick + Math.round(s.reaction * m.tune.hz);
+
 /**
- * The best-scoring Capture Point seen from `from`, -1 = none: value by owner, path distance, crowding (pairing up on enemy
- * points), stickiness plus `pull` on the Squad's goal, the Order's bonus. #107: a driver scores by `flow` (its drive grid)
- * and adds its own `bias` per point.
+ * The Capture Point seen from `from` that the Squad takes, -1 = none: value by owner (enemy points x its aggression), path
+ * distance, crowding (pairing up on enemy points), its seeded preference, stickiness plus `pull` on the Squad's goal, the
+ * Order's bonus. #120: it draws among the points within `choiceMargin` of the best, weighted by how far each clears best minus
+ * the margin. #107: a driver scores by `flow` (its drive grid) and adds its own `bias` per point, and takes the best.
  */
 export function bestPoint(m: Match, sq: Squad, from: Vec2, pull = 0, own: { flow?: (i: number) => Flow; bias?: number[] } = {}): number {
   const t = m.tune;
   const foe = enemyOf(sq.side);
-  let best = -1;
-  let bestScore = -Infinity;
+  const scores: number[] = [];
   m.points.forEach((p, i) => {
-    const threatened = insideCount(m, p, foe) > 0 || sq.memory.some((c) => dist2(c, p) < sq2(p.radius + t.threatenedM));
     let v =
       p.owner === null ? t.pointValue.neutral
-      : p.owner === foe ? t.pointValue.enemy
-      : threatened ? t.pointValue.ownedThreatened
+      : p.owner === foe ? t.pointValue.enemy * (own.flow ? 1 : 1 + sq.aggression * t.aggressionValueMul)
+      : threatened(m, sq, p) ? t.pointValue.ownedThreatened
       : t.pointValue.ownedQuiet;
     v -= (t.distancePenaltyPer100m * flowDist(m, (own.flow ?? ((k) => pointFlow(m, k)))(i), from)) / 100;
-    v += own.bias?.[i] ?? 0;
+    v += own.bias?.[i] ?? (own.flow ? 0 : sq.pointPref[i] ?? 0);
     const others = m.squads.filter((o) => o !== sq && o.side === sq.side && o.task === 'point' && o.goal === i).length;
     v -= p.owner === foe ? (others === 1 ? -t.pairUp : t.crowdPenalty * Math.max(0, others - 1)) : t.crowdPenalty * others;
     if (sq.task === 'point' && sq.goal === i) v += t.stickiness + pull;
     if (sq.order?.point === i) v += t.orderBonus;
-    if (v > bestScore) {
-      bestScore = v;
-      best = i;
-    }
+    scores.push(v);
   });
-  return best;
+  const top = Math.max(...scores);
+  if (own.flow || !scores.length) return scores.indexOf(top);
+  const floor = top - t.choiceMargin;
+  const weights = scores.map((v) => Math.max(0, v - floor));
+  const pick = pickWeighted(m, weights);
+  return pick < 0 ? scores.indexOf(top) : pick;
 }
+
+/** #122: some of the Squad's living members are on their way to, or aboard, a jeep or helicopter (tanks are crewed by pairs, not ridden together). */
+const riding = (m: Match, alive: Soldier[]) => alive.some((s) => s.boarding >= 0 || s.vehicle >= 0 && vehicleOf(m, s.vehicle)?.kind !== 'tank');
 
 export function think(m: Match, sq: Squad, events: SimEvent[]) {
   const t = m.tune;
@@ -109,7 +135,7 @@ export function think(m: Match, sq: Squad, events: SimEvent[]) {
   }
   const lead = { ...leader, ...nearestWalkable(m, leader) }; // #109: from the ground under them when they fly over a roof or the river
   const foot = alive.filter((s) => s.vehicle < 0); // #107
-  if (foot.length && foot.every((s) => s.detached)) Object.assign(foot[0]!, { detached: false, goal: -1 }); // someone on foot is always the Squad's body
+  if (foot.length && !riding(m, alive) && foot.every((s) => s.detached)) Object.assign(foot[0]!, { detached: false, goal: -1 }); // someone on foot is always the Squad's body
   const body = foot.filter((s) => !s.detached); // #106: the members moving as one
   const L = body[0] ?? leader; // the foot leader: the wedge forms on them; with everyone aboard, the Squad Leader's vehicle stands in
   const foe = enemyOf(sq.side);
@@ -118,7 +144,8 @@ export function think(m: Match, sq: Squad, events: SimEvent[]) {
   const inContact = sq.memory.some((c) => m.tick - c.tick < t.contactSeconds * t.hz) || body.some((s) => s.suppression > t.suppressedAt);
 
   // survival outranks everything; a Detached member's fight is its own, so only the body's fire and ammo count (the headcount stays the Squad's)
-  const shaken = body.filter((s) => s.suppression > t.retreatSuppression).length;
+  const retreatAt = Math.min(0.99, t.retreatSuppression * (1 + sq.aggression * t.aggressionRetreatMul)); // #120: bold falls back later
+  const shaken = body.filter((s) => s.suppression > retreatAt).length;
   const dry = body.filter((s) => s.ammo < t.ammoLow).length;
   let survive: 'retreat' | 'resupply' | null = null;
   if (sq.task === 'retreat') survive = quiet(m, sq, members) && alive.length >= members.length - 1 ? null : 'retreat';
@@ -128,8 +155,12 @@ export function think(m: Match, sq: Squad, events: SimEvent[]) {
     else if (dry * 2 > body.length) survive = 'resupply';
   }
 
-  let best = bestPoint(m, sq, lead);
+  // #120: a Commitment ends early on an Order (arriving or cleared) or a survival task, as well as on its own events
+  if (sq.order || survive) sq.commitUntil = 0;
+  const held = sq.task === 'point' && committed(m, sq, sq.goal, sq.commitUntil, lead);
+  let best = survive ? -1 : held ? sq.goal : bestPoint(m, sq, lead);
   if (sq.order) best = sq.order.point; // an Order is never lost to a better-scoring point, whatever the distance
+  else if (!survive && best >= 0) commit(m, sq, held);
 
   const prevTask = sq.task;
   const prevGoal = sq.goal;
@@ -164,7 +195,7 @@ export function think(m: Match, sq: Squad, events: SimEvent[]) {
     for (const s of body)
       if (!s.chaseUntil) {
         setDest(m, s, null);
-        Object.assign(s, { cover: null, role: null, strayUntil: 0 });
+        Object.assign(s, { cover: null, role: null, strayUntil: 0, holdUntil: reactAt(m, s) }); // #121: sets off after its reaction
       }
     Object.assign(sq, { mode, phase: 1, phaseUntil: 0, holdAt: 0, flankSign: 0, flankSince: -1, flankDone: false });
   }
@@ -178,17 +209,25 @@ export function think(m: Match, sq: Squad, events: SimEvent[]) {
   }
   soldierJobs(m, sq, L, goal, threat, foot);
   if ((mode === 'travel' || mode === 'fallback') && goal && dist2(L, goal) > sq2(goal.r + t.leashM)) stray(m, sq, L, body); // #93: closes up within a leash of the goal
-  for (const s of foot) if (s.detached) detached(m, sq, L, s);
+  for (const s of foot) if (s.detached) detached(m, sq, L, s, riding(m, alive));
   for (const s of alive) if (s.vehicle >= 0) ride(m, sq, s); // #107
+  decideCrew(m, sq, body, L); // #129: before it rides, so its pilot is on the way
+  decideRide(m, sq, body, L);
   for (const s of foot) if (s.vehicle < 0) board(m, sq, s);
 }
 
 /** #106: a Detached Soldier picks its own Capture Point, pulled toward the Squad's, and rejoins near the foot leader on the Squad's goal. */
-function detached(m: Match, sq: Squad, L: Soldier, s: Soldier) {
+function detached(m: Match, sq: Squad, L: Soldier, s: Soldier, riding: boolean) {
   const t = m.tune;
-  const own = sq.task === 'point' ? bestPoint(m, sq, s, t.squadPull) : -1; // survival calls them back to the Squad's goal
+  if (sq.task !== 'point' || sq.order) s.commitUntil = 0;
+  const mine = s.goal >= 0 ? s.goal : sq.goal; // goal -1 is a Commitment to the Squad's own goal
+  const held = sq.task === 'point' && committed(m, sq, mine, s.commitUntil, s);
+  const own = sq.task !== 'point' ? -1 : held ? mine : bestPoint(m, sq, s, t.squadPull); // survival calls them back to the Squad's goal
+  const prev = s.goal;
   s.goal = own === sq.goal ? -1 : own;
-  if (s.goal < 0 && dist2(s, L) < sq2(t.rejoinM)) s.detached = false;
+  if (s.goal >= 0 && s.goal !== prev) s.holdUntil = reactAt(m, s); // #121
+  if (own >= 0) commit(m, s, held);
+  if (s.goal < 0 && !riding && dist2(s, L) < sq2(t.rejoinM)) s.detached = false; // #122: the member left over by a ride waits out the ride, then rejoins where the Squad gets out
 }
 
 /**

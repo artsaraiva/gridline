@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { commanderView, createMatch, stateHash, step, type Match } from './index';
 import { DEFAULT_TUNE } from './tune';
+import { NO_TEMPO, NO_TRAITS, thinkOnId } from './test-tune';
 import type { Command, CommanderView, MapData, SimEvent, Tune } from './types';
 
 const HZ = DEFAULT_TUNE.hz;
@@ -40,8 +41,8 @@ interface Placement {
 
 /** Soldier ids run nato first, squad by squad, `squadSize` each. Nobody sees anybody unless the test turns vision on. */
 function scene(o: { place?: Record<number, Placement>; tune?: Partial<Tune>; map?: Partial<MapData>; squads?: number; seed?: number } = {}): Match {
-  const tune: Tune = { ...DEFAULT_TUNE, speedJitter: 0, visionM: 0, tanksPerSide: 0, jeepsPerSide: 0, helisPerSide: 0, pointJeeps: false, ...o.tune }; // #107 #108: infantry rules only, no vehicles
-  const m = createMatch({ seed: o.seed ?? 1, map: field(o.map), tune, squadsPerSide: o.squads ?? 1, commanderSide: 'nato' });
+  const tune: Tune = { ...DEFAULT_TUNE, speedJitter: 0, visionM: 0, tanksPerSide: 0, jeepsPerSide: 0, helisPerSide: 0, pointJeeps: false, ...NO_TRAITS, ...NO_TEMPO, ...o.tune }; // #107 #108: infantry rules only, no vehicles
+  const m = thinkOnId(createMatch({ seed: o.seed ?? 1, map: field(o.map), tune, squadsPerSide: o.squads ?? 1, commanderSide: 'nato' }));
   for (const [id, p] of Object.entries(o.place ?? {})) Object.assign(m.soldiers[Number(id)]!, p);
   return m;
 }

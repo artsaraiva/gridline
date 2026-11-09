@@ -8,7 +8,7 @@ import { look as vehicleLook, seeVehicles } from './vehicles';
 /** The perception phase: memory ages, then every living Soldier on foot looks around, then #107 every crewed vehicle. */
 export function perceive(m: Match) {
   forget(m);
-  for (const s of m.soldiers) if (s.state === 'alive' && s.vehicle < 0) look(m, s);
+  for (const s of m.soldiers) if (s.state === 'alive' && s.vehicle < 0 && !s.chute) look(m, s); // #130: a parachutist looks at nothing
   for (const v of m.vehicles) vehicleLook(m, v);
 }
 
@@ -29,7 +29,7 @@ function look(m: Match, s: Soldier) {
     const dy = e.y - s.y;
     if (dx * s.fx + dy * s.fy < t.visionCos * Math.sqrt(d2)) continue;
     if (inHq(m, e.side, e)) continue;
-    if (!los(m, s, e)) continue;
+    if (!e.chute && !los(m, s, e)) continue; // #130: over walls, as anything airborne
     // #75: out of all eyes (UAV or Soldier) last tick and found again by sight alone: no longer UAV-discovered. A UAV still over it re-stamps it this tick (assetEffects runs next).
     if (!m.sightings[s.side].some((o) => o.id === e.id && o.tick >= m.tick - 1)) e.uavUntil = -1;
     see(m, sq, e);

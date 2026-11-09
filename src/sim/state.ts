@@ -41,6 +41,7 @@ export interface Soldier {
   // #106 Detached Soldiers
   detached: boolean; // away from its Squad on its own goal; out of the wedge, leash, regroup, bounding and flanking
   goal: number; // Detached: index of its own Capture Point, -1 = the Squad's goal
+  commitUntil: number; // #120: tick its Commitment to `goal` ends
   // #107 Tank tracer
   vehicle: number; // id of the vehicle it rides in, -1 = on foot
   rockets: number; // Launcher rockets left (only roster member 1 fires them)
@@ -51,7 +52,28 @@ export interface Soldier {
   // #55 Commander Score
   cause: 'barrage' | 'missile' | null; // what an enemy Strike did to it: scores for the enemy Commander on death; cleared by Revive
   uavUntil: number; // #75 last tick it counts as UAV-discovered by the enemy Side (the Scan found it unseen, then the grace); see assets/scan.ts
+  // #121 Staggered set-off
+  reaction: number; // seconds it holds before moving off after its Squad's change, seeded
+  holdUntil: number; // tick it may move off; taking fire clears it
+  // #122 Boarding
+  boarding: number; // id of the vehicle its Squad claimed for it and it is walking to, -1 = none
+  climbAt: number; // tick it has climbed in, once within `mountM`; 0 = not climbing
+  // #129 Helicopter crew
+  crew: boolean; // walking to a helicopter's pilot or gun seat, or in it, for a stint
+  crewUntil: number; // tick its stint ends (drawn as it climbs in), -1 = none
+  crewSeat: number; // the seat (0 pilot, 1 left gun, 2 right gun) it was sent for, -1 = none
+  chute: Chute | null; // #130 a parachute descent
   uavAssist: boolean; // #75 the shot that downed it landed while UAV-discovered: scores for the enemy Commander on death; cleared by Revive
+}
+
+/** #130: a parachute descent: the ticks it starts and ends, where it jumped and where it lands. */
+export interface Chute {
+  t0: number;
+  t1: number;
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
 }
 
 export interface Squad {
@@ -83,6 +105,15 @@ export interface Squad {
   // #73 Ordered capture
   taking: number; // index of the Capture Point it is contributing to taking, -1 = none; see capture.ts
   takingSince: number; // tick it began
+  // #120 Traits, drawn once from the Match RNG
+  pointPref: number[]; // seeded preference per Capture Point, added to its score
+  aggression: number; // [-1, 1]: bold pushes enemy points and falls back later
+  commitUntil: number; // tick its Commitment to `goal` ends
+  // #121 Think tempo
+  thinkInterval: number; // seconds between its thinks, seeded
+  nextThink: number; // tick of its next think
+  // #122 Boarding
+  rideM: number; // a goal farther than this from its foot leader makes it ride, if a vehicle fits; seeded
 }
 
 export interface Point {
@@ -101,6 +132,9 @@ export type Mix = (v: number) => void;
 export const sign = (s: SideId) => (s === 'nato' ? 1 : -1);
 export const sideOf = (n: number): SideId => (n > 0 ? 'nato' : 'pact');
 export const stageTicks = (t: Tune) => t.captureSeconds * t.hz;
+
+/** `seconds` as whole ticks, at least one: a delay is never zero ticks. */
+export const ticksOf = (t: Tune, seconds: number) => Math.max(1, Math.round(seconds * t.hz));
 export const membersOf = (m: Match, sq: Squad) => sq.members.map((id) => m.soldiers[id]!);
 /** The first living member on foot and not Detached, whom the wedge forms on; the first living member when there is none. */
 export const footLeader = (alive: Soldier[]) => alive.find((s) => !s.detached && s.vehicle < 0) ?? alive[0];
@@ -147,6 +181,15 @@ export function hashSoldiers(m: Match, mix: Mix) {
     mix(s.exited); // #108
     mix(Math.round(s.away * 1000));
     mix(s.awaySince);
+    mix(Math.round(s.reaction * 1000)); // #121
+    mix(s.holdUntil);
+    mix(s.boarding); // #122
+    mix(s.climbAt);
+    mix(+s.crew); // #129
+    mix(s.crewUntil);
+    mix(s.crewSeat);
+    if (s.chute) for (const n of [s.chute.t0, s.chute.t1, Math.round(s.chute.x0 * 1000), Math.round(s.chute.y0 * 1000), Math.round(s.chute.x1 * 1000), Math.round(s.chute.y1 * 1000)]) mix(n); // #130
+    else mix(-1);
   }
 }
 
@@ -158,5 +201,11 @@ export function hashSquads(m: Match, mix: Mix) {
     mix(sq.lastHit);
     mix(sq.taking + 1); // #73
     mix(sq.takingSince);
+    mix(sq.commitUntil);
+    mix(Math.round(sq.thinkInterval * 1000)); // #121
+    mix(sq.nextThink);
+    for (const p of sq.pointPref) mix(Math.round(p * 1000));
+    mix(Math.round(sq.aggression * 1000));
+    mix(Math.round(sq.rideM * 1000)); // #122
   }
 }

@@ -9,7 +9,7 @@ import { rnd } from './rng';
 import { award } from './score';
 import { membersOf, vehicleOf, type Soldier } from './state';
 import { enemyOf, type SimEvent, type Vec2 } from './types';
-import { gunner, hurt, isLauncher, leave, mainGuns, rocketTarget, specOf, type Vehicle } from './vehicles';
+import { gunner, hurt, isLauncher, leave, mainGuns, rocketTarget, sideGun, specOf, type Vehicle } from './vehicles';
 
 interface Shot {
   shooter: Soldier;
@@ -46,12 +46,12 @@ function rocket(m: Match, s: Soldier): Shot | null {
   return { shooter: s, target: null, hit: true, damage: t.rocketDamage, vehicle: v };
 }
 
-/** #107: the gunner aboard fires the coax (#108: a jeep's MG, #109 a helicopter's door gun) at the vehicle's infantry target: the rifle shot model, faster and longer. */
+/** #107: the gunner aboard fires the coax (#108: a jeep's MG, #109 a helicopter's side gun) at the vehicle's infantry target: the rifle shot model, faster and longer. */
 function coax(m: Match, s: Soldier, v: Vehicle): Shot | null {
   const t = m.tune;
-  const e = m.soldiers[v.coax];
   const gun = specOf(t, v.kind);
-  if (gunner(v) !== s.id || !e || e.state !== 'alive' || m.tick < s.nextFire || dist2(v, e) > gun.gunM * gun.gunM) return null;
+  const e = v.kind === 'helicopter' ? sideGun(m, v, v.seats.indexOf(s.id)) : gunner(v) === s.id ? m.soldiers[v.coax] : undefined; // #129: a helicopter's guns are its side seats
+  if (!e || e.state !== 'alive' || m.tick < s.nextFire || dist2(v, e) > gun.gunM * gun.gunM) return null;
   return roll(m, s, e, t.hitChance * (cellAt(m, e.x, e.y) === COVER ? t.coverHitMul : 1), gun.gunSeconds);
 }
 
@@ -95,7 +95,7 @@ export function fire(m: Match, events: SimEvent[]) {
   const t = m.tune;
   const shots: Shot[] = [];
   for (const s of m.soldiers) {
-    if (s.state !== 'alive') continue;
+    if (s.state !== 'alive' || s.chute) continue; // #130: never fires on a parachute
     const v = vehicleOf(m, s.vehicle);
     const shot = v ? coax(m, s, v) : (rocket(m, s) ?? aim(m, s) ?? suppressive(m, s));
     if (shot) shots.push(shot);

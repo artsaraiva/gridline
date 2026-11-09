@@ -1,6 +1,7 @@
 // Which crossing a Squad takes when the water is between it and its Capture Point.
 import type { Match } from '../index';
 import { dist2 } from '../geometry';
+import { sideKnown } from '../memory';
 import { rnd } from '../rng';
 import type { Mix, Squad } from '../state';
 import type { SideId, Vec2 } from '../types';
@@ -51,10 +52,8 @@ export function chooseRoute(m: Match, sq: Squad, from: Vec2, p: number) {
     const danger = c.kind !== 'bridge';
     const seen = new Set<number>();
     if (danger)
-      for (const o of m.squads)
-        if (o.side === sq.side)
-          for (const s of o.memory)
-            if (s.source === 'seen' && m.tick - s.tick < t.routeSeenSeconds * t.hz && near(s, c, t.routeSeenRadiusM)) seen.add(s.id);
+      for (const s of sideKnown(m, sq.side))
+        if (s.source === 'seen' && m.tick - s.tick < t.routeSeenSeconds * t.hz && near(s, c, t.routeSeenRadiusM)) seen.add(s.id);
     const lost = danger
       ? m.deaths.filter((d) => d.side === sq.side && m.tick - d.tick < t.routeLossSeconds * t.hz && near(d, c, t.routeLossRadiusM)).length
       : 0;

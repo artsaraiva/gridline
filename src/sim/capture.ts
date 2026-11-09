@@ -6,7 +6,7 @@ import { callName, sideOf, sign, stageTicks, vehicleOf, type Mix, type Point, ty
 import { enemyOf, type SideId, type SimEvent } from './types';
 
 /** A living Soldier inside the point, and not #109 up in a helicopter: they count for it. */
-const counts = (m: Match, s: Soldier, p: Point) => s.state === 'alive' && dist2(s, p) < p.radius * p.radius && !vehicleOf(m, s.vehicle)?.airborne;
+const counts = (m: Match, s: Soldier, p: Point) => s.state === 'alive' && dist2(s, p) < p.radius * p.radius && !vehicleOf(m, s.vehicle)?.airborne && !s.chute;
 
 /** Living Soldiers of `side` inside the point; the Wounded, the dead and #109 the airborne don't count. */
 export function insideCount(m: Match, p: Point, side: SideId): number {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { commanderView, createMatch, step, type Match } from './index';
 import { DEFAULT_TUNE } from './tune';
+import { NO_TEMPO, NO_TRAITS, thinkOnId } from './test-tune';
 import type { CommanderView, MapData, SideId, SimEvent, Tune } from './types';
 
 const HZ = DEFAULT_TUNE.hz;
@@ -34,8 +35,8 @@ interface Placement {
  * interface: it stands in for a map script, everything after it runs through `step`.
  */
 function scene(o: { place: Record<number, Placement>; tune?: Partial<Tune>; map?: Partial<MapData>; squads?: number; seed?: number }): Match {
-  const tune: Tune = { ...DEFAULT_TUNE, squadSize: 1, speedJitter: 0, spread: 0, tanksPerSide: 0, jeepsPerSide: 0, helisPerSide: 0, pointJeeps: false, ...o.tune }; // #107 #108: no vehicles
-  const m = createMatch({ seed: o.seed ?? 1, map: field(o.map), tune, squadsPerSide: o.squads ?? 1, commanderSide: 'nato' });
+  const tune: Tune = { ...DEFAULT_TUNE, squadSize: 1, speedJitter: 0, spread: 0, tanksPerSide: 0, jeepsPerSide: 0, helisPerSide: 0, pointJeeps: false, ...NO_TRAITS, ...NO_TEMPO, ...o.tune }; // #107 #108: no vehicles
+  const m = thinkOnId(createMatch({ seed: o.seed ?? 1, map: field(o.map), tune, squadsPerSide: o.squads ?? 1, commanderSide: 'nato' }));
   for (const [id, p] of Object.entries(o.place)) Object.assign(m.soldiers[Number(id)]!, p);
   return m;
 }
@@ -220,7 +221,7 @@ describe('casualties', () => {
       place: { 0: { x: 0, y: 0, fx: -1 }, 1: { x: 0, y: 20 }, 4: { x: -100, y: 0, fx: 1 }, 6: { x: -100, y: 20, fx: 1 } },
       tune: { ...ONE_SHOT, squadSize: 2, suppressPerShot: 1, coverHitMul: 0 },
       map: { cover: [{ x0: -2, y0: 18, x1: 2, y1: 22 }] },
-      squads: 2,
+      squads: 2, seed: 3,
     });
     const { events, views } = play(m, 10 * HZ);
     expect(views.every((v) => v.friendlies.find((f) => f.id === 1)!.suppressed)).toBe(true);

@@ -7,7 +7,6 @@ export const DEFAULT_TUNE: Tune = {
   walkSpeed: 5.06, // 4.4 until the visual round 2 review: the game felt slow, +15 %
   speedJitter: 0.1,
   spread: 8,
-  thinkSeconds: 1,
 
   // Capture Points
   captureRadius: 25,
@@ -213,10 +212,66 @@ export const DEFAULT_TUNE: Tune = {
   awaySeconds: 10,
   dismountStopSeconds: 1,
 
+  // #123 Ground-vehicle momentum
+  tankAccel: 2,
+  jeepAccel: 4,
+  brakeMul: 2,
+  tankTurnDegPerS: 45,
+  jeepTurnDegPerS: 90,
+  turnSpeedMin: 0.35,
+
   // #109 Transport helicopter
   helisPerSide: 1,
   heliMps: 30,
   heliHp: 120,
   unloadSeconds: 3,
   airVisionM: 250,
+
+  // #124 Helicopter flight and Landing Zone
+  lzM: [40, 120],
+  lzThreatM: 200,
+  lzSpreadDeg: 60,
+  doglegFraction: [0.15, 0.3],
+  doglegMinM: 150,
+  heliThreatM: 60,
+  heliAccel: 6,
+  heliTurnDegPerS: 60,
+  flareSeconds: 1,
+  spoolSeconds: 1.5,
+
+  // #120 Squad Traits and point choice
+  squadGoalBias: 0.5,
+  choiceMargin: 0.3,
+  commitSeconds: [15, 45],
+  commitThreatM: 250,
+  aggressionValueMul: 0.25,
+  aggressionRetreatMul: 0.3,
+
+  // #121 Think tempo and staggered set-off
+  thinkIntervalSeconds: [0.8, 1.5],
+  thinkJitter: 0.15,
+  reactionSeconds: [0.2, 0.8],
+
+  // #122 Boarding as an action
+  rideM: [120, 250],
+  heliFitM: 350,
+  mountM: 3,
+  mountSeconds: [1, 2],
+
+  // #129 Helicopter crew and side guns
+  crewSeconds: [60, 180],
+  crewSpawnChance: 0.5,
+  gunArcDeg: 120,
+
+  // #130 Parachute jump
+  chuteSeconds: 4, // #130: the spec said 5; 20-seed Kaltenbach went pact 15 to 5, 4 gives 11 to 9
+  chuteScatterM: 15,
+
+  // #131 Helicopter jobs
+  orbitM: 100,
+  orbitMps: 15,
+  orbitSeconds: 12,
+  heliRepairBelow: 0.5,
+  heliRepairHpPerS: 4,
+  crashSeconds: 3,
 };

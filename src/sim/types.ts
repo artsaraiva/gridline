@@ -87,7 +87,6 @@ export interface Tune {
   walkSpeed: number; // m/s
   speedJitter: number; // ± fraction of walkSpeed, seeded per Soldier
   spread: number; // ± metres around the Squad's goal, seeded per Soldier
-  thinkSeconds: number; // how often a Squad re-picks its Capture Point
 
   // Capture Points
   captureRadius: number;
@@ -255,7 +254,7 @@ export interface Tune {
   boardMinM: number; // a Soldier boards only when its goal is farther than this ...
   boardM: number; // ... from a friendly vehicle with a free seat within this ...
   sameWayM: number; // ... that is empty, or whose driver's goal is within this of its own
-  boardWaitSeconds: number; // a fresh driver waits this long for others, leaving early when full
+  boardWaitSeconds: number; // a driver waits this long from the claim for its Squad's riders, leaving early when all are aboard
   vehicleVisionMul: number; // a ground vehicle sees, and is seen, at this x visionM
   hullM: number; // ground vehicles keep their centre farther than this from anything blocking
   tankRoadMps: number; // on road
@@ -293,12 +292,68 @@ export interface Tune {
   awaySeconds: number; // ... or once its drive distance to it has grown for this long
   dismountStopSeconds: number; // a vehicle stands this long before anyone gets out; nobody bails at speed
 
+  // #123 Ground-vehicle momentum
+  tankAccel: number; // m/s² a tank speeds up by ...
+  jeepAccel: number; // ... a jeep
+  brakeMul: number; // slowing is this many times faster than speeding up
+  tankTurnDegPerS: number; // how fast a tank turns its hull toward its way ahead
+  jeepTurnDegPerS: number; // ... a jeep
+  turnSpeedMin: number; // the share of full speed it wants at a 90° or sharper turn ahead
+
   // #109 Transport helicopter
   helisPerSide: number; // transport helicopters in each HQ, on its helipad; 0 = none
-  heliMps: number; // straight-line flight speed, over the ground grid
+  heliMps: number; // top flight speed, over the ground grid
   heliHp: number; // rifles hit it like a Soldier (airborne or landed), rockets as any vehicle, a tank's main gun destroys it
   unloadSeconds: number; // landed at its passengers' goal, it sits this long before it flies on (or home)
   airVisionM: number; // its eyes: a full circle this far, over walls
+
+  // #124 Helicopter flight and Landing Zone
+  lzM: [number, number]; // a Landing Zone lies this far from its goal's centre, seeded between the two
+  lzThreatM: number; // enemies its passengers' Squads know within this of the goal push the Landing Zone to the far side
+  lzSpreadDeg: number; // the Landing Zone's bearing is seeded this far either way of straight away from them
+  doglegFraction: [number, number]; // a trip's waypoint lies this share of the trip's length off the middle of the line, seeded between the two
+  doglegMinM: number; // a shorter trip flies straight
+  heliThreatM: number; // a dogleg side passing this close to an enemy-held point's radius, or to a known enemy, loses to the other
+  heliAccel: number; // m/s² a helicopter speeds up or slows by
+  heliTurnDegPerS: number; // how fast it turns toward its way ahead
+  flareSeconds: number; // it hovers this long over its Landing Zone (or home slot) before touching down
+  spoolSeconds: number; // once it may leave, it spools its rotor this long before lifting off
+
+  // #120 Squad Traits and point choice
+  squadGoalBias: number; // ± a Squad's seeded preference per Capture Point, in point-score units, kept for the match
+  choiceMargin: number; // a self-chosen pick draws among the points scoring within this of the best, weighted by how far each clears best - margin
+  commitSeconds: [number, number]; // a self-chosen point is held this long (seeded between the two) unless an early-pick event ends it
+  commitThreatM: number; // an own Capture Point this near the leader that is threatened ends a Commitment
+  aggressionValueMul: number; // enemy points are worth x (1 + aggression x this), aggression in [-1, 1]
+  aggressionRetreatMul: number; // the Retreat suppression threshold is x (1 + aggression x this), kept below 1
+
+  // #121 Think tempo and staggered set-off
+  thinkIntervalSeconds: [number, number]; // #121 a Squad's own think interval, seeded between the two
+  thinkJitter: number; // #121 each think lands the interval ± this fraction after the last
+  reactionSeconds: [number, number]; // #121 a Soldier's own hold before moving off after its Squad's goal, task or mode changes, seeded between the two
+
+  // #122 Boarding as an action
+  rideM: [number, number]; // a Squad rides when its goal is farther than this from its foot leader, seeded between the two per Squad
+  heliFitM: number; // the helicopter fits a goal farther than this (or across the river)
+  mountM: number; // a rider within this of its vehicle climbs in
+  mountSeconds: [number, number]; // a rider takes this long to climb in, seeded between the two
+
+  // #129 Helicopter crew and side guns
+  crewSeconds: [number, number]; // a crew member's stint, drawn between the two as they climb in
+  crewSpawnChance: number; // a Soldier coming back from the dead takes an empty pilot or gun seat of a helicopter on its helipad with this chance
+  gunArcDeg: number; // a side gun covers this many degrees, centred straight out from its side
+
+  // #130 Parachute jump
+  chuteSeconds: number; // a Soldier who jumps from a helicopter takes this long to reach the ground
+  chuteScatterM: number; // and lands up to this far from where it jumped (seeded)
+
+  // #131 Helicopter jobs
+  orbitM: number; // a helicopter circling a point (Support, or over a hot goal) flies this far from its centre
+  orbitMps: number; // ... at this speed
+  orbitSeconds: number; // over a hot goal it circles this long before its riders jump
+  heliRepairBelow: number; // under this share of its hit points it drops its passengers and flies home to repair
+  heliRepairHpPerS: number; // on its helipad it regains this many hit points a second until full
+  crashSeconds: number; // a helicopter bailed out of glides this long, then crashes and is a Wreck
 }
 
 /** #55: what a Commander Score award is for. */
@@ -325,6 +380,8 @@ export interface SoldierView {
   /** Unit facing vector. */
   fx: number;
   fy: number;
+  /** #130: how far its parachute descent has come, 0..1; absent on the ground. */
+  chute?: number;
 }
 
 export type SoldierState = 'alive' | 'wounded' | 'dead';

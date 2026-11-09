@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { commanderView, createMatch, stateHash, step, type Match } from './index';
 import { DEFAULT_TUNE } from './tune';
+import { NO_TEMPO, NO_TRAITS, thinkOnId } from './test-tune';
 import type { Command, CommanderView, MapData, PointView, Tune } from './types';
 
 const HZ = DEFAULT_TUNE.hz;
@@ -21,7 +22,7 @@ function map(points: { x: number; y: number }[], pactHqX = 3000): MapData {
 
 /** Nobody sees anybody, nobody strays (#93) and no vehicles (#107 #108) unless `tune` says so: these tests check capture and drain with Squads arriving whole and no combat in the way. */
 function start(m: MapData, tune: Partial<Tune> = {}, squadsPerSide = 1, seed = 1): Match {
-  return createMatch({ seed, map: m, tune: { ...DEFAULT_TUNE, visionM: 0, strayChance: 0, tanksPerSide: 0, jeepsPerSide: 0, helisPerSide: 0, pointJeeps: false, ...tune }, squadsPerSide, commanderSide: 'nato' });
+  return thinkOnId(createMatch({ seed, map: m, tune: { ...DEFAULT_TUNE, visionM: 0, strayChance: 0, tanksPerSide: 0, jeepsPerSide: 0, helisPerSide: 0, pointJeeps: false, ...NO_TRAITS, ...NO_TEMPO, ...tune }, squadsPerSide, commanderSide: 'nato' }));
 }
 
 /** The nato Commander view, plus the pact Soldiers from the pact view: ground truth the fog hides from nato. */
@@ -76,7 +77,7 @@ describe('capture', () => {
   });
 
   it('equal numbers inside freeze the progress', () => {
-    const views = run(start(map([{ x: 0, y: 0 }], 100)), 60 * HZ);
+    const views = run(start(map([{ x: 0, y: 0 }], 100), {}, 1, 5), 60 * HZ);
     const isContested = (v: Seen) => {
       const n = inside(v, v.points[0]!);
       return n.nato > 0 && n.nato === n.pact;
@@ -164,7 +165,7 @@ describe('tickets', () => {
   });
 
   it('at the 25 min cap, equal Tickets are a draw', () => {
-    const views = run(start(map([{ x: 0, y: 0 }], 100)), 26 * 60 * HZ);
+    const views = run(start(map([{ x: 0, y: 0 }], 100), {}, 1, 5), 26 * 60 * HZ);
     const end = views.find((v) => v.result !== null)!;
     expect(end.seconds).toBe(25 * 60);
     expect(end.result).toEqual({ winner: null, reason: 'time' });
