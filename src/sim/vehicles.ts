@@ -423,11 +423,17 @@ function plan(m: Match, v: Vehicle) {
  * #109, one tick of a piloted helicopter: it takes its passengers to their goal's Landing Zone (#124), empty it goes home to its
  * slot, and sets down there. On the ground it lifts off only `unloadSeconds` after it landed, with free seats not before its first
  * passenger's wait is over, and spools its rotor `spoolSeconds` first (`plan` draws the trip as it lifts); it never stays at a goal
- * its passengers are leaving. Airborne, see `cruise`.
+ * its passengers are leaving. A new goal ends the trip's Landing Zone: in the air it plans afresh, on the ground at lift-off (a
+ * Landing Zone kept from the last trip would hold it down and empty every Squad that climbs in). Airborne, see `cruise`.
  */
 function fly(m: Match, v: Vehicle) {
   const t = m.tune;
-  v.goal = ferryGoal(m, v);
+  const goal = ferryGoal(m, v);
+  if (goal !== v.goal) {
+    v.goal = goal;
+    if (goal >= 0) v.lz = null; // emptied (-1), it keeps the last one: its passengers got out there
+    if (v.airborne && v.flareUntil < 0) plan(m, v);
+  }
   if (v.airborne) return cruise(m, v);
   const there = v.goal >= 0 ? !!v.lz && dist2(v, v.lz) < 1 : dist2(v, v.slot) < 1e-4;
   const held = (v.landedAt >= 0 && m.tick - v.landedAt < Math.round(t.unloadSeconds * t.hz)) || (v.seats.includes(-1) && m.tick < v.departAt);

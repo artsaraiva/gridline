@@ -818,6 +818,29 @@ describe('#124 helicopter flight and Landing Zone', () => {
     expect(Math.abs(bulge(out, HQ, m.vehicles[0]!.lz!))).toBeLessThan(0.5);
   });
 
+  it('a goal changed in flight draws a fresh Landing Zone: it sets down by the new point and its riders get out there, once', () => {
+    const B = { x: 300, y: -250 };
+    const m = scene124({ map: { points: [{ id: 'A', name: 'A', ...A }, { id: 'B', name: 'B', ...B }] } });
+    const h = m.vehicles[0]!;
+    [0, 1, 2, 3].forEach((id, k) => (h.seats[k] = id) >= 0 && Object.assign(m.soldiers[id]!, { x: h.x, y: h.y, vehicle: h.id }));
+    m.squads[0]!.order = { point: 0, hold: false, delayed: null, since: 0 };
+    flight(m, 15);
+    expect(h.airborne).toBe(true);
+    m.squads[0]!.order = { point: 1, hold: false, delayed: null, since: m.tick }; // on its way to A, the Squad turns for B
+    let boardings = 0;
+    let down: { x: number; y: number } | null = null;
+    for (let i = 0; i < 60 * HZ; i++) {
+      const aboard = h.seats.filter((id) => id > 0).length;
+      step(m, []);
+      if (h.seats.filter((id) => id > 0).length > aboard) boardings++;
+      if (!down && !h.airborne) down = { x: h.x, y: h.y };
+    }
+    const d = Math.hypot(down!.x - B.x, down!.y - B.y);
+    expect(d).toBeLessThanOrEqual(DEFAULT_TUNE.lzM[1] + 0.01);
+    expect([1, 2, 3].every((id) => m.soldiers[id]!.vehicle < 0)).toBe(true);
+    expect(boardings).toBe(0); // no climbing back in at the old Landing Zone
+  });
+
   it('speeds up or slows by no more than heliAccel, turns by no more than heliTurnDegPerS, and banks through the waypoint without stopping', () => {
     const { log } = flight(scene124(), 90);
     const { out, back } = trips(log);
