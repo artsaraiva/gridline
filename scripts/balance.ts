@@ -4,7 +4,8 @@ import { RIVER_FIELD } from '../src/maps/river-field';
 import { TEST_FIELD } from '../src/maps/test-field';
 import { commanderView, createMatch, step, SIDES, type MapData, type MatchResult, type SideId, type Tune } from '../src/sim';
 import { DEFAULT_TUNE } from '../src/sim/tune';
-import { JOBS, live, type Job } from '../src/sim/vehicles';
+import { JOBS, type Job } from '../src/sim/heli-jobs';
+import { live } from '../src/sim/vehicles';
 
 export const MAPS: Record<string, MapData> = { kaltenbach: KALTENBACH, river: RIVER_FIELD, test: TEST_FIELD };
 
