@@ -94,9 +94,12 @@ describe('commander review timeline (#69)', () => {
     expect(eventsBetween(10, 10)).toEqual([]);
   });
 
-  it('keeps every Soldier inside the Kaltenbach Play Area', () => {
-    for (let t = 0; t <= LENGTH; t += 1)
-      for (const s of [...viewAt(t).friendlies, ...viewAt(t).contacts]) expect(insidePolygon(PLAY_AREA, s.x, s.y), `${s.id} at ${t}`).toBe(true);
+  it('keeps every Soldier inside the Kaltenbach Play Area (#110: but a jet\'s pilot, who flies out of it)', () => {
+    for (let t = 0; t <= LENGTH; t += 1) {
+      const view = viewAt(t);
+      const flying = (s: { vehicle?: number }) => view.vehicles!.some((v) => v.id === s.vehicle && v.kind === 'jet');
+      for (const s of [...view.friendlies.filter((f) => !flying(f)), ...view.contacts]) expect(insidePolygon(PLAY_AREA, s.x, s.y), `${s.id} at ${t}`).toBe(true);
+    }
   });
 
   it('every shooter is in the view when it fires, so the Console can place the tracer', () => {
@@ -337,7 +340,7 @@ describe('commander review timeline (#69)', () => {
   });
 
   it('#131 the helicopter stays inside the Play Area through all four job chapters, and waits on its pad before Support and Bail (Repair begins over the circle)', () => {
-    for (const v of at4(chapter('Ferry') - 1, LENGTH)) for (const x of v.vehicles!) expect(insidePolygon(PLAY_AREA, x.x, x.y), `${x.id} at ${v.seconds}`).toBe(true);
+    for (const v of at4(chapter('Ferry') - 1, LENGTH)) for (const x of v.vehicles!.filter((o) => o.kind === 'helicopter')) expect(insidePolygon(PLAY_AREA, x.x, x.y), `${x.id} at ${v.seconds}`).toBe(true);
     for (const title of ['Support', 'Bail']) expect(heli(viewAt(chapter(title) - 1)), title).toMatchObject({ x: PAD.x, y: PAD.y }); // each starts from the pad, the one before is over
   });
 });

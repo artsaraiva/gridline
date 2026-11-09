@@ -99,10 +99,12 @@ export function dtg(ms = 0) {
   return `UAV-2 // FEED 04 · NORTH-UP · ${p2(d.getUTCDate())}${p2(d.getUTCHours())}${p2(d.getUTCMinutes())}${p2(d.getUTCSeconds())}Z NOV 34`;
 }
 
-/** Centroid of living (else wounded) members of `squadId`, or null when wiped. */
+/** Centroid of living (else wounded) members of `squadId`, or null when wiped; #110 never a jet's pilot, off at its base or in the sky. */
 export function squadCentroid(view: CommanderView, squadId: number): Vec2 | null {
-  const alive = view.friendlies.filter((f) => f.squad === squadId && f.state === 'alive');
-  const men = alive.length ? alive : view.friendlies.filter((f) => f.squad === squadId);
+  const jets = new Set(view.vehicles?.filter((v) => v.kind === 'jet').map((v) => v.id));
+  const mine = view.friendlies.filter((f) => f.squad === squadId && !jets.has(f.vehicle ?? -1));
+  const alive = mine.filter((f) => f.state === 'alive');
+  const men = alive.length ? alive : mine;
   if (!men.length) return null;
   let x = 0;
   let y = 0;

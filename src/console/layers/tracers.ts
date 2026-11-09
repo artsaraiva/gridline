@@ -1,10 +1,13 @@
 // Combat as 2D marks: per shot, a faint tracer streaking from shooter to target (~150 ms) and a muzzle-flash dot.
 // Only shots the Console may show arrive here (the Simulation's fog filter drops unseen enemy shooters); a shot whose
-// target is out of sight gets the flash only. A miss lands a few metres off.
+// target is out of sight gets the flash only. A miss lands a few metres off. #110: an end on a jet or helicopter in the air
+// sits on its sprite, lifted north-east of the ground (the AA's fire is a stream of these, one a tick).
 import * as THREE from 'three/webgpu';
 import type { CommanderView, SideId, SimEvent, Vec2 } from '../../sim/types';
 import { BRIGHT, GLOW, layer } from '../renderer';
 import { session } from '../session';
+import { ALTITUDE_LIFT_PER_M, CRUISE_ALTITUDE_M } from '../sprites/missile';
+import { SHADOW_DIR } from '../sprites/sheet';
 import { fading, px } from './symbols';
 
 const TRACER_MS = 150;
@@ -13,6 +16,9 @@ const FLASH_MS = 60;
 const MISS_M = 2.5;
 const TINT = { friendly: 0xc8f0ff, hostile: 0xffbe96 };
 const flashGeometry = new THREE.CircleGeometry(px(2.2), 10);
+const LIFT = CRUISE_ALTITUDE_M * ALTITUDE_LIFT_PER_M;
+/** `p` as drawn: lifted as the sprite of something in the air. */
+const up = (p: Vec2, air: boolean | undefined) => (air ? { x: p.x - SHADOW_DIR.x * LIFT, y: p.y - SHADOW_DIR.y * LIFT } : p);
 
 type Shot = { line: THREE.Line; flash: THREE.Mesh; from: Vec2; to: Vec2 | null; at: number };
 const pool: Shot[] = [];
@@ -33,9 +39,12 @@ function lineMaterial() {
 /** Adds the marks for a `shot` or `suppressive` event, placed from the view's Soldiers. */
 export function addShot(e: Extract<SimEvent, { kind: 'shot' | 'suppressive' }>, view: CommanderView, now: number) {
   const at = (id: number) => view.friendlies.find((s) => s.id === id) ?? view.contacts.find((s) => s.id === id) ?? view.vehicles?.find((v) => v.id === id); // #107: a rocket's target
-  const from = at(e.from);
-  if (!from) return;
-  const target = e.kind === 'shot' ? at(e.to) : e;
+  const shooter = at(e.from);
+  if (!shooter) return;
+  const ride = 'vehicle' in shooter ? view.vehicles?.find((v) => v.id === shooter.vehicle) : undefined;
+  const from = up(shooter, ride?.airborne);
+  const hit = e.kind === 'shot' ? at(e.to) : e;
+  const target = hit && up(hit, 'airborne' in hit && hit.airborne);
   const off = e.hit ? 0 : MISS_M;
   const to = target ? { x: target.x + (Math.random() - 0.5) * 2 * off, y: target.y + (Math.random() - 0.5) * 2 * off } : null;
   let shot = pool[live];

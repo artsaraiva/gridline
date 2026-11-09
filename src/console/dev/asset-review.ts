@@ -2,12 +2,14 @@
 // on the real Kaltenbach bake, using the real Simulation and real Console layers.
 // This file is only reachable through dev-asset-review.html; production builds ignore it.
 import { startSimHost } from '../../host/host';
-import type { AssetKind } from '../../sim/types';
+import type { AssetKind, VehicleKind } from '../../sim/types';
 import { drawMap, fitView } from '../layers/map';
 import { camera } from '../renderer';
 import { session } from '../session';
 import { ASSETS, CYCLE_SECONDS } from './asset-review-config';
 import './asset-review.css';
+
+const VEHICLES: VehicleKind[] = ['tank', 'jeep', 'helicopter', 'jet', 'aa'];
 
 function $(id: string) {
   return document.getElementById(id)!;
@@ -34,8 +36,8 @@ function setFocus(asset: AssetKind) {
   camera.updateProjectionMatrix();
 }
 
-/** #107: close tactical zoom that keeps nato's tank (#108: or jeep, #109 helicopter; the Simulation drives it) in the middle. */
-function follow(kind: 'tank' | 'jeep' | 'helicopter') {
+/** #107: close tactical zoom that keeps nato's tank (#108: or jeep, #109 helicopter, #110 jet or AA; the Simulation drives it) in the middle. */
+function follow(kind: VehicleKind) {
   camera.zoom = 8;
   camera.updateProjectionMatrix();
   setInterval(() => {
@@ -44,10 +46,10 @@ function follow(kind: 'tank' | 'jeep' | 'helicopter') {
   }, 100);
 }
 
-/** `?focus=barrage|scan|supply` frames that Asset close up, `?focus=tank|jeep|helicopter` follows nato's vehicle of that class, `?focus=close` the cluster; anything else is the overview. */
+/** `?focus=barrage|scan|supply` frames that Asset close up, `?focus=tank|jeep|helicopter|jet|aa` follows nato's vehicle of that class, `?focus=close` the cluster; anything else is the overview. */
 function applyFocus(focus: string | null) {
   if (focus === 'close') setClose();
-  else if (focus === 'tank' || focus === 'jeep' || focus === 'helicopter') follow(focus);
+  else if (VEHICLES.includes(focus as VehicleKind)) follow(focus as VehicleKind);
   else if (ASSETS.some((a) => a.asset === focus)) setFocus(focus as AssetKind);
   else setOverview();
 }

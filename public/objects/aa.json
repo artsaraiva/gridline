@@ -1,0 +1,10 @@
+{
+  "frames": 98,
+  "framePx": 160,
+  "cols": 16,
+  "constants": {
+    "AA_HEADINGS": 16,
+    "AA_VARIANTS": 3,
+    "AA_WORLD_M": 12.0
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "frames": 49,
+  "framePx": 192,
+  "cols": 16,
+  "constants": {
+    "JET_HEADINGS": 16,
+    "JET_VARIANTS": 3,
+    "JET_WORLD_M": 17.0
+  }
+}
