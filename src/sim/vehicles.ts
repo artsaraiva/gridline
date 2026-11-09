@@ -515,8 +515,7 @@ const bound = (v: Vehicle): Vec2 => ((v.job === 'ferry' && v.fetch >= 0) || v.jo
  * known enemy within `lzThreatM` of the goal (any friendly Squad's) it is a hot goal: its riders jump over the Landing Zone, after circling the point first if a gunner is aboard.
  */
 export function plan(m: Match, v: Vehicle) {
-  const squads = [...new Set(riders(m, v).map((s) => m.squads[s.squad]!))];
-  const known = squads.flatMap((sq) => sq.memory);
+  const known = sideKnown(m, v.side); // #133: any friendly Squad's eyes
   const threats = [...m.points.filter((p) => p.owner === enemyOf(v.side)).map((p) => ({ x: p.x, y: p.y, r: p.radius })), ...known.map((e) => ({ x: e.x, y: e.y, r: 0 }))];
   if (v.goal >= 0) {
     const p = m.points[v.goal]!;

@@ -8,6 +8,7 @@ import { nearestCrate } from '../assets/crate';
 import { canStand, dist2 } from '../geometry';
 import { gridRef } from '../grid-ref';
 import { lineWalk, nearestWalkable } from '../grid';
+import { sideKnown } from '../memory';
 import { quiet } from '../respawn';
 import { between, pickWeighted, rnd } from '../rng';
 import { membersOf, vehicleOf, type Point, type Soldier, type Squad } from '../state';
@@ -67,8 +68,8 @@ export function setDest(m: Match, s: Soldier, d: { at: Vec2; path: Vec2[] } | Ve
   }
 }
 
-/** An enemy inside the point, or in the Squad's memory near it. */
-const threatened = (m: Match, sq: Squad, p: Point) => insideCount(m, p, enemyOf(sq.side)) > 0 || sq.memory.some((c) => dist2(c, p) < sq2(p.radius + m.tune.threatenedM));
+/** An enemy inside the point, or known to the Side (#133) near it. */
+const threatened = (m: Match, sq: Squad, p: Point) => insideCount(m, p, enemyOf(sq.side)) > 0 || sideKnown(m, sq.side).some((c) => dist2(c, p) < sq2(p.radius + m.tune.threatenedM));
 
 /** #120: a self-chosen Commitment to `goal` still holds: not over, the point not its own Side's, no own point near `from` threatened. */
 function committed(m: Match, sq: Squad, goal: number, until: number, from: Vec2): boolean {

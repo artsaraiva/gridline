@@ -108,6 +108,14 @@ describe('routes over the river', () => {
     expect(atTheFootbridge(lost, killed)).toBe('C');
   });
 
+  it('enemies another friendly Squad knows at a crossing send the next Squad over another one (#133)', () => {
+    const map = { ...toE, crossings: toE.crossings!.map((c) => (c.id === 'N' ? { ...c, kind: 'footbridge' as const } : c)) };
+    // Squad 0 stands over on E's bank and remembers two enemies at the footbridge; Squad 1 has seen nothing
+    const m = scene({ map, place: { 0: { x: 100, y: 140 }, 1: { x: 100, y: 142 } }, tune: { routeJitterM: 0, spread: 0, squadSize: 2, visionM: 0 }, squads: 2 });
+    m.squads[0]!.memory.push({ id: 4, x: 20, y: 118, tick: 0, source: 'seen' }, { id: 5, x: 20, y: 122, tick: 0, source: 'seen' });
+    expect(play(m, HZ + 1).nato[HZ]!.squads[1]!.route).toBe('C');
+  });
+
   it('the centre bridge takes no danger penalties', () => {
     expect(atTheFootbridge(seen, { hp: 1e9 }, 'bridge')).toBe('N');
     expect(atTheFootbridge(lost, killed, 'bridge')).toBe('N');
@@ -250,6 +258,28 @@ describe('loose squads', () => {
     const at = (id: number) => nato.at(-1)!.friendlies.find((f) => f.id === id)!;
     expect(dist(at(1), { x: 0, y: 50 })).toBeLessThan(1);
     expect(dist(at(2), at(0))).toBeLessThan(15);
+  });
+});
+
+describe('shared spotting (#133)', () => {
+  const points = [{ id: 'A', name: 'A', x: -300, y: 0, owner: 'nato' as const }, { id: 'E', name: 'E', x: 450, y: 0, owner: 'pact' as const }];
+  const stoodOnA = () => {
+    const m = scene({ map: field({ points }), place: { 1: { x: -300, y: 0 } }, tune: { squadSize: 1, visionM: 0, spread: 0, walkSpeed: 0 }, squads: 2 });
+    m.squads[0]!.memory.push({ id: 9, x: -300, y: 20, tick: 1e9, source: 'seen' }); // Squad 0 saw an enemy at A; Squad 1 stands on A and saw none
+    return m;
+  };
+
+  it('a Squad that saw nothing holds its own point where a friendly Squad knows enemies', () => {
+    const m = stoodOnA();
+    expect(m.squads[1]!.memory).toEqual([]);
+    expect(play(m, 2 * HZ).nato.at(-1)!.squads[1]!.point).toBe('A');
+  });
+
+  it("goes into contact only on its own sightings: a friendly Squad's memory leaves it travelling, not bounding", () => {
+    const m = scene({ map: field({ points }), place: { 1: { x: 0, y: 200 } }, tune: { squadSize: 1, visionM: 0, spread: 0 }, squads: 2 });
+    m.squads[0]!.memory.push({ id: 9, x: 40, y: 200, tick: 1e9, source: 'seen' });
+    play(m, 2 * HZ);
+    expect(m.squads[1]!.mode).toBe('travel');
   });
 });
 

@@ -794,6 +794,23 @@ describe('#124 helicopter flight and Landing Zone', () => {
     }
   });
 
+  it('the Landing Zone is on the far side from an enemy only another friendly Squad knows (#133)', () => {
+    for (const seed of [1, 2, 3, 4, 5, 6]) {
+      const m = scene({
+        map: { points: [{ id: 'A', name: 'A', ...A }] },
+        tune: { visionM: 0, squadSize: 2, tanksPerSide: 0, helisPerSide: 1 },
+        squads: 3,
+        place: { 4: { x: 0, y: -500 }, 5: { x: 0, y: -500 }, 6: away, 7: away, 8: away, 9: away, 10: away, 11: away },
+      });
+      m.rng = seed * 7919;
+      m.squads[2]!.memory.push({ id: 6, x: A.x + 100, y: A.y, tick: 1e9, source: 'seen' }); // the Squad left behind knows an enemy east of A; the riders' own memory is empty
+      flight(m, 45);
+      const z = m.vehicles[0]!.lz!;
+      const cos = (A.x - z.x) / Math.hypot(z.x - A.x, z.y - A.y);
+      expect(cos, `seed ${seed}`).toBeGreaterThanOrEqual(Math.cos(((DEFAULT_TUNE.lzSpreadDeg + 2.5) * Math.PI) / 180) - 0.01);
+    }
+  });
+
   it('a dogleg keeps off an enemy-held point on one side and takes the clear side; with nothing in the way both sides turn up', () => {
     const mid = { x: (HQ.x + A.x) / 2, y: (HQ.y + A.y) / 2 };
     const L = Math.hypot(A.x - HQ.x, A.y - HQ.y);
