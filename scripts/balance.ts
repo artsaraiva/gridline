@@ -4,6 +4,7 @@ import { RIVER_FIELD } from '../src/maps/river-field';
 import { TEST_FIELD } from '../src/maps/test-field';
 import { commanderView, createMatch, step, SIDES, type MapData, type MatchResult, type SideId, type Tune } from '../src/sim';
 import { DEFAULT_TUNE } from '../src/sim/tune';
+import { JOBS, live, type Job } from '../src/sim/vehicles';
 
 export const MAPS: Record<string, MapData> = { kaltenbach: KALTENBACH, river: RIVER_FIELD, test: TEST_FIELD };
 
@@ -17,7 +18,11 @@ export interface MatchSummary {
   first: Record<SideId, string[]>; // #120: the Capture Point each Squad took first, by Side
   heliSquads: Record<SideId, number[]>; // #122: the Squad whose Soldier first got aboard each of the Side's helicopters
   zones: Zone[]; // #124: every Landing Zone a helicopter drew, in order
+  jobSeconds: Record<SideId, Record<Job, number>>; // #131: seconds each Side's helicopter spent on each job (live, any pilot or none)
+  carried: Record<SideId, boolean>; // #131: the Side's helicopter carried a passenger (not crew) at some time
 }
+
+const noJobs = (): Record<Job, number> => Object.fromEntries(JOBS.map((j) => [j, 0])) as Record<Job, number>;
 
 /** #124: a helicopter's Landing Zone and the Capture Point it was drawn for. */
 export interface Zone {
@@ -40,6 +45,9 @@ export interface Balance {
   opening: Record<SideId, number>; // #120: mean number of different points a Side's Squads opened on per match
   heliSquads: Record<SideId, number>; // #122: different Squads a Side's helicopter took its first riders from, across all matches
   zoneSpread: Record<string, { zones: number; apart: number }>; // #124: per goal, the Landing Zones drawn across all matches, and the share of their pairs more than ZONE_APART_M apart
+  jobSeconds: Record<SideId, Record<Job, number>>; // #131: mean seconds a match each Side's helicopter spent on each job
+  jobMatches: Record<SideId, Record<Job, number>>; // #131: matches in which it spent any time on the job
+  carried: Record<SideId, number>; // #131: matches in which it carried a passenger
 }
 
 export function balance(o: { seeds: number; squads: number; map: MapData; tune?: Partial<Tune>; firstSeed?: number }): Balance {
@@ -55,11 +63,17 @@ export function balance(o: { seeds: number; squads: number; map: MapData; tune?:
     const boarded = new Set<number>();
     const zones: Zone[] = [];
     const lastZone = new Map<number, unknown>();
+    const jobSeconds = { nato: noJobs(), pact: noJobs() };
+    const carried = { nato: false, pact: false };
     while (!m.result) {
       step(m, []);
       for (const v of m.vehicles) {
-        if (v.kind === 'helicopter' && v.lz && v.lz !== lastZone.get(v.id)) zones.push({ side: v.side, goal: m.points[v.goal]!.id, x: v.lz.x, y: v.lz.y });
+        if (v.kind === 'helicopter' && v.goal >= 0 && v.lz && v.lz !== lastZone.get(v.id)) zones.push({ side: v.side, goal: m.points[v.goal]!.id, x: v.lz.x, y: v.lz.y });
         if (v.kind === 'helicopter') lastZone.set(v.id, v.lz);
+        if (v.kind === 'helicopter' && live(v)) {
+          jobSeconds[v.side][v.job] += 1 / tune.hz;
+          if (v.seats.some((id) => id >= 0 && !m.soldiers[id]!.crew)) carried[v.side] = true;
+        }
         const rider = v.kind === 'helicopter' && !boarded.has(v.id) ? v.seats.find((id) => id >= 0) : undefined;
         if (rider === undefined) continue;
         boarded.add(v.id);
@@ -72,7 +86,7 @@ export function balance(o: { seeds: number; squads: number; map: MapData; tune?:
           if (sq.point && !first.has(sq.id)) first.set(sq.id, { side, point: sq.point });
         }
     }
-    matches.push({ seed, seconds: m.tick / tune.hz, winner: m.result.winner, reason: m.result.reason, tickets: { ...m.tickets }, picks, first: { nato: [...first.values()].filter((f) => f.side === 'nato').map((f) => f.point), pact: [...first.values()].filter((f) => f.side === 'pact').map((f) => f.point) }, heliSquads, zones });
+    matches.push({ seed, seconds: m.tick / tune.hz, winner: m.result.winner, reason: m.result.reason, tickets: { ...m.tickets }, picks, first: { nato: [...first.values()].filter((f) => f.side === 'nato').map((f) => f.point), pact: [...first.values()].filter((f) => f.side === 'pact').map((f) => f.point) }, heliSquads, zones, jobSeconds, carried });
   }
   const wins = { nato: 0, pact: 0, draw: 0 };
   const picks: Record<string, number> = {};
@@ -98,7 +112,16 @@ export function balance(o: { seeds: number; squads: number; map: MapData; tune?:
       return [goal, { zones: zs.length, apart: pairs.length ? pairs.filter((d) => d > ZONE_APART_M).length / pairs.length : 1 }];
     }),
   );
+  const jobSeconds = { nato: noJobs(), pact: noJobs() };
+  const jobMatches = { nato: noJobs(), pact: noJobs() };
+  const carried = { nato: 0, pact: 0 };
+  for (const r of matches)
+    for (const side of SIDES) {
+      carried[side] += +r.carried[side];
+      for (const j of JOBS) [jobSeconds[side][j], jobMatches[side][j]] = [jobSeconds[side][j] + r.jobSeconds[side][j], jobMatches[side][j] + +(r.jobSeconds[side][j] > 0)];
+    }
   const n = matches.length || 1;
+  for (const side of SIDES) for (const j of JOBS) jobSeconds[side][j] /= n;
   return {
     matches,
     wins,
@@ -109,12 +132,17 @@ export function balance(o: { seeds: number; squads: number; map: MapData; tune?:
     opening: { nato: opened.nato / n, pact: opened.pact / n },
     heliSquads: { nato: heli.nato.size, pact: heli.pact.size },
     zoneSpread,
+    jobSeconds,
+    jobMatches,
+    carried,
   };
 }
 
+const jobs = (j: Record<Job, number>) => JOBS.filter((k) => j[k] >= 0.5).map((k) => `${k} ${j[k].toFixed(0)}`).join('/') || '-';
+
 export function report(b: Balance): string {
   const lines = b.matches.map(
-    (r) => `seed ${String(r.seed).padStart(3)}  ${String(Math.round(r.seconds)).padStart(5)} s  ${(r.winner ?? 'draw').padEnd(5)} (${r.reason})  tickets nato ${r.tickets.nato} pact ${r.tickets.pact}  crossings ${JSON.stringify(r.picks)}  first nato ${r.first.nato.join('')} pact ${r.first.pact.join('')}  helicopter riders from Squads nato ${r.heliSquads.nato.join(',') || '-'} pact ${r.heliSquads.pact.join(',') || '-'}  Landing Zones ${r.zones.map((z) => `${z.side} ${z.goal}(${z.x.toFixed(0)},${z.y.toFixed(0)})`).join(' ') || '-'}`,
+    (r) => `seed ${String(r.seed).padStart(3)}  ${String(Math.round(r.seconds)).padStart(5)} s  ${(r.winner ?? 'draw').padEnd(5)} (${r.reason})  tickets nato ${r.tickets.nato} pact ${r.tickets.pact}  crossings ${JSON.stringify(r.picks)}  first nato ${r.first.nato.join('')} pact ${r.first.pact.join('')}  helicopter riders from Squads nato ${r.heliSquads.nato.join(',') || '-'} pact ${r.heliSquads.pact.join(',') || '-'}  jobs nato ${jobs(r.jobSeconds.nato)} pact ${jobs(r.jobSeconds.pact)}  Landing Zones ${r.zones.map((z) => `${z.side} ${z.goal}(${z.x.toFixed(0)},${z.y.toFixed(0)})`).join(' ') || '-'}`,
   );
   lines.push(
     `--`,
@@ -125,6 +153,8 @@ export function report(b: Balance): string {
     `first points ${JSON.stringify(b.firstPicks)}`,
     `different opening points per match nato ${b.opening.nato.toFixed(2)}  pact ${b.opening.pact.toFixed(2)}`,
     `different Squads the helicopter took its first riders from, all matches: nato ${b.heliSquads.nato}  pact ${b.heliSquads.pact}`,
+    ...SIDES.map((side) => `${side} helicopter, mean seconds a match by job (matches with any): ${JOBS.map((j) => `${j} ${b.jobSeconds[side][j].toFixed(0)} (${b.jobMatches[side][j]})`).join('  ')}`),
+    `matches in which the helicopter carried a passenger: nato ${b.carried.nato}  pact ${b.carried.pact}  of ${b.matches.length}`,
     ...Object.entries(b.zoneSpread).map(([goal, z]) => `Landing Zones for ${goal}: ${z.zones}, ${(z.apart * 100).toFixed(0)}% of pairs more than ${ZONE_APART_M} m apart`),
     ...b.matches.flatMap((r) => r.zones.map((z) => `Landing Zone seed ${r.seed}: ${z.side} ${z.goal} at ${z.x.toFixed(0)}, ${z.y.toFixed(0)}`)),
   );

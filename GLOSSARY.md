@@ -112,6 +112,14 @@ _Avoid_: RPG, AT, bazooka
 Where a transport helicopter sets down for its passengers' goal: a spot near the Capture Point, away from the enemies they know about, chosen afresh each trip; the passengers walk in from there.
 _Avoid_: LZ (in prose), drop point, helipad (the helicopter's slot at its HQ)
 
+**Ferry**:
+The helicopter job of fetching and carrying a Squad: a Squad on foot far from the HQ whose goal is a long ride, with no vehicle by it, calls the helicopter, which lands by it, takes it to its goal and sets it down at a Landing Zone; to a goal where the Squad knows enemies it circles first so its gunners fire, then the riders jump by parachute over the Landing Zone.
+_Avoid_: Taxi, evac, air drop
+
+**Support**:
+The helicopter job of circling a Capture Point with known enemies, so its side-gun gunners fire on them; the helicopter never circles without a gunner aboard. With nothing else to do it waits on its helipad.
+_Avoid_: Gunship run, patrol, strafing
+
 ### Commander view
 
 **Console**:

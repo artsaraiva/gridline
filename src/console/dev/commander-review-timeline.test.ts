@@ -5,6 +5,7 @@ import type { SimEvent } from '../../sim/types';
 import { CHAPTERS, eventsBetween, LENGTH, viewAt } from './commander-review-timeline';
 
 const chapter = (title: string) => CHAPTERS.find((c) => c.title === title)!.at + 1;
+const OLD = chapter('Ferry') - 1; // #131: the chapters before it end here (the Parachute chapter's end was the timeline's)
 
 // Kaltenbach play area (simplified bounding octagon; the real polygon is tighter).
 const PLAY_AREA = [
@@ -162,7 +163,7 @@ describe('commander review timeline (#69)', () => {
     expect(heli(viewAt(t + 0.5)).seats).toEqual([12, 11, -1, 13, 14, 15]); // #129: Delta's pilot and Charlie's 11 on the left gun, the right gun unmanned
     expect(delta(viewAt(t + 0.5)).every((f) => f.vehicle === pad.id)).toBe(true);
     expect(viewAt(t + 0.5).friendlies.find((f) => f.id === 11)).toMatchObject({ squad: 2, vehicle: pad.id });
-    const flights = [...Array((LENGTH - t) * 4).keys()].map((k) => viewAt(t + k / 4));
+    const flights = [...Array((OLD - t) * 4).keys()].map((k) => viewAt(t + k / 4));
     const air = flights.map((v) => !!heli(v).airborne);
     const lift = air.indexOf(true);
     const land = air.indexOf(false, lift);
@@ -181,11 +182,11 @@ describe('commander review timeline (#69)', () => {
     expect((again - land) / 4).toBeCloseTo(3 + 1.5, 0); // unloadSeconds, then spoolSeconds
     expect(heli(flights[again]!).seats).toEqual([12, 11, -1, -1, -1, -1]);
     for (const f of delta(flights[again]!).filter((f) => f.id !== 12)) expect(Math.hypot(f.x - D.x, f.y - D.y)).toBeGreaterThan(DEFAULT_TUNE.captureRadius); // still walking in
-    for (const f of delta(viewAt(LENGTH - 1)).filter((f) => f.id !== 12)) expect(Math.hypot(f.x - D.x, f.y - D.y)).toBeLessThan(DEFAULT_TUNE.captureRadius);
+    for (const f of delta(viewAt(OLD - 1)).filter((f) => f.id !== 12)) expect(Math.hypot(f.x - D.x, f.y - D.y)).toBeLessThan(DEFAULT_TUNE.captureRadius);
     const back = flights.slice(again, flights.findIndex((v, i) => i > again && !heli(v).airborne)).map(heli);
     expect(Math.abs(bulge(back, lz, pad))).toBeGreaterThan(0.05 * Math.hypot(lz.x - pad.x, lz.y - pad.y)); // a dogleg home ...
     expect(Math.sign(bulge(back, lz, pad))).not.toBe(Math.sign(bulge(out, lz, pad))); // ... on the other side
-    const home = heli(viewAt(LENGTH - 1));
+    const home = heli(viewAt(OLD - 1));
     expect(home).toMatchObject({ x: pad.x, y: pad.y, seats: [12, 11, -1, -1, -1, -1] });
     expect(home.airborne).toBeUndefined();
     // #119: the enemy one shows only while Alpha sees it (a Soldier sees a vehicle at visionM 150 x vehicleVisionMul 1.5),
@@ -209,16 +210,16 @@ describe('commander review timeline (#69)', () => {
     expect(range(flights[last + 1]!, lkp!)).toBeLessThanOrEqual(SIGHT);
     expect(lkp!.fade).toBeCloseTo(1, 1);
     expect(flights[last + 1 + 4 * 4]!.lastKnown).toEqual([]); // gone lkpSeconds (3.5) later
-    expect(viewAt(LENGTH - 1).vehicles!.filter((x) => x.kind === 'helicopter' && x.wreck)).toHaveLength(1);
-    expect(viewAt(LENGTH - 1).squads.find((q) => q.id === 3)!.name).toBe('Delta');
+    expect(viewAt(OLD - 1).vehicles!.filter((x) => x.kind === 'helicopter' && x.wreck)).toHaveLength(1);
+    expect(viewAt(OLD - 1).squads.find((q) => q.id === 3)!.name).toBe('Delta');
   });
 
   it('#129 Helicopter: the left gunner fires at the Lookout from the helicopter\'s left side, never the nose, only inside its 120 degree arc and 160 m', () => {
     const from = chapter('Helicopter');
-    const shots = eventsBetween(from - 1, LENGTH).filter((e) => e.kind === 'shot' && e.from === 11) as { from: number; to: number; tick?: number }[];
+    const shots = eventsBetween(from - 1, OLD).filter((e) => e.kind === 'shot' && e.from === 11) as { from: number; to: number; tick?: number }[];
     expect(shots.length).toBeGreaterThan(5);
     let n = 0;
-    for (let t = from; t < LENGTH; t += 0.1) {
+    for (let t = from; t < OLD; t += 0.1) {
       const fired = eventsBetween(t - 0.05, t + 0.05).some((e) => e.kind === 'shot' && e.from === 11);
       if (!fired) continue;
       n++;
@@ -242,18 +243,101 @@ describe('commander review timeline (#69)', () => {
     const heli = (v: ReturnType<typeof viewAt>) => v.vehicles!.find((x) => x.id === 37)!;
     expect(heli(viewAt(t + 1)).hp).toBeLessThan(1 / 3 + 0.05);
     expect(heli(viewAt(t + 1)).seats).toEqual([4, 5, 6, 7]);
-    const frames = [...Array((LENGTH - t) * 4).keys()].map((k) => viewAt(t + k / 4));
+    const frames = [...Array((OLD - t) * 4).keys()].map((k) => viewAt(t + k / 4));
     const down = frames.filter((v) => bravo(v, 5).chute !== undefined);
     expect(down.length / 4).toBeCloseTo(DEFAULT_TUNE.chuteSeconds, 0);
     expect(frames.some((v) => heli(v).seats![1] === -1 && bravo(v, 5).chute === undefined && bravo(v, 5).vehicle === undefined)).toBe(true);
-    expect(bravo(viewAt(LENGTH - 1), 4).vehicle).toBe(37);
-    expect(bravo(viewAt(LENGTH - 1), 5).vehicle).toBeUndefined();
+    expect(bravo(viewAt(OLD - 1), 4).vehicle).toBe(37);
+    expect(bravo(viewAt(OLD - 1), 5).vehicle).toBeUndefined();
     const sizes = down.map((v) => 0.7 + 0.3 * bravo(v, 5).chute!);
     expect(sizes[0]).toBeGreaterThanOrEqual(0.7);
     expect(sizes.at(-1)).toBeLessThanOrEqual(1);
     expect(sizes.at(-1)).toBeGreaterThan(0.95);
-    for (const [a, b] of [[5, 6], [6, 7]] as const) expect(Math.hypot(bravo(viewAt(LENGTH - 1), a).x - bravo(viewAt(LENGTH - 1), b).x, bravo(viewAt(LENGTH - 1), a).y - bravo(viewAt(LENGTH - 1), b).y)).toBeGreaterThan(1);
+    for (const [a, b] of [[5, 6], [6, 7]] as const) expect(Math.hypot(bravo(viewAt(OLD - 1), a).x - bravo(viewAt(OLD - 1), b).x, bravo(viewAt(OLD - 1), a).y - bravo(viewAt(OLD - 1), b).y)).toBeGreaterThan(1);
     for (const v of down) expect(eventsBetween(v.seconds - 0.25, v.seconds).some((e) => e.kind === 'shot' && e.from >= 5 && e.from <= 7)).toBe(false);
   });
-});
 
+  // #131: the helicopter's jobs, one helicopter (35) through four chapters
+  const at4 = (from: number, to: number) => [...Array(Math.round((to - from) * 4)).keys()].map((k) => viewAt(from + k / 4));
+  const heli = (v: ReturnType<typeof viewAt>) => v.vehicles!.find((x) => x.id === 35 && !x.wreck);
+  const PAD = { x: -409.01, y: 0.3 };
+  const B = { x: 0, y: 300 };
+  const C = { x: 0, y: 0 };
+  const hypot = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
+  /** The point is on the helicopter's left: its left gun faces it. */
+  const leftOf = (h: { x: number; y: number; fx: number; fy: number }, p: { x: number; y: number }) => (p.x - h.x) * -h.fy + (p.y - h.y) * h.fx > 0;
+  /** The frames in which the helicopter flies on the circle of radius orbitM about `c`. */
+  const ring = (frames: ReturnType<typeof viewAt>[], c: { x: number; y: number }) => frames.filter((v) => heli(v)?.airborne && Math.abs(hypot(heli(v)!, c) - DEFAULT_TUNE.orbitM) < 3);
+  const shots = (frames: ReturnType<typeof viewAt>[], to: number[]) => eventsBetween(frames[0]!.seconds - 0.25, frames.at(-1)!.seconds).filter((e) => e.kind === 'shot' && e.from === 11 && to.includes(e.to)).length;
+
+  it('#131 Ferry: Echo, far from the HQ, is fetched: the helicopter lands by it, it boards, circles the hot point at orbitM with the left gun firing, the riders jump over the Landing Zone and it flies home', () => {
+    const t0 = chapter('Ferry') - 1;
+    const frames = at4(t0, chapter('Support') - 1);
+    const echo = (v: ReturnType<typeof viewAt>) => v.friendlies.filter((f) => f.squad === 4);
+    expect(echo(frames[0]!)).toHaveLength(4);
+    expect(hypot(echo(frames[0]!)[0]!, PAD)).toBeGreaterThan(200); // far from the HQ
+    const boarded = frames.findIndex((v) => echo(v).every((f) => f.vehicle === 35));
+    expect(boarded).toBeGreaterThan(0);
+    const down = frames[boarded - 1]!;
+    expect(heli(down)!.airborne).toBeUndefined();
+    expect(hypot(heli(down)!, echo(frames[0]!)[0]!)).toBeGreaterThan(DEFAULT_TUNE.lzM[0]); // lands by Echo, as a Landing Zone does ...
+    expect(hypot(heli(down)!, echo(frames[0]!)[0]!)).toBeLessThan(DEFAULT_TUNE.lzM[1]);
+    expect(heli(frames[boarded]!)!.seats!.filter((id) => id >= 0)).toEqual(expect.arrayContaining([12, 11, 16, 17, 18, 19])); // pilot, left gun, Echo
+    const orbit = ring(frames, B);
+    expect(orbit.length / 4).toBeGreaterThan(DEFAULT_TUNE.orbitSeconds - 2);
+    expect(orbit.length / 4).toBeLessThan(DEFAULT_TUNE.orbitSeconds + 3);
+    for (const v of orbit.slice(4, -4)) expect(leftOf(heli(v)!, B)).toBe(true); // all the way round, but the second it leaves the circle for its Landing Zone
+    expect(shots(orbit, [24, 25])).toBeGreaterThan(8);
+    const jumped = frames.filter((v) => echo(v).some((f) => f.chute !== undefined));
+    expect(jumped.length / 4).toBeCloseTo(DEFAULT_TUNE.chuteSeconds, 0);
+    expect(heli(jumped[0]!)!.airborne).toBe(true);
+    expect(hypot(echo(jumped[0]!)[0]!, heli(jumped[0]!)!)).toBeLessThan(5); // over the Landing Zone
+    expect(jumped.at(-1)!.friendlies.find((f) => f.id === 16)!.chute!).toBeGreaterThan(0.9);
+    expect(heli(frames.at(-1)!)).toMatchObject({ x: PAD.x, y: PAD.y });
+    expect(heli(frames.at(-1)!)!.airborne).toBeUndefined();
+    expect(heli(frames.at(-1)!)!.seats).toEqual([12, 11, -1, -1, -1, -1]);
+  });
+
+  it('#131 Support: it lifts off again, flies to C and circles it at orbitM, its left gun firing at the Contacts there', () => {
+    const frames = at4(chapter('Support') - 1, chapter('Repair') + 3);
+    const orbit = ring(frames, C);
+    expect(orbit.length / 4).toBeGreaterThan(15);
+    for (const v of orbit) expect(leftOf(heli(v)!, C)).toBe(true);
+    expect(shots(orbit, [20, 21, 22])).toBeGreaterThan(8);
+  });
+
+  it('#131 Repair: under half its hit points it leaves the circle for the pad, lands, and regains heliRepairHpPerS until full', () => {
+    const frames = at4(chapter('Repair') - 1, chapter('Bail') - 1);
+    expect(heli(frames[0]!)!.hp).toBe(1);
+    const low = frames.findIndex((v) => heli(v)!.hp! < DEFAULT_TUNE.heliRepairBelow);
+    expect(low).toBeGreaterThan(0);
+    const landed = frames.findIndex((v, i) => i > low && !heli(v)!.airborne);
+    expect(hypot(heli(frames[landed]!)!, PAD)).toBeLessThan(1);
+    const hp = (secs: number) => heli(frames[landed + secs * 4]!)!.hp!;
+    expect(((hp(7) - hp(2)) * DEFAULT_TUNE.heliHp) / 5).toBeCloseTo(DEFAULT_TUNE.heliRepairHpPerS, 1);
+    expect(heli(frames.at(-1)!)!.hp).toBe(1);
+  });
+
+  it('#131 Bail: under a third of its hit points the pilot and gunner jump, it glides crashSeconds and crashes: a Wreck, nobody hurt', () => {
+    const frames = at4(chapter('Bail') - 1, LENGTH);
+    const hit = frames.findIndex((v) => heli(v)!.hp! < 1 / 3);
+    expect(hit).toBeGreaterThan(0);
+    const out = frames.findIndex((v) => v.friendlies.find((f) => f.id === 12)!.chute !== undefined);
+    expect(out).toBeGreaterThanOrEqual(hit);
+    for (const id of [11, 12]) expect(frames[out]!.friendlies.find((f) => f.id === id)!.vehicle).toBeUndefined();
+    expect(heli(frames[out]!)!.seats!.every((id) => id < 0)).toBe(true);
+    const crash = frames.findIndex((v) => !heli(v));
+    expect((crash - out) / 4).toBeCloseTo(DEFAULT_TUNE.crashSeconds, 0);
+    expect(heli(frames[crash - 1]!)!.airborne).toBe(true); // it glided on, in the air
+    const last = frames.at(-1)!;
+    const wreck = last.vehicles!.find((x) => x.wreck && x.side === 'nato' && x.kind === 'helicopter')!;
+    expect(hypot(wreck, heli(frames[crash - 1]!)!)).toBeLessThan(DEFAULT_TUNE.orbitMps); // where it came down
+    for (const id of [11, 12]) expect(last.friendlies.find((f) => f.id === id)!.state).toBe('alive');
+    expect(last.friendlies.find((f) => f.id === 12)!.chute).toBeUndefined(); // landed
+  });
+
+  it('#131 the helicopter stays inside the Play Area through all four job chapters, and waits on its pad before Support and Bail (Repair begins over the circle)', () => {
+    for (const v of at4(chapter('Ferry') - 1, LENGTH)) for (const x of v.vehicles!) expect(insidePolygon(PLAY_AREA, x.x, x.y), `${x.id} at ${v.seconds}`).toBe(true);
+    for (const title of ['Support', 'Bail']) expect(heli(viewAt(chapter(title) - 1)), title).toMatchObject({ x: PAD.x, y: PAD.y }); // each starts from the pad, the one before is over
+  });
+});
