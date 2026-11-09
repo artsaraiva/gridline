@@ -187,6 +187,7 @@ export function board(m: Match, sq: Squad, s: Soldier) {
   const goal = goalOf(m, sq, s);
   const p = m.points[goal];
   if (!p || s.reviving >= 0 || s.boarding >= 0 || dist2(s, p) <= squared(t.boardMinM)) return;
+  // never the Squad Leader: the Squad scores, leads and comes back from them, and a pilot is off at the base or in the sky
   const jet = s.id === sq.members[0] ? undefined : m.vehicles.find((v) => v.kind === 'jet' && v.side === s.side && live(v) && v.seats[0]! < 0 && dist2(s, v.slot) <= squared(t.boardM));
   if (jet) return mount(m, jet, s, sq);
   let best: Vehicle | null = null;

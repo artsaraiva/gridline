@@ -51,8 +51,8 @@ function rocket(m: Match, s: Soldier): Shot | null {
 /** #107: the gunner aboard fires the coax (#108: a jeep's MG, #109 a helicopter's side gun) at the vehicle's infantry target: the rifle shot model, faster and longer. */
 function coax(m: Match, s: Soldier, v: Vehicle): Shot | null {
   const t = m.tune;
-  const gun = specOf(t, v.kind);
   if (v.kind === 'jet') return cannon(m, s, v);
+  const gun = specOf(t, v.kind);
   const e = v.kind === 'helicopter' ? sideGun(m, v, v.seats.indexOf(s.id)) : gunner(v) === s.id ? m.soldiers[v.coax] : undefined; // #129: a helicopter's guns are its side seats
   if (!e || e.state !== 'alive' || m.tick < s.nextFire || dist2(v, e) > gun.gunM * gun.gunM) return null;
   return roll(m, s, e, t.hitChance * (cellAt(m, e.x, e.y) === COVER ? t.coverHitMul : 1), gun.gunSeconds);
