@@ -94,11 +94,19 @@ _Avoid_: Unit, armour (for all vehicles), asset
 
 **Mounted**:
 The state of a Soldier riding a Vehicle in one of its seats: they move with it, see and fire from it and cannot be shot, suppressed or Wounded until they get out or it is destroyed. Soldiers board and leave Vehicles one by one, so a Squad may be partly Mounted.
-_Avoid_: In the vehicle, embarked, loaded, crew (Vehicles have no crew of their own)
+_Avoid_: In the vehicle, embarked, loaded
 
 **Detached**:
 A Soldier acting away from their Squad on a goal of their own, usually after riding a Vehicle elsewhere; they drift back toward the Squad's goal and rejoin once back with the Squad on it.
 _Avoid_: Lone wolf, stray (the brief wander within a leash), split squad
+
+**Crew**:
+The Soldiers who man a helicopter's pilot and gun seats for a stint: each is sent by a different Squad while the helicopter stands on its helipad (never a Squad Leader, at most one per Squad), stays a member of their Squad though Detached, and walks back to it once the stint is over on the helipad. A ground Vehicle's driver and gunner are not Crew.
+_Avoid_: Pilot and gunners (as a separate class of Soldier), air crew
+
+**Parachute (jump)**:
+How a Soldier leaves a helicopter in the air: they come down over a few seconds, drift a little from where they jumped, cannot fire or count in a Capture Point meanwhile, and are on foot when they land.
+_Avoid_: Bail (the helicopter's own job), drop (the Ferry's hot-goal run), fast rope
 
 **Wreck**:
 A destroyed Vehicle's hull, left where it died until its slot gives the Side a fresh one.
@@ -113,11 +121,11 @@ Where a transport helicopter sets down for its passengers' goal: a spot near the
 _Avoid_: LZ (in prose), drop point, helipad (the helicopter's slot at its HQ)
 
 **Ferry**:
-The helicopter job of fetching and carrying a Squad: a Squad on foot far from the HQ whose goal is a long ride, with no vehicle by it, calls the helicopter, which lands by it, takes it to its goal and sets it down at a Landing Zone; to a goal where the Squad knows enemies it circles first so its gunners fire, then the riders jump by parachute over the Landing Zone.
+The helicopter job of fetching and carrying a Squad: a Squad on foot far from the HQ whose goal is a long ride, with no vehicle by it, calls the helicopter, which lands by it, takes it to its goal and sets it down at a Landing Zone; to a goal where any friendly Squad knows enemies it circles first so its gunners fire (with no gunner aboard it does not circle), then the riders jump by Parachute over the Landing Zone.
 _Avoid_: Taxi, evac, air drop
 
 **Support**:
-The helicopter job of circling a Capture Point with known enemies, so its side-gun gunners fire on them; the helicopter never circles without a gunner aboard. With nothing else to do it waits on its helipad.
+The helicopter job of circling a Capture Point where any friendly Squad knows enemies, so its side-gun gunners fire on them; the helicopter never circles without a gunner aboard. With nothing else to do it waits on its helipad.
 _Avoid_: Gunship run, patrol, strafing
 
 ### Commander view

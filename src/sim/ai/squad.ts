@@ -9,7 +9,7 @@ import { canStand, dist2 } from '../geometry';
 import { gridRef } from '../grid-ref';
 import { lineWalk, nearestWalkable } from '../grid';
 import { quiet } from '../respawn';
-import { between, rnd } from '../rng';
+import { between, pickWeighted, rnd } from '../rng';
 import { membersOf, vehicleOf, type Point, type Soldier, type Squad } from '../state';
 import { enemyOf, type SimEvent, type Vec2 } from '../types';
 import { localPath, oct, pickCover, shelter } from './cover';
@@ -116,8 +116,7 @@ export function bestPoint(m: Match, sq: Squad, from: Vec2, pull = 0, own: { flow
   if (own.flow || !scores.length) return scores.indexOf(top);
   const floor = top - t.choiceMargin;
   const weights = scores.map((v) => Math.max(0, v - floor));
-  let r = rnd(m) * weights.reduce((a, w) => a + w, 0);
-  const pick = weights.findIndex((w) => w > 0 && (r -= w) < 0);
+  const pick = pickWeighted(m, weights);
   return pick < 0 ? scores.indexOf(top) : pick;
 }
 

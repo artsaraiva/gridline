@@ -2,7 +2,7 @@
 // ferry, support, else wait); `circle` is the path of Support and of a hot drop, `glide` the bail-out, `repairOnPad` the repair.
 // The flight itself (`fly`, `cruise`, `plan`) stays in `vehicles.ts`, which calls back here.
 import type { Match } from './index';
-import { between, rnd } from './rng';
+import { between, pickWeighted, rnd } from './rng';
 import { dist2 } from './geometry';
 import { landingZone } from './flight';
 import { sideKnown } from './memory';
@@ -53,9 +53,7 @@ export function decideJob(m: Match, v: Vehicle) {
   const waited = !v.airborne && !!v.spot && v.landedAt >= 0 && dist2(v, v.spot) < 1 && m.tick - v.landedAt >= Math.round(t.boardWaitSeconds * t.hz); // landed at its pickup and nobody claimed it in time: the fetch is dropped
   if (v.job === 'ferry' && !waited && calling.some((c) => c.sq.id === v.fetch)) return;
   if (calling.length) {
-    const near = calling.map((c) => 1 / Math.max(50, Math.sqrt(dist2(c.L, v)))); // the nearest likeliest
-    let r = rnd(m) * near.reduce((a, w) => a + w, 0);
-    const { sq, L } = calling[Math.max(0, near.findIndex((w) => (r -= w) < 0))]!;
+    const { sq, L } = calling[Math.max(0, pickWeighted(m, calling.map((c) => 1 / Math.max(50, Math.sqrt(dist2(c.L, v))))))]!; // the nearest likeliest
     return set('ferry', { fetch: sq.id, spot: landingZone(m, L, sq.memory, (p) => clearOfHq(m, v.side, p, 1)) });
   }
   if (v.seats[1]! >= 0 || v.seats[2]! >= 0) {
@@ -90,9 +88,9 @@ export function supportPoint(m: Match, v: Vehicle): Point | null {
     known.some((e) => dist2(e, p) <= squared(p.radius + m.tune.threatenedM)) ? [{ p, score: (p.owner === v.side ? 100 : 0) + m.squads.filter((q) => q.side === v.side && q.task === 'point' && q.goal === i).length }] : [],
   );
   const top = Math.max(...scored.map((c) => c.score));
-  const near = scored.filter((c) => c.score >= top - 1);
-  let r = rnd(m) * near.reduce((a, c) => a + c.score - top + 2, 0);
-  return near.length ? near[Math.max(0, near.findIndex((c) => (r -= c.score - top + 2) < 0))]!.p : null;
+  const best = scored.filter((c) => c.score >= top - 1);
+  const pick = pickWeighted(m, best.map((c) => c.score - top + 2));
+  return best.length ? best[Math.max(0, pick)]!.p : null;
 }
 
 /** #131: which way round a helicopter circles: with one gun manned, the way that keeps that side to the centre; else seeded. */

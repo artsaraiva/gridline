@@ -11,3 +11,9 @@ export function rnd(m: Match): number {
 
 /** Uniform in [lo, hi]. A range of one value draws nothing, so a tune that pins a Trait (`[180, 180]`, `[0, 0]`) leaves the RNG stream, and so every later draw, as it was without the Trait. */
 export const between = (m: Match, [lo, hi]: [number, number]) => (lo === hi ? lo : lo + (hi - lo) * rnd(m));
+
+/** The index of one of `weights` drawn in proportion to its weight (one draw, even when none is positive); -1 when none is positive. */
+export function pickWeighted(m: Match, weights: number[]): number {
+  let r = rnd(m) * weights.reduce((a, w) => a + w, 0);
+  return weights.findIndex((w) => w > 0 && (r -= w) < 0);
+}
