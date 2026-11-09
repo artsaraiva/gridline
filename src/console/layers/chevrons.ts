@@ -8,6 +8,7 @@ import type { CommanderView, FriendlyView, SideId, SoldierView } from '../../sim
 import { COLOR, layer } from '../renderer';
 import { session } from '../session';
 import { targeting } from '../targeting';
+import { chuteScale } from './chute';
 import { haloColor, pulseAt, pulseColor } from './pulse';
 import { bar, fading, px, shade } from './symbols';
 
@@ -87,7 +88,7 @@ function draw(list: (SoldierView | FriendlyView)[], kind: 'friendly' | 'hostile'
     haloMesh.geometry = star ? starHaloGeometry : haloGeometry;
     mesh.position.set(c.x, c.y, 1);
     mesh.rotation.z = Math.atan2(c.fy, c.fx);
-    mesh.scale.setScalar(scale);
+    mesh.scale.setScalar(scale * chuteScale(c.chute)); // #130
     const alpha = 'state' in c && c.state === 'wounded' ? 0.35 : 1;
     const material = mesh.material as THREE.MeshBasicNodeMaterial;
     material.opacity = alpha;

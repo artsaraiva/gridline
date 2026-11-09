@@ -112,7 +112,7 @@ describe('commander review timeline (#69)', () => {
   it('#107 Tank: two of Charlie ride their tank (badged, no chevrons), it drives with its turret on an enemy tank in sight, fires its main gun, and a Wreck lies by the road', () => {
     const t = chapter('Tank');
     const early = viewAt(t);
-    const late = viewAt(LENGTH - 1);
+    const late = viewAt(chapter('Helicopter')); // #130: the end of the timeline is now Bravo's parachute chapter
     const own = (v: typeof late) => v.vehicles!.find((x) => x.side === 'nato' && !x.wreck)!;
     expect(own(early).seats).toEqual([8, 9]);
     expect(early.friendlies.filter((f) => f.vehicle === own(early).id).map((f) => f.id)).toEqual([8, 9]);
@@ -140,7 +140,7 @@ describe('commander review timeline (#69)', () => {
     const mg = eventsBetween(t, t + 14).filter((e) => e.kind === 'shot' && e.side === 'nato' && bravo(riding).some((f) => f.id === e.from));
     expect(mg.length).toBeGreaterThan(5);
     expect(new Set(mg.map((e) => (e as { from: number }).from))).toEqual(new Set([5])); // only the gunner fires from the jeep
-    const late = viewAt(LENGTH - 1);
+    const late = viewAt(chapter('Helicopter')); // #130: the end of the timeline is now Bravo's parachute chapter
     expect(jeep(late).empty).toBe(true);
     for (const f of bravo(late)) {
       expect(f.vehicle).toBeUndefined();
@@ -234,6 +234,26 @@ describe('commander review timeline (#69)', () => {
     }
     expect(n).toBeGreaterThan(3);
     expect(new Set(viewAt(from + 20).friendlies.filter((f) => f.vehicle !== undefined && f.vehicle === 35).map((f) => f.squad)).size).toBeGreaterThan(1);
+  });
+
+  it('#130 Parachute: Bravo\'s riders jump from a crippled helicopter, come down over chuteSeconds on a chevron that grows from 0.7 to 1 and land on their own spots; the pilot stays', () => {
+    const t = chapter('Parachute') - 1;
+    const bravo = (v: ReturnType<typeof viewAt>, id: number) => v.friendlies.find((f) => f.id === id)!;
+    const heli = (v: ReturnType<typeof viewAt>) => v.vehicles!.find((x) => x.id === 37)!;
+    expect(heli(viewAt(t + 1)).hp).toBeLessThan(1 / 3 + 0.05);
+    expect(heli(viewAt(t + 1)).seats).toEqual([4, 5, 6, 7]);
+    const frames = [...Array((LENGTH - t) * 4).keys()].map((k) => viewAt(t + k / 4));
+    const down = frames.filter((v) => bravo(v, 5).chute !== undefined);
+    expect(down.length / 4).toBeCloseTo(DEFAULT_TUNE.chuteSeconds, 0);
+    expect(frames.some((v) => heli(v).seats![1] === -1 && bravo(v, 5).chute === undefined && bravo(v, 5).vehicle === undefined)).toBe(true);
+    expect(bravo(viewAt(LENGTH - 1), 4).vehicle).toBe(37);
+    expect(bravo(viewAt(LENGTH - 1), 5).vehicle).toBeUndefined();
+    const sizes = down.map((v) => 0.7 + 0.3 * bravo(v, 5).chute!);
+    expect(sizes[0]).toBeGreaterThanOrEqual(0.7);
+    expect(sizes.at(-1)).toBeLessThanOrEqual(1);
+    expect(sizes.at(-1)).toBeGreaterThan(0.95);
+    for (const [a, b] of [[5, 6], [6, 7]] as const) expect(Math.hypot(bravo(viewAt(LENGTH - 1), a).x - bravo(viewAt(LENGTH - 1), b).x, bravo(viewAt(LENGTH - 1), a).y - bravo(viewAt(LENGTH - 1), b).y)).toBeGreaterThan(1);
+    for (const v of down) expect(eventsBetween(v.seconds - 0.25, v.seconds).some((e) => e.kind === 'shot' && e.from >= 5 && e.from <= 7)).toBe(false);
   });
 });
 

@@ -341,6 +341,10 @@ export interface Tune {
   // #129 Helicopter crew and side guns
   crewSeconds: [number, number]; // a crew member's stint, drawn between the two as they climb in
   gunArcDeg: number; // a side gun covers this many degrees, centred straight out from its side
+
+  // #130 Parachute jump
+  chuteSeconds: number; // a Soldier who jumps from a helicopter takes this long to reach the ground
+  chuteScatterM: number; // and lands up to this far from where it jumped (seeded)
 }
 
 /** #55: what a Commander Score award is for. */
@@ -367,6 +371,8 @@ export interface SoldierView {
   /** Unit facing vector. */
   fx: number;
   fy: number;
+  /** #130: how far its parachute descent has come, 0..1; absent on the ground. */
+  chute?: number;
 }
 
 export type SoldierState = 'alive' | 'wounded' | 'dead';

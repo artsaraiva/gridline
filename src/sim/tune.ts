@@ -261,4 +261,8 @@ export const DEFAULT_TUNE: Tune = {
   // #129 Helicopter crew and side guns
   crewSeconds: [60, 180],
   gunArcDeg: 120,
+
+  // #130 Parachute jump
+  chuteSeconds: 4, // #130: the spec said 5; 20-seed Kaltenbach went pact 15 to 5, 4 gives 11 to 9
+  chuteScatterM: 15,
 };

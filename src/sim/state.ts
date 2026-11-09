@@ -61,6 +61,7 @@ export interface Soldier {
   // #129 Helicopter crew
   crew: boolean; // walking to a helicopter's pilot or gun seat, or in it, for a stint
   crewUntil: number; // tick its stint ends (drawn as it climbs in), -1 = none
+  chute: { t0: number; t1: number; x0: number; y0: number; x1: number; y1: number } | null; // #130 a parachute descent: ticks it starts and ends, where it jumped and where it lands
   uavAssist: boolean; // #75 the shot that downed it landed while UAV-discovered: scores for the enemy Commander on death; cleared by Revive
 }
 
@@ -175,6 +176,8 @@ export function hashSoldiers(m: Match, mix: Mix) {
     mix(s.climbAt);
     mix(+s.crew); // #129
     mix(s.crewUntil);
+    if (s.chute) for (const n of [s.chute.t0, s.chute.t1, Math.round(s.chute.x0 * 1000), Math.round(s.chute.y0 * 1000), Math.round(s.chute.x1 * 1000), Math.round(s.chute.y1 * 1000)]) mix(n); // #130
+    else mix(-1);
   }
 }
 

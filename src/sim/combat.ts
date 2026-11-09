@@ -95,7 +95,7 @@ export function fire(m: Match, events: SimEvent[]) {
   const t = m.tune;
   const shots: Shot[] = [];
   for (const s of m.soldiers) {
-    if (s.state !== 'alive') continue;
+    if (s.state !== 'alive' || s.chute) continue; // #130: never fires on a parachute
     const v = vehicleOf(m, s.vehicle);
     const shot = v ? coax(m, s, v) : (rocket(m, s) ?? aim(m, s) ?? suppressive(m, s));
     if (shot) shots.push(shot);

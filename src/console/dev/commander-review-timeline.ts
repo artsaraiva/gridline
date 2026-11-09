@@ -1,12 +1,12 @@
 // DEV-only Commander look review timeline (#69): a hand-written, deterministic script of CommanderViews and Events on
 // Kaltenbach coordinates, so the Console's readability treatments (#70 firing pulse, #71 selection and Squad Leader
 // markers), the Cruise Missile's marks (#99), the tank (#107: sprite, turret, Wreck, badge, main gun), the jeep (#108:
-// sprite, Wreck, badge, MG, dismount) and the transport helicopter (#109: lift-off, flight, landing, unload, home; #124: dogleg, flare, Landing Zone) are judged on every
+// sprite, Wreck, badge, MG, dismount) and the parachute jump (#130: a crippled helicopter's riders come down on a chevron that grows from 70% to full size) and the transport helicopter (#109: lift-off, flight, landing, unload, home; #124: dogleg, flare, Landing Zone) are judged on every
 // Squad Leader state without a Simulation. `viewAt` and `eventsBetween` are pure.
 import { DEFAULT_TUNE } from '../../sim/tune';
 import type { CommanderView, EffectView, FriendlyView, LastKnownView, SimEvent, SoldierView, SquadView, VehicleView } from '../../sim/types';
 
-export const LENGTH = 170;
+export const LENGTH = 192;
 
 /** Where each state starts, for scrubbing. */
 export const CHAPTERS = [
@@ -20,6 +20,7 @@ export const CHAPTERS = [
   { at: 72, title: 'Tank' },
   { at: 92, title: 'Jeep' },
   { at: 112, title: 'Helicopter' },
+  { at: 170, title: 'Parachute' },
 ];
 
 /** Centre of the overlapping Squads, for the close zoom preset. */
@@ -189,6 +190,37 @@ function helisAt(t: number): VehicleView[] {
   return [own, wreck, ...(spotted(t) ? [enemy] : [])];
 }
 
+// #130: Bravo's pilot (4) flies a crippled helicopter (35% of its hit points) in over Bravo's ground, west to east; passengers 5, 6 and 7
+// jump over it and come down on `chuteSeconds` to their own spots, their chevrons growing; the pilot flies on.
+const PARA_AT = CHAPTERS[10]!.at;
+const JUMP_AT = PARA_AT + 4;
+const LANDED = JUMP_AT + DEFAULT_TUNE.chuteSeconds;
+const PARA_ID = 37;
+const PARA_PATH: Key[] = [[PARA_AT, -300, 30], [JUMP_AT, -142, 26], [LENGTH, -142, 150]];
+const jumper = (id: number) => id >= 5 && id <= 7;
+const parachuting = (id: number, t: number) => jumper(id) && t >= JUMP_AT && t < LANDED;
+
+/** Bravo's helicopter: from PARA_AT, nose along its flight. */
+function paraHeli(t: number): VehicleView[] {
+  if (t < PARA_AT) return [];
+  const p = at(PARA_PATH, t);
+  const a = at(PARA_PATH, t + 0.5);
+  const d = Math.hypot(a.x - p.x, a.y - p.y) || 1;
+  const hull = { fx: (a.x - p.x) / d, fy: (a.y - p.y) / d };
+  return [{ id: PARA_ID, side: 'nato', kind: 'helicopter', ...p, ...hull, tx: hull.fx, ty: hull.fy, hp: 0.35, seats: [4, 5, 6, 7].map((id) => (id === 4 || (jumper(id) && t < JUMP_AT) ? id : -1)), airborne: true }];
+}
+
+/** A Bravo member's override while the helicopter is theirs: carried, coming down, or nothing. */
+function paraMan(id: number, t: number) {
+  if (t < PARA_AT || id < 4 || id > 7) return {};
+  if (id === 4 || t < JUMP_AT) return { ...at(PARA_PATH, t), vehicle: PARA_ID };
+  if (!parachuting(id, t)) return {};
+  const p = (t - JUMP_AT) / DEFAULT_TUNE.chuteSeconds;
+  const from = at(PARA_PATH, JUMP_AT);
+  const to = at(MEN[id]!.path, LENGTH);
+  return { x: from.x + (to.x - from.x) * p, y: from.y + (to.y - from.y) * p, chute: p };
+}
+
 type Span = [number, number];
 type Key = [t: number, x: number, y: number];
 interface Man {
@@ -301,6 +333,7 @@ export function viewAt(t: number): CommanderView {
     ...(aboard(m.id, t) && { ...at(TANK_PATH, t), vehicle: TANK_ID }),
     ...(inJeep(m.id, t) && { ...at(JEEP_PATH, t), vehicle: JEEP_ID }),
     ...(inHeli(m.id, t) && { ...seatAt(m.id, t), vehicle: HELI_ID }),
+    ...paraMan(m.id, t),
   }));
   return {
     side: 'nato',
@@ -315,7 +348,7 @@ export function viewAt(t: number): CommanderView {
     result: null,
     assets: [{ asset: 'missile', readyIn: t < MISSILE.at ? 0 : Math.max(0, MISSILE.at + DEFAULT_TUNE.missileCooldownSeconds - t), cooldown: DEFAULT_TUNE.missileCooldownSeconds, radius: DEFAULT_TUNE.missileSuppressM }],
     effects: missileAt(t),
-    vehicles: [...tanksAt(t), ...jeepsAt(t), ...helisAt(t)],
+    vehicles: [...tanksAt(t), ...jeepsAt(t), ...helisAt(t), ...paraHeli(t)],
   };
 }
 
@@ -325,7 +358,7 @@ export function eventsBetween(t0: number, t1: number): SimEvent[] {
 }
 
 /** Fit to fire at `t`: not down, and not going down within the next second (so the shooter is still drawn when the tracer lands); #108 not aboard the jeep. */
-const fit = (m: Man, t: number) => !inSpan(m.dead, t) && !inSpan(m.wounded, t) && !inSpan(m.dead, t + 1) && !inSpan(m.wounded, t + 1) && !inJeep(m.id, t) && !inJeep(m.id, t + 1);
+const fit = (m: Man, t: number) => !inSpan(m.dead, t) && !inSpan(m.wounded, t) && !inSpan(m.dead, t + 1) && !inSpan(m.wounded, t + 1) && !inJeep(m.id, t) && !inJeep(m.id, t + 1) && !(jumper(m.id) && t >= PARA_AT - 1 && t < LANDED);
 
 /** The firefight: from the Firing chapter on, Alpha and Bravo trade fire with the Contacts; both sides also fire suppressive at the other's ground. */
 function firefight(): [number, SimEvent][] {

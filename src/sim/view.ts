@@ -36,7 +36,7 @@ function squadView(m: Match, sq: Squad): SquadView {
 
 export function commanderView(m: Match, side: SideId): CommanderView {
   const stage = stageTicks(m.tune);
-  const soldierView = (s: Soldier) => ({ id: s.id, x: s.x, y: s.y, fx: s.fx, fy: s.fy });
+  const soldierView = (s: Soldier) => ({ id: s.id, x: s.x, y: s.y, fx: s.fx, fy: s.fy, ...(s.chute && { chute: (m.tick - s.chute.t0) / (s.chute.t1 - s.chute.t0) }) });
   const seen = contactIds(m, side);
   return {
     side,
