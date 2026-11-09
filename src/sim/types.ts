@@ -345,6 +345,14 @@ export interface Tune {
   // #130 Parachute jump
   chuteSeconds: number; // a Soldier who jumps from a helicopter takes this long to reach the ground
   chuteScatterM: number; // and lands up to this far from where it jumped (seeded)
+
+  // #131 Helicopter jobs
+  orbitM: number; // a helicopter circling a point (Support, or over a hot goal) flies this far from its centre
+  orbitMps: number; // ... at this speed
+  orbitSeconds: number; // over a hot goal it circles this long before its riders jump
+  heliRepairBelow: number; // under this share of its hit points it drops its passengers and flies home to repair
+  heliRepairHpPerS: number; // on its helipad it regains this many hit points a second until full
+  crashSeconds: number; // a helicopter bailed out of glides this long, then crashes and is a Wreck
 }
 
 /** #55: what a Commander Score award is for. */

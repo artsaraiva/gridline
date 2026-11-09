@@ -178,12 +178,13 @@ describe('#109 the transport helicopter on Kaltenbach', () => {
     helis.forEach((h, k) => {
       const f = flights[k]!;
       if (f.landed < 0 && h.airborne) (f.track.push({ x: h.x, y: h.y }), f.seats.length || f.seats.push(...h.seats));
+      if (f.track.length === 1) m.squads.forEach((sq) => sq.side === h.side && (sq.rideM = 1e9)); // #131: once it is off with its Squad no other calls it: this test is the trip and the way home
       if (f.landed < 0 && f.track.length && !h.airborne) Object.assign(f, { landed: m.tick, lz: { x: h.x, y: h.y } });
       if (f.landed >= 0 && f.lift < 0 && h.airborne) f.lift = m.tick;
     });
   }
 
-  it('waits on its HQ\'s helipad; a Squad boards at match start, it flies a dogleg over the river to a point on the other bank, lands within lzM of it, unloads, spools, and comes home to the pad', () => {
+  it('waits on its HQ\'s helipad; a Squad boards at match start, it flies a dogleg over the river to a point on the other bank, lands within lzM of it, unloads, spools, and comes home to the pad (#131: or goes on to Support a point)', () => {
     helis.forEach((h, k) => {
       const f = flights[k]!;
       expect(h.slot).toEqual(KALTENBACH.helipad![h.side]);
@@ -197,7 +198,8 @@ describe('#109 the transport helicopter on Kaltenbach', () => {
       expect(Math.max(...off), `${h.side} by a dogleg`).toBeGreaterThan(0.05 * Math.hypot(b.x - a.x, b.y - a.y));
       expect(m.grid.cost[cellIndex(m, f.lz.x, f.lz.y)], `${h.side} sets down where a Soldier can stand`).toBeGreaterThan(0);
       expect((f.lift - f.landed) / HZ).toBeCloseTo(DEFAULT_TUNE.unloadSeconds + DEFAULT_TUNE.spoolSeconds, 0);
-      expect(h).toMatchObject({ ...h.slot, airborne: false });
+      if (h.job === 'support') expect(h.airborne).toBe(true); // #131: with a gunner aboard and enemies known it now circles a point instead of going home
+      else expect(h).toMatchObject({ ...h.slot, airborne: false });
       expect(h.seats.slice(3)).toEqual([-1, -1, -1]);
       expect(f.seats.slice(3).every((id) => id < 0 || m.soldiers[id]!.vehicle !== h.id)).toBe(true); // its passengers got out
     });

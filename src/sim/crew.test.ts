@@ -81,6 +81,7 @@ describe('#129 side guns', () => {
   /** Soldiers 0 (pilot), 1 (left gun), 2 (right gun) aboard where `seats` say, heading east; pact's Soldier 12 stands at `at`. Who fired. */
   function fired(seats: number[], at: { x: number; y: number }) {
     const m = scene({ crewSeconds: [1e5, 1e5], hitChance: 1 });
+    m.squads.forEach((sq) => (sq.rideM = 1e9)); // #131: no Squad calls the helicopter to fetch it: it stays where this test put it
     const heli = heliOf(m);
     Object.assign(heli, { x: 0, y: 0, fx: 1, fy: 0, slot: { x: 0, y: 0 }, seats });
     m.soldiers.slice(0, 12).forEach((s) => Object.assign(s, seats.includes(s.id) ? { x: 0, y: 0 } : { x: -500, y: -500 })); // the rest are far off

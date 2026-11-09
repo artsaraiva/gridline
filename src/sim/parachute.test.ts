@@ -43,13 +43,14 @@ const run = (m: Match, ticks: number) => {
 const friend = (v: CommanderView, id: number) => v.friendlies.find((f) => f.id === id)!;
 
 describe('#130 parachute jump', () => {
-  it('passengers of a helicopter crippled in the air jump, land after chuteSeconds within chuteScatterM on standable ground, not stacked; the pilot stays', () => {
+  it('passengers of a helicopter crippled in the air jump, land after chuteSeconds within chuteScatterM on standable ground, not stacked; #131 the pilot jumps with them', () => {
     const m = scene();
     const h = airborne(m, T.heliHp / 4);
     const { views } = run(m, Math.round((T.chuteSeconds + 3) * HZ));
     const jumpedAt = views.findIndex((v) => friend(v, 1).chute !== undefined);
     expect(jumpedAt).toBeGreaterThanOrEqual(0);
-    expect(friend(views[jumpedAt]!, 0).vehicle).toBe(h.id);
+    expect(friend(views[jumpedAt]!, 0).chute).toBeDefined(); // #131: under a third everyone aboard jumps, the pilot too (it was the one who stayed)
+    expect(h.seats).toEqual([-1, -1, -1, -1]);
     const landedAt = views.findIndex((v, i) => i > jumpedAt && friend(v, 1).chute === undefined);
     expect((landedAt - jumpedAt) / HZ).toBeCloseTo(T.chuteSeconds, 0);
     const spots = [1, 2, 3].map((id) => m.soldiers[id]!);
