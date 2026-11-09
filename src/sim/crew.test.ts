@@ -65,6 +65,23 @@ describe('#129 crew', () => {
     expect(s.detached).toBe(false);
   });
 
+  it('each recruit takes the seat they were sent for: a gun recruit arriving first leaves the pilot seat for the pilot recruit', () => {
+    const m = scene({ mountSeconds: [1, 1] });
+    const heli = heliOf(m);
+    const sent: number[] = [];
+    for (let t = 0; t < 60 * HZ && sent.length < 2; t++) {
+      step(m, []);
+      for (const s of m.soldiers) if (s.crew && s.boarding === heli.id && !sent.includes(s.id)) sent.push(s.id);
+    }
+    expect(sent).toHaveLength(2);
+    Object.assign(m.soldiers[sent[1]!]!, { x: heli.x, y: heli.y }); // the second sent (a gun) is at the door; the pilot is still walking
+    for (let t = 0; t < 4 * HZ && !heli.seats.includes(sent[1]!); t++) step(m, []);
+    expect(heli.seats.includes(sent[1]!)).toBe(true);
+    expect(heli.seats[0]).toBe(-1);
+    for (let t = 0; t < 30 * HZ && heli.seats[0] !== sent[0]; t++) step(m, []);
+    expect(heli.seats[0]).toBe(sent[0]);
+  });
+
   it('with no pilot the helicopter does not fly', () => {
     const m = scene({ rideM: [100, 100] });
     const heli = heliOf(m);

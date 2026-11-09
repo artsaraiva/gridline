@@ -105,8 +105,6 @@ const air = (v: Vehicle) => v.kind === 'helicopter';
 export const gunner = (v: Vehicle) => v.seats[1]!;
 /** #129: standing on its helipad (its slot), down. */
 export const onPad = (v: Vehicle) => !v.airborne && dist2(v, v.slot) < 1;
-/** The seats a crew member takes (pilot, left gun, right gun) and the nearest free one, -1 = none. */
-const crewSeat = (v: Vehicle) => v.seats.slice(0, 3).indexOf(-1);
 /** Seats a passenger may take: all but a helicopter's pilot seat. */
 const freeSeats = (v: Vehicle) => v.seats.filter((id, k) => id < 0 && (!air(v) || k > 0)).length;
 /** How far a gun seat's Soldier sits out from the hull's centre, so its shot lines leave from that side. */
@@ -184,7 +182,7 @@ export function board(m: Match, sq: Squad, s: Soldier) {
  */
 export function mount(m: Match, v: Vehicle, s: Soldier, sq: Squad) {
   const t = m.tune;
-  const seat = air(v) && !s.crew ? [3, 4, 5, 1, 2].find((k) => v.seats[k]! < 0)! : v.seats.indexOf(-1); // #129: a helicopter's pilot seat is for crew (pilot, then guns); riders fill the passenger seats first
+  const seat = air(v) ? (s.crew ? s.crewSeat : [3, 4, 5, 1, 2].find((k) => v.seats[k]! < 0)!) : v.seats.indexOf(-1); // #129: a helicopter's crew take the seat they were sent for (pilot, then guns); riders fill the passenger seats first
   const wait = m.tick + Math.round(t.boardWaitSeconds * t.hz);
   if (v.claim < 0 && air(v) && !s.crew && riders(m, v).every((o) => o.crew)) v.departAt = wait; // its first passenger starts the wait for more
   v.seats[seat] = s.id;
@@ -266,7 +264,8 @@ export function decideCrew(m: Match, sq: Squad, body: Soldier[], L: Soldier) {
     const pool = body.filter((s) => s.id !== sq.members[0] && s.boarding < 0);
     if (!pool.length) return;
     const s = pool[Math.floor(rnd(m) * pool.length)]!;
-    Object.assign(s, { crew: true, boarding: v.id, climbAt: 0, detached: true, goal: -1, commitUntil: 0, dest: null, path: [], cover: null, holdUntil: reactAt(m, s) });
+    const seat = [0, 1, 2].find((k) => v.seats[k]! < 0 && !coming.some((o) => o.crewSeat === k))!; // pilot first, then the guns: the seat is theirs from here
+    Object.assign(s, { crew: true, crewSeat: seat, boarding: v.id, climbAt: 0, detached: true, goal: -1, commitUntil: 0, dest: null, path: [], cover: null, holdUntil: reactAt(m, s) });
     return;
   }
 }
@@ -279,8 +278,8 @@ export function decideCrew(m: Match, sq: Squad, body: Soldier[], L: Soldier) {
 export function boardStep(m: Match, s: Soldier): Vehicle | null {
   const t = m.tune;
   const v = vehicleOf(m, s.boarding);
-  if (!v || !live(v) || (s.crew ? v.airborne || crewSeat(v) < 0 : v.claim !== s.squad || !v.seats.includes(-1))) {
-    Object.assign(s, { boarding: -1, climbAt: 0, crew: false }); // #129: crew keep their Detached walk back to the Squad
+  if (!v || !live(v) || (s.crew ? v.airborne || v.seats[s.crewSeat]! >= 0 : v.claim !== s.squad || !v.seats.includes(-1))) {
+    Object.assign(s, { boarding: -1, climbAt: 0, crew: false, crewSeat: -1 }); // #129: crew keep their Detached walk back to the Squad
     return null;
   }
   if (dist2(s, v) <= squared(t.mountM)) {
@@ -339,7 +338,7 @@ export function getOut(m: Match, s: Soldier, v: Vehicle) {
   Object.assign(s, { vehicle: -1, exited: v.id });
   const foot = membersOf(m, m.squads[s.squad]!).filter((o) => o.state === 'alive' && o.vehicle < 0 && o !== s && !o.detached);
   s.detached = s.crew || (foot.length > 0 && dist2(s, footLeader(foot)!) > squared(m.tune.detachM)); // #129: crew walk back, Detached until they rejoin
-  if (s.crew) Object.assign(s, { crew: false, crewUntil: -1, goal: -1 });
+  if (s.crew) Object.assign(s, { crew: false, crewUntil: -1, crewSeat: -1, goal: -1 });
 }
 
 /**
@@ -754,7 +753,7 @@ export function leave(m: Match, s: Soldier) {
   s.chute = null; // #130: dead or brought back mid-descent
   const v = vehicleOf(m, s.vehicle);
   if (v) v.seats[v.seats.indexOf(s.id)] = -1;
-  Object.assign(s, { vehicle: -1, crew: false, crewUntil: -1 });
+  Object.assign(s, { vehicle: -1, crew: false, crewUntil: -1, crewSeat: -1 });
 }
 
 export function vehicleViews(m: Match, side: SideId, seen: Set<number>): VehicleView[] {
