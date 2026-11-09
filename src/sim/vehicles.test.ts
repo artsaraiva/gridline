@@ -29,7 +29,7 @@ function field(extra: Partial<MapData> = {}): MapData {
  * that. Placing Soldiers (and a tank's hit points) stands in for a map script; everything after it runs through `step`.
  */
 function scene(o: { map?: Partial<MapData>; tune?: Partial<Tune>; place?: Record<number, { x: number; y: number; fx?: number; fy?: number }>; squads?: number }): Match {
-  const tune: Tune = { ...DEFAULT_TUNE, squadSize: 2, speedJitter: 0, spread: 0, strayChance: 0, drainSeconds: [1e9, 1e9, 1e9, 1e9, 1e9], jeepsPerSide: 0, helisPerSide: 0, pointJeeps: false, ...NO_TRAITS, ...NO_TEMPO, ...o.tune };
+  const tune: Tune = { ...DEFAULT_TUNE, squadSize: 2, speedJitter: 0, spread: 0, strayChance: 0, drainSeconds: [1e9, 1e9, 1e9, 1e9, 1e9], jeepsPerSide: 0, helisPerSide: 0, jetsPerSide: 0, aasPerSide: 0, pointJeeps: false, ...NO_TRAITS, ...NO_TEMPO, ...o.tune };
   const m = thinkOnId(createMatch({ seed: 1, map: field(o.map), tune, squadsPerSide: o.squads ?? 1, commanderSide: 'nato' }));
   for (const [id, p] of Object.entries(o.place ?? {})) Object.assign(m.soldiers[Number(id)]!, p);
   return m;

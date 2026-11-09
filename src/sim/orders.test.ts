@@ -41,7 +41,7 @@ interface Placement {
 
 /** Soldier ids run nato first, squad by squad, `squadSize` each. Nobody sees anybody unless the test turns vision on. */
 function scene(o: { place?: Record<number, Placement>; tune?: Partial<Tune>; map?: Partial<MapData>; squads?: number; seed?: number } = {}): Match {
-  const tune: Tune = { ...DEFAULT_TUNE, speedJitter: 0, visionM: 0, tanksPerSide: 0, jeepsPerSide: 0, helisPerSide: 0, pointJeeps: false, ...NO_TRAITS, ...NO_TEMPO, ...o.tune }; // #107 #108: infantry rules only, no vehicles
+  const tune: Tune = { ...DEFAULT_TUNE, speedJitter: 0, visionM: 0, tanksPerSide: 0, jeepsPerSide: 0, helisPerSide: 0, jetsPerSide: 0, aasPerSide: 0, pointJeeps: false, ...NO_TRAITS, ...NO_TEMPO, ...o.tune }; // #107 #108: infantry rules only, no vehicles
   const m = thinkOnId(createMatch({ seed: o.seed ?? 1, map: field(o.map), tune, squadsPerSide: o.squads ?? 1, commanderSide: 'nato' }));
   for (const [id, p] of Object.entries(o.place ?? {})) Object.assign(m.soldiers[Number(id)]!, p);
   return m;

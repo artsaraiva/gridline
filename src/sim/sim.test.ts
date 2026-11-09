@@ -22,7 +22,7 @@ function map(points: { x: number; y: number }[], pactHqX = 3000): MapData {
 
 /** Nobody sees anybody, nobody strays (#93) and no vehicles (#107 #108) unless `tune` says so: these tests check capture and drain with Squads arriving whole and no combat in the way. */
 function start(m: MapData, tune: Partial<Tune> = {}, squadsPerSide = 1, seed = 1): Match {
-  return thinkOnId(createMatch({ seed, map: m, tune: { ...DEFAULT_TUNE, visionM: 0, strayChance: 0, tanksPerSide: 0, jeepsPerSide: 0, helisPerSide: 0, pointJeeps: false, ...NO_TRAITS, ...NO_TEMPO, ...tune }, squadsPerSide, commanderSide: 'nato' }));
+  return thinkOnId(createMatch({ seed, map: m, tune: { ...DEFAULT_TUNE, visionM: 0, strayChance: 0, tanksPerSide: 0, jeepsPerSide: 0, helisPerSide: 0, jetsPerSide: 0, aasPerSide: 0, pointJeeps: false, ...NO_TRAITS, ...NO_TEMPO, ...tune }, squadsPerSide, commanderSide: 'nato' }));
 }
 
 /** The nato Commander view, plus the pact Soldiers from the pact view: ground truth the fog hides from nato. */

@@ -11,7 +11,7 @@ import { lineWalk, nearestWalkable } from '../grid';
 import { sideKnown } from '../memory';
 import { quiet } from '../respawn';
 import { between, pickWeighted, rnd } from '../rng';
-import { membersOf, vehicleOf, type Point, type Soldier, type Squad } from '../state';
+import { inJet, membersOf, vehicleOf, type Point, type Soldier, type Squad } from '../state';
 import { enemyOf, type SimEvent, type Vec2 } from '../types';
 import { localPath, oct, pickCover, shelter } from './cover';
 import { crateFlow, flowDist, flowLook, hqFlow, pointFlow, routeFlow, type Flow } from './flow';
@@ -95,7 +95,7 @@ export const reactAt = (m: Match, s: Soldier) => m.tick + Math.round(s.reaction 
  * Order's bonus. #120: it draws among the points within `choiceMargin` of the best, weighted by how far each clears best minus
  * the margin. #107: a driver scores by `flow` (its drive grid) and adds its own `bias` per point, and takes the best.
  */
-export function bestPoint(m: Match, sq: Squad, from: Vec2, pull = 0, own: { flow?: (i: number) => Flow; bias?: number[] } = {}): number {
+export function bestPoint(m: Match, sq: Squad, from: Vec2, pull = 0, own: { flow?: (i: number) => Flow; bias?: number[]; dist?: (i: number) => number } = {}): number {
   const t = m.tune;
   const foe = enemyOf(sq.side);
   const scores: number[] = [];
@@ -105,7 +105,7 @@ export function bestPoint(m: Match, sq: Squad, from: Vec2, pull = 0, own: { flow
       : p.owner === foe ? t.pointValue.enemy * (own.flow ? 1 : 1 + sq.aggression * t.aggressionValueMul)
       : threatened(m, sq, p) ? t.pointValue.ownedThreatened
       : t.pointValue.ownedQuiet;
-    v -= (t.distancePenaltyPer100m * flowDist(m, (own.flow ?? ((k) => pointFlow(m, k)))(i), from)) / 100;
+    v -= (t.distancePenaltyPer100m * (own.dist?.(i) ?? flowDist(m, (own.flow ?? ((k) => pointFlow(m, k)))(i), from))) / 100; // #110: the jet's, straight-line
     v += own.bias?.[i] ?? (own.flow ? 0 : sq.pointPref[i] ?? 0);
     const others = m.squads.filter((o) => o !== sq && o.side === sq.side && o.task === 'point' && o.goal === i).length;
     v -= p.owner === foe ? (others === 1 ? -t.pairUp : t.crowdPenalty * Math.max(0, others - 1)) : t.crowdPenalty * others;
@@ -121,14 +121,14 @@ export function bestPoint(m: Match, sq: Squad, from: Vec2, pull = 0, own: { flow
   return pick < 0 ? scores.indexOf(top) : pick;
 }
 
-/** #122: some of the Squad's living members are on their way to, or aboard, a jeep or helicopter (tanks are crewed by pairs, not ridden together). */
-const riding = (m: Match, alive: Soldier[]) => alive.some((s) => s.boarding >= 0 || s.vehicle >= 0 && vehicleOf(m, s.vehicle)?.kind !== 'tank');
+/** #122: some of the Squad's living members are on their way to, or aboard, a jeep or helicopter (tanks, #110 AAs and jets are crewed alone or by pairs, not ridden together). */
+const riding = (m: Match, alive: Soldier[]) => alive.some((s) => s.boarding >= 0 || (s.vehicle >= 0 && ['jeep', 'helicopter'].includes(vehicleOf(m, s.vehicle)!.kind)));
 
 export function think(m: Match, sq: Squad, events: SimEvent[]) {
   const t = m.tune;
   const members = membersOf(m, sq);
   const alive = members.filter((s) => s.state === 'alive');
-  const leader = alive[0]; // #106: the Squad scores from its Squad Leader (member 0) while alive, wherever they are
+  const leader = alive.find((s) => !inJet(m, s)); // #106: the Squad scores from its Squad Leader (member 0) while alive, wherever they are; #110 never from a jet's pilot
   if (!leader) {
     sq.task = 'none';
     return;

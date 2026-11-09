@@ -354,6 +354,24 @@ export interface Tune {
   heliRepairBelow: number; // under this share of its hit points it drops its passengers and flies home to repair
   heliRepairHpPerS: number; // on its helipad it regains this many hit points a second until full
   crashSeconds: number; // a helicopter bailed out of glides this long, then crashes and is a Wreck
+
+  // #110 Jet and AA
+  jetsPerSide: number; // jets per Side: a boarding slot in its HQ park, the aircraft at the off-map base; 0 = none
+  jetHp: number; // only the AA hurts it
+  jetMps: number; // flight speed, base to point and through every pass
+  jetFireM: number; // inbound, the cannon fires from this far short of the point ...
+  jetFireSeconds: number; // ... this often (the rifle shot model) ...
+  jetStripM: number; // ... at the nearest enemy the Side knows within this of the flight line ahead
+  jetVsVehicleDamage: number; // a cannon hit on a vehicle
+  jetTurnSeconds: number; // past the Play Area after a pass it turns this long before the next
+  jetPasses: number; // passes per sortie ...
+  jetRearmSeconds: number; // ... then it rearms this long at the base, its pilot aboard
+  aasPerSide: number; // AAs per Side in its HQ park; 0 = none
+  aaHp: number; // rockets, Barrage shells, a tank's main gun and the jet's cannon hurt it, a Cruise Missile destroys it, rifles nothing
+  aaRoadMps: number; // on road
+  aaOpenMps: number; // off road
+  aaRangeM: number; // it fires on a helicopter (or a jet over the Play Area) this close, over walls, a full circle ...
+  aaDps: number; // ... for this much damage a second
 }
 
 /** #55: what a Commander Score award is for. */
@@ -401,8 +419,8 @@ export interface FriendlyView extends SoldierView {
  * #107: a vehicle on the map: the Side's own (live, with `hp` and `seats`), an enemy one a friendly sees right now (position
  * and facing only), or a Wreck (`wreck`, no id: -1).
  */
-/** #107 #108: the vehicle classes on the ground; #109 the transport helicopter, in the air. */
-export type VehicleKind = 'tank' | 'jeep' | 'helicopter';
+/** #107 #108: the vehicle classes on the ground; #109 the transport helicopter, in the air; #110 the jet (air) and the AA (ground). */
+export type VehicleKind = 'tank' | 'jeep' | 'helicopter' | 'jet' | 'aa';
 
 export interface VehicleView {
   id: number;
@@ -423,7 +441,7 @@ export interface VehicleView {
   seats?: number[];
   /** Nobody aboard (it shows as an unmanned vehicle). Absent when someone is. */
   empty?: boolean;
-  /** #109: a helicopter in the air (drawn at altitude over its ground shadow). Absent on the ground. */
+  /** #109: a helicopter in the air (drawn at altitude over its ground shadow), #110 or a jet on a sortie. Absent on the ground (an idle or rearming jet: at its slot). */
   airborne?: boolean;
   /** Main gun rounds in the air (a tank's): from the muzzle spot to where each lands, `flight` 0..1 along. */
   rounds?: { from: Vec2; to: Vec2; flight: number }[];

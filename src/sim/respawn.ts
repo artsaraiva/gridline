@@ -4,7 +4,7 @@ import { resetSoldierAi } from './ai';
 import { insideCount } from './capture';
 import { canStand, dist2 } from './geometry';
 import { nearestWalkable } from './grid';
-import { footLeader, lastDeath, membersOf, wiped, type Point, type Soldier, type Squad } from './state';
+import { footLeader, inJet, lastDeath, membersOf, wiped, type Point, type Soldier, type Squad } from './state';
 import { enemyOf, type SimEvent, type Vec2 } from './types';
 import { boardOnReturn, leave } from './vehicles';
 
@@ -35,7 +35,8 @@ export function redeployPoint(m: Match, sq: Squad): Point | null {
 /**
  * Squad Respawn: dead members return `respawnBehindM` behind the foot leader once their time is up and the Squad is quiet;
  * #107 into a free seat of the Squad Leader's vehicle while the leader is aboard, else into the driver's seat of an idle one.
- * Redeploy: a wiped Squad (every member dead) returns whole, `redeploySeconds` after its last death.
+ * Redeploy: a wiped Squad (every member dead) returns whole, `redeploySeconds` after its last death. #110: a jet's pilot is
+ * nobody to come back behind: with no one else alive, the dead come back where the Squad would Redeploy.
  */
 export function returnToFight(m: Match, events: SimEvent[]) {
   const t = m.tune;
@@ -52,12 +53,13 @@ export function returnToFight(m: Match, events: SimEvent[]) {
       events.push({ kind: 'redeploy', side: sq.side, squad: sq.id, x: at.x, y: at.y });
       continue;
     }
-    const leader = footLeader(members.filter((s) => s.state === 'alive'));
-    if (!leader || !quiet(m, sq, members)) continue;
+    const leader = footLeader(members.filter((s) => s.state === 'alive' && !inJet(m, s)));
+    if (!quiet(m, sq, members)) continue;
+    const home = leader ?? nearestWalkable(m, redeployPoint(m, sq) ?? m.map.hqs[sq.side]);
     for (const s of members) {
       if (s.state !== 'dead' || m.tick - s.deadAt < t.respawnSeconds * t.hz) continue;
-      const behind = { x: leader.x - leader.fx * t.respawnBehindM, y: leader.y - leader.fy * t.respawnBehindM };
-      bringBack(m, s, canStand(m, s, behind) ? behind : leader);
+      const behind = leader ? { x: leader.x - leader.fx * t.respawnBehindM, y: leader.y - leader.fy * t.respawnBehindM } : home;
+      bringBack(m, s, canStand(m, s, behind) ? behind : home);
       boardOnReturn(m, sq, s);
       events.push({ kind: 'respawn', side: s.side, id: s.id, x: s.x, y: s.y });
     }

@@ -274,4 +274,22 @@ export const DEFAULT_TUNE: Tune = {
   heliRepairBelow: 0.5,
   heliRepairHpPerS: 4,
   crashSeconds: 3,
+
+  // #110 Jet and AA
+  jetsPerSide: 1,
+  jetHp: 100,
+  jetMps: 120,
+  jetFireM: 200,
+  jetFireSeconds: 0.1,
+  jetStripM: 15,
+  jetVsVehicleDamage: 20,
+  jetTurnSeconds: 20,
+  jetPasses: 4,
+  jetRearmSeconds: 90,
+  aasPerSide: 1,
+  aaHp: 100,
+  aaRoadMps: 7,
+  aaOpenMps: 4,
+  aaRangeM: 300,
+  aaDps: 12,
 };

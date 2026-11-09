@@ -6,6 +6,8 @@
 // majority's goal and home again, sees over walls, and is seen over walls while airborne. #119: the enemy's Console shows it only
 // when someone of theirs sees it, as any vehicle. #131: a piloted helicopter takes a job at its pilot's Squad think (`decideJob`):
 // bail, repair, ferry (fetch a Squad that calls it, carry riders, drop them over a hot goal), support (circle a point) or wait.
+// #110 adds the jet (its sortie in `jet.ts`: one pilot, passes from the off-map base, only the AA hurts it) and the AA: a ground
+// vehicle crewed alone like a tank, whose gun hurts air (a jet over the Play Area first, else a helicopter) by `aaDps`.
 import type { Match } from './index';
 import { driveFlow, flowDist, flowLook } from './ai/flow';
 import { bestPoint, reactAt } from './ai/squad';
@@ -13,8 +15,10 @@ import { between, rnd } from './rng';
 import { blast } from './assets/strike';
 import { die } from './combat';
 import { approach, BRAKE_RESERVE, cosDeg, stopSpeed, turnToward } from './momentum';
-import { canStand, dist2, inHq, middlePoint } from './geometry';
+import { canStand, dist2, inHq, insidePolygon, middlePoint } from './geometry';
 import { dogleg, landingZone } from './flight';
+import { launchPoint } from './assets/missile';
+import { jetPoint, SORTIE, sortie, takeOff, type Sortie } from './jet';
 import { circle, decideJob, glide, JOBS, repairOnPad, spinFor, type Job } from './heli-jobs';
 import { cellIndex, los, nearestWalkable } from './grid';
 import { see, sideKnown } from './memory';
@@ -61,6 +65,8 @@ export interface Vehicle {
   until: number; // #131 tick its Support Commitment ends, or its orbit over a hot goal (-1 = not begun)
   drop: boolean; // #131 its riders jump over their Landing Zone (a hot goal) instead of landing
   crashAt: number; // #131 tick a helicopter bailed out of hits the ground, -1 = not going down
+  sortie: Sortie; // #110 where a jet is in its sortie (`jet.ts`); a jet's `spot` is its pass's point, `until` the tick its turn or rearm ends, `spin` its turn's way round
+  passes: number; // #110 a jet's passes left in the sortie
 }
 
 /** A main gun round: fired from (x0, y0) at tick `launch`, landing on (x, y) at tick `land`. */
@@ -96,7 +102,13 @@ export const specOf = (t: Tune, kind: VehicleKind) =>
     ? { hp: t.tankHp, seats: 2, roadMps: t.tankRoadMps, openMps: t.tankOpenMps, gunSeconds: t.coaxFireSeconds, gunM: t.coaxRangeM }
     : kind === 'jeep'
       ? { hp: t.jeepHp, seats: 4, roadMps: t.jeepRoadMps, openMps: t.jeepOpenMps, gunSeconds: t.mgFireSeconds, gunM: t.mgRangeM }
-      : { hp: t.heliHp, seats: 6, roadMps: t.heliMps, openMps: t.heliMps, gunSeconds: t.mgFireSeconds, gunM: t.mgRangeM };
+      : kind === 'jet'
+        ? { hp: t.jetHp, seats: 1, roadMps: t.jetMps, openMps: t.jetMps, gunSeconds: t.jetFireSeconds, gunM: 0 }
+        : kind === 'aa'
+          ? { hp: t.aaHp, seats: 1, roadMps: t.aaRoadMps, openMps: t.aaOpenMps, gunSeconds: 0, gunM: 0 }
+          : { hp: t.heliHp, seats: 6, roadMps: t.heliMps, openMps: t.heliMps, gunSeconds: t.mgFireSeconds, gunM: t.mgRangeM };
+/** #110: the classes an AA fires on. */
+const flies = (v: Vehicle) => v.kind === 'helicopter' || v.kind === 'jet';
 /** Under a third of its hit points: everyone gets out, nobody gets in. */
 export const crippled = (m: Match, v: Vehicle) => v.hp < specOf(m.tune, v.kind).hp / 3;
 /** #109: the air layer: off the ground grid, eyes over walls. */
@@ -115,12 +127,12 @@ const GUN_OUT_M = 2;
 /** The unit vector straight out from the helicopter's `seat` side (1 left, 2 right; the field's y runs up, so left of east is +y), null for the other seats. */
 const beam = (v: Vehicle, seat: number) => (seat === 1 ? { x: -v.fy, y: v.fx } : seat === 2 ? { x: v.fy, y: -v.fx } : null);
 
-/** A vehicle as it stands fresh in its slot. */
+/** A vehicle as it stands fresh in its slot (#110: a jet at the off-map base). */
 const fresh = (m: Match, side: SideId, kind: VehicleKind, slot: Vec2) => ({
-  side, kind, ...slot, fx: side === 'nato' ? 1 : -1, fy: 0, speed: 0, hp: specOf(m.tune, kind).hp, seats: Array<number>(specOf(m.tune, kind).seats).fill(-1), slot,
+  side, kind, ...(kind === 'jet' ? launchPoint(m, side) : slot), fx: side === 'nato' ? 1 : -1, fy: 0, speed: 0, hp: specOf(m.tune, kind).hp, seats: Array<number>(specOf(m.tune, kind).seats).fill(-1), slot,
   parked: true, deadAt: -1, goal: -1, departAt: 0, target: -1, coax: -1, nextFire: 0, laid: -1, bias: [] as number[], movedAt: m.tick, halt: -1,
   airborne: false, landedAt: -1, claim: -1, claimUntil: 0, lz: null as Vec2 | null, wp: null as Vec2 | null, flareUntil: -1, spoolUntil: -1,
-  job: 'wait' as Job, fetch: -1, spot: null as Vec2 | null, spin: 1, until: -1, drop: false, crashAt: -1,
+  job: 'wait' as Job, fetch: -1, spot: null as Vec2 | null, spin: 1, until: -1, drop: false, crashAt: -1, sortie: 'idle' as Sortie, passes: 0,
 });
 
 /**
@@ -128,7 +140,7 @@ const fresh = (m: Match, side: SideId, kind: VehicleKind, slot: Vec2) => ({
  * nearest the HQ) or `tanksPerSide` when the tune says, then `jeepsPerSide` jeeps (#108); any beyond the map's slots each 9 m
  * farther toward the field than the last; then #109 `helisPerSide` helicopters, on the map's helipad when it has one, else in
  * the next of those slots. Then #108 a jeep slot at every Capture Point but the middle one (`pointJeeps`): a jeep for its
- * owner, dormant while it has none.
+ * owner, dormant while it has none. Last, #110 each Side's `jetsPerSide` jet slots and `aasPerSide` AAs, in the park slots after the jeeps'.
  */
 export function newVehicles(m: Match): Vehicle[] {
   const middle = middlePoint(m);
@@ -138,18 +150,27 @@ export function newVehicles(m: Match): Vehicle[] {
     const slot = nearestWalkable(m, { x: p.x, y: p.y }, m.drive.nato);
     return { ...fresh(m, p.owner ?? 'nato', 'jeep', slot), ...(!p.owner && { deadAt: DORMANT }), point: i, rounds: [] as Round[] };
   });
-  return [...SIDES.flatMap((side) => {
-    const hq = m.map.hqs[side];
-    const slots = m.map.vehicleSlots?.[side] ?? [nearestWalkable(m, { x: hq.x, y: hq.y }, m.drive[side])];
-    const last = slots.at(-1)!;
-    const count = (kind: VehicleKind, n: number) => Array<VehicleKind>(n).fill(kind);
-    const kinds = [...count('tank', m.tune.tanksPerSide ?? slots.length), ...count('jeep', m.tune.jeepsPerSide), ...count('helicopter', m.tune.helisPerSide)];
-    return kinds.map((kind, k) => {
-      const pad = kind === 'helicopter' ? m.map.helipad?.[side] : undefined;
-      const slot = pad ?? slots[k] ?? nearestWalkable(m, { x: last.x + (side === 'nato' ? 9 : -9) * (k - slots.length + 1), y: last.y }, m.drive[side]);
-      return { ...fresh(m, side, kind, slot), point: -1, rounds: [] as Round[] };
-    });
-  }), ...atPoints].map((v, i) => ({ ...v, id: m.soldiers.length + i }));
+  const count = (kind: VehicleKind, n: number) => Array<VehicleKind>(n).fill(kind);
+  const tanks = (side: SideId) => m.tune.tanksPerSide ?? parkSlots(m, side).length;
+  const placed = (side: SideId, kind: VehicleKind, k: number) => {
+    const pad = kind === 'helicopter' ? m.map.helipad?.[side] : undefined;
+    return { ...fresh(m, side, kind, pad ?? parkSlot(m, side, k)), point: -1, rounds: [] as Round[] };
+  };
+  return [
+    ...SIDES.flatMap((side) => [...count('tank', tanks(side)), ...count('jeep', m.tune.jeepsPerSide), ...count('helicopter', m.tune.helisPerSide)].map((kind, k) => placed(side, kind, k))),
+    ...atPoints,
+    ...SIDES.flatMap((side) => [...count('jet', m.tune.jetsPerSide), ...count('aa', m.tune.aasPerSide)].map((kind, j) => placed(side, kind, tanks(side) + m.tune.jeepsPerSide + (m.map.helipad?.[side] ? 0 : m.tune.helisPerSide) + j))), // #110: last, so every earlier id stays put
+  ].map((v, i) => ({ ...v, id: m.soldiers.length + i }));
+}
+
+/** A Side's HQ park slots: the map's, else one on the drivable ground nearest the HQ. */
+const parkSlots = (m: Match, side: SideId) => m.map.vehicleSlots?.[side] ?? [nearestWalkable(m, { x: m.map.hqs[side].x, y: m.map.hqs[side].y }, m.drive[side])];
+
+/** Park slot `k`: the map's, else each one past them 9 m farther toward the field than the last. */
+function parkSlot(m: Match, side: SideId, k: number): Vec2 {
+  const slots = parkSlots(m, side);
+  const last = slots.at(-1)!;
+  return slots[k] ?? nearestWalkable(m, { x: last.x + (side === 'nato' ? 9 : -9) * (k - slots.length + 1), y: last.y }, m.drive[side]);
 }
 
 /** The Capture Point `s` is heading for: its own when Detached, else its Squad's; -1 when that is not a Capture Point. */
@@ -159,16 +180,19 @@ const goalOf = (m: Match, sq: Squad, s: Soldier) => (s.detached && s.goal >= 0 ?
  * At its Squad's think: a Soldier on foot whose Capture Point is farther than `boardMinM` boards the nearest friendly tank
  * within `boardM` with a free seat that is empty (it drives, to its own goal) or whose driver's goal is within `sameWayM` of
  * its own; a tank with a squad mate aboard comes first. #122: only tanks; a Squad rides jeeps and helicopters together (`ride`).
+ * #110: an AA boards as a tank; before any, a member who is not the Squad Leader within `boardM` of an unpiloted jet's slot flies it.
  */
 export function board(m: Match, sq: Squad, s: Soldier) {
   const t = m.tune;
   const goal = goalOf(m, sq, s);
   const p = m.points[goal];
   if (!p || s.reviving >= 0 || s.boarding >= 0 || dist2(s, p) <= squared(t.boardMinM)) return;
+  const jet = s.id === sq.members[0] ? undefined : m.vehicles.find((v) => v.kind === 'jet' && v.side === s.side && live(v) && v.seats[0]! < 0 && dist2(s, v.slot) <= squared(t.boardM));
+  if (jet) return mount(m, jet, s, sq);
   let best: Vehicle | null = null;
   let bestKey = Infinity;
   for (const v of m.vehicles) {
-    if (v.kind !== 'tank' || v.side !== s.side || !live(v) || crippled(m, v) || !v.seats.includes(-1) || dist2(s, v) > squared(t.boardM)) continue;
+    if ((v.kind !== 'tank' && v.kind !== 'aa') || v.side !== s.side || !live(v) || crippled(m, v) || !v.seats.includes(-1) || dist2(s, v) > squared(t.boardM)) continue;
     if (v.id === s.exited && v.seats.some((id) => id >= 0)) continue; // #108: not back into the ride it just left
     const driving = m.points[v.goal];
     if (v.seats[0]! >= 0 && (!driving || dist2(driving, p) > squared(t.sameWayM))) continue;
@@ -190,7 +214,10 @@ export function mount(m: Match, v: Vehicle, s: Soldier, sq: Squad) {
   if (v.claim < 0 && air(v) && !s.crew && riders(m, v).every((o) => o.crew)) v.departAt = wait; // its first passenger starts the wait for more
   v.seats[seat] = s.id;
   if (s.crew) s.crewUntil = m.tick + ticksOf(t, between(m, t.crewSeconds));
-  if (seat === 0) {
+  if (seat === 0 && v.kind === 'jet') { // #110: the pilot picks its point and takes off from the base
+    v.goal = jetPoint(m, sq, v);
+    takeOff(m, v);
+  } else if (seat === 0) {
     Object.assign(v, { goal: -1, bias: m.points.map(() => (rnd(m) * 2 - 1) * t.tankGoalBias), parked: true, ...(v.claim < 0 && { departAt: wait }) });
     if (!air(v)) v.goal = drivePoint(m, sq, s, v);
   }
@@ -203,13 +230,13 @@ export function mount(m: Match, v: Vehicle, s: Soldier, sq: Squad) {
 /**
  * A Soldier coming back from the dead (Squad Respawn or Redeploy) takes a seat if one waits for it: in the Squad Leader's
  * vehicle while the leader rides one, else in a friendly vehicle with nobody driving (fit to fight: a third of its hit points
- * or more), as its driver. True when it did. #109: never into a helicopter in the air.
+ * or more), as its driver. True when it did. #109: never into a helicopter in the air, #110 nor a jet (its pilot walks to the slot).
  */
 export function boardOnReturn(m: Match, sq: Squad, s: Soldier): boolean {
   if (crewOnReturn(m, sq, s)) return true;
   const lead = m.soldiers[sq.members[0]!]!;
   const mine = lead.state === 'alive' ? vehicleOf(m, lead.vehicle) : undefined;
-  const v = mine && freeSeats(mine) > 0 && !mine.airborne ? mine : m.vehicles.find((o) => o.side === s.side && live(o) && !o.airborne && o.kind !== 'helicopter' && o.seats[0] === -1 && !crippled(m, o));
+  const v = mine && freeSeats(mine) > 0 && !mine.airborne ? mine : m.vehicles.find((o) => o.side === s.side && live(o) && !o.airborne && o.kind !== 'helicopter' && o.kind !== 'jet' && o.seats[0] === -1 && !crippled(m, o));
   if (!v) return false;
   mount(m, v, s, sq);
   return true;
@@ -247,7 +274,7 @@ function crewOnReturn(m: Match, sq: Squad, s: Soldier): boolean {
 export function fitsRide(m: Match, sq: Squad, body: Soldier[], L: Soldier, v: Vehicle, p: Vec2, fetched: boolean): boolean {
   const t = m.tune;
   const free = freeSeats(v); // #129: a pilot seat is for crew
-  return v.kind !== 'tank' && v.side === sq.side && live(v) && !v.airborne && !crippled(m, v) && v.job !== 'repair' && v.claim < 0 && (dist2(L, v) <= squared(t.boardM) || (fetched && v.fetch === sq.id && !!v.spot && dist2(v, v.spot) < 1)) &&
+  return (v.kind === 'jeep' || air(v)) && v.side === sq.side && live(v) && !v.airborne && !crippled(m, v) && v.job !== 'repair' && v.claim < 0 && (dist2(L, v) <= squared(t.boardM) || (fetched && v.fetch === sq.id && !!v.spot && dist2(v, v.spot) < 1)) &&
     v.seats.every((id) => id < 0 || m.soldiers[id]!.crew) && (!air(v) || v.seats[0]! >= 0 || m.soldiers.some((s) => s.crew && s.boarding === v.id)) && free >= Math.max(1, body.length - 1) &&
     (!air(v) || dist2(L, p) > squared(t.heliFitM) || sq.route >= 0);
 }
@@ -326,10 +353,10 @@ export function boardStep(m: Match, s: Soldier): Vehicle | null {
  * The Capture Point a driver takes its vehicle to: scored like its Squad's choice (the Order's bonus as ever) but by drive
  * distance from the vehicle, with its own seeded preference, stickiness to where it is going, and the crowd penalty for each
  * other friendly vehicle already going there; its Squad's goal pulls no harder than any point. A Detached driver keeps its own,
- * and #108 a transport's driver always drives to its own goal.
+ * and #108 a transport's driver always drives to its own goal. #110: an AA's driver as a tank's.
  */
 function drivePoint(m: Match, sq: Squad, s: Soldier, v: Vehicle): number {
-  if (v.kind !== 'tank' || (s.detached && s.goal >= 0)) return goalOf(m, sq, s);
+  if ((v.kind !== 'tank' && v.kind !== 'aa') || (s.detached && s.goal >= 0)) return goalOf(m, sq, s);
   const t = m.tune;
   const others = (i: number) => m.vehicles.filter((o) => o !== v && o.side === v.side && live(o) && o.seats[0]! >= 0 && o.goal === i).length;
   const bias = v.bias.map((b, i) => b + (i === v.goal ? t.stickiness : 0) - t.crowdPenalty * others(i) - (sq.task === 'point' && sq.goal === i ? t.stickiness : 0));
@@ -339,11 +366,16 @@ function drivePoint(m: Match, sq: Squad, s: Soldier, v: Vehicle): number {
 /**
  * At its Squad's think, a Soldier aboard: the driver keeps the vehicle on its own Capture Point (the Squad's, or its own
  * when it boarded Detached; Retreat and Resupply ignore it). One who wants out (`wantsOut`) gets out once the vehicle has stood
- * `dismountStopSeconds`, stopping it for that first; Detached when away from the Squad.
+ * `dismountStopSeconds`, stopping it for that first; Detached when away from the Squad. #110: a jet's pilot picks the point of its
+ * next pass, and never gets out.
  */
 export function ride(m: Match, sq: Squad, s: Soldier) {
   const t = m.tune;
   const v = vehicleOf(m, s.vehicle)!;
+  if (v.kind === 'jet') {
+    v.goal = jetPoint(m, sq, v);
+    return;
+  }
   if (v.seats[0] === s.id && air(v)) {
     decideJob(m, v); // #131
     if (s.vehicle < 0) return; // the pilot bailed out
@@ -399,7 +431,7 @@ function descend(m: Match) {
 }
 
 /**
- * The shared leaving rule (#27, #108), at think. Anyone gets out under a third of the hit points; a tank's crew only then.
+ * The shared leaving rule (#27, #108), at think. Anyone gets out under a third of the hit points; a tank's (#110 an AA's) crew only then.
  * A transport empties at its goal. A passenger also gets out once the vehicle has stood still `stillSeconds` (waiting to set
  * off is not standing still), within `dismountM` of its own Capture Point, or once its drive distance to that point has grown
  * for `awaySeconds`. #109: nobody gets out of a helicopter in the air, #129 crew only once their stint is over on its helipad, and its passengers never go by
@@ -412,7 +444,7 @@ function wantsOut(m: Match, sq: Squad, s: Soldier, v: Vehicle): boolean {
   } else if (crippled(m, v)) return true;
   if (air(v) && v.airborne) return false;
   if (s.crew) return m.tick >= s.crewUntil && onPad(v) && v.claim < 0 && riders(m, v).every((o) => o.crew); // #129: its stint over, on the helipad, no claimed Squad boarding and no passenger aboard (never a pilotless helicopter with riders)
-  if (v.kind === 'tank') return false;
+  if (v.kind === 'tank' || v.kind === 'aa') return false;
   if (v.goal >= 0 && (air(v) ? !!v.lz && dist2(v, v.lz) < 1 : flowDist(m, driveFlow(m, v.side, v.goal), v) === 0)) return true;
   if (v.seats[0] === s.id) return false;
   if (m.tick - Math.max(v.movedAt, v.departAt) >= t.stillSeconds * t.hz) return true;
@@ -432,7 +464,7 @@ function wantsOut(m: Match, sq: Squad, s: Soldier, v: Vehicle): boolean {
 /**
  * The vehicle phase, after the Soldiers walk: fresh vehicles in empty slots `vehicleRespawnSeconds` after the last one died
  * (#108: a point's for its owner, at once when the point first has one or has changed hands), then every one with a driver
- * drives (#109: or flies) unless it stands for a dismount (long enough for everyone who wants out to have thought once); its
+ * drives (#109: or flies, #110 a jet its sortie) unless it stands for a dismount (long enough for everyone who wants out to have thought once); its
  * riders ride along.
  */
 export function drive(m: Match) {
@@ -455,7 +487,9 @@ export function drive(m: Match) {
     const halted = v.halt >= 0 && m.tick - v.halt < Math.round((t.dismountStopSeconds + t.thinkIntervalSeconds[1] * (1 + t.thinkJitter)) * t.hz);
     if (!halted) v.halt = -1;
     const full = !v.seats.includes(-1);
-    if (air(v)) {
+    if (v.kind === 'jet') {
+      if (v.seats[0]! >= 0) sortie(m, v); // #110
+    } else if (air(v)) {
       if (v.job === 'bail') glide(m, v);
       else if (!halted && v.seats[0]! >= 0) fly(m, v);
       repairOnPad(m, v);
@@ -484,7 +518,7 @@ function step(m: Match, v: Vehicle, halt: boolean) {
   v.parked = left === 0;
   const k = cellIndex(m, v.x, v.y);
   const cost = (k >= 0 && g.cost[k]) || 20;
-  const tank = v.kind === 'tank';
+  const tank = v.kind !== 'jeep'; // #110: an AA handles as a tank
   const accel = tank ? t.tankAccel : t.jeepAccel;
   const { roadMps, openMps } = specOf(t, v.kind);
   /** The tick if the way ahead is `n` flow cells on: where the hull points, how fast it goes, where that lands. */
@@ -634,14 +668,16 @@ function cruise(m: Match, v: Vehicle) {
  * x `visionM`) on enemy Soldiers on foot and enemy vehicles; what it sees goes into the memory of every Squad with a rider aboard. A tank's
  * main gun takes an enemy tank first, then any other vehicle, then infantry, nearest within each, in range; the coax (#108: or a jeep's MG)
  * the nearest infantry in its range. #109: a helicopter's eyes see a full circle out to `airVisionM`, over walls (its door gun
- * fires as the MG); anyone's eyes see an airborne vehicle over walls.
+ * fires as the MG); anyone's eyes see an airborne vehicle over walls. #110: a jet sees nothing, and only an AA sees one: the AA sees
+ * a helicopter, or a jet over the Play Area, a full circle out to `aaRangeM` over walls, and lays its gun on a jet first, else
+ * the nearest helicopter; never on anything on the ground.
  */
 export function look(m: Match, v: Vehicle) {
   const t = m.tune;
   v.target = -1;
   v.coax = -1;
   const aboard = riders(m, v);
-  if (!live(v) || !aboard.length) return;
+  if (!live(v) || !aboard.length || v.kind === 'jet') return;
   const squads = [...new Set(aboard.map((s) => m.squads[s.squad]!))];
   const R = air(v) ? t.airVisionM : t.visionM * t.vehicleVisionMul;
   const sees = (e: Vec2 & { side: SideId; airborne?: boolean; chute?: object | null }) => {
@@ -649,9 +685,11 @@ export function look(m: Match, v: Vehicle) {
     const cone = air(v) || (e.x - v.x) * v.fx + (e.y - v.y) * v.fy >= t.visionCos * Math.sqrt(d2);
     return d2 <= R * R && cone && !inHq(m, e.side, e) && (air(v) || !!e.airborne || !!e.chute || los(m, v, e));
   };
+  const aaSees = (u: Vehicle) => dist2(v, u) <= squared(t.aaRangeM) && !inHq(m, u.side, u) && (u.kind !== 'jet' || insidePolygon(m.map.playArea, u.x, u.y));
+  const range = v.kind === 'tank' ? t.tankRangeM : v.kind === 'aa' ? t.aaRangeM : 0;
   let best: { id: number; rank: number; d2: number } | null = null;
   const consider = (id: number, rank: number, d2: number) => {
-    if (v.kind === 'tank' && d2 <= squared(t.tankRangeM) && (!best || rank < best.rank || (rank === best.rank && d2 < best.d2))) best = { id, rank, d2 };
+    if (d2 <= squared(range) && (!best || rank < best.rank || (rank === best.rank && d2 < best.d2))) best = { id, rank, d2 };
   };
   let coaxD2 = squared(specOf(t, v.kind).gunM);
   for (const e of m.soldiers) {
@@ -659,13 +697,15 @@ export function look(m: Match, v: Vehicle) {
     if (!m.sightings[v.side].some((o) => o.id === e.id && o.tick >= m.tick - 1)) e.uavUntil = -1; // #75, as for a Soldier's eyes
     for (const sq of squads) see(m, sq, e);
     const d2 = dist2(v, e);
-    consider(e.id, 2, d2);
+    if (v.kind === 'tank') consider(e.id, 2, d2);
     if (d2 <= coaxD2) [v.coax, coaxD2] = [e.id, d2];
   }
   for (const u of m.vehicles) {
-    if (u.side === v.side || !live(u) || !sees(u)) continue;
+    const aa = v.kind === 'aa' && flies(u);
+    if (u.side === v.side || !live(u) || (u.kind === 'jet' && !aa) || !(aa ? aaSees(u) : sees(u))) continue;
     for (const sq of squads) see(m, sq, u);
-    consider(u.id, u.kind === 'tank' ? 0 : 1, dist2(v, u));
+    if (v.kind === 'tank') consider(u.id, u.kind === 'tank' ? 0 : 1, dist2(v, u));
+    else if (aa) consider(u.id, u.kind === 'jet' ? 0 : 1, dist2(v, u));
   }
   if (best || v.coax >= 0) for (const sq of squads) sq.lastSeen = m.tick;
   v.target = (best as { id: number } | null)?.id ?? -1;
@@ -693,18 +733,18 @@ export function sideGun(m: Match, v: Vehicle, seat: number): Soldier | null {
 /**
  * A Soldier on foot sees an enemy vehicle at `vehicleVisionMul` x its range, in its cone and line of sight, outside its HQ.
  * #108: the nearest jeep (#109: or helicopter) it sees closer than `withinD2` (metres squared), a rifle target, or null.
- * #109: an airborne one over walls.
+ * #109: an airborne one over walls. #110: never a jet (only an AA sees one); an AA is seen, but no rifle target.
  */
 export function seeVehicles(m: Match, s: Soldier, sq: Squad, withinD2: number): Vehicle | null {
   const t = m.tune;
   const R = t.visionM * t.vehicleVisionMul;
   let jeep: Vehicle | null = null;
   for (const v of m.vehicles) {
-    if (v.side === s.side || !live(v)) continue;
+    if (v.side === s.side || !live(v) || v.kind === 'jet') continue;
     const d2 = dist2(s, v);
     if (d2 > R * R || (v.x - s.x) * s.fx + (v.y - s.y) * s.fy < t.visionCos * Math.sqrt(d2) || inHq(m, v.side, v) || (!v.airborne && !los(m, s, v))) continue;
     see(m, sq, v);
-    if (v.kind !== 'tank' && d2 < withinD2) [jeep, withinD2] = [v, d2];
+    if ((v.kind === 'jeep' || air(v)) && d2 < withinD2) [jeep, withinD2] = [v, d2];
   }
   return jeep;
 }
@@ -715,7 +755,7 @@ export const targetOf = (m: Match, v: Vehicle): Vec2 | undefined => m.soldiers[v
 /**
  * The combat phase: each driver whose main gun is due fires at its target in range, a round that flies to the target's spot
  * at `tankShellMps`; then every round due lands, a Strike-shaped impact hitting the enemy's vehicles in its kill radius:
- * `tankVsVehicleDamage` on a tank, anything lighter destroyed. No Commander is paid for what it kills.
+ * `tankVsVehicleDamage` on a tank (#110 or an AA), anything lighter destroyed. No Commander is paid for what it kills.
  */
 export function mainGuns(m: Match, events: SimEvent[]) {
   const t = m.tune;
@@ -725,7 +765,7 @@ export function mainGuns(m: Match, events: SimEvent[]) {
       v.laid = v.target;
       v.nextFire = Math.max(v.nextFire, m.tick + Math.round((t.tankAimSeconds[0] + rnd(m) * (t.tankAimSeconds[1] - t.tankAimSeconds[0])) * t.hz));
     }
-    if (!live(v) || v.seats[0]! < 0 || !e || m.tick < v.nextFire || dist2(v, e) > t.tankRangeM * t.tankRangeM) continue;
+    if (v.kind !== 'tank' || !live(v) || v.seats[0]! < 0 || !e || m.tick < v.nextFire || dist2(v, e) > t.tankRangeM * t.tankRangeM) continue;
     v.nextFire = m.tick + Math.round(t.tankFireSeconds * t.hz);
     const flight = Math.max(1, Math.round((Math.sqrt(dist2(v, e)) / t.tankShellMps) * t.hz));
     v.rounds.push({ x0: v.x, y0: v.y, x: e.x, y: e.y, launch: m.tick, land: m.tick + flight });
@@ -733,21 +773,31 @@ export function mainGuns(m: Match, events: SimEvent[]) {
   for (const v of m.vehicles)
     for (const r of v.rounds.filter((r) => r.land <= m.tick)) {
       events.push({ kind: 'impact', side: v.side, x: r.x, y: r.y, asset: 'tank', from: v.id });
-      blast(m, v.side, r, { killM: t.tankKillM, woundM: t.tankWoundM, suppressM: t.tankSuppressM, suppression: t.tankSuppression }, null, events, { damage: (u) => (u.kind === 'tank' ? t.tankVsVehicleDamage : Infinity), foesOnly: true });
+      blast(m, v.side, r, { killM: t.tankKillM, woundM: t.tankWoundM, suppressM: t.tankSuppressM, suppression: t.tankSuppression }, null, events, { damage: (u) => (u.kind === 'tank' || u.kind === 'aa' ? t.tankVsVehicleDamage : Infinity), foesOnly: true });
       v.rounds.splice(v.rounds.indexOf(r), 1);
     }
+}
+
+/** #110: each crewed AA whose gun is laid on a target hurts it by `aaDps` a second; a tracer a tick, from its occupant. */
+export function aaGuns(m: Match, events: SimEvent[]) {
+  for (const v of m.vehicles) {
+    const e = v.kind === 'aa' && live(v) && v.seats[0]! >= 0 ? vehicleOf(m, v.target) : undefined;
+    if (!e || !live(e)) continue;
+    hurt(m, e, m.tune.aaDps / m.tune.hz, v.side, null, events);
+    events.push({ kind: 'shot', side: v.side, from: v.seats[0]!, to: e.id, hit: true });
+  }
 }
 
 /** A Launcher is roster member 1 of its Squad. */
 export const isLauncher = (m: Match, s: Soldier) => m.squads[s.squad]!.members[1] === s.id;
 
-/** The nearest enemy vehicle a Launcher may fire a rocket at: live, within `rocketRangeM`, in line of sight (#109: or airborne), outside its HQ. */
+/** The nearest enemy vehicle a Launcher may fire a rocket at: live, within `rocketRangeM`, in line of sight (#109: or airborne), outside its HQ; #110 never a jet. */
 export function rocketTarget(m: Match, s: Soldier): Vehicle | null {
   let best: Vehicle | null = null;
   let bestD2 = squared(m.tune.rocketRangeM);
   for (const v of m.vehicles) {
     const d2 = dist2(s, v);
-    if (v.side === s.side || !live(v) || d2 > bestD2 || inHq(m, v.side, v) || (!v.airborne && !los(m, s, v))) continue;
+    if (v.side === s.side || !live(v) || v.kind === 'jet' || d2 > bestD2 || inHq(m, v.side, v) || (!v.airborne && !los(m, s, v))) continue;
     [best, bestD2] = [v, d2];
   }
   return best;
@@ -792,8 +842,10 @@ export function vehicleViews(m: Match, side: SideId, seen: Set<number>): Vehicle
   };
   const views: VehicleView[] = [];
   for (const v of m.vehicles) {
-    if (!live(v) || (v.side !== side && !seen.has(v.id))) continue; // #119: an airborne one too, only when spotted
-    const base = { id: v.id, side: v.side, kind: v.kind, x: v.x, y: v.y, fx: v.fx, fy: v.fy, ...turret(v) };
+    const sky = v.kind === 'jet' && v.airborne && insidePolygon(m.map.playArea, v.x, v.y); // #110: a jet over the Play Area is in both Sides' sky
+    if (!live(v) || (v.side !== side && !seen.has(v.id) && !sky)) continue; // #119: an airborne helicopter too, only when spotted
+    const at = v.kind === 'jet' && !v.airborne ? v.slot : v; // #110: a jet at the base shows at its slot in the HQ park
+    const base = { id: v.id, side: v.side, kind: v.kind, x: at.x, y: at.y, fx: v.fx, fy: v.fy, ...turret(v) };
     const rounds = v.rounds.map((r) => ({ from: { x: r.x0, y: r.y0 }, to: { x: r.x, y: r.y }, flight: (m.tick - r.launch) / (r.land - r.launch) }));
     views.push({ ...base, ...(v.side === side && { hp: v.hp / specOf(m.tune, v.kind).hp, seats: [...v.seats] }), ...(rounds.length && { rounds }), ...(v.seats.every((id) => id < 0) && { empty: true }), ...(v.airborne && { airborne: true }) });
   }
@@ -805,7 +857,7 @@ export function vehicleViews(m: Match, side: SideId, seen: Set<number>): Vehicle
 export function hashVehicles(m: Match, mix: Mix) {
   for (const v of m.vehicles) {
     for (const n of [v.x, v.y, v.fx, v.fy, v.speed, v.hp, v.lz?.x ?? 0, v.lz?.y ?? 0, v.wp?.x ?? 0, v.wp?.y ?? 0]) mix(Math.round(n * 1000));
-    for (const n of [+(v.side === 'nato'), ...v.seats, +v.parked, v.deadAt, v.goal, v.departAt, v.target, v.coax, v.nextFire, v.laid, v.movedAt, v.halt, +v.airborne, v.landedAt, v.claim, v.claimUntil, +!!v.lz, +!!v.wp, v.flareUntil, v.spoolUntil, JOBS.indexOf(v.job), v.fetch, +!!v.spot, v.spin, v.until, +v.drop, v.crashAt]) mix(n);
+    for (const n of [+(v.side === 'nato'), ...v.seats, +v.parked, v.deadAt, v.goal, v.departAt, v.target, v.coax, v.nextFire, v.laid, v.movedAt, v.halt, +v.airborne, v.landedAt, v.claim, v.claimUntil, +!!v.lz, +!!v.wp, v.flareUntil, v.spoolUntil, JOBS.indexOf(v.job), v.fetch, +!!v.spot, v.spin, v.until, +v.drop, v.crashAt, SORTIE.indexOf(v.sortie), v.passes]) mix(n);
     for (const n of [v.spot?.x ?? 0, v.spot?.y ?? 0]) mix(Math.round(n * 1000));
     for (const b of v.bias) mix(Math.round(b * 1000));
     mix(v.rounds.length);

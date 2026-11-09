@@ -1,6 +1,7 @@
 // Fire, Wounding, revive and bleed-out, suppression; a death settles what the enemy Commander's Assets earn (#72 #75).
 // #107: Soldiers aboard a vehicle fire only its guns (the coax here, the main gun in vehicles.ts) and take no fire; a
 // Launcher's rockets hit vehicles. #108: rifles hit a jeep like a Soldier in the open; its gunner fires the MG as the coax.
+// #110: a jet's pilot fires its cannon as the coax; the AA's gun is damage per second (vehicles.ts `aaGuns`).
 import type { Match } from './index';
 import { logDeath, resetSoldierAi } from './ai';
 import { dist2 } from './geometry';
@@ -9,7 +10,8 @@ import { rnd } from './rng';
 import { award } from './score';
 import { membersOf, vehicleOf, type Soldier } from './state';
 import { enemyOf, type SimEvent, type Vec2 } from './types';
-import { gunner, hurt, isLauncher, leave, mainGuns, rocketTarget, sideGun, specOf, type Vehicle } from './vehicles';
+import { jetTarget } from './jet';
+import { aaGuns, gunner, hurt, isLauncher, leave, mainGuns, rocketTarget, sideGun, specOf, type Vehicle } from './vehicles';
 
 interface Shot {
   shooter: Soldier;
@@ -50,9 +52,22 @@ function rocket(m: Match, s: Soldier): Shot | null {
 function coax(m: Match, s: Soldier, v: Vehicle): Shot | null {
   const t = m.tune;
   const gun = specOf(t, v.kind);
+  if (v.kind === 'jet') return cannon(m, s, v);
   const e = v.kind === 'helicopter' ? sideGun(m, v, v.seats.indexOf(s.id)) : gunner(v) === s.id ? m.soldiers[v.coax] : undefined; // #129: a helicopter's guns are its side seats
   if (!e || e.state !== 'alive' || m.tick < s.nextFire || dist2(v, e) > gun.gunM * gun.gunM) return null;
   return roll(m, s, e, t.hitChance * (cellAt(m, e.x, e.y) === COVER ? t.coverHitMul : 1), gun.gunSeconds);
+}
+
+/** #110: a jet's cannon in its strip, at what the Side knows (`jetTarget`): the rifle shot model, `jetVsVehicleDamage` a hit on a vehicle. */
+function cannon(m: Match, s: Soldier, v: Vehicle): Shot | null {
+  const t = m.tune;
+  const e = jetTarget(m, v);
+  if (!e || m.tick < s.nextFire) return null;
+  if ('kind' in e) {
+    const shot = roll(m, s, null, t.hitChance, t.jetFireSeconds, e);
+    return { ...shot, damage: shot.hit ? t.jetVsVehicleDamage : 0 };
+  }
+  return roll(m, s, e, t.hitChance * (cellAt(m, e.x, e.y) === COVER ? t.coverHitMul : 1), t.jetFireSeconds);
 }
 
 /** Decides a shot from the pre-fire state; every shot of the tick is applied together afterwards. */
@@ -125,6 +140,7 @@ export function fire(m: Match, events: SimEvent[]) {
     wound(m, e, events);
   }
   mainGuns(m, events); // #107
+  aaGuns(m, events); // #110
 }
 
 /** Shot down: bleeding out, not dead. */
