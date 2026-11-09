@@ -84,13 +84,20 @@ describe('#122 boarding: a Squad with a far goal walks to its jeep and climbs in
 });
 
 describe('#122 which vehicle fits', () => {
+  /** The most the Squad's Soldiers aboard as riders at once (not crew, #129: its pilot goes first) over 25 s. */
+  const ridersOf = (m: Match) => {
+    let most = 0;
+    for (let t = 0; t < 25 * HZ; t++) {
+      step(m, []);
+      most = Math.max(most, m.soldiers.slice(0, 4).filter((s) => s.vehicle >= 0 && !s.crew).length);
+    }
+    return most;
+  };
   it('a helicopter takes a goal beyond heliFitM, never one short of it on the same bank', () => {
     const far = scene({ helisPerSide: 1 }, { goal: -50 }); // 490 m from the Squad, past heliFitM
-    for (let t = 0; t < 8 * HZ; t++) step(far, []);
-    expect(far.soldiers.slice(0, 4).filter((s) => s.vehicle >= 0).length).toBeGreaterThan(0);
+    expect(ridersOf(far)).toBeGreaterThan(0);
     const near = scene({ helisPerSide: 1, rideM: [100, 100] }, { goal: -300 }); // 240 m from the Squad, short of heliFitM
-    for (let t = 0; t < 8 * HZ; t++) step(near, []);
-    expect(near.soldiers.slice(0, 4).every((s) => s.vehicle < 0)).toBe(true);
+    expect(ridersOf(near)).toBe(0);
   });
 
   it('a goal across the river fits the helicopter though short of heliFitM; one on its own bank never does', () => {
@@ -99,8 +106,7 @@ describe('#122 which vehicle fits', () => {
       const map = { ...RIVER_FIELD, points: RIVER_FIELD.points.filter((p) => p.id === id).map((p) => (p.id === 'E' ? { ...p, x: 40, y: 60 } : p)) };
       const tune: Tune = { ...DEFAULT_TUNE, squadSize: 4, speedJitter: 0, visionM: 0, tanksPerSide: 0, jeepsPerSide: 0, helisPerSide: 1, pointJeeps: false, rideM: [100, 100], ...NO_TRAITS, ...NO_TEMPO };
       const m = createMatch({ seed, map, tune, squadsPerSide: 1, commanderSide: 'nato' });
-      for (let t = 0; t < 10 * HZ; t++) step(m, []);
-      return m.soldiers.slice(0, 4).filter((s) => s.vehicle >= 0).length;
+      return ridersOf(m);
     };
     for (const seed of [1, 2, 3, 4, 5]) {
       expect(heliRiders('E', seed), `across, seed ${seed}`).toBeGreaterThan(0);
@@ -111,15 +117,15 @@ describe('#122 which vehicle fits', () => {
   it('a full Squad and a piloted helicopter: three ride, the farthest walks Detached on the Squad\'s goal', () => {
     const m = scene({ helisPerSide: 1 }, { squads: 2, goal: -50 });
     const heli = m.vehicles.find((v) => v.side === 'nato')!;
-    heli.seats[0] = 4; // Squad 1's Soldier 4 is the pilot
-    Object.assign(m.soldiers[4]!, { vehicle: heli.id, x: heli.x, y: heli.y });
+    heli.seats.splice(0, 3, 4, 5, 6); // Squad 1's Soldiers 4, 5 and 6 are its pilot and gunners: three passenger seats are left
+    for (const id of [4, 5, 6]) Object.assign(m.soldiers[id]!, { vehicle: heli.id, crew: true, crewUntil: 1e9, x: heli.x, y: heli.y });
     Object.assign(m.soldiers[3]!, { x: -530, y: 0 }); // the farthest
     let detached = false;
     for (let t = 0; t < 8 * HZ; t++) {
       step(m, []);
       detached ||= m.soldiers[3]!.detached && m.soldiers[3]!.goal === -1 && m.soldiers[3]!.vehicle < 0;
     }
-    expect(heli.seats.slice(1).sort()).toEqual([0, 1, 2]);
+    expect(heli.seats.slice(3).sort()).toEqual([0, 1, 2]);
     expect(detached).toBe(true);
     // the others are aboard (and gone): the one left over stays Detached on the Squad's goal, then rejoins them there
     expect(m.soldiers[3]).toMatchObject({ detached: true, goal: -1, vehicle: -1 });

@@ -100,6 +100,10 @@ function jeepsAt(t: number): VehicleView[] {
 // again and flies home with its pilot (Delta's 12) by a different dogleg, on the other side. #119: pact's lifts off as nato's does,
 // flies straight to C, sets its Squad down and flies home; it shows only while Alpha sees it (a Soldier's sight of a vehicle, the
 // widest reach of any friendly's here), then fades to a Last Known Position. A pact helicopter Wreck lies south of C.
+// #129: Delta's pilot is joined on the left gun by Charlie's 11 (a crew member from another Squad, still Charlie's: it walks
+// over from Charlie's ground and climbs in; the right gun stays unmanned). It sits out on the helicopter's left side, and its
+// gun fires at the Lookout (a Contact the helicopter passes on that side) while it is within `mgRangeM` and `gunArcDeg`: the
+// shot lines leave from the left side, never the nose.
 const HELI_AT = CHAPTERS[9]!.at;
 const HELI_ID = 35;
 const PAD = { x: -409.01, y: 0.3 }; // Kaltenbach's nato helipad (map.json)
@@ -126,7 +130,8 @@ const HOME_TRIP = trip(AIR2, [LZ, WAY_HOME, PAD]);
 const HOME = HOME_TRIP.at(-1)![0];
 const HELI_PATH: Key[] = [[0, PAD.x, PAD.y], [LIFT, PAD.x, PAD.y], ...OUT_TRIP, [LAND, LZ.x, LZ.y], [AIR2, LZ.x, LZ.y], ...HOME_TRIP, [LENGTH, PAD.x, PAD.y]];
 const OUT = LAND + 1; // a second on the ground, then everyone but the pilot is out
-const inHeli = (id: number, t: number) => t >= HELI_AT && (id === 12 || (t < OUT && id >= 13 && id <= 15));
+const inHeli = (id: number, t: number) => t >= HELI_AT && (id === 12 || id === 11 || (t < OUT && id >= 13 && id <= 15));
+const LOOKOUT: Man = { id: 23, squad: -1, path: [[0, -127, -222], [LENGTH, -127, -222]], fx: -1, fy: 0 }; // on the helicopter's left (north-east) of its leg out; a Contact from HELI_AT
 const ENEMY_PAD = { x: 420.96, y: -0.72 };
 const ENEMY_LZ = { x: 14, y: -14 }; // inside C, east of the Contacts
 const ENEMY_LANDS = LIFT + leg(ENEMY_PAD, ENEMY_LZ);
@@ -151,15 +156,28 @@ function lostHeli(t: number): LastKnownView[] {
   return [];
 }
 
-function helisAt(t: number): VehicleView[] {
+/** The nato helicopter's position and unit heading at `t`. */
+function hullAt(t: number) {
   const p = at(HELI_PATH, t);
   const ahead = at(HELI_PATH, t + 0.5);
   let behind = at(HELI_PATH, t - 0.5);
   for (let back = 1; back < 8 && Math.hypot(p.x - behind.x, p.y - behind.y) < 0.01; back += 0.5) behind = at(HELI_PATH, t - back); // hovering or sitting: it keeps the heading it came in on
   const [dx, dy] = Math.hypot(ahead.x - p.x, ahead.y - p.y) > 0.01 ? [ahead.x - p.x, ahead.y - p.y] : [p.x - behind.x, p.y - behind.y];
   const d = Math.hypot(dx, dy);
-  const hull = d > 0.01 ? { fx: dx / d, fy: dy / d } : { fx: 1, fy: 0 };
-  const seats = [12, 13, 14, 15].map((id) => (inHeli(id, t) ? id : -1));
+  return { ...p, ...(d > 0.01 ? { fx: dx / d, fy: dy / d } : { fx: 1, fy: 0 }) };
+}
+
+const GUN_OUT_M = 2; // as the Simulation: a gun seat's Soldier sits this far out from the hull's centre
+/** Where an aboard Soldier is: the hull's centre, or for the left gunner 2 m out to its left (heading east, left is +y). */
+function seatAt(id: number, t: number) {
+  const { fx, fy, ...p } = hullAt(t);
+  return id === 11 ? { x: p.x - fy * GUN_OUT_M, y: p.y + fx * GUN_OUT_M } : p;
+}
+
+function helisAt(t: number): VehicleView[] {
+  const { fx, fy, ...p } = hullAt(t);
+  const hull = { fx, fy };
+  const seats = [12, 11, -1, 13, 14, 15].map((id) => (inHeli(id, t) ? id : -1)); // pilot, left gun (Charlie's 11), right gun (unmanned), three passengers
   const flying = (t > AIR && t < LAND) || (t > AIR2 && t < HOME); // the flare hover is still in the air
   const own: VehicleView = { id: HELI_ID, side: 'nato', kind: 'helicopter', ...p, ...hull, tx: hull.fx, ty: hull.fy, hp: 1, seats, ...(seats[0] === -1 && { empty: true }), ...(flying && { airborne: true }) };
   const span = Math.hypot(ENEMY_LZ.x - ENEMY_PAD.x, ENEMY_LZ.y - ENEMY_PAD.y);
@@ -214,7 +232,7 @@ const MEN: Man[] = [
   { id: 8, squad: 2, path: [[0, -150, -118]], fx: 0.7, fy: 0.7 },
   { id: 9, squad: 2, path: [[0, -142, -126]], fx: 0.7, fy: 0.7 },
   { id: 10, squad: 2, path: [[0, -158, -128]], fx: 0.7, fy: 0.7 },
-  { id: 11, squad: 2, path: [[0, -146, -136]], fx: 0.7, fy: 0.7 },
+  { id: 11, squad: 2, path: [[0, -146, -136], [50, -146, -136], [HELI_AT - 1, -410, 6], [LENGTH, -410, 6]], fx: 0.7, fy: 0.7 }, // #129: left gunner from t = HELI_AT
   { id: 12, squad: 3, path: [[0, -414, 8], [LENGTH, -414, 8]], ...east },
   { id: 13, squad: 3, path: [[0, -412, -7], [LAND, -412, -7], [OUT, LZ.x - 6, LZ.y + 4], [OUT + 20, -6, -292], [LENGTH, -4, -286]], ...east },
   { id: 14, squad: 3, path: [[0, -403, 9], [LAND, -403, 9], [OUT, LZ.x + 6, LZ.y + 6], [OUT + 20, 7, -295], [LENGTH, 10, -290]], ...east },
@@ -282,14 +300,14 @@ export function viewAt(t: number): CommanderView {
     ammo: 0.8,
     ...(aboard(m.id, t) && { ...at(TANK_PATH, t), vehicle: TANK_ID }),
     ...(inJeep(m.id, t) && { ...at(JEEP_PATH, t), vehicle: JEEP_ID }),
-    ...(inHeli(m.id, t) && { ...at(HELI_PATH, t), vehicle: HELI_ID }),
+    ...(inHeli(m.id, t) && { ...seatAt(m.id, t), vehicle: HELI_ID }),
   }));
   return {
     side: 'nato',
     tick: Math.round(t * HZ),
     seconds: t,
     friendlies,
-    contacts: CONTACTS.map((c) => soldier(c, t)),
+    contacts: [...CONTACTS, ...(t >= HELI_AT ? [LOOKOUT] : [])].map((c) => soldier(c, t)),
     lastKnown: lostHeli(t),
     squads: SQUADS.map((q) => squadView(q, t)),
     points: POINTS,
@@ -378,4 +396,18 @@ function mg(): [number, SimEvent][] {
   return events;
 }
 
-const EVENTS: [number, SimEvent][] = [...casualties(), ...firefight(), ...strike(), ...gun(), ...mg()].sort((a, b) => a[0] - b[0]);
+/** #129: the left gun on the Lookout while it is within `mgRangeM` and `gunArcDeg` of the helicopter's left beam (the Simulation's test). */
+function sideGun(): [number, SimEvent][] {
+  const events: [number, SimEvent][] = [];
+  const cos = Math.cos((DEFAULT_TUNE.gunArcDeg / 2 / 180) * Math.PI);
+  let i = 0;
+  for (let t = HELI_AT; t < LAND; t += i % 4 === 3 ? 0.8 : 0.2, i++) {
+    const h = hullAt(t);
+    const d = Math.hypot(LOOKOUT.path[0]![1] - h.x, LOOKOUT.path[0]![2] - h.y);
+    if (d <= DEFAULT_TUNE.mgRangeM && (LOOKOUT.path[0]![1] - h.x) * -h.fy + (LOOKOUT.path[0]![2] - h.y) * h.fx >= cos * d)
+      events.push([t, { kind: 'shot', side: 'nato', from: 11, to: LOOKOUT.id, hit: i % 5 === 0 }]);
+  }
+  return events;
+}
+
+const EVENTS: [number, SimEvent][] = [...casualties(), ...firefight(), ...strike(), ...gun(), ...mg(), ...sideGun()].sort((a, b) => a[0] - b[0]);

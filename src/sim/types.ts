@@ -337,6 +337,10 @@ export interface Tune {
   heliFitM: number; // the helicopter fits a goal farther than this (or across the river)
   mountM: number; // a rider within this of its vehicle climbs in
   mountSeconds: [number, number]; // a rider takes this long to climb in, seeded between the two
+
+  // #129 Helicopter crew and side guns
+  crewSeconds: [number, number]; // a crew member's stint, drawn between the two as they climb in
+  gunArcDeg: number; // a side gun covers this many degrees, centred straight out from its side
 }
 
 /** #55: what a Commander Score award is for. */

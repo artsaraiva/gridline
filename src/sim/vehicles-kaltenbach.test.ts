@@ -187,7 +187,7 @@ describe('#109 the transport helicopter on Kaltenbach', () => {
     helis.forEach((h, k) => {
       const f = flights[k]!;
       expect(h.slot).toEqual(KALTENBACH.helipad![h.side]);
-      expect(f.seats.every((id) => id >= 0), `${h.side} full`).toBe(true);
+      expect(f.seats.filter((id) => id >= 0).length, `${h.side} crewed and carrying a Squad`).toBeGreaterThanOrEqual(3);
       const p = m.points.find((q) => Math.hypot(f.lz.x - q.x, f.lz.y - q.y) <= DEFAULT_TUNE.lzM[1] + 1);
       expect(p, `${h.side} lands within lzM of a point`).toBeDefined();
       expect(Math.hypot(f.lz.x - p!.x, f.lz.y - p!.y)).toBeGreaterThanOrEqual(DEFAULT_TUNE.lzM[0] - 1);
@@ -198,8 +198,8 @@ describe('#109 the transport helicopter on Kaltenbach', () => {
       expect(m.grid.cost[cellIndex(m, f.lz.x, f.lz.y)], `${h.side} sets down where a Soldier can stand`).toBeGreaterThan(0);
       expect((f.lift - f.landed) / HZ).toBeCloseTo(DEFAULT_TUNE.unloadSeconds + DEFAULT_TUNE.spoolSeconds, 0);
       expect(h).toMatchObject({ ...h.slot, airborne: false });
-      expect(h.seats.slice(1)).toEqual([-1, -1, -1]);
-      expect(f.seats.slice(1).every((id) => m.soldiers[id]!.vehicle !== h.id)).toBe(true);
+      expect(h.seats.slice(3)).toEqual([-1, -1, -1]);
+      expect(f.seats.slice(3).every((id) => id < 0 || m.soldiers[id]!.vehicle !== h.id)).toBe(true); // its passengers got out
     });
   });
 });

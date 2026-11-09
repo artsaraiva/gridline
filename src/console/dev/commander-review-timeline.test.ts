@@ -159,8 +159,9 @@ describe('commander review timeline (#69)', () => {
     const pad = heli(viewAt(0));
     expect(pad).toMatchObject({ x: -409.01, y: 0.3, empty: true });
     expect(pad.airborne).toBeUndefined();
-    expect(heli(viewAt(t + 0.5)).seats).toEqual([12, 13, 14, 15]);
+    expect(heli(viewAt(t + 0.5)).seats).toEqual([12, 11, -1, 13, 14, 15]); // #129: Delta's pilot and Charlie's 11 on the left gun, the right gun unmanned
     expect(delta(viewAt(t + 0.5)).every((f) => f.vehicle === pad.id)).toBe(true);
+    expect(viewAt(t + 0.5).friendlies.find((f) => f.id === 11)).toMatchObject({ squad: 2, vehicle: pad.id });
     const flights = [...Array((LENGTH - t) * 4).keys()].map((k) => viewAt(t + k / 4));
     const air = flights.map((v) => !!heli(v).airborne);
     const lift = air.indexOf(true);
@@ -178,14 +179,14 @@ describe('commander review timeline (#69)', () => {
     const out = flights.slice(lift, land).map(heli);
     expect(Math.abs(bulge(out, pad, lz))).toBeGreaterThan(0.05 * Math.hypot(lz.x - pad.x, lz.y - pad.y)); // a dogleg out
     expect((again - land) / 4).toBeCloseTo(3 + 1.5, 0); // unloadSeconds, then spoolSeconds
-    expect(heli(flights[again]!).seats).toEqual([12, -1, -1, -1]);
+    expect(heli(flights[again]!).seats).toEqual([12, 11, -1, -1, -1, -1]);
     for (const f of delta(flights[again]!).filter((f) => f.id !== 12)) expect(Math.hypot(f.x - D.x, f.y - D.y)).toBeGreaterThan(DEFAULT_TUNE.captureRadius); // still walking in
     for (const f of delta(viewAt(LENGTH - 1)).filter((f) => f.id !== 12)) expect(Math.hypot(f.x - D.x, f.y - D.y)).toBeLessThan(DEFAULT_TUNE.captureRadius);
     const back = flights.slice(again, flights.findIndex((v, i) => i > again && !heli(v).airborne)).map(heli);
     expect(Math.abs(bulge(back, lz, pad))).toBeGreaterThan(0.05 * Math.hypot(lz.x - pad.x, lz.y - pad.y)); // a dogleg home ...
     expect(Math.sign(bulge(back, lz, pad))).not.toBe(Math.sign(bulge(out, lz, pad))); // ... on the other side
     const home = heli(viewAt(LENGTH - 1));
-    expect(home).toMatchObject({ x: pad.x, y: pad.y, seats: [12, -1, -1, -1] });
+    expect(home).toMatchObject({ x: pad.x, y: pad.y, seats: [12, 11, -1, -1, -1, -1] });
     expect(home.airborne).toBeUndefined();
     // #119: the enemy one shows only while Alpha sees it (a Soldier sees a vehicle at visionM 150 x vehicleVisionMul 1.5),
     // from the moment it comes into that sight, in the air and on the ground; lost, a Last Known Position fades out
@@ -210,6 +211,29 @@ describe('commander review timeline (#69)', () => {
     expect(flights[last + 1 + 4 * 4]!.lastKnown).toEqual([]); // gone lkpSeconds (3.5) later
     expect(viewAt(LENGTH - 1).vehicles!.filter((x) => x.kind === 'helicopter' && x.wreck)).toHaveLength(1);
     expect(viewAt(LENGTH - 1).squads.find((q) => q.id === 3)!.name).toBe('Delta');
+  });
+
+  it('#129 Helicopter: the left gunner fires at the Lookout from the helicopter\'s left side, never the nose, only inside its 120 degree arc and 160 m', () => {
+    const from = chapter('Helicopter');
+    const shots = eventsBetween(from - 1, LENGTH).filter((e) => e.kind === 'shot' && e.from === 11) as { from: number; to: number; tick?: number }[];
+    expect(shots.length).toBeGreaterThan(5);
+    let n = 0;
+    for (let t = from; t < LENGTH; t += 0.1) {
+      const fired = eventsBetween(t - 0.05, t + 0.05).some((e) => e.kind === 'shot' && e.from === 11);
+      if (!fired) continue;
+      n++;
+      const v = viewAt(t);
+      const h = v.vehicles!.find((x) => x.kind === 'helicopter' && x.side === 'nato')!;
+      const g = v.friendlies.find((f) => f.id === 11)!;
+      const look = v.contacts.find((c) => c.id === 23)!;
+      expect((g.x - h.x) * -h.fy + (g.y - h.y) * h.fx).toBeCloseTo(2, 1); // 2 m out to the left, none along the nose
+      expect((g.x - h.x) * h.fx + (g.y - h.y) * h.fy).toBeCloseTo(0, 1);
+      const d = Math.hypot(look.x - h.x, look.y - h.y);
+      expect(d).toBeLessThanOrEqual(DEFAULT_TUNE.mgRangeM + 1);
+      expect((look.x - h.x) * -h.fy + (look.y - h.y) * h.fx).toBeGreaterThanOrEqual(0.5 * d - 1); // within 60 degrees of the beam
+    }
+    expect(n).toBeGreaterThan(3);
+    expect(new Set(viewAt(from + 20).friendlies.filter((f) => f.vehicle !== undefined && f.vehicle === 35).map((f) => f.squad)).size).toBeGreaterThan(1);
   });
 });
 

@@ -58,6 +58,9 @@ export interface Soldier {
   // #122 Boarding
   boarding: number; // id of the vehicle its Squad claimed for it and it is walking to, -1 = none
   climbAt: number; // tick it has climbed in, once within `mountM`; 0 = not climbing
+  // #129 Helicopter crew
+  crew: boolean; // walking to a helicopter's pilot or gun seat, or in it, for a stint
+  crewUntil: number; // tick its stint ends (drawn as it climbs in), -1 = none
   uavAssist: boolean; // #75 the shot that downed it landed while UAV-discovered: scores for the enemy Commander on death; cleared by Revive
 }
 
@@ -170,6 +173,8 @@ export function hashSoldiers(m: Match, mix: Mix) {
     mix(s.holdUntil);
     mix(s.boarding); // #122
     mix(s.climbAt);
+    mix(+s.crew); // #129
+    mix(s.crewUntil);
   }
 }
 

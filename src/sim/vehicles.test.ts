@@ -447,11 +447,11 @@ describe('#109 the transport helicopter ferries a Squad', () => {
   const heliOf = (v: CommanderView) => v.vehicles!.find((x) => x.side === v.side && x.kind === 'helicopter' && !x.wreck)!;
 
   it('the Squad boards at match start, it flies a dogleg to the far point, lands off it, unloads, and flies home empty', () => {
-    const m = ferry();
+    const m = ferry({ crewSeconds: [1000, 1000] });
     const { views } = play(m, 100 * HZ); // #124: braking no harder than speeding up
-    const filled = views.findIndex((v) => heliOf(v).seats!.every((id) => id >= 0)); // #122: they walk to it and climb in one by one
+    const filled = views.findIndex((v) => heliOf(v).seats!.filter((id) => id >= 0).length === 4); // #129: a pilot from the Squad first, #122: the others walk to it and climb in one by one
     expect(filled).toBeGreaterThan(0);
-    expect(filled / HZ).toBeLessThan(4);
+    expect(filled / HZ).toBeLessThan(20);
     expect(heliOf(views[filled]!)).toMatchObject({ id: 8 });
     const up = views.findIndex((v) => heliOf(v).airborne);
     expect(up).toBeGreaterThanOrEqual(filled);
@@ -464,10 +464,10 @@ describe('#109 the transport helicopter ferries a Squad', () => {
     const lift = views.findIndex((v, i) => i > landed && heliOf(v).airborne);
     expect((lift - landed) / HZ).toBeCloseTo(DEFAULT_TUNE.unloadSeconds + DEFAULT_TUNE.spoolSeconds, 0); // #124: unloaded, then the rotor spools up
     const pilot = heliOf(views[lift]!).seats![0]!;
-    expect([0, 1, 2, 3]).toContain(pilot); // whoever climbed in first
-    expect(heliOf(views[lift]!).seats).toEqual([pilot, -1, -1, -1]); // the pilot never gets out
+    expect([1, 2, 3]).toContain(pilot); // a member of the Squad, never its leader
+    expect(heliOf(views[lift]!).seats).toEqual([pilot, -1, -1, -1, -1, -1]); // the pilot stays for its stint
     const home = heliOf(views.at(-1)!);
-    expect(home).toMatchObject({ x: -560, y: 0, seats: [pilot, -1, -1, -1] });
+    expect(home).toMatchObject({ x: -560, y: 0, seats: [pilot, -1, -1, -1, -1, -1] });
     expect(home.airborne).toBeUndefined();
     for (const id of [0, 1, 2, 3].filter((id) => id !== pilot)) expect(Math.hypot(m.soldiers[id]!.x - A.x, m.soldiers[id]!.y - A.y)).toBeLessThan(DEFAULT_TUNE.captureRadius + 10);
     expect(views.at(-1)!.points[0]!.owner).toBe('nato');
@@ -602,14 +602,15 @@ describe('#109 the helicopter\'s sight, and being seen', () => {
     expect(fires(false)).toBe(0);
   });
 
-  it('the door gun fires over walls only with a passenger aboard, from the first passenger\'s seat', () => {
-    const doorGun = (seats: number[]) => {
+  it('a side gun fires over walls from its seat at a target on its side; a passenger seat and the far side\'s gun never do (#129)', () => {
+    const gun = (seats: number[]) => {
       const m = sky({ 2: { x: -120, y: 0 }, 3: { x: -120, y: 4 } }, { airborne: false, seats }, { hp: 1e9, visionM: 0 }); // behind the wall
-      m.vehicles[0]!.slot = { x: 0, y: 0 }; // home is here: it stays put
+      Object.assign(m.vehicles[0]!, { fx: 0, fy: 1, slot: { x: 0, y: 0 } }); // heading north, home is here: the west is its left
       return play(m, 3 * HZ).events.filter((e) => e.kind === 'shot' && e.side === 'nato').map((e) => (e as { from: number }).from);
     };
-    expect(doorGun([0, -1, -1, -1])).toEqual([]);
-    const shots = doorGun([0, -1, 1, -1]);
+    expect(gun([0, -1, -1, 1, -1, -1])).toEqual([]);
+    expect(gun([0, -1, 1, -1, -1, -1])).toEqual([]);
+    const shots = gun([0, 1, -1, -1, -1, -1]);
     expect(shots.length).toBeGreaterThan(10);
     expect(new Set(shots)).toEqual(new Set([1]));
   });
@@ -772,7 +773,7 @@ describe('#124 helicopter flight and Landing Zone', () => {
   it('the Landing Zone is on the far side from an enemy its Squad knows by the point, within lzSpreadDeg of straight away', () => {
     for (const seed of [1, 2, 3, 4, 5, 6]) {
       const m = scene124({ seed });
-      m.squads[0]!.memory.push({ id: 4, x: A.x + 100, y: A.y, tick: 0, source: 'seen' }); // known east of A: it lands west
+      m.squads[0]!.memory.push({ id: 4, x: A.x + 100, y: A.y, tick: 1e9, source: 'seen' }); // known east of A: it lands west (#129: the pilot goes first, so keep it fresh)
       flight(m, 45);
       const z = m.vehicles[0]!.lz!;
       const cos = (A.x - z.x) / Math.hypot(z.x - A.x, z.y - A.y); // against straight away (west)

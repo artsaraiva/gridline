@@ -11,7 +11,7 @@ import { bestPoint, reactAt } from './ai/squad';
 import { between, rnd } from './rng';
 import { blast } from './assets/strike';
 import { die } from './combat';
-import { approach, BRAKE_RESERVE, stopSpeed, turnToward } from './momentum';
+import { approach, BRAKE_RESERVE, cosDeg, stopSpeed, turnToward } from './momentum';
 import { dist2, inHq, middlePoint } from './geometry';
 import { dogleg, landingZone } from './flight';
 import { cellIndex, los, nearestWalkable } from './grid';
@@ -29,7 +29,7 @@ export interface Vehicle {
   fy: number;
   speed: number; // #123 m/s along the facing; a fresh one stands still
   hp: number;
-  seats: number[]; // Soldier ids, -1 free; seat 0 drives (and fires a tank's main gun), seat 1 is the gunner on the coax or MG, any more ride
+  seats: number[]; // Soldier ids, -1 free; seat 0 drives (and fires a tank's main gun), seat 1 is the gunner on the coax or MG, any more ride; #129 a helicopter's: pilot, left gun, right gun, three passengers
   slot: Vec2; // where it waits at the start and a fresh one appears
   parked: boolean; // standing at its goal, or waiting for riders
   deadAt: number; // tick it was destroyed, -1 = live, DORMANT = a point's slot that has never had one
@@ -87,13 +87,23 @@ export const specOf = (t: Tune, kind: VehicleKind) =>
     ? { hp: t.tankHp, seats: 2, roadMps: t.tankRoadMps, openMps: t.tankOpenMps, gunSeconds: t.coaxFireSeconds, gunM: t.coaxRangeM }
     : kind === 'jeep'
       ? { hp: t.jeepHp, seats: 4, roadMps: t.jeepRoadMps, openMps: t.jeepOpenMps, gunSeconds: t.mgFireSeconds, gunM: t.mgRangeM }
-      : { hp: t.heliHp, seats: 4, roadMps: t.heliMps, openMps: t.heliMps, gunSeconds: t.mgFireSeconds, gunM: t.mgRangeM };
+      : { hp: t.heliHp, seats: 6, roadMps: t.heliMps, openMps: t.heliMps, gunSeconds: t.mgFireSeconds, gunM: t.mgRangeM };
 /** Under a third of its hit points: everyone gets out, nobody gets in. */
 const crippled = (m: Match, v: Vehicle) => v.hp < specOf(m.tune, v.kind).hp / 3;
 /** #109: the air layer: off the ground grid, eyes over walls. */
 const air = (v: Vehicle) => v.kind === 'helicopter';
-/** #109: who fires the second seat's gun: seat 1; in a helicopter the first passenger aboard (the door gun is silent without one). */
-export const gunner = (v: Vehicle) => (air(v) ? (v.seats.find((id, k) => k > 0 && id >= 0) ?? -1) : v.seats[1]!);
+/** Who fires a ground vehicle's second-seat gun: seat 1. #129: a helicopter has a gun per side instead (`sideGun`). */
+export const gunner = (v: Vehicle) => v.seats[1]!;
+/** #129: standing on its helipad (its slot), down. */
+const onPad = (v: Vehicle) => !v.airborne && dist2(v, v.slot) < 1;
+/** The seats a crew member takes (pilot, left gun, right gun) and the nearest free one, -1 = none. */
+const crewSeat = (v: Vehicle) => v.seats.slice(0, 3).indexOf(-1);
+/** Seats a passenger may take: all but a helicopter's pilot seat. */
+const freeSeats = (v: Vehicle) => v.seats.filter((id, k) => id < 0 && (!air(v) || k > 0)).length;
+/** How far a gun seat's Soldier sits out from the hull's centre, so its shot lines leave from that side. */
+const GUN_OUT_M = 2;
+/** The unit vector straight out from the helicopter's `seat` side (1 left, 2 right; the field's y runs up, so left of east is +y), null for the other seats. */
+const beam = (v: Vehicle, seat: number) => (seat === 1 ? { x: -v.fy, y: v.fx } : seat === 2 ? { x: v.fy, y: -v.fx } : null);
 
 /** A vehicle as it stands fresh in its slot. */
 const fresh = (m: Match, side: SideId, kind: VehicleKind, slot: Vec2) => ({
@@ -164,10 +174,11 @@ export function board(m: Match, sq: Squad, s: Soldier) {
  */
 export function mount(m: Match, v: Vehicle, s: Soldier, sq: Squad) {
   const t = m.tune;
-  const seat = v.seats.indexOf(-1);
+  const seat = air(v) && !s.crew ? [3, 4, 5, 1, 2].find((k) => v.seats[k]! < 0)! : v.seats.indexOf(-1); // #129: a helicopter's pilot seat is for crew (pilot, then guns); riders fill the passenger seats first
   const wait = m.tick + Math.round(t.boardWaitSeconds * t.hz);
-  if (v.claim < 0 && air(v) && seat > 0 && gunner(v) < 0) v.departAt = wait;
+  if (v.claim < 0 && air(v) && !s.crew && riders(m, v).every((o) => o.crew)) v.departAt = wait; // its first passenger starts the wait for more
   v.seats[seat] = s.id;
+  if (s.crew) s.crewUntil = m.tick + ticksOf(t, between(m, t.crewSeconds));
   if (seat === 0) {
     Object.assign(v, { goal: -1, bias: m.points.map(() => (rnd(m) * 2 - 1) * t.tankGoalBias), parked: true, ...(v.claim < 0 && { departAt: wait }) });
     if (!air(v)) v.goal = drivePoint(m, sq, s, v);
@@ -186,7 +197,7 @@ export function mount(m: Match, v: Vehicle, s: Soldier, sq: Squad) {
 export function boardOnReturn(m: Match, sq: Squad, s: Soldier): boolean {
   const lead = m.soldiers[sq.members[0]!]!;
   const mine = lead.state === 'alive' ? vehicleOf(m, lead.vehicle) : undefined;
-  const v = mine?.seats.includes(-1) && !mine.airborne ? mine : m.vehicles.find((o) => o.side === s.side && live(o) && !o.airborne && o.seats[0] === -1 && !crippled(m, o));
+  const v = mine && freeSeats(mine) > 0 && !mine.airborne ? mine : m.vehicles.find((o) => o.side === s.side && live(o) && !o.airborne && o.kind !== 'helicopter' && o.seats[0] === -1 && !crippled(m, o));
   if (!v) return false;
   mount(m, v, s, sq);
   return true;
@@ -194,8 +205,8 @@ export function boardOnReturn(m: Match, sq: Squad, s: Soldier): boolean {
 
 /**
  * #122, at a Squad's think: with a goal farther than its `rideM` from the foot leader `L` it rides, if a vehicle fits: a
- * friendly jeep or helicopter, live, on the ground, fit to fight, unclaimed, within `boardM` of `L`, with no one aboard (a
- * helicopter's pilot apart) and a free seat for every member of the body but at most one; the helicopter only for a goal beyond
+ * friendly jeep or helicopter, live, on the ground, fit to fight, unclaimed, within `boardM` of `L`, with no one aboard (#129: but
+ * crew, and a helicopter needs its pilot aboard or on the way) and a free seat for every member of the body but at most one; the helicopter only for a goal beyond
  * `heliFitM` or across the river. It draws one at random, claims it for `boardWaitSeconds` and sends the body to it (after each
  * one's reaction); with one seat short the member farthest from it stays on foot, Detached on the Squad's goal.
  */
@@ -204,20 +215,41 @@ export function decideRide(m: Match, sq: Squad, body: Soldier[], L: Soldier) {
   const p = m.points[sq.goal];
   if (sq.task !== 'point' || !p || !body.length || dist2(L, p) <= squared(sq.rideM) || m.vehicles.some((v) => v.claim === sq.id)) return;
   const fits = m.vehicles.filter((v) => {
-    const free = v.seats.filter((id) => id < 0).length;
+    const free = freeSeats(v); // #129: a pilot seat is for crew
     return v.kind !== 'tank' && v.side === sq.side && live(v) && !v.airborne && !crippled(m, v) && v.claim < 0 && dist2(L, v) <= squared(t.boardM) &&
-      v.seats.every((id, k) => id < 0 || (air(v) && k === 0)) && free >= Math.max(1, body.length - 1) &&
+      v.seats.every((id) => id < 0 || m.soldiers[id]!.crew) && (!air(v) || v.seats[0]! >= 0 || m.soldiers.some((s) => s.crew && s.boarding === v.id)) && free >= Math.max(1, body.length - 1) &&
       (!air(v) || dist2(L, p) > squared(t.heliFitM) || sq.route >= 0);
   });
   if (!fits.length) return;
   const v = fits[Math.floor(rnd(m) * fits.length)]!;
-  const seats = v.seats.filter((id) => id < 0).length;
+  const seats = freeSeats(v);
   const left = body.length > seats ? body.reduce((a, s) => (dist2(s, v) > dist2(a, v) ? s : a)) : null;
   if (left) Object.assign(left, { detached: true, goal: -1, commitUntil: m.tick + ticksOf(t, t.commitSeconds[1]) }); // walks the Squad's goal as its own Commitment
   const claimUntil = m.tick + Math.round(t.boardWaitSeconds * t.hz);
   Object.assign(v, { claim: sq.id, claimUntil, departAt: claimUntil });
   for (const s of body)
     if (s !== left) Object.assign(s, { boarding: v.id, climbAt: 0, dest: null, path: [], cover: null, holdUntil: reactAt(m, s) });
+}
+
+/**
+ * #129, at a Squad's think: its foot leader `L` within `boardM` of a friendly helicopter standing on its helipad with a free
+ * pilot or gun seat (not counting the seats crew are already walking to), the Squad sends one member to fill it: seeded,
+ * never the Squad Leader, and none if a member of the Squad already crews or walks to that helicopter. The member goes Detached
+ * (and stays in the Squad), walking there as in #122.
+ */
+export function decideCrew(m: Match, sq: Squad, body: Soldier[], L: Soldier) {
+  const t = m.tune;
+  const mates = membersOf(m, sq);
+  for (const v of m.vehicles) {
+    if (!air(v) || v.side !== sq.side || !live(v) || !onPad(v) || crippled(m, v) || dist2(L, v) > squared(t.boardM)) continue;
+    const coming = m.soldiers.filter((s) => s.crew && s.state === 'alive' && (s.vehicle === v.id || (s.vehicle < 0 && s.boarding === v.id)));
+    if (v.seats.slice(0, 3).filter((id) => id < 0).length <= coming.filter((s) => s.vehicle < 0).length || mates.some((s) => coming.includes(s))) continue;
+    const pool = body.filter((s) => s.id !== sq.members[0] && s.boarding < 0);
+    if (!pool.length) return;
+    const s = pool[Math.floor(rnd(m) * pool.length)]!;
+    Object.assign(s, { crew: true, boarding: v.id, climbAt: 0, detached: true, goal: -1, commitUntil: 0, dest: null, path: [], cover: null, holdUntil: reactAt(m, s) });
+    return;
+  }
 }
 
 /**
@@ -228,8 +260,8 @@ export function decideRide(m: Match, sq: Squad, body: Soldier[], L: Soldier) {
 export function boardStep(m: Match, s: Soldier): Vehicle | null {
   const t = m.tune;
   const v = vehicleOf(m, s.boarding);
-  if (!v || !live(v) || v.claim !== s.squad || !v.seats.includes(-1)) {
-    Object.assign(s, { boarding: -1, climbAt: 0 });
+  if (!v || !live(v) || (s.crew ? v.airborne || crewSeat(v) < 0 : v.claim !== s.squad || !v.seats.includes(-1))) {
+    Object.assign(s, { boarding: -1, climbAt: 0, crew: false }); // #129: crew keep their Detached walk back to the Squad
     return null;
   }
   if (dist2(s, v) <= squared(t.mountM)) {
@@ -277,20 +309,22 @@ export function ride(m: Match, sq: Squad, s: Soldier) {
   v.seats[v.seats.indexOf(s.id)] = -1;
   Object.assign(s, { vehicle: -1, exited: v.id });
   const foot = membersOf(m, sq).filter((o) => o.state === 'alive' && o.vehicle < 0 && o !== s && !o.detached);
-  s.detached = foot.length > 0 && dist2(s, footLeader(foot)!) > squared(t.detachM);
+  s.detached = s.crew || (foot.length > 0 && dist2(s, footLeader(foot)!) > squared(t.detachM)); // #129: crew walk back, Detached until they rejoin
+  Object.assign(s, { crew: false, crewUntil: -1, goal: -1 });
 }
 
 /**
  * The shared leaving rule (#27, #108), at think. Anyone gets out under a third of the hit points; a tank's crew only then.
  * A transport empties at its goal. A passenger also gets out once the vehicle has stood still `stillSeconds` (waiting to set
  * off is not standing still), within `dismountM` of its own Capture Point, or once its drive distance to that point has grown
- * for `awaySeconds`. #109: a helicopter's pilot never gets out, nobody gets out in the air, and its passengers never go by
+ * for `awaySeconds`. #109: nobody gets out of a helicopter in the air, #129 crew only once their stint is over on its helipad, and its passengers never go by
  * drive distance (it flies straight to their majority's goal).
  */
 function wantsOut(m: Match, sq: Squad, s: Soldier, v: Vehicle): boolean {
   const t = m.tune;
-  if (air(v) && (v.seats[0] === s.id || v.airborne)) return false;
+  if (air(v) && v.airborne) return false;
   if (crippled(m, v)) return true;
+  if (s.crew) return m.tick >= s.crewUntil && onPad(v); // #129: its stint over, on the helipad
   if (v.kind === 'tank') return false;
   if (v.goal >= 0 && (air(v) ? !!v.lz && dist2(v, v.lz) < 1 : flowDist(m, driveFlow(m, v.side, v.goal), v) === 0)) return true;
   if (v.seats[0] === s.id) return false;
@@ -323,7 +357,7 @@ export function drive(m: Match) {
       continue;
     }
     if (v.claim >= 0) {
-      const walking = m.soldiers.filter((s) => s.boarding === v.id && s.state === 'alive' && s.vehicle < 0);
+      const walking = m.soldiers.filter((s) => s.boarding === v.id && !s.crew && s.state === 'alive' && s.vehicle < 0);
       if (!walking.length || m.tick >= v.claimUntil) { // everyone is in, or the wait is out: it leaves with whoever is aboard
         for (const s of walking) Object.assign(s, { boarding: -1, climbAt: 0 });
         Object.assign(v, { claim: -1, departAt: m.tick });
@@ -337,7 +371,11 @@ export function drive(m: Match) {
       if (!halted && v.seats[0]! >= 0) fly(m, v);
     } else if (v.seats[0]! >= 0 && v.goal >= 0 && (full || m.tick >= v.departAt)) step(m, v, halted);
     else v.speed = 0; // no driver, or waiting to set off
-    for (const s of riders(m, v)) Object.assign(s, { x: v.x, y: v.y, fx: v.fx, fy: v.fy, ammo: t.ammo, suppression: 0 }); // no ammo worries
+    v.seats.forEach((id, k) => {
+      const s = m.soldiers[id];
+      const out = air(v) ? beam(v, k) : null; // #129: a gun seat's Soldier sits out to its side
+      if (s) Object.assign(s, { x: v.x + (out ? out.x * GUN_OUT_M : 0), y: v.y + (out ? out.y * GUN_OUT_M : 0), fx: v.fx, fy: v.fy, ammo: t.ammo, suppression: 0 }); // no ammo worries
+    });
   }
 }
 
@@ -392,7 +430,7 @@ function step(m: Match, v: Vehicle, halt: boolean) {
 function ferryGoal(m: Match, v: Vehicle): number {
   const goals = v.seats.map((id) => {
     const s = m.soldiers[id];
-    return s ? goalOf(m, m.squads[s.squad]!, s) : -1;
+    return s && (!s.crew || s.id === v.seats[0]) ? goalOf(m, m.squads[s.squad]!, s) : -1; // #129: the guns' crew do not vote
   });
   const votes = goals.slice(1).filter((g) => g >= 0);
   const count = (g: number) => votes.filter((o) => o === g).length;
@@ -524,6 +562,25 @@ export function look(m: Match, v: Vehicle) {
 }
 
 /**
+ * #129: the nearest enemy on foot a helicopter's gun in `seat` (1 left, 2 right) can fire at: within the gun's range and its
+ * `gunArcDeg` arc centred on its beam (a dot product against the beam, no trig), outside its HQ. Null for any other seat.
+ */
+export function sideGun(m: Match, v: Vehicle, seat: number): Soldier | null {
+  const t = m.tune;
+  const out = beam(v, seat);
+  if (!out) return null;
+  const cos = cosDeg(t.gunArcDeg / 2);
+  let best: Soldier | null = null;
+  let bestD2 = squared(specOf(t, v.kind).gunM);
+  for (const e of m.soldiers) {
+    if (e.side === v.side || e.state !== 'alive' || e.vehicle >= 0 || inHq(m, e.side, e)) continue;
+    const d2 = dist2(v, e);
+    if (d2 <= bestD2 && (e.x - v.x) * out.x + (e.y - v.y) * out.y >= cos * Math.sqrt(d2)) [best, bestD2] = [e, d2];
+  }
+  return best;
+}
+
+/**
  * A Soldier on foot sees an enemy vehicle at `vehicleVisionMul` x its range, in its cone and line of sight, outside its HQ.
  * #108: the nearest jeep (#109: or helicopter) it sees closer than `withinD2` (metres squared), a rifle target, or null.
  * #109: an airborne one over walls.
@@ -608,7 +665,7 @@ export function hurt(m: Match, v: Vehicle, damage: number, by: SideId, cause: So
 export function leave(m: Match, s: Soldier) {
   const v = vehicleOf(m, s.vehicle);
   if (v) v.seats[v.seats.indexOf(s.id)] = -1;
-  s.vehicle = -1;
+  Object.assign(s, { vehicle: -1, crew: false, crewUntil: -1 });
 }
 
 export function vehicleViews(m: Match, side: SideId, seen: Set<number>): VehicleView[] {

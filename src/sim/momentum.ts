@@ -18,6 +18,13 @@ export const stopSpeed = (distM: number, accel: number, brakeMul: number, reserv
 
 export const BRAKE_RESERVE = 0.5;
 
+/** Cosine of an angle in degrees (up to 90), from a short polynomial: no run-time trig in the Simulation. */
+export function cosDeg(deg: number): number {
+  const x = (deg * Math.PI) / 180;
+  const x2 = x * x;
+  return 1 - x2 / 2 + (x2 * x2) / 24 - (x2 * x2 * x2) / 720 + (x2 * x2 * x2 * x2) / 40320;
+}
+
 /**
  * The unit heading (fx, fy) turned toward the unit way ahead (tx, ty) by at most `degPerS` over one tick: inside one step it
  * snaps to the way ahead (compared by dot product), else it rotates by the step, left or right as the cross product says.

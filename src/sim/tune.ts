@@ -257,4 +257,8 @@ export const DEFAULT_TUNE: Tune = {
   heliFitM: 350,
   mountM: 3,
   mountSeconds: [1, 2],
+
+  // #129 Helicopter crew and side guns
+  crewSeconds: [60, 180],
+  gunArcDeg: 120,
 };
