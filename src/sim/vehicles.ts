@@ -382,7 +382,7 @@ function wantsOut(m: Match, sq: Squad, s: Soldier, v: Vehicle): boolean {
     if (v.job === 'repair' && !s.crew) return true; // #131: its passengers leave it (in the air by parachute, `decideJob`), its crew stay at their seats
   } else if (crippled(m, v)) return true;
   if (air(v) && v.airborne) return false;
-  if (s.crew) return m.tick >= s.crewUntil && onPad(v); // #129: its stint over, on the helipad
+  if (s.crew) return m.tick >= s.crewUntil && onPad(v) && v.claim < 0 && riders(m, v).every((o) => o.crew); // #129: its stint over, on the helipad, no claimed Squad boarding and no passenger aboard (never a pilotless helicopter with riders)
   if (v.kind === 'tank') return false;
   if (v.goal >= 0 && (air(v) ? !!v.lz && dist2(v, v.lz) < 1 : flowDist(m, driveFlow(m, v.side, v.goal), v) === 0)) return true;
   if (v.seats[0] === s.id) return false;

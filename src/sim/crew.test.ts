@@ -82,6 +82,20 @@ describe('#129 crew', () => {
     expect(heli.seats[0]).toBe(sent[0]);
   });
 
+  it('a pilot whose stint is over stays while a claimed Squad is boarding or a passenger is aboard, and leaves once the helicopter is on its pad with neither', () => {
+    for (const hold of ['claim', 'passenger', 'none'] as const) {
+      const m = scene();
+      m.squads.forEach((sq) => (sq.rideM = 1e9));
+      const heli = heliOf(m);
+      Object.assign(heli, { seats: [4, -1, -1, hold === 'passenger' ? 8 : -1, -1, -1], departAt: 1e9, ...(hold === 'claim' && { claim: 2, claimUntil: 1e9 }) });
+      Object.assign(m.soldiers[4]!, { vehicle: heli.id, crew: true, crewSeat: 0, crewUntil: 0, x: heli.x, y: heli.y });
+      if (hold === 'claim') Object.assign(m.soldiers[8]!, { boarding: heli.id, x: heli.x + 30, y: heli.y }); // Squad 2 is walking to it
+      if (hold === 'passenger') Object.assign(m.soldiers[8]!, { vehicle: heli.id, x: heli.x, y: heli.y });
+      for (let t = 0; t < 20 * HZ; t++) step(m, []);
+      expect(heli.seats[0] === 4, hold).toBe(hold !== 'none');
+    }
+  });
+
   it('with no pilot the helicopter does not fly', () => {
     const m = scene({ rideM: [100, 100] });
     const heli = heliOf(m);
