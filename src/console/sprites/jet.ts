@@ -1,8 +1,8 @@
 // The jet (#110): its baked sheet (one body per paint variant) and the pose that lifts it to the Cruise Missile's altitude
 // over its ground shadow while it flies, with its contrail; a Wreck lies flat. layers/jet.ts draws it.
 import type { VehicleView } from '../../sim/types';
-import { ALTITUDE_LIFT_PER_M, CRUISE_ALTITUDE_M } from './missile';
-import { SHADOW_DIR, type SpriteSheetSpec } from './sheet';
+import { aloft } from './missile';
+import type { SpriteSheetSpec } from './sheet';
 
 /** Headings baked (heading k at k * 360 / JET_HEADINGS deg from east). */
 export const JET_HEADINGS = 16;
@@ -50,8 +50,7 @@ export function jetPose(v: VehicleView): JetPose {
   const variant = v.wreck ? 2 : v.side === 'nato' ? 0 : 1;
   const heading = Math.atan2(v.fy, v.fx);
   const k = Math.round(heading / STEP);
-  const lift = v.airborne ? CRUISE_ALTITUDE_M * ALTITUDE_LIFT_PER_M : 0;
-  const [x, y] = [v.x - SHADOW_DIR.x * lift, v.y - SHADOW_DIR.y * lift];
+  const { x, y } = v.airborne ? aloft(v) : v;
   return {
     x,
     y,

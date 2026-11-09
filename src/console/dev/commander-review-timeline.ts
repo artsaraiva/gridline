@@ -392,9 +392,10 @@ const HOT: Man[] = [
 // jet appears from the base (where the Cruise Missile leaves), off screen (its icon glued to the screen edge), flies in at `jetMps`
 // along y = 6 to C with its cannon on the Contacts within `jetStripM` of its line from `jetFireM` out (21 and 22, not 20), overflies,
 // bends north clear of the pact HQ out past the Play Area, and turns `jetTurnSeconds` there, away from the map, then flies off home.
-// AA: Alpha's 2 crews an AA parked west of C; a pact helicopter comes in from the east, and the AA's stream (a tracer a tick, as the
-// Simulation's) brings it down in about ten seconds: a Wreck where it fell. Then a pact jet crosses over the Play Area (both sides
-// see it there) and the AA fires on it while it is within `aaRangeM`; the turret follows each target.
+// AA: Alpha's 2 crews an AA parked west of C; a pact helicopter comes in from the east, and the AA's gun (bursts of a round every
+// `aaFireSeconds`, as the Simulation's) and a lock-on missile bring it down: a Wreck where it fell. Then a pact jet crosses over
+// the Play Area (both sides see it there); the AA fires bursts on it while it is within `aaRangeM`, and a missile that misses it
+// and flies on past. The turret follows each target.
 const JET_AT = CHAPTERS[15]!.at;
 const AA_AT = CHAPTERS[16]!.at;
 const [JET_ID, AA_ID, AA_HELI_ID, ENEMY_JET_ID] = [40, 41, 42, 43];
@@ -422,6 +423,21 @@ const AA_HELI_FIRE: Span = [AA_AT + 4, AA_HELI_DOWN];
 const ENEMY_JET_PATH: Key[] = [[AA_AT + 18, 1500, 20], [AA_AT + 18 + 3000 / JET_MPS, -1500, 20]];
 const AA_REACH = Math.sqrt(DEFAULT_TUNE.aaRangeM ** 2 - (AA_AT_SPOT.y - 20) ** 2); // along the jet's line, either side of the AA
 const ENEMY_JET_FIRE: Span = [AA_AT + 18 + (1500 - AA_AT_SPOT.x - AA_REACH) / JET_MPS, AA_AT + 18 + (1500 - AA_AT_SPOT.x + AA_REACH) / JET_MPS]; // within aaRangeM of the AA
+/** The AA's two missiles: one reaches the helicopter as it closes, one passes where the jet is and flies on until spent. */
+const AA_MISSILES = [
+  { path: AA_HELI_PATH, when: AA_AT + 9, hits: true },
+  { path: ENEMY_JET_PATH, when: ENEMY_JET_FIRE[0] + 3, hits: false },
+];
+/** Where an AA missile is at `t`: straight from the AA at `airMissileMps` to its target's spot at `when`, launched to arrive then; null before launch, once it hits or once spent. */
+function aaMissileAt(t: number, { path, when, hits }: (typeof AA_MISSILES)[number]) {
+  const aim = at(path, when);
+  const d = Math.hypot(aim.x - AA_AT_SPOT.x, aim.y - AA_AT_SPOT.y) || 1;
+  const launch = when - d / DEFAULT_TUNE.airMissileMps;
+  const flown = (t - launch) * DEFAULT_TUNE.airMissileMps;
+  if (t < launch || (hits && flown >= d) || t - launch >= DEFAULT_TUNE.airMissileSeconds) return null;
+  const [fx, fy] = [(aim.x - AA_AT_SPOT.x) / d, (aim.y - AA_AT_SPOT.y) / d];
+  return { x: AA_AT_SPOT.x + fx * flown, y: AA_AT_SPOT.y + fy * flown, fx, fy };
+}
 
 /** The unit heading along `path` at `t`. */
 function headingOn(path: Key[], t: number) {
@@ -444,21 +460,24 @@ function airAt(t: number): VehicleView[] {
   const target = inSpan([AA_HELI_FIRE], t) ? heli : inSpan([ENEMY_JET_FIRE], t) ? jet : null;
   const d = target ? Math.hypot(target.x - AA_AT_SPOT.x, target.y - AA_AT_SPOT.y) : 0;
   const turret = target ? { tx: (target.x - AA_AT_SPOT.x) / d, ty: (target.y - AA_AT_SPOT.y) / d } : { tx: 0.95, ty: 0.3 };
-  out.push({ id: AA_ID, side: 'nato', kind: 'aa', ...AA_AT_SPOT, fx: 0.95, fy: 0.3, ...turret, hp: 1, seats: [AA_CREW] });
+  const missiles = AA_MISSILES.map((s) => aaMissileAt(t, s)).filter((s) => s !== null);
+  out.push({ id: AA_ID, side: 'nato', kind: 'aa', ...AA_AT_SPOT, fx: 0.95, fy: 0.3, ...turret, hp: 1, seats: [AA_CREW], ...(missiles.length && { missiles }) });
   const hh = headingOn(AA_HELI_PATH, Math.min(t, AA_HELI_DOWN));
   if (t >= AA_AT + 1) out.push({ id: t < AA_HELI_DOWN ? AA_HELI_ID : -1, side: 'pact', kind: 'helicopter', ...heli, ...hh, tx: hh.fx, ty: hh.fy, ...(t < AA_HELI_DOWN ? { airborne: true } : { wreck: true }) });
   if (t >= ENEMY_JET_PATH[0]![0] && Math.abs(jet.x) < 450) out.push({ id: ENEMY_JET_ID, side: 'pact', kind: 'jet', ...jet, fx: -1, fy: 0, tx: -1, ty: 0, airborne: true }); // the sky rule: over the Play Area
   return out;
 }
 
-/** #110: the jet's cannon on the Contacts in its strip, and the AA's stream, a tracer a tick, on the helicopter and the jet. */
+/** #110: the jet's cannon on the Contacts in its strip, and the AA's gun in bursts on the helicopter and the jet. */
 function airFire(): [number, SimEvent][] {
   const events: [number, SimEvent][] = [];
   const strip = [OVER_C - DEFAULT_TUNE.jetFireM / JET_MPS, OVER_C - 15 / JET_MPS];
   let i = 0;
   for (let t = strip[0]!; t < strip[1]!; t += DEFAULT_TUNE.jetFireSeconds, i++) events.push([t, { kind: 'shot', side: 'nato', from: JET_PILOT, to: CONTACTS[1 + (i % 2)]!.id, hit: i % 3 === 0 }]);
+  const [bursts, pauses] = [[1.2, 0.9, 1.5], [0.8, 1.2]]; // seconds, in turn: the Simulation draws them between aaBurstSeconds and aaPauseSeconds
   for (const [[a, b], to] of [[AA_HELI_FIRE, AA_HELI_ID], [ENEMY_JET_FIRE, ENEMY_JET_ID]] as const)
-    for (let t = a; t < b; t += 1 / HZ) events.push([t, { kind: 'shot', side: 'nato', from: AA_CREW, to, hit: true }]);
+    for (let t0 = a, k = 0; t0 < b; t0 += bursts[k % 3]! + pauses[k % 2]!, k++)
+      for (let t = t0, n = 0; t < Math.min(b, t0 + bursts[k % 3]!); t += DEFAULT_TUNE.aaFireSeconds, n++) events.push([t, { kind: 'shot', side: 'nato', from: AA_CREW, to, hit: n % 3 === 0 }]);
   return events;
 }
 

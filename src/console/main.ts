@@ -19,6 +19,7 @@ import { drawJeeps } from './layers/jeep';
 import { drawHelicopters } from './layers/helicopter';
 import { drawAas } from './layers/aa';
 import { drawJets } from './layers/jet';
+import { drawAirMissiles } from './layers/air-missiles';
 import { drawOrders, hideOrderTags } from './layers/orders';
 import { drawHqs, drawPoint } from './layers/points';
 import { drawScanUavs } from './layers/scan-uav';
@@ -85,6 +86,7 @@ renderer.setAnimationLoop(() => {
   drawHelicopters(view, scale, now);
   drawAas(view, scale);
   drawJets(view, scale);
+  drawAirMissiles(view, scale);
   drawOrders(view, metresPerPx.value);
   drawDeathMarkers(now, scale);
   drawLastKnown(view, scale);

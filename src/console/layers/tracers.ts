@@ -6,8 +6,7 @@ import * as THREE from 'three/webgpu';
 import type { CommanderView, SideId, SimEvent, Vec2 } from '../../sim/types';
 import { BRIGHT, GLOW, layer } from '../renderer';
 import { session } from '../session';
-import { ALTITUDE_LIFT_PER_M, CRUISE_ALTITUDE_M } from '../sprites/missile';
-import { SHADOW_DIR } from '../sprites/sheet';
+import { aloft } from '../sprites/missile';
 import { fading, px } from './symbols';
 
 const TRACER_MS = 150;
@@ -16,9 +15,8 @@ const FLASH_MS = 60;
 const MISS_M = 2.5;
 const TINT = { friendly: 0xc8f0ff, hostile: 0xffbe96 };
 const flashGeometry = new THREE.CircleGeometry(px(2.2), 10);
-const LIFT = CRUISE_ALTITUDE_M * ALTITUDE_LIFT_PER_M;
 /** `p` as drawn: lifted as the sprite of something in the air. */
-const up = (p: Vec2, air: boolean | undefined) => (air ? { x: p.x - SHADOW_DIR.x * LIFT, y: p.y - SHADOW_DIR.y * LIFT } : p);
+const up = (p: Vec2, air: boolean | undefined) => (air ? aloft(p) : p);
 
 type Shot = { line: THREE.Line; flash: THREE.Mesh; from: Vec2; to: Vec2 | null; at: number };
 const pool: Shot[] = [];

@@ -125,7 +125,7 @@ The helicopter job of fetching and carrying a Squad: a Squad on foot far from th
 _Avoid_: Taxi, evac, air drop
 
 **Sortie**:
-A jet's round of passes from its Side's off-map base: each pass flies straight at the Capture Point its pilot picks, its cannon raking the last stretch before the point at enemies its Side knows there, then climbs out past the Play Area and turns for the next; after the last pass it flies home and rearms with its pilot aboard.
+A jet's round of passes from its Side's off-map base: each pass is an attack run at an enemy its Side knows near the Capture Point its pilot picks, its cannon raking the last stretch before it (a bomb on a vehicle or a group, while it has bombs), then it climbs out past the Play Area and turns for the next; an enemy jet met in the air is fought first; after the last pass it flies home and rearms with its pilot aboard.
 _Avoid_: Strafing Run (the Commander Asset), attack run, mission
 
 **Support**:

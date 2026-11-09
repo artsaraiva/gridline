@@ -271,6 +271,10 @@ describe('#107 the tank fights', () => {
     // #110 the jet's sortie
     moves((m) => (m.vehicles[0]!.sortie = 'turning'));
     moves((m) => (m.vehicles[0]!.passes = 3));
+    moves((m) => (m.vehicles[0]!.bombs = 1));
+    moves((m) => (m.vehicles[0]!.prey = 2));
+    moves((m) => m.vehicles[0]!.missiles.push({ x: 1, y: 2, fx: 1, fy: 0, prey: 3, launch: 0, missed: false }));
+    moves((m) => m.vehicles[0]!.rounds.push({ x0: 0, y0: 0, x: 1, y: 2, launch: 0, land: 9, bomb: true }));
     // #129 crew and #130 parachute, per Soldier
     moves((m) => (m.soldiers[0]!.crew = true));
     moves((m) => (m.soldiers[0]!.crewUntil = 99));

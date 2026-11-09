@@ -27,6 +27,8 @@ export const MISSILE_SHEET: SpriteSheetSpec = {
 export const CRUISE_ALTITUDE_M = 50;
 export const DROP_FROM = 0.91;
 export const ALTITUDE_LIFT_PER_M = 0.4;
+/** #110: `p` as drawn when it flies at cruise altitude (a jet, a helicopter in the air, a lock-on missile): lifted north-east of the ground, its shadow's side. */
+export const aloft = (p: Vec2): Vec2 => ({ x: p.x - SHADOW_DIR.x * CRUISE_ALTITUDE_M * ALTITUDE_LIFT_PER_M, y: p.y - SHADOW_DIR.y * CRUISE_ALTITUDE_M * ALTITUDE_LIFT_PER_M });
 /** The contrail reaches this many seconds of flight back from the missile. */
 const TRAIL_S = 8;
 

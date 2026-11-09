@@ -19,7 +19,7 @@ const Z = { wreck: 0.44, shadow: 0.43, trail: 0.68, body: 0.74, icon: 0.95 };
 const SHADOW_OPACITY = 0.42;
 const TRAIL_PX = 2;
 const TRAIL_OPACITY = 0.45;
-const ICON_SCALE = 1.3;
+const ICON_SCALE = 1.1;
 const ARROW_SCALE = 1.6;
 /** The edge-clamped icon's centre keeps this far inside the screen, as the missile's. */
 const EDGE_MARGIN_PX = 56;

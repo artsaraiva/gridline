@@ -6,8 +6,10 @@
 // majority's goal and home again, sees over walls, and is seen over walls while airborne. #119: the enemy's Console shows it only
 // when someone of theirs sees it, as any vehicle. #131: a piloted helicopter takes a job at its pilot's Squad think (`decideJob`):
 // bail, repair, ferry (fetch a Squad that calls it, carry riders, drop them over a hot goal), support (circle a point) or wait.
-// #110 adds the jet (its sortie in `jet.ts`: one pilot, passes from the off-map base, only the AA hurts it) and the AA: a ground
-// vehicle crewed alone like a tank, whose gun hurts air (a jet over the Play Area first, else a helicopter) by `aaDps`.
+// #110 adds the jet (its sortie in `jet.ts`: one pilot, attack runs and bombs from the off-map base, dogfights; only the AA and
+// the enemy jet hurt it) and the AA: a ground vehicle crewed alone like a tank that lays back on rear and flank points, its gun
+// firing bursts at air first (a jet over the Play Area, else a helicopter), else at infantry and light vehicles, and its lock-on
+// missile (`air-missiles.ts`) at air.
 import type { Match } from './index';
 import { driveFlow, flowDist, flowLook } from './ai/flow';
 import { bestPoint, reactAt } from './ai/squad';
@@ -18,6 +20,7 @@ import { approach, BRAKE_RESERVE, cosDeg, stopSpeed, turnToward } from './moment
 import { canStand, dist2, inHq, insidePolygon, middlePoint } from './geometry';
 import { dogleg, landingZone } from './flight';
 import { launchPoint } from './assets/missile';
+import { hashMissiles, type AirMissile } from './air-missiles';
 import { jetPoint, SORTIE, sortie, takeOff, type Sortie } from './jet';
 import { circle, decideJob, glide, JOBS, repairOnPad, spinFor, type Job } from './heli-jobs';
 import { cellIndex, los, nearestWalkable } from './grid';
@@ -41,11 +44,11 @@ export interface Vehicle {
   deadAt: number; // tick it was destroyed, -1 = live, DORMANT = a point's slot that has never had one
   goal: number; // index of the Capture Point it drives to (its driver's), -1 = none
   departAt: number; // tick a fresh driver leaves with free seats
-  target: number; // main gun target id (Soldier or vehicle), -1 = none
-  coax: number; // coax (or MG) target Soldier id, -1 = none
-  nextFire: number; // tick the main gun may fire again
+  target: number; // main gun target id (Soldier or vehicle), -1 = none; #110 an AA's gun target (air first, else a light vehicle)
+  coax: number; // coax (or MG) target Soldier id, -1 = none; #110 an AA's infantry target
+  nextFire: number; // tick the main gun may fire again; #110 an AA's or a jet's missile, once locked and reloaded
   rounds: Round[]; // main gun rounds in the air (they land even if it dies meanwhile)
-  laid: number; // the target the main gun last laid on, -1 = none; a new one costs the aim time
+  laid: number; // the target the main gun last laid on, -1 = none; a new one costs the aim time; #110 the missile's lock
   bias: number[]; // its driver's seeded preference per Capture Point, drawn when the driver boards
   point: number; // #108 index of the Capture Point whose owner it appears for, -1 = an HQ slot
   movedAt: number; // #108 last tick it moved
@@ -62,11 +65,14 @@ export interface Vehicle {
   fetch: number; // #131 id of the Squad it is flying to fetch, -1 = none
   spot: Vec2 | null; // #131 the pickup Landing Zone it is bound for (fetching), or the centre it circles (Support, or over a hot goal)
   spin: number; // #131 which way round it circles: 1 counter-clockwise (the centre on its left), -1 clockwise
-  until: number; // #131 tick its Support Commitment ends, or its orbit over a hot goal (-1 = not begun)
-  drop: boolean; // #131 its riders jump over their Landing Zone (a hot goal) instead of landing
+  until: number; // #131 tick its Support Commitment ends, or its orbit over a hot goal (-1 = not begun); #110 an AA's gun burst ends (-1 = none on)
+  drop: boolean; // #131 its riders jump over their Landing Zone (a hot goal) instead of landing; #110 a jet's pass drops a bomb
   crashAt: number; // #131 tick a helicopter bailed out of hits the ground, -1 = not going down
   sortie: Sortie; // #110 where a jet is in its sortie (`jet.ts`); a jet's `spot` is its pass's point, `until` the tick its turn or rearm ends, `spin` its turn's way round
   passes: number; // #110 a jet's passes left in the sortie
+  bombs: number; // #110 a jet's bombs left in the sortie
+  prey: number; // #110 a jet's mark: the enemy its pass is aimed at, or the enemy jet it fights; -1 = none
+  missiles: AirMissile[]; // #110 lock-on missiles it fired, in flight (they fly on if it dies)
 }
 
 /** A main gun round: fired from (x0, y0) at tick `launch`, landing on (x, y) at tick `land`. */
@@ -77,6 +83,7 @@ export interface Round {
   y: number;
   launch: number;
   land: number;
+  bomb?: boolean; // #110 a jet's bomb, not a main gun round
 }
 
 /** A destroyed vehicle where it died, for the rest of the Match. `seen`: the enemy saw it die. */
@@ -105,10 +112,10 @@ export const specOf = (t: Tune, kind: VehicleKind) =>
       : kind === 'jet'
         ? { hp: t.jetHp, seats: 1, roadMps: t.jetMps, openMps: t.jetMps, gunSeconds: t.jetFireSeconds, gunM: 0 }
         : kind === 'aa'
-          ? { hp: t.aaHp, seats: 1, roadMps: t.aaRoadMps, openMps: t.aaOpenMps, gunSeconds: 0, gunM: 0 }
+          ? { hp: t.aaHp, seats: 1, roadMps: t.aaRoadMps, openMps: t.aaOpenMps, gunSeconds: t.aaFireSeconds, gunM: t.aaGroundRangeM }
           : { hp: t.heliHp, seats: 6, roadMps: t.heliMps, openMps: t.heliMps, gunSeconds: t.mgFireSeconds, gunM: t.mgRangeM };
-/** #110: the classes an AA fires on. */
-const flies = (v: Vehicle) => v.kind === 'helicopter' || v.kind === 'jet';
+/** #110: the air class: what an AA's eyes see over walls and its missile locks on. */
+export const flies = (v: Vehicle) => v.kind === 'helicopter' || v.kind === 'jet';
 /** Under a third of its hit points: everyone gets out, nobody gets in. */
 export const crippled = (m: Match, v: Vehicle) => v.hp < specOf(m.tune, v.kind).hp / 3;
 /** #109: the air layer: off the ground grid, eyes over walls. */
@@ -132,7 +139,7 @@ const fresh = (m: Match, side: SideId, kind: VehicleKind, slot: Vec2) => ({
   side, kind, ...(kind === 'jet' ? launchPoint(m, side) : slot), fx: side === 'nato' ? 1 : -1, fy: 0, speed: 0, hp: specOf(m.tune, kind).hp, seats: Array<number>(specOf(m.tune, kind).seats).fill(-1), slot,
   parked: true, deadAt: -1, goal: -1, departAt: 0, target: -1, coax: -1, nextFire: 0, laid: -1, bias: [] as number[], movedAt: m.tick, halt: -1,
   airborne: false, landedAt: -1, claim: -1, claimUntil: 0, lz: null as Vec2 | null, wp: null as Vec2 | null, flareUntil: -1, spoolUntil: -1,
-  job: 'wait' as Job, fetch: -1, spot: null as Vec2 | null, spin: 1, until: -1, drop: false, crashAt: -1, sortie: 'idle' as Sortie, passes: 0,
+  job: 'wait' as Job, fetch: -1, spot: null as Vec2 | null, spin: 1, until: -1, drop: false, crashAt: -1, sortie: 'idle' as Sortie, passes: 0, bombs: 0, prey: -1,
 });
 
 /**
@@ -148,13 +155,13 @@ export function newVehicles(m: Match): Vehicle[] {
   const atPoints = points.map((i) => {
     const p = m.points[i]!;
     const slot = nearestWalkable(m, { x: p.x, y: p.y }, m.drive.nato);
-    return { ...fresh(m, p.owner ?? 'nato', 'jeep', slot), ...(!p.owner && { deadAt: DORMANT }), point: i, rounds: [] as Round[] };
+    return { ...fresh(m, p.owner ?? 'nato', 'jeep', slot), ...(!p.owner && { deadAt: DORMANT }), point: i, rounds: [] as Round[], missiles: [] as AirMissile[] };
   });
   const count = (kind: VehicleKind, n: number) => Array<VehicleKind>(n).fill(kind);
   const tanks = (side: SideId) => m.tune.tanksPerSide ?? parkSlots(m, side).length;
   const placed = (side: SideId, kind: VehicleKind, k: number) => {
     const pad = kind === 'helicopter' ? m.map.helipad?.[side] : undefined;
-    return { ...fresh(m, side, kind, pad ?? parkSlot(m, side, k)), point: -1, rounds: [] as Round[] };
+    return { ...fresh(m, side, kind, pad ?? parkSlot(m, side, k)), point: -1, rounds: [] as Round[], missiles: [] as AirMissile[] };
   };
   return [
     ...SIDES.flatMap((side) => [...count('tank', tanks(side)), ...count('jeep', m.tune.jeepsPerSide), ...count('helicopter', m.tune.helisPerSide)].map((kind, k) => placed(side, kind, k))),
@@ -354,14 +361,37 @@ export function boardStep(m: Match, s: Soldier): Vehicle | null {
  * The Capture Point a driver takes its vehicle to: scored like its Squad's choice (the Order's bonus as ever) but by drive
  * distance from the vehicle, with its own seeded preference, stickiness to where it is going, and the crowd penalty for each
  * other friendly vehicle already going there; its Squad's goal pulls no harder than any point. A Detached driver keeps its own,
- * and #108 a transport's driver always drives to its own goal. #110: an AA's driver as a tank's.
+ * and #108 a transport's driver always drives to its own goal. #110: an AA's driver lays back (`aaPoint`).
  */
 function drivePoint(m: Match, sq: Squad, s: Soldier, v: Vehicle): number {
-  if ((v.kind !== 'tank' && v.kind !== 'aa') || (s.detached && s.goal >= 0)) return goalOf(m, sq, s);
+  if (v.kind === 'aa') return aaPoint(m, v);
+  if (v.kind !== 'tank' || (s.detached && s.goal >= 0)) return goalOf(m, sq, s);
   const t = m.tune;
   const others = (i: number) => m.vehicles.filter((o) => o !== v && o.side === v.side && live(o) && o.seats[0]! >= 0 && o.goal === i).length;
   const bias = v.bias.map((b, i) => b + (i === v.goal ? t.stickiness : 0) - t.crowdPenalty * others(i) - (sq.task === 'point' && sq.goal === i ? t.stickiness : 0));
   return bestPoint(m, sq, v, 0, { flow: (i) => driveFlow(m, v.side, i), bias });
+}
+
+/**
+ * #110: the Capture Point an AA's driver lays back on: its Side's own, never the middle one, the nearer its HQ and the farther out
+ * on a flank (off the line between the HQs) the better, with the driver's seeded preference; -1 with none (it holds where it is,
+ * at first in the HQ park).
+ */
+function aaPoint(m: Match, v: Vehicle): number {
+  const own = m.map.hqs[v.side];
+  const foe = m.map.hqs[enemyOf(v.side)];
+  const [ax, ay] = [foe.x - own.x, foe.y - own.y];
+  const len = Math.sqrt(ax * ax + ay * ay) || 1;
+  const middle = middlePoint(m);
+  let best = -1;
+  let top = -Infinity;
+  m.points.forEach((p, i) => {
+    if (p.owner !== v.side || p === middle) return;
+    const flank = Math.abs((p.x - own.x) * ay - (p.y - own.y) * ax) / len;
+    const score = flank - Math.sqrt(dist2(p, own)) / 2 + (v.bias[i] ?? 0) * 100; // ponytail: a metre out on a flank counts as two back toward the HQ, the preference in hundreds of metres; tune keys if the AA needs placing finer
+    if (score > top) [best, top] = [i, score];
+  });
+  return best;
 }
 
 /**
@@ -383,7 +413,7 @@ export function ride(m: Match, sq: Squad, s: Soldier) {
   }
   if (v.seats[0] === s.id && !air(v)) {
     const goal = drivePoint(m, sq, s, v);
-    if (goal >= 0) v.goal = goal;
+    if (goal >= 0 || v.kind === 'aa') v.goal = goal; // #110: an AA with no rear point left stops where it is
   }
   if (!wantsOut(m, sq, s, v)) return;
   if (v.airborne) return jump(m, s);
@@ -671,7 +701,7 @@ function cruise(m: Match, v: Vehicle) {
  * the nearest infantry in its range. #109: a helicopter's eyes see a full circle out to `airVisionM`, over walls (its door gun
  * fires as the MG); anyone's eyes see an airborne vehicle over walls. #110: a jet sees nothing, and only an AA sees one: the AA sees
  * a helicopter, or a jet over the Play Area, a full circle out to `aaRangeM` over walls, and lays its gun on a jet first, else
- * the nearest helicopter; never on anything on the ground.
+ * the nearest helicopter, else the nearest jeep within `aaGroundRangeM` (its infantry target is its coax's); never on a tank.
  */
 export function look(m: Match, v: Vehicle) {
   const t = m.tune;
@@ -705,8 +735,10 @@ export function look(m: Match, v: Vehicle) {
     const aa = v.kind === 'aa' && flies(u);
     if (u.side === v.side || !live(u) || (u.kind === 'jet' && !aa) || !(aa ? aaSees(u) : sees(u))) continue;
     for (const sq of squads) see(m, sq, u);
-    if (v.kind === 'tank') consider(u.id, u.kind === 'tank' ? 0 : 1, dist2(v, u));
-    else if (aa) consider(u.id, u.kind === 'jet' ? 0 : 1, dist2(v, u));
+    const d2 = dist2(v, u);
+    if (v.kind === 'tank') consider(u.id, u.kind === 'tank' ? 0 : 1, d2);
+    else if (aa) consider(u.id, u.kind === 'jet' ? 0 : 1, d2);
+    else if (v.kind === 'aa' && u.kind === 'jeep' && d2 <= squared(t.aaGroundRangeM)) consider(u.id, 2, d2);
   }
   if (best || v.coax >= 0) for (const sq of squads) sq.lastSeen = m.tick;
   v.target = (best as { id: number } | null)?.id ?? -1;
@@ -756,37 +788,30 @@ export const targetOf = (m: Match, v: Vehicle): Vec2 | undefined => m.soldiers[v
 /**
  * The combat phase: each driver whose main gun is due fires at its target in range, a round that flies to the target's spot
  * at `tankShellMps`; then every round due lands, a Strike-shaped impact hitting the enemy's vehicles in its kill radius:
- * `tankVsVehicleDamage` on a tank (#110 or an AA), anything lighter destroyed. No Commander is paid for what it kills.
+ * `tankVsVehicleDamage` on a tank (#110 or an AA), anything lighter destroyed. No Commander is paid for what it kills. #110: a
+ * jet's bombs land the same way, each a blast of its own (`jetBomb*`), friend or foe as a Strike's, never on the air.
  */
 export function mainGuns(m: Match, events: SimEvent[]) {
   const t = m.tune;
   for (const v of m.vehicles) {
+    if (v.kind !== 'tank') continue;
     const e = targetOf(m, v);
     if (e && v.target !== v.laid) { // laying the gun on a new target takes a seeded moment, so two tanks never trade the first round together
       v.laid = v.target;
       v.nextFire = Math.max(v.nextFire, m.tick + Math.round((t.tankAimSeconds[0] + rnd(m) * (t.tankAimSeconds[1] - t.tankAimSeconds[0])) * t.hz));
     }
-    if (v.kind !== 'tank' || !live(v) || v.seats[0]! < 0 || !e || m.tick < v.nextFire || dist2(v, e) > t.tankRangeM * t.tankRangeM) continue;
+    if (!live(v) || v.seats[0]! < 0 || !e || m.tick < v.nextFire || dist2(v, e) > t.tankRangeM * t.tankRangeM) continue;
     v.nextFire = m.tick + Math.round(t.tankFireSeconds * t.hz);
     const flight = Math.max(1, Math.round((Math.sqrt(dist2(v, e)) / t.tankShellMps) * t.hz));
     v.rounds.push({ x0: v.x, y0: v.y, x: e.x, y: e.y, launch: m.tick, land: m.tick + flight });
   }
   for (const v of m.vehicles)
     for (const r of v.rounds.filter((r) => r.land <= m.tick)) {
-      events.push({ kind: 'impact', side: v.side, x: r.x, y: r.y, asset: 'tank', from: v.id });
-      blast(m, v.side, r, { killM: t.tankKillM, woundM: t.tankWoundM, suppressM: t.tankSuppressM, suppression: t.tankSuppression }, null, events, { damage: (u) => (u.kind === 'tank' || u.kind === 'aa' ? t.tankVsVehicleDamage : Infinity), foesOnly: true });
+      events.push({ kind: 'impact', side: v.side, x: r.x, y: r.y, asset: r.bomb ? 'bomb' : 'tank', from: v.id });
+      if (r.bomb) blast(m, v.side, r, { killM: t.jetBombKillM, woundM: t.jetBombWoundM, suppressM: t.jetBombSuppressM, suppression: 1 }, null, events, { damage: (u) => (u.airborne ? 0 : t.jetBombVehicleDamage) });
+      else blast(m, v.side, r, { killM: t.tankKillM, woundM: t.tankWoundM, suppressM: t.tankSuppressM, suppression: t.tankSuppression }, null, events, { damage: (u) => (u.kind === 'tank' || u.kind === 'aa' ? t.tankVsVehicleDamage : Infinity), foesOnly: true });
       v.rounds.splice(v.rounds.indexOf(r), 1);
     }
-}
-
-/** #110: each crewed AA whose gun is laid on a target hurts it by `aaDps` a second; a tracer a tick, from its occupant. */
-export function aaGuns(m: Match, events: SimEvent[]) {
-  for (const v of m.vehicles) {
-    const e = v.kind === 'aa' && live(v) && v.seats[0]! >= 0 ? vehicleOf(m, v.target) : undefined;
-    if (!e || !live(e)) continue;
-    hurt(m, e, m.tune.aaDps / m.tune.hz, v.side, null, events);
-    events.push({ kind: 'shot', side: v.side, from: v.seats[0]!, to: e.id, hit: true });
-  }
 }
 
 /** A Launcher is roster member 1 of its Squad. */
@@ -848,7 +873,8 @@ export function vehicleViews(m: Match, side: SideId, seen: Set<number>): Vehicle
     const at = v.kind === 'jet' && !v.airborne ? v.slot : v; // #110: a jet at the base shows at its slot in the HQ park
     const base = { id: v.id, side: v.side, kind: v.kind, x: at.x, y: at.y, fx: v.fx, fy: v.fy, ...turret(v) };
     const rounds = v.rounds.map((r) => ({ from: { x: r.x0, y: r.y0 }, to: { x: r.x, y: r.y }, flight: (m.tick - r.launch) / (r.land - r.launch) }));
-    views.push({ ...base, ...(v.side === side && { hp: v.hp / specOf(m.tune, v.kind).hp, seats: [...v.seats] }), ...(rounds.length && { rounds }), ...(v.seats.every((id) => id < 0) && { empty: true }), ...(v.airborne && { airborne: true }) });
+    const missiles = v.missiles.map(({ x, y, fx, fy }) => ({ x, y, fx, fy }));
+    views.push({ ...base, ...(v.side === side && { hp: v.hp / specOf(m.tune, v.kind).hp, seats: [...v.seats] }), ...(rounds.length && { rounds }), ...(missiles.length && { missiles }), ...(v.seats.every((id) => id < 0) && { empty: true }), ...(v.airborne && { airborne: true }) });
   }
   for (const w of m.wrecks)
     if (w.side === side || w.seen) views.push({ id: -1, side: w.side, kind: w.kind, x: w.x, y: w.y, fx: w.fx, fy: w.fy, tx: w.fx, ty: w.fy, wreck: true });
@@ -858,11 +884,12 @@ export function vehicleViews(m: Match, side: SideId, seen: Set<number>): Vehicle
 export function hashVehicles(m: Match, mix: Mix) {
   for (const v of m.vehicles) {
     for (const n of [v.x, v.y, v.fx, v.fy, v.speed, v.hp, v.lz?.x ?? 0, v.lz?.y ?? 0, v.wp?.x ?? 0, v.wp?.y ?? 0]) mix(Math.round(n * 1000));
-    for (const n of [+(v.side === 'nato'), ...v.seats, +v.parked, v.deadAt, v.goal, v.departAt, v.target, v.coax, v.nextFire, v.laid, v.movedAt, v.halt, +v.airborne, v.landedAt, v.claim, v.claimUntil, +!!v.lz, +!!v.wp, v.flareUntil, v.spoolUntil, JOBS.indexOf(v.job), v.fetch, +!!v.spot, v.spin, v.until, +v.drop, v.crashAt, SORTIE.indexOf(v.sortie), v.passes]) mix(n);
+    for (const n of [+(v.side === 'nato'), ...v.seats, +v.parked, v.deadAt, v.goal, v.departAt, v.target, v.coax, v.nextFire, v.laid, v.movedAt, v.halt, +v.airborne, v.landedAt, v.claim, v.claimUntil, +!!v.lz, +!!v.wp, v.flareUntil, v.spoolUntil, JOBS.indexOf(v.job), v.fetch, +!!v.spot, v.spin, v.until, +v.drop, v.crashAt, SORTIE.indexOf(v.sortie), v.passes, v.bombs, v.prey]) mix(n);
+    hashMissiles(v, mix);
     for (const n of [v.spot?.x ?? 0, v.spot?.y ?? 0]) mix(Math.round(n * 1000));
     for (const b of v.bias) mix(Math.round(b * 1000));
     mix(v.rounds.length);
-    for (const r of v.rounds) for (const n of [Math.round(r.x0 * 1000), Math.round(r.y0 * 1000), Math.round(r.x * 1000), Math.round(r.y * 1000), r.launch, r.land]) mix(n);
+    for (const r of v.rounds) for (const n of [Math.round(r.x0 * 1000), Math.round(r.y0 * 1000), Math.round(r.x * 1000), Math.round(r.y * 1000), r.launch, r.land, +!!r.bomb]) mix(n);
   }
   mix(m.wrecks.length);
   for (const w of m.wrecks) for (const n of [Math.round(w.x * 1000), Math.round(w.y * 1000), +w.seen]) mix(n);
