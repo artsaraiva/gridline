@@ -102,6 +102,9 @@ export const crippled = (m: Match, v: Vehicle) => v.hp < specOf(m.tune, v.kind).
 /** #109: the air layer: off the ground grid, eyes over walls. */
 const air = (v: Vehicle) => v.kind === 'helicopter';
 /** Who fires a ground vehicle's second-seat gun: seat 1. #129: a helicopter has a gun per side instead (`sideGun`). */
+/** Helicopter seat indices: the pilot's, then the guns' (#129); the passenger seats follow. */
+export const PILOT_SEAT = 0;
+export const CREW_SEATS = [0, 1, 2];
 export const gunner = (v: Vehicle) => v.seats[1]!;
 /** #129: standing on its helipad (its slot), down. */
 export const onPad = (v: Vehicle) => !v.airborne && dist2(v, v.slot) < 1;
@@ -212,8 +215,14 @@ export function boardOnReturn(m: Match, sq: Squad, s: Soldier): boolean {
   return true;
 }
 
+/** The first empty pilot or gun seat of `v` that none of `crew` (aboard or on their way to `v`) holds. */
+const freeCrewSeat = (v: Vehicle, crew: Soldier[]) => CREW_SEATS.find((k) => v.seats[k]! < 0 && !crew.some((o) => o.crewSeat === k && (o.vehicle === v.id || o.boarding === v.id)));
+
+/** Starts `s`'s crew stint in `seat`, Detached from its Squad's goals; `boarding` is the vehicle it is walking to, or -1. */
+const startCrew = (s: Soldier, crewSeat: number, boarding: number) => Object.assign(s, { crew: true, crewSeat, boarding, detached: true, goal: -1, commitUntil: 0 });
+
 /**
- * #129: by a seeded `crewSpawnChance`, a Soldier coming back (never the Squad Leader, and no other member of its Squad crewing)
+ * #129: by a seeded `crewSpawnChance`, a Soldier coming back anywhere (Squad Respawn included, not only at the HQ: BF4's deploy screen puts you into the helicopter from anywhere; never the Squad Leader, and no other member of its Squad crewing)
  * takes the first empty pilot or gun seat, not reserved by crew on their way, of a friendly helicopter on its helipad, its crew stint
  * starting now. True when it did.
  */
@@ -222,9 +231,9 @@ function crewOnReturn(m: Match, sq: Squad, s: Soldier): boolean {
   const aboard = m.soldiers.filter((o) => o.crew && o.state === 'alive');
   for (const v of m.vehicles) {
     if (!air(v) || v.side !== s.side || !live(v) || !onPad(v) || crippled(m, v)) continue;
-    const seat = [0, 1, 2].find((k) => v.seats[k]! < 0 && !aboard.some((o) => o.crewSeat === k && (o.vehicle === v.id || o.boarding === v.id)));
+    const seat = freeCrewSeat(v, aboard);
     if (seat === undefined || rnd(m) >= m.tune.crewSpawnChance) continue;
-    Object.assign(s, { crew: true, crewSeat: seat, detached: true, goal: -1, commitUntil: 0, boarding: -1 });
+    startCrew(s, seat, -1);
     mount(m, v, s, sq);
     return true;
   }
@@ -280,12 +289,12 @@ export function decideCrew(m: Match, sq: Squad, body: Soldier[], L: Soldier) {
   for (const v of m.vehicles) {
     if (!air(v) || v.side !== sq.side || !live(v) || !onPad(v) || crippled(m, v) || dist2(L, v) > squared(t.boardM)) continue;
     const coming = m.soldiers.filter((s) => s.crew && s.state === 'alive' && (s.vehicle === v.id || (s.vehicle < 0 && s.boarding === v.id)));
-    if (v.seats.slice(0, 3).filter((id) => id < 0).length <= coming.filter((s) => s.vehicle < 0).length || mates.some((s) => coming.includes(s))) continue;
+    if (CREW_SEATS.filter((k) => v.seats[k]! < 0).length <= coming.filter((s) => s.vehicle < 0).length || mates.some((s) => coming.includes(s))) continue;
     const pool = body.filter((s) => s.id !== sq.members[0] && s.boarding < 0);
     if (!pool.length) return;
     const s = pool[Math.floor(rnd(m) * pool.length)]!;
-    const seat = [0, 1, 2].find((k) => v.seats[k]! < 0 && !coming.some((o) => o.crewSeat === k))!; // pilot first, then the guns: the seat is theirs from here
-    Object.assign(s, { crew: true, crewSeat: seat, boarding: v.id, climbAt: 0, detached: true, goal: -1, commitUntil: 0, dest: null, path: [], cover: null, holdUntil: reactAt(m, s) });
+    startCrew(s, freeCrewSeat(v, coming)!, v.id); // pilot first, then the guns: the seat is theirs from here
+    Object.assign(s, { climbAt: 0, dest: null, path: [], cover: null, holdUntil: reactAt(m, s) });
     return;
   }
 }

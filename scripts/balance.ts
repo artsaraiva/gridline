@@ -5,7 +5,7 @@ import { TEST_FIELD } from '../src/maps/test-field';
 import { commanderView, createMatch, step, SIDES, type MapData, type MatchResult, type SideId, type Tune } from '../src/sim';
 import { DEFAULT_TUNE } from '../src/sim/tune';
 import { JOBS, type Job } from '../src/sim/heli-jobs';
-import { live } from '../src/sim/vehicles';
+import { live, PILOT_SEAT } from '../src/sim/vehicles';
 
 export const MAPS: Record<string, MapData> = { kaltenbach: KALTENBACH, river: RIVER_FIELD, test: TEST_FIELD };
 
@@ -76,7 +76,7 @@ export function balance(o: { seeds: number; squads: number; map: MapData; tune?:
         if (v.kind === 'helicopter') lastZone.set(v.id, v.lz);
         if (v.kind === 'helicopter' && live(v)) {
           jobSeconds[v.side][v.job] += 1 / tune.hz;
-          if (v.job === 'wait' && v.seats[0]! < 0) unpiloted[v.side] += 1 / tune.hz;
+          if (v.job === 'wait' && v.seats[PILOT_SEAT]! < 0) unpiloted[v.side] += 1 / tune.hz;
           if (v.seats.some((id) => id >= 0 && !m.soldiers[id]!.crew)) carried[v.side] = true;
         }
         const rider = v.kind === 'helicopter' && !boarded.has(v.id) ? v.seats.find((id) => id >= 0) : undefined;
