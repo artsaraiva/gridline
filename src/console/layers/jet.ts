@@ -1,24 +1,23 @@
 // Jets on the map (#110): own ones, the enemy's while over the Play Area (the sky rule; the same sprite in its Faction's paint)
 // and Wrecks. In flight the baked body at the nearest heading, lifted north-east of its ground shadow to the Cruise Missile's
-// altitude, its contrail behind it, and its tactical icon over it at constant screen size (a filled swept-wing jet in the role
-// colour, sprites/vehicle-icon.ts); off screen the icon is glued to the screen edge toward it with an arrow out to it, as the
-// missile's (#99). At the base an own jet shows as that icon alone on its slot in the HQ park. sprites/jet.ts says where.
+// altitude, its contrail of smoke puffs following the path it flew and fading behind it, and its tactical icon over it at
+// constant screen size (a filled swept-wing jet in the role colour, sprites/vehicle-icon.ts); off screen the icon is glued to
+// the screen edge toward it with an arrow out to it, as the missile's (#99). At its base it is not drawn. sprites/jet.ts says where.
 import * as THREE from 'three/webgpu';
 import type { CommanderView } from '../../sim/types';
 import { edgeClamp } from '../edge-clamp';
-import { COLOR, metresPerPx, pool, toScreen, toWorld } from '../renderer';
+import { COLOR, pool, toScreen, toWorld } from '../renderer';
 import { session } from '../session';
 import { targeting } from '../targeting';
-import { JET_SHEET, jetPose } from '../sprites/jet';
+import { CONTRAIL_MS, JET_SHEET, jetPose, layTrail, puffLook, type Puff } from '../sprites/jet';
 import { spriteMesh } from '../sprites/sheet';
+import { SMOKE_PUFF_SHEET, SMOKE_PUFF_VARIANTS } from '../sprites/smoke-puff';
 import { vehicleIcon } from '../sprites/vehicle-icon';
-import { bar, fading, merge, px, shade, streak } from './symbols';
+import { bar, fading, merge, px, shade } from './symbols';
 
 // In the air over everything on the ground and the missile's body; on the ground as a Wreck
 const Z = { wreck: 0.44, shadow: 0.43, trail: 0.68, body: 0.74, icon: 0.95 };
 const SHADOW_OPACITY = 0.42;
-const TRAIL_PX = 2;
-const TRAIL_OPACITY = 0.45;
 const ICON_SCALE = 1.1;
 const ARROW_SCALE = 1.6;
 /** The edge-clamped icon's centre keeps this far inside the screen, as the missile's. */
@@ -34,15 +33,12 @@ function shape(g = 0) {
 }
 const HALO = px(2.5);
 const arrowGeometry = merge([bar(-0.14, 0.26, 0.1, 0, px(3 / ARROW_SCALE)), bar(0.1, 0, -0.14, -0.26, px(3 / ARROW_SCALE))]);
-const quad = new THREE.PlaneGeometry(1, 1);
 
 const shadows = pool(() => spriteMesh(JET_SHEET, { shadow: true, opacity: SHADOW_OPACITY }));
 const bodies = pool(() => spriteMesh(JET_SHEET));
-const trails = pool(() => {
-  const m = new THREE.Mesh(quad, streak());
-  (m.material as THREE.MeshBasicNodeMaterial).opacity = TRAIL_OPACITY;
-  return m;
-});
+const puffs = pool(() => spriteMesh(SMOKE_PUFF_SHEET));
+/** Each jet's contrail by id; a gone jet's fades out where it was left. */
+const trails = new Map<number, Puff[]>();
 const icons = pool(() => {
   const m = new THREE.Mesh(shape(), fading(COLOR.friendly));
   m.add(new THREE.Mesh(shape(HALO), shade(0x000000, 0.45)).translateZ(-0.01));
@@ -50,31 +46,28 @@ const icons = pool(() => {
 });
 const arrows = pool(() => new THREE.Mesh(arrowGeometry, fading(COLOR.friendly)));
 
-/** `scale` is the chevron size in metres (constant on screen), for the icon. */
-export function drawJets(view: CommanderView, scale: number) {
+/** `scale` is the chevron size in metres (constant on screen), for the icon; `now` in milliseconds, for the contrails. */
+export function drawJets(view: CommanderView, scale: number, now: number) {
   const selected = view.friendlies.filter((f) => f.squad === targeting.selected).map((f) => f.id);
   const box = { x0: EDGE_MARGIN_PX, y0: EDGE_MARGIN_PX, x1: innerWidth - EDGE_MARGIN_PX, y1: innerHeight - EDGE_MARGIN_PX };
+  const flying = new Set<number>();
   for (const v of view.vehicles ?? []) {
-    if (v.kind !== 'jet') continue;
+    if (v.kind !== 'jet' || !(v.airborne || v.wreck)) continue; // at its base: nothing to draw
     const p = jetPose(v);
-    if (v.airborne || v.wreck) {
-      const s = shadows.next();
-      s.position.set(p.shadow.x, p.shadow.y, Z.shadow);
-      s.rotation.z = p.shadow.rotation;
-      s.scale.setScalar(p.size);
-      s.frame.value = p.shadow.frame;
-      const b = bodies.next();
-      b.position.set(p.x, p.y, v.wreck ? Z.wreck : Z.body);
-      b.rotation.z = p.body.rotation;
-      b.scale.setScalar(p.size);
-      b.frame.value = p.body.frame;
+    if (v.airborne) {
+      flying.add(v.id);
+      trails.set(v.id, layTrail(trails.get(v.id) ?? [], p, now));
     }
-    if (p.contrail) {
-      const t = trails.next();
-      t.position.set(p.contrail.x, p.contrail.y, Z.trail);
-      t.rotation.z = p.contrail.angle;
-      t.scale.set(p.contrail.length, TRAIL_PX * metresPerPx.value, 1);
-    }
+    const s = shadows.next();
+    s.position.set(p.shadow.x, p.shadow.y, Z.shadow);
+    s.rotation.z = p.shadow.rotation;
+    s.scale.setScalar(p.size);
+    s.frame.value = p.shadow.frame;
+    const b = bodies.next();
+    b.position.set(p.x, p.y, v.wreck ? Z.wreck : Z.body);
+    b.rotation.z = p.body.rotation;
+    b.scale.setScalar(p.size);
+    b.frame.value = p.body.frame;
     const role = vehicleIcon(v, session.commanderSide, selected);
     if (!role) continue;
     const at = v.airborne ? edgeClamp(toScreen(p), { x: innerWidth / 2, y: innerHeight / 2 }, box) : { ...p, clamped: false };
@@ -94,5 +87,20 @@ export function drawJets(view: CommanderView, scale: number) {
       arrow.material.color.setHex(ICON_COLOR[role]);
     }
   }
-  for (const q of [shadows, bodies, trails, icons, arrows]) q.end();
+  for (const [id, trail] of trails) {
+    const left = flying.has(id) ? trail : layTrail(trail, null, now);
+    if (!left.length) trails.delete(id);
+    else trails.set(id, left);
+    for (const q of left) {
+      const look = puffLook((now - q.at) / CONTRAIL_MS);
+      const puff = puffs.next();
+      puff.position.set(q.x, q.y, Z.trail);
+      const flip = q.k % 2 === 1; // every other puff mirrored across the NE-SW diagonal, as the impact plume's: the baked sun stays put
+      puff.scale.set(flip ? -look.size : look.size, look.size, 1);
+      puff.rotation.z = flip ? -Math.PI / 2 : 0;
+      puff.material.opacity = look.opacity;
+      puff.frame.value = q.k % SMOKE_PUFF_VARIANTS;
+    }
+  }
+  for (const q of [shadows, bodies, puffs, icons, arrows]) q.end();
 }

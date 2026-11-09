@@ -388,8 +388,8 @@ const HOT: Man[] = [
   { id: 25, squad: -1, path: [[0, -8, 294], [LENGTH, -8, 294]], fx: -0.6, fy: -0.8 },
 ];
 
-// #110 JET PASS: Charlie's 10 takes nato's jet. Two seconds before, its slot in the HQ park shows the grey-white icon alone; at JET_AT the
-// jet appears from the base (where the Cruise Missile leaves), off screen (its icon glued to the screen edge), flies in at `jetMps`
+// #110 JET PASS: Charlie's 10 spawns as nato's jet pilot: at JET_AT the jet takes off from the base (where the Cruise Missile
+// leaves), off screen (its icon glued to the screen edge), flies in at `jetMps`
 // along y = 6 to C with its cannon on the Contacts within `jetStripM` of its line from `jetFireM` out (21 and 22, not 20), overflies,
 // bends north clear of the pact HQ out past the Play Area, and turns `jetTurnSeconds` there, away from the map, then flies off home.
 // AA: Alpha's 2 crews an AA parked west of C; a pact helicopter comes in from the east, and the AA's gun (bursts of a round every
@@ -401,7 +401,6 @@ const AA_AT = CHAPTERS[16]!.at;
 const [JET_ID, AA_ID, AA_HELI_ID, ENEMY_JET_ID] = [40, 41, 42, 43];
 const JET_PILOT = 10;
 const AA_CREW = 2;
-const JET_SLOT = { x: -385, y: 19 };
 const JET_MPS = DEFAULT_TUNE.jetMps;
 const OVER_C = JET_AT + 1556 / JET_MPS;
 const OUT_AT = { t: OVER_C + Math.hypot(600, 140) / JET_MPS, x: 600, y: 140 };
@@ -446,13 +445,12 @@ function headingOn(path: Key[], t: number) {
   return { fx: (q.x - p.x) / d, fy: (q.y - p.y) / d };
 }
 
-/** #110: nato's jet (its slot marker, then in flight), the AA and what it fires on. */
+/** #110: nato's jet in flight, the AA and what it fires on. */
 function airAt(t: number): VehicleView[] {
   const out: VehicleView[] = [];
-  if (t >= JET_AT - 2) {
-    const h = t >= JET_AT ? headingOn(JET_PATH, t) : { fx: 1, fy: 0 };
-    const p = t >= JET_AT ? at(JET_PATH, t) : JET_SLOT;
-    out.push({ id: JET_ID, side: 'nato', kind: 'jet', ...p, ...h, tx: h.fx, ty: h.fy, hp: 1, seats: [t >= JET_AT ? JET_PILOT : -1], ...(t < JET_AT ? { empty: true } : { airborne: true }) });
+  if (t >= JET_AT) {
+    const h = headingOn(JET_PATH, t);
+    out.push({ id: JET_ID, side: 'nato', kind: 'jet', ...at(JET_PATH, t), ...h, tx: h.fx, ty: h.fy, hp: 1, seats: [JET_PILOT], airborne: true });
   }
   if (t < AA_AT - 1) return out;
   const heli = at(AA_HELI_PATH, t);

@@ -1,5 +1,6 @@
-// #110: the jet. One per Side: its slot is a boarding marker in the HQ park, the aircraft lives at the off-map base (the
-// Cruise Missile's launch point). Its pilot scores Capture Points as any Soldier, from the base; a sortie is `jetPasses`
+// #110: the jet. One per Side, living at the off-map base (the Cruise Missile's launch point) and taking off with its pilot
+// already aboard (vehicles.ts: one at match start, then a Soldier coming back). Its pilot scores Capture Points as any
+// Soldier, from the base; a sortie is `jetPasses`
 // passes, each an attack run on a mark the Side knows by its pilot's point: inbound straight at it, the cannon along the
 // last `jetFireM` at what the Side knows there (and a bomb on a vehicle or a group), overfly, outbound past the Play Area, a
 // `jetTurnSeconds` turn; then home to rearm and repair `jetRearmSeconds`. An enemy jet in the air near it is fought first
@@ -70,8 +71,14 @@ function aim(m: Match, v: Vehicle) {
   Object.assign(v, { prey, spot, drop: v.bombs > 0 && group });
 }
 
-/** The enemy jet in the air within `jetDogfightM` (x `reach`), if any. */
-const foeJet = (m: Match, v: Vehicle, reach = 1) => m.vehicles.find((u) => u.kind === 'jet' && u.side !== v.side && live(u) && u.airborne && dist2(u, v) <= (m.tune.jetDogfightM * reach) ** 2);
+/** A jet over its own HQ, within this past the circle, is left alone: a chase there would only circle the rim it may not cross. */
+const HOME_SAFE_M = 150;
+
+/** The enemy jet worth fighting: in the air within `jetDogfightM` (x `reach`), not a third down and not over its own HQ; if any. */
+function foeJet(m: Match, v: Vehicle, reach = 1): Vehicle | undefined {
+  const safe = (u: Vehicle) => (m.map.hqs[u.side].radius ?? m.tune.hqRadius) + HOME_SAFE_M;
+  return m.vehicles.find((u) => u.kind === 'jet' && u.side !== v.side && live(u) && u.airborne && !crippled(m, u) && dist2(u, v) <= (m.tune.jetDogfightM * reach) ** 2 && dist2(u, m.map.hqs[u.side]) > safe(u) ** 2);
+}
 
 /** `e` lies within a `deg` cone ahead of `v`'s nose and `r` metres. */
 function ahead(v: Vehicle, e: Vec2, deg: number, r: number): boolean {
@@ -89,7 +96,7 @@ export function sortie(m: Match, v: Vehicle) {
     if (at) v.spot = at; // the run follows its mark to where the Side last saw it
     else if (v.prey < 0 && dist2(v, v.spot!) > t.jetFireM * t.jetFireM) aim(m, v); // a mark the Side finds while it flies in
     if (v.drop && dist2(v, v.spot!) <= (t.jetMps * t.jetBombFallSeconds) ** 2) bomb(m, v);
-    if (toward(m, v, v.spot!)) Object.assign(v, { sortie: 'outbound', passes: v.passes - 1 });
+    if (toward(m, v, v.spot!, true)) Object.assign(v, { sortie: 'outbound', passes: v.passes - 1 });
   } else if (v.sortie === 'dogfight') dogfight(m, v);
   else if (v.sortie === 'outbound') {
     move(m, v, clearHq(m, v));
@@ -120,39 +127,64 @@ function bomb(m: Match, v: Vehicle) {
   Object.assign(v, { bombs: v.bombs - 1, drop: false });
 }
 
+/** A fighting jet steers for a spot this far behind the other's tail: on its six, not at its nose. */
+const TAIL_M = 150;
+/** The other this close on its tail (in its rear 60 degrees) makes it break: a hard turn, reversed now and then. */
+const BREAK_M = 600;
+/** A breaking jet reverses its turn about this often (seeded), so a chaser cannot just sit inside its circle. */
+const REVERSE_S = 3;
+
 /**
- * One tick fighting the enemy jet `prey`: it turns after it at `jetDogfightDegPerS` x its pilot's quickness (the quicker their
- * reaction, the tighter the turn: two equal jets would only circle), at full speed, the cannon and missile on it when it is
- * ahead (`jetTarget`, `jetLock`). It breaks off once the fight has run `jetDogfightSeconds` or it is a third down (home), or
- * when the other is gone, far off or a third down (back to its passes).
+ * One tick fighting the enemy jet `prey`, at full speed, turning at `jetTurnDegPerS` x its pilot's quickness (the quicker their
+ * reaction, the tighter the turn: the quicker comes round first after a merge). With the other close behind it, it breaks: a
+ * hard turn, reversed about every `REVERSE_S`. On the other's six it chases it straight; else it turns for the spot `TAIL_M`
+ * behind it. The cannon fires on it ahead, the missile on it ahead from behind (`jetTarget`, `jetLock`). It breaks off once the fight has run `jetDogfightSeconds` or it
+ * is a third down (home), or when the other is gone, far off, a third down or over its own HQ (back to its passes).
  */
 function dogfight(m: Match, v: Vehicle) {
   const t = m.tune;
   const foe = vehicleOf(m, v.prey);
   if (crippled(m, v) || m.tick >= v.until) return home(v);
-  if (!foe || !live(foe) || !foe.airborne || crippled(m, foe) || !foeJet(m, v, 1.5)) {
+  if (!foe || foeJet(m, v, 1.5) !== foe) {
     v.prey = -1;
     return v.passes > 0 ? nextPass(m, v) : home(v);
   }
-  const d = Math.sqrt(dist2(v, foe)) || 1;
-  const quick = 1.25 - m.soldiers[v.seats[0]!]!.reaction / 2;
-  move(m, v, turnToward(v.fx, v.fy, (foe.x - v.x) / d, (foe.y - v.y) / d, t.jetDogfightDegPerS * quick, t.hz));
+  const rate = t.jetTurnDegPerS * (1.25 - m.soldiers[v.seats[0]!]!.reaction / 2);
+  const [dx, dy] = [foe.x - v.x, foe.y - v.y];
+  const d = Math.sqrt(dx * dx + dy * dy) || 1;
+  if (d < BREAK_M && dx * v.fx + dy * v.fy <= -cosDeg(30) * d) {
+    if (rnd(m) * REVERSE_S * t.hz < 1) v.spin = -v.spin;
+    return move(m, v, turnToward(v.fx, v.fy, -v.fy * v.spin, v.fx * v.spin, rate, t.hz));
+  }
+  const aim = dx * foe.fx + dy * foe.fy >= 0.5 * d ? foe : { x: foe.x - foe.fx * TAIL_M, y: foe.y - foe.fy * TAIL_M };
+  const a = Math.sqrt(dist2(v, aim)) || 1;
+  move(m, v, turnToward(v.fx, v.fy, (aim.x - v.x) / a, (aim.y - v.y) / a, rate, t.hz));
 }
 
-/** The enemy jet a fighting jet's missile locks on: held within `jetLockDeg` ahead and `jetMissileRangeM`; -1 = none. */
+/**
+ * The enemy jet a fighting jet's missile locks on: held within `jetLockDeg` ahead and `jetMissileRangeM`, and from behind it
+ * (within 60 degrees of its tail: a heat seeker never locks head on); -1 = none.
+ */
 export function jetLock(m: Match, v: Vehicle): number {
   const foe = v.sortie === 'dogfight' ? vehicleOf(m, v.prey) : undefined;
-  return foe && live(foe) && ahead(v, foe, m.tune.jetLockDeg, m.tune.jetMissileRangeM) ? foe.id : -1;
+  if (!foe || !live(foe) || !ahead(v, foe, m.tune.jetLockDeg, m.tune.jetMissileRangeM)) return -1;
+  const behind = (foe.x - v.x) * foe.fx + (foe.y - v.y) * foe.fy >= cosDeg(60) * Math.sqrt(dist2(v, foe));
+  return behind ? foe.id : -1;
 }
 
-/** One tick straight at `to`; true once there. */
-function toward(m: Match, v: Vehicle, to: Vec2): boolean {
+/**
+ * One tick toward `to`, turning at `jetTurnDegPerS` (never a sudden about-face); true once there, or (`overfly`, a pass) once
+ * it lies abeam or behind: the run has passed over it.
+ */
+function toward(m: Match, v: Vehicle, to: Vec2, overfly = false): boolean {
+  const t = m.tune;
   const d = Math.sqrt(dist2(v, to));
-  if (d <= m.tune.jetMps / m.tune.hz) {
+  if (d <= t.jetMps / t.hz) {
     Object.assign(v, { x: to.x, y: to.y, movedAt: m.tick });
     return true;
   }
-  move(m, v, { fx: (to.x - v.x) / d, fy: (to.y - v.y) / d });
+  if (overfly && d <= t.jetFireM && (to.x - v.x) * v.fx + (to.y - v.y) * v.fy <= 0) return true;
+  move(m, v, turnToward(v.fx, v.fy, (to.x - v.x) / d, (to.y - v.y) / d, t.jetTurnDegPerS, t.hz));
   return false;
 }
 

@@ -17,7 +17,7 @@ import { between, rnd } from './rng';
 import { hashScore, newScore, type Score } from './score';
 import { hashSoldiers, hashSquads, sign, stageTicks, ticksOf, type Point, type Soldier, type Squad } from './state';
 import { SIDES, type Command, type MapData, type MatchResult, type SideId, type SimEvent, type Tune } from './types';
-import { drive, hashVehicles, newVehicles, type Vehicle, type Wreck } from './vehicles';
+import { deployPilots, drive, hashVehicles, newVehicles, type Vehicle, type Wreck } from './vehicles';
 
 export * from './types';
 export { commanderEvents, commanderView } from './view';
@@ -100,6 +100,7 @@ export function createMatch(opts: {
   }
   for (const sq of m.squads) sq.rideM = between(m, tune.rideM); // #122: after every other draw, so no earlier Trait moves
   m.vehicles = newVehicles(m);
+  deployPilots(m); // #110
   return m;
 }
 

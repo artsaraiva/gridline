@@ -22,7 +22,7 @@ const FAR = { x: 560, y: 500 };
 
 /** Three nato Squads (Soldiers 0..11) up the field from their helicopter (vehicle 24, on the HQ); pact (12..23) parked out of sight. */
 function scene(tune: Partial<Tune> = {}, seed = 3): Match {
-  const full: Tune = { ...DEFAULT_TUNE, squadSize: 4, speedJitter: 0, spread: 0, strayChance: 0, visionM: 0, drainSeconds: [1e9, 1e9, 1e9, 1e9, 1e9], tanksPerSide: 0, jeepsPerSide: 0, helisPerSide: 1, pointJeeps: false, rideM: [1e6, 1e6], ...NO_TRAITS, ...NO_TEMPO, ...tune };
+  const full: Tune = { ...DEFAULT_TUNE, squadSize: 4, speedJitter: 0, spread: 0, strayChance: 0, visionM: 0, drainSeconds: [1e9, 1e9, 1e9, 1e9, 1e9], tanksPerSide: 0, jeepsPerSide: 0, helisPerSide: 1, jetsPerSide: 0, aasPerSide: 0, pointJeeps: false, rideM: [1e6, 1e6], ...NO_TRAITS, ...NO_TEMPO, ...tune };
   const m = thinkOnId(createMatch({ seed, map: field, tune: full, squadsPerSide: 3, commanderSide: 'nato' }));
   m.soldiers.forEach((s, i) => Object.assign(s, s.side === 'nato' ? { x: -540, y: 4 * (i % 4) - 6 + 10 * Math.floor(i / 4) } : FAR));
   m.soldiers.filter((s) => s.side === 'pact').forEach((s) => (s.speed = 0));

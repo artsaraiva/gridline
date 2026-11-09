@@ -71,7 +71,7 @@ function cannon(m: Match, s: Soldier, v: Vehicle): Shot | null {
   if (!e) return v.sortie === 'inbound' && v.prey >= 0 && dist2(v, v.spot!) <= t.jetFireM * t.jetFireM ? rake(m, s, v.spot!, t.jetStripM, t.jetFireSeconds) : null;
   if ('kind' in e) {
     const shot = roll(m, s, null, t.hitChance, t.jetFireSeconds, e);
-    return { ...shot, damage: shot.hit ? t.jetVsVehicleDamage : 0 };
+    return { ...shot, damage: shot.hit ? (e.kind === 'jet' ? t.jetVsJetDamage : t.jetVsVehicleDamage) : 0 };
   }
   return roll(m, s, e, t.hitChance * (cellAt(m, e.x, e.y) === COVER ? t.coverHitMul : 1), t.jetFireSeconds);
 }

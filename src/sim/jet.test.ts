@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { commanderView, createMatch, step, type Match } from './index';
 import { jetTarget } from './jet';
+import { leave } from './vehicles';
 import { DEFAULT_TUNE } from './tune';
 import { NO_TEMPO, NO_TRAITS, thinkOnId } from './test-tune';
 import type { SimEvent, Tune } from './types';
@@ -9,8 +10,9 @@ const HZ = DEFAULT_TUNE.hz;
 
 /**
  * Open ground 1200 m across, one Capture Point A in the middle, HQs on the flanks; nobody sees anybody. Soldiers 0, 1 are
- * nato's, 2, 3 pact's (with `squadSize` 2); then the jets (nato 4, pact 5), then the AAs when `aasPerSide` says. Soldier 1
- * boards nato's jet at once; the pact's stays at its base unless `enemyJet` (its Soldiers start far from its slot).
+ * nato's, 2, 3 pact's (with `squadSize` 2); then the jets (nato 4, pact 5), then the AAs when `aasPerSide` says. Each Side's
+ * last Soldier takes off as its jet's pilot at match start; unless `enemyJet` the pact's gets out at once (its jet stays at
+ * the base: nobody dies to come back into it), and the pact's Soldiers start away from their HQ.
  */
 function scene(tune: Partial<Tune> = {}, enemyJet = false): Match {
   const m = thinkOnId(createMatch({
@@ -20,7 +22,11 @@ function scene(tune: Partial<Tune> = {}, enemyJet = false): Match {
     squadsPerSide: 1,
     commanderSide: 'nato',
   }));
-  if (!enemyJet) for (const s of m.soldiers) if (s.side === 'pact') Object.assign(s, { x: 300, y: 300 });
+  if (enemyJet) return m;
+  const jet = m.vehicles.find((v) => v.kind === 'jet' && v.side === 'pact')!;
+  leave(m, m.soldiers[jet.seats[0]!]!);
+  Object.assign(jet, { sortie: 'idle', airborne: false });
+  for (const s of m.soldiers) if (s.side === 'pact') Object.assign(s, { x: 300, y: 300 });
   return m;
 }
 
@@ -29,7 +35,7 @@ const play = (m: Match, ticks: number, each: (events: SimEvent[]) => void = () =
 };
 
 describe('#110 the jet', () => {
-  it('a Soldier boards its slot at match start; it flies 4 passes over A with 20 s turns, never into the enemy HQ circle, then rearms 90 s at the base; the enemy sees it only over the Play Area', () => {
+  it('takes off with its pilot at match start; it flies 4 passes over A with 20 s turns, never into the enemy HQ circle, then rearms 90 s at the base; the enemy sees it only over the Play Area', () => {
     const m = scene();
     const jet = m.vehicles[0]!;
     const hq = m.map.hqs.pact;
@@ -47,7 +53,7 @@ describe('#110 the jet', () => {
     expect(jet.seats[0]).toBe(1);
     const pass = ['inbound', 'outbound', 'turning'];
     expect(runs.slice(0, 14).map((r) => r.sortie)).toEqual([...pass, ...pass, ...pass, ...pass, 'rearming', 'rearming']); // inbound from the first tick
-    for (const r of runs.filter((r) => r.sortie === 'turning')) expect(r.ticks).toBe(DEFAULT_TUNE.jetTurnSeconds * HZ);
+    for (const r of runs.slice(0, 14).filter((r) => r.sortie === 'turning')) expect(r.ticks).toBe(DEFAULT_TUNE.jetTurnSeconds * HZ); // the first sortie's (the window may cut a later one)
     expect(runs[13]).toMatchObject({ airborne: false, ticks: DEFAULT_TUNE.jetRearmSeconds * HZ }); // at the base, then off again
     expect(runs[14]!.sortie).toBe('inbound');
     expect(seenOver).toBeGreaterThan(0);
@@ -75,7 +81,8 @@ describe('#110 the jet', () => {
     [[0, 0], [4, 3], [-3, 4], [2, -4]].forEach(([x, y], k) => Object.assign(m.soldiers[4 + k]!, { x, y }));
     const events: SimEvent[] = [];
     play(m, 60 * HZ, (e) => events.push(...e));
-    expect(events.some((e) => e.kind === 'shot' && e.from === 1)).toBe(true); // its pilot
+    const pilot = m.vehicles.find((v) => v.kind === 'jet' && v.side === 'nato')!.seats[0];
+    expect(events.some((e) => (e.kind === 'shot' || e.kind === 'suppressive') && e.from === pilot)).toBe(true);
     const bomb = events.find((e) => e.kind === 'impact' && e.asset === 'bomb') as Extract<SimEvent, { kind: 'impact' }> | undefined;
     expect(bomb).toBeDefined();
     expect(Math.hypot(bomb!.x, bomb!.y)).toBeLessThan(20);

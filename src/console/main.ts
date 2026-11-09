@@ -85,7 +85,7 @@ renderer.setAnimationLoop(() => {
   drawJeeps(view, scale);
   drawHelicopters(view, scale, now);
   drawAas(view, scale);
-  drawJets(view, scale);
+  drawJets(view, scale, now);
   drawAirMissiles(view, scale);
   drawOrders(view, metresPerPx.value);
   drawDeathMarkers(now, scale);

@@ -183,7 +183,7 @@ describe('#107 the tank fights', () => {
 
   it('the main gun fires on a new target only after a seeded aim time of tankAimSeconds', () => {
     const firsts = [1, 2, 3, 4].map((seed) => {
-      const m = createMatch({ seed, map: field(), tune: { ...DEFAULT_TUNE, ...NO_TRAITS, ...NO_TEMPO, squadSize: 2, spread: 0, speedJitter: 0 }, squadsPerSide: 1, commanderSide: 'nato' });
+      const m = createMatch({ seed, map: field(), tune: { ...DEFAULT_TUNE, ...NO_TRAITS, ...NO_TEMPO, squadSize: 2, spread: 0, speedJitter: 0, jetsPerSide: 0, aasPerSide: 0 }, squadsPerSide: 1, commanderSide: 'nato' });
       Object.assign(m.soldiers[2]!, { x: -500, y: 0 });
       Object.assign(m.soldiers[3]!, { x: -500, y: 0 });
       crewed(m, [0, 1]);

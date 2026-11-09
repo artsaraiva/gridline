@@ -278,6 +278,7 @@ export const DEFAULT_TUNE: Tune = {
   // #110 Jet and AA
   jetsPerSide: 1,
   jetHp: 100,
+  jetTurnDegPerS: 40,
   jetMps: 120,
   jetFireM: 200,
   jetFireSeconds: 0.1,
@@ -297,10 +298,10 @@ export const DEFAULT_TUNE: Tune = {
   jetBombVehicleDamage: 60,
   jetDogfightM: 800,
   jetDogfightSeconds: 40,
-  jetDogfightDegPerS: 30,
   jetGunDeg: 16,
-  jetLockDeg: 40,
-  jetLockSeconds: 1.5,
+  jetVsJetDamage: 8,
+  jetLockDeg: 50,
+  jetLockSeconds: 1,
   jetMissileRangeM: 500,
   jetReloadSeconds: 10,
   aasPerSide: 1,
@@ -320,5 +321,6 @@ export const DEFAULT_TUNE: Tune = {
   airMissileTurnDegPerS: 60,
   airMissileSeconds: 5,
   airMissileHitChance: 0.7,
+  airMissileVsJetHitChance: 0.5,
   airMissileDamage: 45,
 };

@@ -65,7 +65,7 @@ export function flyMissiles(m: Match, events: SimEvent[]) {
       if (!s.missed && live(e)) {
         const d = Math.sqrt(dist2(s, e)) || 1e-6;
         if (d <= step + FUSE_M) {
-          if (rnd(m) < t.airMissileHitChance) {
+          if (rnd(m) < (e.kind === 'jet' ? t.airMissileVsJetHitChance : t.airMissileHitChance)) {
             hurt(m, e, t.airMissileDamage, v.side, null, events);
             return false;
           }

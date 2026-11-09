@@ -356,8 +356,9 @@ export interface Tune {
   crashSeconds: number; // a helicopter bailed out of glides this long, then crashes and is a Wreck
 
   // #110 Jet and AA
-  jetsPerSide: number; // jets per Side: a boarding slot in its HQ park, the aircraft at the off-map base; 0 = none
-  jetHp: number; // only the AA hurts it
+  jetsPerSide: number; // jets per Side, at the off-map base, each taking off with a pilot (one at match start, then a Soldier coming back); 0 = none
+  jetHp: number; // only the AA and the enemy jet hurt it
+  jetTurnDegPerS: number; // it turns toward where it flies (a mark, home, the enemy jet) this fast; in a dogfight x its pilot's quickness
   jetMps: number; // flight speed, base to point and through every pass
   jetFireM: number; // inbound, the cannon fires from this far short of the point ...
   jetFireSeconds: number; // ... this often (the rifle shot model) ...
@@ -377,9 +378,9 @@ export interface Tune {
   jetBombVehicleDamage: number; // on a ground vehicle within its kill radius
   jetDogfightM: number; // a jet with an enemy jet in the air this close fights it ...
   jetDogfightSeconds: number; // ... for at most this long, or until either is a third down, or the other is this far x 1.5
-  jetDogfightDegPerS: number; // it turns after the other this fast, x its pilot's quickness (from their reaction)
-  jetGunDeg: number; // the cannon fires on the enemy jet within this cone ahead, within jetFireM
-  jetLockDeg: number; // its missile locks on the enemy jet held within this cone ahead ...
+  jetGunDeg: number; // the cannon fires on the enemy jet within this cone ahead, within jetFireM ...
+  jetVsJetDamage: number; // ... for this much a hit
+  jetLockDeg: number; // its missile locks on the enemy jet held within this cone ahead, from behind it, ...
   jetLockSeconds: number; // ... for this long ...
   jetMissileRangeM: number; // ... this close; then one missile ...
   jetReloadSeconds: number; // ... and the next this long after
@@ -400,6 +401,7 @@ export interface Tune {
   airMissileTurnDegPerS: number; // ... turning after its target this fast ...
   airMissileSeconds: number; // ... for this long at most; close on its target ...
   airMissileHitChance: number; // ... it hits with this chance (seeded), else flies on past ...
+  airMissileVsJetHitChance: number; // ... (a jet, jinking and flaring: this chance) ...
   airMissileDamage: number; // ... for this much
 }
 
@@ -470,7 +472,7 @@ export interface VehicleView {
   seats?: number[];
   /** Nobody aboard (it shows as an unmanned vehicle). Absent when someone is. */
   empty?: boolean;
-  /** #109: a helicopter in the air (drawn at altitude over its ground shadow), #110 or a jet on a sortie. Absent on the ground (an idle or rearming jet: at its slot). */
+  /** #109: a helicopter in the air (drawn at altitude over its ground shadow), #110 or a jet on a sortie. Absent on the ground (a jet at its off-map base: not drawn). */
   airborne?: boolean;
   /** #110: lock-on missiles it fired, still in flight (an AA's, or a jet's at another jet): where each is and its heading. */
   missiles?: { x: number; y: number; fx: number; fy: number }[];
