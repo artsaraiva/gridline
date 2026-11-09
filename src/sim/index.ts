@@ -93,7 +93,7 @@ export function createMatch(opts: {
         m.soldiers.push({
           id: m.soldiers.length, side, squad: squad.id, x: hq.x + ox, y: hq.y + oy, fx: sign(side), fy: 0, speed, ox, oy,
           state: 'alive', hp: tune.hp, suppression: 0, target: -1, nextFire: 0, bleed: 0, revive: 0, reviving: -1, deadAt: 0,
-          ...newSoldierAi(m), cause: null, uavUntil: -1, uavAssist: false, vehicle: -1, rockets: tune.rockets, exited: -1, away: -1, awaySince: -1, reaction: between(m, tune.reactionSeconds), holdUntil: 0,
+          ...newSoldierAi(m), cause: null, uavUntil: -1, uavAssist: false, vehicle: -1, chute: null, rockets: tune.rockets, exited: -1, away: -1, awaySince: -1, reaction: between(m, tune.reactionSeconds), holdUntil: 0,
         });
       }
     }
@@ -119,7 +119,7 @@ export function step(m: Match, commands: Command[]): SimEvent[] {
   assetEffects(m, events);
   fire(m, events);
   hear(m, events);
-  for (const s of m.soldiers) if (s.state === 'alive' && s.vehicle < 0) walk(m, s);
+  for (const s of m.soldiers) if (s.state === 'alive' && s.vehicle < 0 && !s.chute) walk(m, s); // #130: a parachute descent is not a walk
   drive(m);
   suppressionDecay(m);
   returnToFight(m, events);

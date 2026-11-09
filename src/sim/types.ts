@@ -337,6 +337,10 @@ export interface Tune {
   heliFitM: number; // the helicopter fits a goal farther than this (or across the river)
   mountM: number; // a rider within this of its vehicle climbs in
   mountSeconds: [number, number]; // a rider takes this long to climb in, seeded between the two
+
+  // #130 Parachute jump
+  chuteSeconds: number; // a Soldier who jumps from a helicopter takes this long to reach the ground
+  chuteScatterM: number; // and lands up to this far from where it jumped (seeded)
 }
 
 /** #55: what a Commander Score award is for. */
@@ -363,6 +367,8 @@ export interface SoldierView {
   /** Unit facing vector. */
   fx: number;
   fy: number;
+  /** #130: how far its parachute descent has come, 0..1; absent on the ground. */
+  chute?: number;
 }
 
 export type SoldierState = 'alive' | 'wounded' | 'dead';

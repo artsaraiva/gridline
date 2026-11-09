@@ -12,7 +12,7 @@ import { between, rnd } from './rng';
 import { blast } from './assets/strike';
 import { die } from './combat';
 import { approach, BRAKE_RESERVE, stopSpeed, turnToward } from './momentum';
-import { dist2, inHq, middlePoint } from './geometry';
+import { canStand, dist2, inHq, middlePoint } from './geometry';
 import { dogleg, landingZone } from './flight';
 import { cellIndex, los, nearestWalkable } from './grid';
 import { see } from './memory';
@@ -270,14 +270,48 @@ export function ride(m: Match, sq: Squad, s: Soldier) {
     if (goal >= 0) v.goal = goal;
   }
   if (!wantsOut(m, sq, s, v)) return;
+  if (v.airborne) return jump(m, s);
   if (m.tick - v.movedAt < Math.round(t.dismountStopSeconds * t.hz)) {
     if (v.halt < 0) v.halt = m.tick; // nobody bails at speed
     return;
   }
+  getOut(m, s, v);
+}
+
+/** Out of its seat on foot; Detached when away from the Squad. */
+function getOut(m: Match, s: Soldier, v: Vehicle) {
   v.seats[v.seats.indexOf(s.id)] = -1;
   Object.assign(s, { vehicle: -1, exited: v.id });
-  const foot = membersOf(m, sq).filter((o) => o.state === 'alive' && o.vehicle < 0 && o !== s && !o.detached);
-  s.detached = foot.length > 0 && dist2(s, footLeader(foot)!) > squared(t.detachM);
+  const foot = membersOf(m, m.squads[s.squad]!).filter((o) => o.state === 'alive' && o.vehicle < 0 && o !== s && !o.detached);
+  s.detached = foot.length > 0 && dist2(s, footLeader(foot)!) > squared(m.tune.detachM);
+}
+
+/**
+ * #130: the one way to make a rider leave an airborne helicopter: it parachutes down, taking `chuteSeconds`, to a spot seeded
+ * up to `chuteScatterM` from where it jumped (the nearest standable one if that is not ground), then is a Soldier on foot.
+ */
+export function jump(m: Match, s: Soldier) {
+  const t = m.tune;
+  const r = t.chuteScatterM;
+  let dx = (rnd(m) * 2 - 1) * r;
+  let dy = (rnd(m) * 2 - 1) * r;
+  const d = Math.sqrt(dx * dx + dy * dy);
+  if (d > r) [dx, dy] = [(dx * r) / d, (dy * r) / d];
+  let to = { x: s.x + dx, y: s.y + dy };
+  if (!canStand(m, s, to)) to = nearestWalkable(m, to);
+  getOut(m, s, vehicleOf(m, s.vehicle)!);
+  s.chute = { t0: m.tick, t1: m.tick + ticksOf(t, t.chuteSeconds), x0: s.x, y0: s.y, x1: to.x, y1: to.y };
+}
+
+/** #130: parachutists come down: along the line to the landing spot, then on foot. */
+function descend(m: Match) {
+  for (const s of m.soldiers) {
+    const c = s.chute;
+    if (!c) continue;
+    const f = Math.min(1, (m.tick - c.t0) / (c.t1 - c.t0));
+    Object.assign(s, { x: c.x0 + (c.x1 - c.x0) * f, y: c.y0 + (c.y1 - c.y0) * f });
+    if (f === 1) s.chute = null;
+  }
 }
 
 /**
@@ -289,8 +323,9 @@ export function ride(m: Match, sq: Squad, s: Soldier) {
  */
 function wantsOut(m: Match, sq: Squad, s: Soldier, v: Vehicle): boolean {
   const t = m.tune;
-  if (air(v) && (v.seats[0] === s.id || v.airborne)) return false;
+  if (air(v) && v.seats[0] === s.id) return false;
   if (crippled(m, v)) return true;
+  if (air(v) && v.airborne) return false; // #130: only a crippled one is jumped from
   if (v.kind === 'tank') return false;
   if (v.goal >= 0 && (air(v) ? !!v.lz && dist2(v, v.lz) < 1 : flowDist(m, driveFlow(m, v.side, v.goal), v) === 0)) return true;
   if (v.seats[0] === s.id) return false;
@@ -316,6 +351,7 @@ function wantsOut(m: Match, sq: Squad, s: Soldier, v: Vehicle): boolean {
  */
 export function drive(m: Match) {
   const t = m.tune;
+  descend(m); // #130
   for (const v of m.vehicles) {
     if (!live(v)) {
       const side = v.point < 0 ? v.side : m.points[v.point]!.owner;
@@ -496,10 +532,10 @@ export function look(m: Match, v: Vehicle) {
   if (!live(v) || !aboard.length) return;
   const squads = [...new Set(aboard.map((s) => m.squads[s.squad]!))];
   const R = air(v) ? t.airVisionM : t.visionM * t.vehicleVisionMul;
-  const sees = (e: Vec2 & { side: SideId; airborne?: boolean }) => {
+  const sees = (e: Vec2 & { side: SideId; airborne?: boolean; chute?: object | null }) => {
     const d2 = dist2(v, e);
     const cone = air(v) || (e.x - v.x) * v.fx + (e.y - v.y) * v.fy >= t.visionCos * Math.sqrt(d2);
-    return d2 <= R * R && cone && !inHq(m, e.side, e) && (air(v) || !!e.airborne || los(m, v, e));
+    return d2 <= R * R && cone && !inHq(m, e.side, e) && (air(v) || !!e.airborne || !!e.chute || los(m, v, e));
   };
   let best: { id: number; rank: number; d2: number } | null = null;
   const consider = (id: number, rank: number, d2: number) => {
@@ -606,6 +642,7 @@ export function hurt(m: Match, v: Vehicle, damage: number, by: SideId, cause: So
 
 /** A Soldier leaves its seat (it died, or came back from the dead). */
 export function leave(m: Match, s: Soldier) {
+  s.chute = null; // #130: dead or brought back mid-descent
   const v = vehicleOf(m, s.vehicle);
   if (v) v.seats[v.seats.indexOf(s.id)] = -1;
   s.vehicle = -1;

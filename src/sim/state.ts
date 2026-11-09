@@ -58,6 +58,7 @@ export interface Soldier {
   // #122 Boarding
   boarding: number; // id of the vehicle its Squad claimed for it and it is walking to, -1 = none
   climbAt: number; // tick it has climbed in, once within `mountM`; 0 = not climbing
+  chute: { t0: number; t1: number; x0: number; y0: number; x1: number; y1: number } | null; // #130 a parachute descent: ticks it starts and ends, where it jumped and where it lands
   uavAssist: boolean; // #75 the shot that downed it landed while UAV-discovered: scores for the enemy Commander on death; cleared by Revive
 }
 
@@ -170,6 +171,8 @@ export function hashSoldiers(m: Match, mix: Mix) {
     mix(s.holdUntil);
     mix(s.boarding); // #122
     mix(s.climbAt);
+    if (s.chute) for (const n of [s.chute.t0, s.chute.t1, Math.round(s.chute.x0 * 1000), Math.round(s.chute.y0 * 1000), Math.round(s.chute.x1 * 1000), Math.round(s.chute.y1 * 1000)]) mix(n); // #130
+    else mix(-1);
   }
 }
 

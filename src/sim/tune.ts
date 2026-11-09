@@ -257,4 +257,8 @@ export const DEFAULT_TUNE: Tune = {
   heliFitM: 350,
   mountM: 3,
   mountSeconds: [1, 2],
+
+  // #130 Parachute jump
+  chuteSeconds: 5,
+  chuteScatterM: 15,
 };
