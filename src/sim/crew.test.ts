@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createMatch, step, type Match } from './index';
+import { boardOnReturn } from './vehicles';
 import { DEFAULT_TUNE } from './tune';
 import { NO_TEMPO, NO_TRAITS, thinkOnId } from './test-tune';
 import type { MapData, Tune } from './types';
@@ -153,5 +154,32 @@ describe('#129 passengers', () => {
       most = Math.max(most, heli.seats.filter((id) => id >= 0 && id < 4).length);
     }
     expect(most).toBe(4);
+  });
+});
+
+describe('#129 crew spawn', () => {
+  /** Soldier `id` dies and comes back: the helicopter's crew seats after. */
+  function back(id: number, tune: Partial<Tune>) {
+    const m = scene(tune);
+    const s = m.soldiers[id]!;
+    boardOnReturn(m, m.squads[s.squad]!, s);
+    return { m, s, seats: heliOf(m).seats.slice(0, 3) };
+  }
+  it('takes the pilot seat of a helicopter on its pad, its stint starting as it spawns in', () => {
+    const { m, s, seats } = back(1, { crewSpawnChance: 1 });
+    expect(seats[0]).toBe(1);
+    expect(s).toMatchObject({ crew: true, vehicle: heliOf(m).id });
+    expect(s.crewUntil).toBeGreaterThan(m.tick);
+  });
+  it('never when the chance is 0, nor the Squad Leader', () => {
+    expect(back(1, { crewSpawnChance: 0 }).seats).toEqual([-1, -1, -1]);
+    expect(back(0, { crewSpawnChance: 1 }).seats).toEqual([-1, -1, -1]);
+  });
+  it('at most one crew per Squad; another Squad takes the next seat', () => {
+    const { m, seats } = back(1, { crewSpawnChance: 1 });
+    boardOnReturn(m, m.squads[0]!, m.soldiers[2]!);
+    expect(m.soldiers[2]!.crew).toBe(false);
+    boardOnReturn(m, m.squads[1]!, m.soldiers[5]!);
+    expect(heliOf(m).seats.slice(0, 3)).toEqual([seats[0], 5, -1]);
   });
 });

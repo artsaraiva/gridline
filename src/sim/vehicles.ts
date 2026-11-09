@@ -203,12 +203,32 @@ export function mount(m: Match, v: Vehicle, s: Soldier, sq: Squad) {
  * or more), as its driver. True when it did. #109: never into a helicopter in the air.
  */
 export function boardOnReturn(m: Match, sq: Squad, s: Soldier): boolean {
+  if (crewOnReturn(m, sq, s)) return true;
   const lead = m.soldiers[sq.members[0]!]!;
   const mine = lead.state === 'alive' ? vehicleOf(m, lead.vehicle) : undefined;
   const v = mine && freeSeats(mine) > 0 && !mine.airborne ? mine : m.vehicles.find((o) => o.side === s.side && live(o) && !o.airborne && o.kind !== 'helicopter' && o.seats[0] === -1 && !crippled(m, o));
   if (!v) return false;
   mount(m, v, s, sq);
   return true;
+}
+
+/**
+ * #129: by a seeded `crewSpawnChance`, a Soldier coming back (never the Squad Leader, and no other member of its Squad crewing)
+ * takes the first empty pilot or gun seat, not reserved by crew on their way, of a friendly helicopter on its helipad, its crew stint
+ * starting now. True when it did.
+ */
+function crewOnReturn(m: Match, sq: Squad, s: Soldier): boolean {
+  if (s.id === sq.members[0] || membersOf(m, sq).some((o) => o.crew && o.state === 'alive')) return false;
+  const aboard = m.soldiers.filter((o) => o.crew && o.state === 'alive');
+  for (const v of m.vehicles) {
+    if (!air(v) || v.side !== s.side || !live(v) || !onPad(v) || crippled(m, v)) continue;
+    const seat = [0, 1, 2].find((k) => v.seats[k]! < 0 && !aboard.some((o) => o.crewSeat === k && (o.vehicle === v.id || o.boarding === v.id)));
+    if (seat === undefined || rnd(m) >= m.tune.crewSpawnChance) continue;
+    Object.assign(s, { crew: true, crewSeat: seat, detached: true, goal: -1, commitUntil: 0, boarding: -1 });
+    mount(m, v, s, sq);
+    return true;
+  }
+  return false;
 }
 
 /**

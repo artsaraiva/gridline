@@ -260,6 +260,7 @@ export const DEFAULT_TUNE: Tune = {
 
   // #129 Helicopter crew and side guns
   crewSeconds: [60, 180],
+  crewSpawnChance: 0.5,
   gunArcDeg: 120,
 
   // #130 Parachute jump

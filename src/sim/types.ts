@@ -340,6 +340,7 @@ export interface Tune {
 
   // #129 Helicopter crew and side guns
   crewSeconds: [number, number]; // a crew member's stint, drawn between the two as they climb in
+  crewSpawnChance: number; // a Soldier coming back from the dead takes an empty pilot or gun seat of a helicopter on its helipad with this chance
   gunArcDeg: number; // a side gun covers this many degrees, centred straight out from its side
 
   // #130 Parachute jump
