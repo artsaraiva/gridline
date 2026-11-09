@@ -54,7 +54,7 @@ export function decideJob(m: Match, v: Vehicle) {
   if (v.job === 'ferry' && !waited && calling.some((c) => c.sq.id === v.fetch)) return;
   if (calling.length) {
     const { sq, L } = calling[Math.max(0, pickWeighted(m, calling.map((c) => 1 / Math.max(50, Math.sqrt(dist2(c.L, v))))))]!; // the nearest likeliest
-    return set('ferry', { fetch: sq.id, spot: landingZone(m, L, sideKnown(m, v.side),(p) => clearOfHq(m, v.side, p, 1)) });
+    return set('ferry', { fetch: sq.id, spot: landingZone(m, L, sideKnown(m, v.side), (p) => clearOfHq(m, v.side, p, 1)) });
   }
   if (v.seats[1]! >= 0 || v.seats[2]! >= 0) {
     if (v.job === 'support' && v.spot && m.tick < v.until) return;

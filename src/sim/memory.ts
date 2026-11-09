@@ -21,10 +21,15 @@ function note(list: Sighting[], s: Sighting) {
   else list[i] = s;
 }
 
-/** Enemies known to any Squad of `side` (BF4-style shared spotting): one entry per enemy id, the freshest sighting kept. */
+/** Enemies known to any Squad of `side` (BF4-style shared spotting): the freshest sighting per enemy id and source, so a newer `heard` never hides an older `seen`. */
 export function sideKnown(m: Match, side: SideId): Sighting[] {
-  const best = new Map<number, Sighting>();
-  for (const sq of m.squads) if (sq.side === side) for (const s of sq.memory) if ((best.get(s.id)?.tick ?? -1) < s.tick) best.set(s.id, s);
+  const best = new Map<string, Sighting>();
+  for (const sq of m.squads)
+    if (sq.side === side)
+      for (const s of sq.memory) {
+        const key = `${s.id}${s.source}`;
+        if ((best.get(key)?.tick ?? -1) < s.tick) best.set(key, s);
+      }
   return [...best.values()];
 }
 

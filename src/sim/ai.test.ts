@@ -116,6 +116,14 @@ describe('routes over the river', () => {
     expect(play(m, HZ + 1).nato[HZ]!.squads[1]!.route).toBe('C');
   });
 
+  it('an enemy a friendly Squad saw still counts at the crossing after a fresher heard of it (#133)', () => {
+    const map = { ...toE, crossings: toE.crossings!.map((c) => (c.id === 'N' ? { ...c, kind: 'footbridge' as const } : c)) };
+    const m = scene({ map, place: { 0: { x: 100, y: 140 }, 1: { x: 100, y: 142 } }, tune: { routeJitterM: 0, spread: 0, squadSize: 2, visionM: 0 }, squads: 2 });
+    m.squads[0]!.memory.push({ id: 4, x: 20, y: 118, tick: 0, source: 'seen' }, { id: 5, x: 20, y: 122, tick: 0, source: 'seen' });
+    m.squads[1]!.memory.push({ id: 4, x: 20, y: 118, tick: 1, source: 'heard' }, { id: 5, x: 20, y: 122, tick: 1, source: 'heard' });
+    expect(play(m, HZ + 1).nato[HZ]!.squads[1]!.route).toBe('C');
+  });
+
   it('the centre bridge takes no danger penalties', () => {
     expect(atTheFootbridge(seen, { hp: 1e9 }, 'bridge')).toBe('N');
     expect(atTheFootbridge(lost, killed, 'bridge')).toBe('N');
@@ -279,6 +287,14 @@ describe('shared spotting (#133)', () => {
     const m = scene({ map: field({ points }), place: { 1: { x: 0, y: 200 } }, tune: { squadSize: 1, visionM: 0, spread: 0 }, squads: 2 });
     m.squads[0]!.memory.push({ id: 9, x: 40, y: 200, tick: 1e9, source: 'seen' });
     play(m, 2 * HZ);
+    expect(m.squads[1]!.mode).toBe('travel');
+  });
+
+  it("does not fire at an enemy only a friendly Squad knows: no own sight, no shot", () => {
+    const m = scene({ map: field({ points }), place: { 1: { x: 0, y: 200 }, 2: { x: 30, y: 200 } }, tune: { squadSize: 1, visionM: 0, spread: 0, hitChance: 1, hearM: 0 }, squads: 2 });
+    m.squads[0]!.memory.push({ id: 2, x: 30, y: 200, tick: 1e9, source: 'seen' });
+    const { events } = play(m, 3 * HZ);
+    expect(events.filter((e) => e.kind === 'shot' && e.from === 1)).toEqual([]);
     expect(m.squads[1]!.mode).toBe('travel');
   });
 });
