@@ -5,6 +5,7 @@ import type { Match } from './index';
 import { between, rnd } from './rng';
 import { dist2 } from './geometry';
 import { landingZone } from './flight';
+import { sideKnown } from './memory';
 import { turnToward, approach } from './momentum';
 import { membersOf, ticksOf, type Point, type Soldier, type Squad } from './state';
 import type { Vec2 } from './types';
@@ -58,7 +59,7 @@ export function decideJob(m: Match, v: Vehicle) {
   }
   if (v.seats[1]! >= 0 || v.seats[2]! >= 0) {
     if (v.job === 'support' && v.spot && m.tick < v.until) return;
-    const p = supportPoint(m, v, aboard);
+    const p = supportPoint(m, v);
     if (p) return set('support', { spot: { x: p.x, y: p.y }, spin: spinFor(m, v), until: m.tick + ticksOf(t, between(m, t.commitSeconds)) });
   }
   if (v.job !== 'wait') set('wait');
@@ -79,11 +80,11 @@ export function callers(m: Match, v: Vehicle): { sq: Squad; L: Soldier }[] {
 }
 
 /**
- * #131: the Capture Point a helicopter circles, null = none: one the Squads of everyone aboard know enemies at (within `threatenedM` of its
+ * #131: the Capture Point a helicopter circles, null = none: one any friendly Squad knows enemies at (within `threatenedM` of its
  * radius), an own point first, else the one most friendly Squads are heading for; drawn weighted among those within one of the best.
  */
-export function supportPoint(m: Match, v: Vehicle, aboard: Soldier[]): Point | null {
-  const known = aboard.flatMap((s) => m.squads[s.squad]!.memory);
+export function supportPoint(m: Match, v: Vehicle): Point | null {
+  const known = sideKnown(m, v.side);
   const scored = m.points.flatMap((p, i) =>
     known.some((e) => dist2(e, p) <= squared(p.radius + m.tune.threatenedM)) ? [{ p, score: (p.owner === v.side ? 100 : 0) + m.squads.filter((q) => q.side === v.side && q.task === 'point' && q.goal === i).length }] : [],
   );

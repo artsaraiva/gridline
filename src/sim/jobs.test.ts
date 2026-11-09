@@ -112,7 +112,7 @@ describe('#131 ferry', () => {
   }
   /** Plays it out, noting when Squad 1 first climbs in, where the helicopter first sets down after that, when its riders first jump, and who fired from it. */
   function trip(m: Match, h: Vehicle, hot: boolean) {
-    const log = { fetch: -1, pickup: null as Vec2 | null, boarded: -1, down: null as Vec2 | null, jumped: -1, over: Infinity, orbit: [] as number[], fired: new Set<number>() };
+    const log = { fetch: -1, pickup: null as Vec2 | null, boarded: -1, down: null as Vec2 | null, jumped: -1, over: Infinity, orbit: [] as number[], circled: false, fired: new Set<number>() };
     const riders = m.soldiers.filter((s) => s.squad === 1);
     for (let i = 0; i < 240 * HZ; i++) {
       if (hot) know(m, 1, { x: P.x + 20, y: 30 });
@@ -122,6 +122,7 @@ describe('#131 ferry', () => {
       if (log.boarded >= 0 && !log.down && !h.airborne && h.landedAt >= log.boarded && dist(h, h.slot) > 50) log.down = { x: h.x, y: h.y };
       if (log.boarded < 0 && !log.pickup && !h.airborne && h.landedAt > 0 && dist(h, h.slot) > 50) log.pickup = { x: h.x, y: h.y };
       if (log.jumped < 0 && riders.some((s) => s.chute)) [log.jumped, log.over] = [m.tick, h.airborne && h.lz ? dist(h, h.lz) : Infinity];
+      if (h.drop && h.until >= 0) log.circled = true; // its orbit has begun
       if (log.boarded >= 0 && log.jumped < 0 && h.airborne) log.orbit.push(dist(h, P) - T.orbitM);
     }
     return log;
@@ -146,17 +147,20 @@ describe('#131 ferry', () => {
     expect(log.jumped).toBeGreaterThan(log.boarded);
     expect(log.over).toBeLessThan(2);
     expect(log.down).toBeNull();
+    expect(log.circled).toBe(true);
     const ring = log.orbit.filter((e) => Math.abs(e) < 30).length;
     expect(ring / HZ).toBeGreaterThan(T.orbitSeconds * 0.8);
     expect(ring / HZ).toBeLessThan(T.orbitSeconds * 1.8);
     expect(log.fired.has(2)).toBe(true);
   });
 
-  it('a hot goal with no gunner aboard (a Squad of three fills the passenger seats only): it never circles, it lands', () => {
+  it('a hot goal with no gunner aboard (a Squad of three fills the passenger seats only): no circling, circling is pointless, but the goal is still hot: the riders jump over the Landing Zone', () => {
     const { m, h } = call({ hot: true, squadSize: 3 });
     const log = trip(m, h, true);
-    expect(log.jumped).toBe(-1);
-    expect(log.down).not.toBeNull();
+    expect(log.circled).toBe(false);
+    expect(log.jumped).toBeGreaterThan(log.boarded);
+    expect(log.over).toBeLessThan(2);
+    expect(log.down).toBeNull();
   });
 });
 
@@ -203,6 +207,19 @@ describe('#131 support', () => {
   it('an own point under threat comes before another', () => {
     const { samples } = circle([1, 5, -1, -1, -1, -1], [A, B], { own: true });
     for (const s of samples) expect(Math.abs(dist(s, A) - T.orbitM)).toBeLessThan(30);
+  });
+
+  it('it circles a point that only a Squad not aboard knows enemies at', () => {
+    const m = scene([B]);
+    const h = heliOf(m);
+    load(m, h, [1, 2, -1, -1, -1, -1]); // both of Squad 0
+    let near = 0;
+    for (let i = 0; i < 110 * HZ; i++) {
+      know(m, 1, { x: B.x, y: B.y + 20 }); // only Squad 1, on foot, knows
+      step(m, []);
+      if (i > 80 * HZ && Math.abs(dist(h, B) - T.orbitM) < 30) near++;
+    }
+    expect(near).toBeGreaterThan(25 * HZ);
   });
 
   it('with no gunner it never circles, and with no pilot it never flies', () => {

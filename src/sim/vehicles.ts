@@ -17,7 +17,7 @@ import { canStand, dist2, inHq, middlePoint } from './geometry';
 import { dogleg, landingZone } from './flight';
 import { circle, decideJob, glide, JOBS, repairOnPad, spinFor, type Job } from './heli-jobs';
 import { cellIndex, los, nearestWalkable } from './grid';
-import { see } from './memory';
+import { see, sideKnown } from './memory';
 import { footLeader, membersOf, ticksOf, vehicleOf, type Mix, type Soldier, type Squad } from './state';
 import { enemyOf, SIDES, type SideId, type SimEvent, type Tune, type Vec2, type VehicleKind, type VehicleView } from './types';
 
@@ -513,7 +513,7 @@ const bound = (v: Vehicle): Vec2 => ((v.job === 'ferry' && v.fetch >= 0) || v.jo
 /**
  * #124, as it lifts off: the trip. Going out, a Landing Zone for the passengers' goal (`landingZone`: away from the enemies its
  * riders' Squads know); out or home, a dogleg waypoint (`dogleg`) that keeps off enemy-held points and known enemies. #131: with a
- * gunner aboard and a known enemy within `lzThreatM` of the goal it is a hot goal: it circles the point first and its riders jump over the Landing Zone.
+ * known enemy within `lzThreatM` of the goal (any friendly Squad's) it is a hot goal: its riders jump over the Landing Zone, after circling the point first if a gunner is aboard.
  */
 export function plan(m: Match, v: Vehicle) {
   const squads = [...new Set(riders(m, v).map((s) => m.squads[s.squad]!))];
@@ -522,8 +522,9 @@ export function plan(m: Match, v: Vehicle) {
   if (v.goal >= 0) {
     const p = m.points[v.goal]!;
     v.lz = landingZone(m, p, known, (q) => clearOfHq(m, v.side, q, 1));
-    const hot = (v.seats[1]! >= 0 || v.seats[2]! >= 0) && known.some((e) => dist2(e, p) <= squared(m.tune.lzThreatM));
-    Object.assign(v, { spot: hot ? { x: p.x, y: p.y } : null, drop: hot, until: -1, ...(hot && { spin: spinFor(m, v) }) });
+    const hot = sideKnown(m, v.side).some((e) => dist2(e, p) <= squared(m.tune.lzThreatM)); // #131: any friendly Squad's eyes
+    const circles = hot && (v.seats[1]! >= 0 || v.seats[2]! >= 0); // with no gunner, circling is pointless (#128): the riders still jump
+    Object.assign(v, { spot: circles ? { x: p.x, y: p.y } : null, drop: hot, until: -1, ...(circles && { spin: spinFor(m, v) }) });
   }
   v.wp = dogleg(m, v, bound(v), threats);
 }
