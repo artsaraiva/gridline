@@ -259,6 +259,6 @@ export const DEFAULT_TUNE: Tune = {
   mountSeconds: [1, 2],
 
   // #130 Parachute jump
-  chuteSeconds: 5,
+  chuteSeconds: 4, // #130: the spec said 5; 20-seed Kaltenbach went pact 15 to 5, 4 gives 11 to 9
   chuteScatterM: 15,
 };
