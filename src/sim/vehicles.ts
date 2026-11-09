@@ -107,7 +107,7 @@ export const gunner = (v: Vehicle) => v.seats[1]!;
 export const onPad = (v: Vehicle) => !v.airborne && dist2(v, v.slot) < 1;
 /** Seats a passenger may take: all but a helicopter's pilot seat. */
 const freeSeats = (v: Vehicle) => v.seats.filter((id, k) => id < 0 && (!air(v) || k > 0)).length;
-/** How far a gun seat's Soldier sits out from the hull's centre, so its shot lines leave from that side. */
+/** How far a gun seat's Soldier sits out from the hull's centre, so its shot lines leave from that side: 2 m is about the half-width of a transport helicopter's body (a door gun sits at the hull's edge), far enough that the Console's line visibly leaves that side and not so far that a landed gunner stands outside a Capture Point the hull is in. */
 const GUN_OUT_M = 2;
 /** The unit vector straight out from the helicopter's `seat` side (1 left, 2 right; the field's y runs up, so left of east is +y), null for the other seats. */
 const beam = (v: Vehicle, seat: number) => (seat === 1 ? { x: -v.fy, y: v.fx } : seat === 2 ? { x: v.fy, y: -v.fx } : null);

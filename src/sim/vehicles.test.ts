@@ -260,6 +260,19 @@ describe('#107 the tank fights', () => {
     moves((m) => (m.soldiers[1]!.rockets -= 1));
     moves((m) => (m.vehicles[1]!.target = 0));
     moves((m) => m.wrecks.push({ side: 'nato', kind: 'tank', x: 1, y: 2, fx: 1, fy: 0, seen: false }));
+    // #131 helicopter jobs
+    moves((m) => (m.vehicles[0]!.job = 'support'));
+    moves((m) => (m.vehicles[0]!.fetch = 3));
+    moves((m) => (m.vehicles[0]!.spot = { x: 1, y: 2 }));
+    moves((m) => (m.vehicles[0]!.spin = -1));
+    moves((m) => (m.vehicles[0]!.until = 99));
+    moves((m) => (m.vehicles[0]!.drop = true));
+    moves((m) => (m.vehicles[0]!.crashAt = 99));
+    // #129 crew and #130 parachute, per Soldier
+    moves((m) => (m.soldiers[0]!.crew = true));
+    moves((m) => (m.soldiers[0]!.crewUntil = 99));
+    moves((m) => (m.soldiers[0]!.crewSeat = 2));
+    moves((m) => (m.soldiers[0]!.chute = { t0: 1, t1: 9, x0: 0, y0: 0, x1: 5, y1: 5 }));
   });
 
   it('replays hash the same, tanks and all', () => {
