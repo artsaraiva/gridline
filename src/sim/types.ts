@@ -354,6 +354,55 @@ export interface Tune {
   heliRepairBelow: number; // under this share of its hit points it drops its passengers and flies home to repair
   heliRepairHpPerS: number; // on its helipad it regains this many hit points a second until full
   crashSeconds: number; // a helicopter bailed out of glides this long, then crashes and is a Wreck
+
+  // #110 Jet and AA
+  jetsPerSide: number; // jets per Side, at the off-map base, each taking off with a pilot (one at match start, then a Soldier coming back); 0 = none
+  jetHp: number; // only the AA and the enemy jet hurt it
+  jetTurnDegPerS: number; // it turns toward where it flies (a mark, home, the enemy jet) this fast; in a dogfight x its pilot's quickness
+  jetMps: number; // flight speed, base to point and through every pass
+  jetFireM: number; // inbound, the cannon fires from this far short of the point ...
+  jetFireSeconds: number; // ... this often (the rifle shot model) ...
+  jetStripM: number; // ... at the nearest enemy the Side knows within this of the flight line ahead
+  jetVsVehicleDamage: number; // a cannon hit on a vehicle
+  jetTurnSeconds: number; // past the Play Area after a pass it turns this long before the next
+  jetPasses: number; // passes per sortie ...
+  jetRearmSeconds: number; // ... then it rearms this long at the base, its pilot aboard
+  jetBombs: number; // bombs per sortie: one a pass whose mark is a vehicle or a group ...
+  jetBombGroup: number; // ... of at least this many known enemies ...
+  jetBombGroupM: number; // ... within this of the mark
+  jetBombFallSeconds: number; // a bomb is released this long short of its mark and lands on it then ...
+  jetBombScatterM: number; // ... up to this far off (seeded)
+  jetBombKillM: number; // its blast kills within ...
+  jetBombWoundM: number; // ... Wounds within ...
+  jetBombSuppressM: number; // ... and suppresses within this
+  jetBombVehicleDamage: number; // on a ground vehicle within its kill radius
+  jetDogfightM: number; // a jet with an enemy jet in the air this close fights it ...
+  jetDogfightSeconds: number; // ... for at most this long, or until either is a third down, or the other is this far x 1.5
+  jetGunDeg: number; // the cannon fires on the enemy jet within this cone ahead, within jetFireM ...
+  jetVsJetDamage: number; // ... for this much a hit
+  jetLockDeg: number; // its missile locks on the enemy jet held within this cone ahead, from behind it, ...
+  jetLockSeconds: number; // ... for this long ...
+  jetMissileRangeM: number; // ... this close; then one missile ...
+  jetReloadSeconds: number; // ... and the next this long after
+  aasPerSide: number; // AAs per Side in its HQ park; 0 = none
+  aaHp: number; // rockets, Barrage shells, a tank's main gun and the jet's cannon hurt it, a Cruise Missile destroys it, rifles nothing
+  aaRoadMps: number; // on road
+  aaOpenMps: number; // off road
+  aaRangeM: number; // it fires on a helicopter (or a jet over the Play Area) this close, over walls, a full circle, first
+  aaGroundRangeM: number; // else on infantry or a light vehicle (jeep, landed helicopter) in its sight this close
+  aaFireSeconds: number; // a round this often in a burst ...
+  aaBurstSeconds: [number, number]; // ... of this long (seeded) ...
+  aaPauseSeconds: [number, number]; // ... then a pause this long (seeded)
+  aaHitChance: number; // a round hits a vehicle with this chance (infantry: the rifle shot model) ...
+  aaRoundDamage: number; // ... for this much
+  aaLockSeconds: number; // its missile locks on an air target held this long, then one missile ...
+  aaReloadSeconds: number; // ... and the next this long after
+  airMissileMps: number; // a lock-on missile (the AA's, or a jet's at another jet) flies this fast ...
+  airMissileTurnDegPerS: number; // ... turning after its target this fast ...
+  airMissileSeconds: number; // ... for this long at most; close on its target ...
+  airMissileHitChance: number; // ... it hits with this chance (seeded), else flies on past ...
+  airMissileVsJetHitChance: number; // ... (a jet, jinking and flaring: this chance) ...
+  airMissileDamage: number; // ... for this much
 }
 
 /** #55: what a Commander Score award is for. */
@@ -401,8 +450,8 @@ export interface FriendlyView extends SoldierView {
  * #107: a vehicle on the map: the Side's own (live, with `hp` and `seats`), an enemy one a friendly sees right now (position
  * and facing only), or a Wreck (`wreck`, no id: -1).
  */
-/** #107 #108: the vehicle classes on the ground; #109 the transport helicopter, in the air. */
-export type VehicleKind = 'tank' | 'jeep' | 'helicopter';
+/** #107 #108: the vehicle classes on the ground; #109 the transport helicopter, in the air; #110 the jet (air) and the AA (ground). */
+export type VehicleKind = 'tank' | 'jeep' | 'helicopter' | 'jet' | 'aa';
 
 export interface VehicleView {
   id: number;
@@ -423,8 +472,10 @@ export interface VehicleView {
   seats?: number[];
   /** Nobody aboard (it shows as an unmanned vehicle). Absent when someone is. */
   empty?: boolean;
-  /** #109: a helicopter in the air (drawn at altitude over its ground shadow). Absent on the ground. */
+  /** #109: a helicopter in the air (drawn at altitude over its ground shadow), #110 or a jet on a sortie. Absent on the ground (a jet at its off-map base: not drawn). */
   airborne?: boolean;
+  /** #110: lock-on missiles it fired, still in flight (an AA's, or a jet's at another jet): where each is and its heading. */
+  missiles?: { x: number; y: number; fx: number; fy: number }[];
   /** Main gun rounds in the air (a tank's): from the muzzle spot to where each lands, `flight` 0..1 along. */
   rounds?: { from: Vec2; to: Vec2; flight: number }[];
 }
@@ -566,6 +617,6 @@ export type SimEvent =
   /** #34: suppressive fire: a round at (x, y) near a Last Known Position, with no enemy in view. */
   | { kind: 'suppressive'; side: SideId; from: number; x: number; y: number; hit: boolean }
   /** #40: a Barrage shell landed at (x, y); `side` called it. #99: or a Cruise Missile (`asset`). #107: or a tank's main gun, fired by vehicle `from`. */
-  | { kind: 'impact'; side: SideId; x: number; y: number; asset: 'barrage' | 'missile' | 'tank'; from?: number }
+  | { kind: 'impact'; side: SideId; x: number; y: number; asset: 'barrage' | 'missile' | 'tank' | 'bomb'; from?: number }
   /** #55: `side`'s Commander earned `points` of Commander Score. `reason` is safe to show: it never names a position or an unseen enemy. */
   | { kind: 'award'; side: SideId; category: ScoreCategory; points: number; reason: string };

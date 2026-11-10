@@ -11,7 +11,7 @@ const HZ = T.hz;
 
 /** Open ground; nato Soldiers 0..3, pact 4..7, nato's helicopter is vehicle 8. */
 function scene(tune: Partial<Tune> = {}, map: Partial<MapData> = {}): Match {
-  const full: Tune = { ...T, squadSize: 4, speedJitter: 0, spread: 0, strayChance: 0, drainSeconds: [1e9, 1e9, 1e9, 1e9, 1e9], jeepsPerSide: 0, tanksPerSide: 0, helisPerSide: 1, pointJeeps: false, visionM: 0, ...NO_TRAITS, ...NO_TEMPO, ...tune };
+  const full: Tune = { ...T, squadSize: 4, speedJitter: 0, spread: 0, strayChance: 0, drainSeconds: [1e9, 1e9, 1e9, 1e9, 1e9], jeepsPerSide: 0, tanksPerSide: 0, helisPerSide: 1, jetsPerSide: 0, aasPerSide: 0, pointJeeps: false, visionM: 0, ...NO_TRAITS, ...NO_TEMPO, ...tune };
   const m = thinkOnId(
     createMatch({
       seed: 1,

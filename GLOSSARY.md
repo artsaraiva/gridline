@@ -124,6 +124,10 @@ _Avoid_: LZ (in prose), drop point, helipad (the helicopter's slot at its HQ)
 The helicopter job of fetching and carrying a Squad: a Squad on foot far from the HQ whose goal is a long ride, with no vehicle by it, calls the helicopter, which lands by it, takes it to its goal and sets it down at a Landing Zone; to a goal where any friendly Squad knows enemies it circles first so its gunners fire (with no gunner aboard it does not circle), then the riders jump by Parachute over the Landing Zone.
 _Avoid_: Taxi, evac, air drop
 
+**Sortie**:
+A jet's round of passes from its Side's off-map base: each pass is an attack run at an enemy its Side knows near the Capture Point its pilot picks, its cannon raking the last stretch before it (a bomb on a vehicle or a group, while it has bombs), then it climbs out past the Play Area and turns for the next; an enemy jet met in the air is fought first; after the last pass it flies home and rearms with its pilot aboard.
+_Avoid_: Strafing Run (the Commander Asset), attack run, mission
+
 **Support**:
 The helicopter job of circling a Capture Point where any friendly Squad knows enemies, so its side-gun gunners fire on them; the helicopter never circles without a gunner aboard. With nothing else to do it waits on its helipad.
 _Avoid_: Gunship run, patrol, strafing

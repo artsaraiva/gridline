@@ -25,7 +25,7 @@ const field: MapData = {
   grid: { cols: 12, rows: 12, squareM: 100, letters: 'ABCDEFGHIJKL' },
 };
 function scene(squadsPerSide: number, seed = 1, tune: Partial<Tune> = {}): Match {
-  const t: Tune = { ...DEFAULT_TUNE, speedJitter: 0, visionM: 0, tanksPerSide: 0, jeepsPerSide: 0, helisPerSide: 0, pointJeeps: false, ...tune };
+  const t: Tune = { ...DEFAULT_TUNE, speedJitter: 0, visionM: 0, tanksPerSide: 0, jeepsPerSide: 0, helisPerSide: 0, jetsPerSide: 0, aasPerSide: 0, pointJeeps: false, ...tune };
   return createMatch({ seed, map: field, tune: t, squadsPerSide, commanderSide: 'nato' });
 }
 const seeds = Array.from({ length: 10 }, (_, i) => i + 1);

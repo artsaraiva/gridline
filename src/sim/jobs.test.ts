@@ -27,7 +27,7 @@ const FAR = { x: 600, y: -600 };
  * pad at the HQ. Neither nato Squad rides (their ride distance is out of reach) unless a test says so.
  */
 function scene(points: Vec2[], tune: Partial<Tune> = {}, seed = 1): Match {
-  const full: Tune = { ...T, squadSize: 4, speedJitter: 0, spread: 0, strayChance: 0, visionM: 0, drainSeconds: [1e9, 1e9, 1e9, 1e9, 1e9], tanksPerSide: 0, jeepsPerSide: 0, helisPerSide: 1, pointJeeps: false, ...NO_TRAITS, ...NO_TEMPO, ...tune };
+  const full: Tune = { ...T, squadSize: 4, speedJitter: 0, spread: 0, strayChance: 0, visionM: 0, drainSeconds: [1e9, 1e9, 1e9, 1e9, 1e9], tanksPerSide: 0, jeepsPerSide: 0, helisPerSide: 1, jetsPerSide: 0, aasPerSide: 0, pointJeeps: false, ...NO_TRAITS, ...NO_TEMPO, ...tune };
   const m = thinkOnId(createMatch({ seed, map: field(points), tune: full, squadsPerSide: 2, commanderSide: 'nato' }));
   m.soldiers.forEach((s) => Object.assign(s, s.side === 'nato' ? { x: -300 + 3 * s.id, y: 300 } : { ...FAR, speed: 0 }));
   for (const sq of m.squads) sq.rideM = 1e6;

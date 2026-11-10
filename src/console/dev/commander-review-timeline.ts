@@ -1,14 +1,14 @@
 // DEV-only Commander look review timeline (#69): a hand-written, deterministic script of CommanderViews and Events on
 // Kaltenbach coordinates, so the Console's readability treatments (#70 firing pulse, #71 selection and Squad Leader
 // markers), the Cruise Missile's marks (#99), the tank (#107: sprite, turret, Wreck, badge, main gun), the jeep (#108:
-// sprite, Wreck, badge, MG, dismount), the helicopter's jobs (#131: a pickup away from the HQ, a hot drop, Support, a repair trip home, a bail-out and crash) and the parachute jump (#130: a crippled helicopter's riders come down on a chevron that grows from 70% to full size) and the transport helicopter (#109: lift-off, flight, landing, unload, home; #124: dogleg, flare, Landing Zone) are judged on every
+// sprite, Wreck, badge, MG, dismount), the jet and the AA (#110: a pass, the AA's stream on a helicopter and a jet), the helicopter's jobs (#131: a pickup away from the HQ, a hot drop, Support, a repair trip home, a bail-out and crash) and the parachute jump (#130: a crippled helicopter's riders come down on a chevron that grows from 70% to full size) and the transport helicopter (#109: lift-off, flight, landing, unload, home; #124: dogleg, flare, Landing Zone) are judged on every
 // Squad Leader state without a Simulation. `viewAt` and `eventsBetween` are pure.
 import { DEFAULT_TUNE } from '../../sim/tune';
 import type { CommanderView, EffectView, FriendlyView, LastKnownView, SimEvent, SoldierView, SquadView, VehicleView } from '../../sim/types';
 
 /** The first twelve chapters end here; #131 adds the helicopter jobs after them. */
 const OLD_END = 192;
-export const LENGTH = 432;
+export const LENGTH = 512;
 
 /** Where each state starts, for scrubbing. */
 export const CHAPTERS = [
@@ -27,6 +27,8 @@ export const CHAPTERS = [
   { at: 292, title: 'Support' },
   { at: 332, title: 'Repair' },
   { at: 392, title: 'Bail' },
+  { at: 432, title: 'Jet pass' },
+  { at: 472, title: 'AA' },
 ];
 
 /** Centre of the overlapping Squads, for the close zoom preset. */
@@ -386,6 +388,97 @@ const HOT: Man[] = [
   { id: 25, squad: -1, path: [[0, -8, 294], [LENGTH, -8, 294]], fx: -0.6, fy: -0.8 },
 ];
 
+// #110 JET PASS: Charlie's 10 spawns as nato's jet pilot: at JET_AT the jet takes off from the base (where the Cruise Missile
+// leaves), off screen (its icon glued to the screen edge), flies in at `jetMps`
+// along y = 6 to C with its cannon on the Contacts within `jetStripM` of its line from `jetFireM` out (21 and 22, not 20), overflies,
+// bends north clear of the pact HQ out past the Play Area, and turns `jetTurnSeconds` there, away from the map, then flies off home.
+// AA: Alpha's 2 crews an AA parked west of C; a pact helicopter comes in from the east, and the AA's gun (bursts of a round every
+// `aaFireSeconds`, as the Simulation's) and a lock-on missile bring it down: a Wreck where it fell. Then a pact jet crosses over
+// the Play Area (both sides see it there); the AA fires bursts on it while it is within `aaRangeM`, and a missile that misses it
+// and flies on past. The turret follows each target.
+const JET_AT = CHAPTERS[15]!.at;
+const AA_AT = CHAPTERS[16]!.at;
+const [JET_ID, AA_ID, AA_HELI_ID, ENEMY_JET_ID] = [40, 41, 42, 43];
+const JET_PILOT = 10;
+const AA_CREW = 2;
+const JET_MPS = DEFAULT_TUNE.jetMps;
+const OVER_C = JET_AT + 1556 / JET_MPS;
+const OUT_AT = { t: OVER_C + Math.hypot(600, 140) / JET_MPS, x: 600, y: 140 };
+const JET_PATH: Key[] = (() => {
+  const r = (JET_MPS * DEFAULT_TUNE.jetTurnSeconds) / Math.PI; // a half turn in jetTurnSeconds
+  const d = Math.hypot(OUT_AT.x, OUT_AT.y);
+  const c = { x: OUT_AT.x - (OUT_AT.y / d) * r, y: OUT_AT.y + (OUT_AT.x / d) * r }; // its left: away from the map centre
+  const a0 = Math.atan2(OUT_AT.y - c.y, OUT_AT.x - c.x);
+  const turn: Key[] = Array.from({ length: 21 }, (_, k) => [OUT_AT.t + k, c.x + r * Math.cos(a0 + (Math.PI * k) / 20), c.y + r * Math.sin(a0 + (Math.PI * k) / 20)]);
+  const back = turn.at(-1)!;
+  return [[JET_AT, -1556, 6], [OVER_C, 0, 6], [OUT_AT.t, OUT_AT.x, OUT_AT.y], ...turn.slice(1), [LENGTH, back[1] - (LENGTH - back[0]) * JET_MPS, back[2]]];
+})();
+const inJet = (id: number, t: number) => id === JET_PILOT && t >= JET_AT;
+const AA_AT_SPOT = { x: -60, y: 48 };
+const inAa = (id: number, t: number) => id === AA_CREW && t >= AA_AT - 1;
+const AA_HELI_PATH: Key[] = [[AA_AT + 1, 320, 50], [AA_AT + 13, -28, 40], [LENGTH, -28, 40]];
+const AA_HELI_DOWN = AA_AT + 14;
+const AA_HELI_FIRE: Span = [AA_AT + 4, AA_HELI_DOWN];
+const ENEMY_JET_PATH: Key[] = [[AA_AT + 18, 1500, 20], [AA_AT + 18 + 3000 / JET_MPS, -1500, 20]];
+const AA_REACH = Math.sqrt(DEFAULT_TUNE.aaRangeM ** 2 - (AA_AT_SPOT.y - 20) ** 2); // along the jet's line, either side of the AA
+const ENEMY_JET_FIRE: Span = [AA_AT + 18 + (1500 - AA_AT_SPOT.x - AA_REACH) / JET_MPS, AA_AT + 18 + (1500 - AA_AT_SPOT.x + AA_REACH) / JET_MPS]; // within aaRangeM of the AA
+/** The AA's two missiles: one reaches the helicopter as it closes, one passes where the jet is and flies on until spent. */
+const AA_MISSILES = [
+  { path: AA_HELI_PATH, when: AA_AT + 9, hits: true },
+  { path: ENEMY_JET_PATH, when: ENEMY_JET_FIRE[0] + 3, hits: false },
+];
+/** Where an AA missile is at `t`: straight from the AA at `airMissileMps` to its target's spot at `when`, launched to arrive then; null before launch, once it hits or once spent. */
+function aaMissileAt(t: number, { path, when, hits }: (typeof AA_MISSILES)[number]) {
+  const aim = at(path, when);
+  const d = Math.hypot(aim.x - AA_AT_SPOT.x, aim.y - AA_AT_SPOT.y) || 1;
+  const launch = when - d / DEFAULT_TUNE.airMissileMps;
+  const flown = (t - launch) * DEFAULT_TUNE.airMissileMps;
+  if (t < launch || (hits && flown >= d) || t - launch >= DEFAULT_TUNE.airMissileSeconds) return null;
+  const [fx, fy] = [(aim.x - AA_AT_SPOT.x) / d, (aim.y - AA_AT_SPOT.y) / d];
+  return { x: AA_AT_SPOT.x + fx * flown, y: AA_AT_SPOT.y + fy * flown, fx, fy };
+}
+
+/** The unit heading along `path` at `t`. */
+function headingOn(path: Key[], t: number) {
+  const [p, q] = [at(path, t - 0.25), at(path, t + 0.25)];
+  const d = Math.hypot(q.x - p.x, q.y - p.y) || 1;
+  return { fx: (q.x - p.x) / d, fy: (q.y - p.y) / d };
+}
+
+/** #110: nato's jet in flight, the AA and what it fires on. */
+function airAt(t: number): VehicleView[] {
+  const out: VehicleView[] = [];
+  if (t >= JET_AT) {
+    const h = headingOn(JET_PATH, t);
+    out.push({ id: JET_ID, side: 'nato', kind: 'jet', ...at(JET_PATH, t), ...h, tx: h.fx, ty: h.fy, hp: 1, seats: [JET_PILOT], airborne: true });
+  }
+  if (t < AA_AT - 1) return out;
+  const heli = at(AA_HELI_PATH, t);
+  const jet = at(ENEMY_JET_PATH, t);
+  const target = inSpan([AA_HELI_FIRE], t) ? heli : inSpan([ENEMY_JET_FIRE], t) ? jet : null;
+  const d = target ? Math.hypot(target.x - AA_AT_SPOT.x, target.y - AA_AT_SPOT.y) : 0;
+  const turret = target ? { tx: (target.x - AA_AT_SPOT.x) / d, ty: (target.y - AA_AT_SPOT.y) / d } : { tx: 0.95, ty: 0.3 };
+  const missiles = AA_MISSILES.map((s) => aaMissileAt(t, s)).filter((s) => s !== null);
+  out.push({ id: AA_ID, side: 'nato', kind: 'aa', ...AA_AT_SPOT, fx: 0.95, fy: 0.3, ...turret, hp: 1, seats: [AA_CREW], ...(missiles.length && { missiles }) });
+  const hh = headingOn(AA_HELI_PATH, Math.min(t, AA_HELI_DOWN));
+  if (t >= AA_AT + 1) out.push({ id: t < AA_HELI_DOWN ? AA_HELI_ID : -1, side: 'pact', kind: 'helicopter', ...heli, ...hh, tx: hh.fx, ty: hh.fy, ...(t < AA_HELI_DOWN ? { airborne: true } : { wreck: true }) });
+  if (t >= ENEMY_JET_PATH[0]![0] && Math.abs(jet.x) < 450) out.push({ id: ENEMY_JET_ID, side: 'pact', kind: 'jet', ...jet, fx: -1, fy: 0, tx: -1, ty: 0, airborne: true }); // the sky rule: over the Play Area
+  return out;
+}
+
+/** #110: the jet's cannon on the Contacts in its strip, and the AA's gun in bursts on the helicopter and the jet. */
+function airFire(): [number, SimEvent][] {
+  const events: [number, SimEvent][] = [];
+  const strip = [OVER_C - DEFAULT_TUNE.jetFireM / JET_MPS, OVER_C - 15 / JET_MPS];
+  let i = 0;
+  for (let t = strip[0]!; t < strip[1]!; t += DEFAULT_TUNE.jetFireSeconds, i++) events.push([t, { kind: 'shot', side: 'nato', from: JET_PILOT, to: CONTACTS[1 + (i % 2)]!.id, hit: i % 3 === 0 }]);
+  const [bursts, pauses] = [[1.2, 0.9, 1.5], [0.8, 1.2]]; // seconds, in turn: the Simulation draws them between aaBurstSeconds and aaPauseSeconds
+  for (const [[a, b], to] of [[AA_HELI_FIRE, AA_HELI_ID], [ENEMY_JET_FIRE, ENEMY_JET_ID]] as const)
+    for (let t0 = a, k = 0; t0 < b; t0 += bursts[k % 3]! + pauses[k % 2]!, k++)
+      for (let t = t0, n = 0; t < Math.min(b, t0 + bursts[k % 3]!); t += DEFAULT_TUNE.aaFireSeconds, n++) events.push([t, { kind: 'shot', side: 'nato', from: AA_CREW, to, hit: n % 3 === 0 }]);
+  return events;
+}
+
 interface Sq {
   id: number;
   name: string;
@@ -445,6 +538,8 @@ export function viewAt(t: number): CommanderView {
     ...(aboard(m.id, t) && { ...at(TANK_PATH, t), vehicle: TANK_ID }),
     ...(inJeep(m.id, t) && { ...at(JEEP_PATH, t), vehicle: JEEP_ID }),
     ...(inHeli(m.id, t) && { ...seatAt(m.id, t), vehicle: HELI_ID }),
+    ...(inJet(m.id, t) && { ...at(JET_PATH, t), vehicle: JET_ID }),
+    ...(inAa(m.id, t) && { ...AA_AT_SPOT, vehicle: AA_ID }),
     ...paraMan(m.id, t),
     ...jumper131(m.id, t),
   }));
@@ -461,7 +556,7 @@ export function viewAt(t: number): CommanderView {
     result: null,
     assets: [{ asset: 'missile', readyIn: t < MISSILE.at ? 0 : Math.max(0, MISSILE.at + DEFAULT_TUNE.missileCooldownSeconds - t), cooldown: DEFAULT_TUNE.missileCooldownSeconds, radius: DEFAULT_TUNE.missileSuppressM }],
     effects: missileAt(t),
-    vehicles: [...tanksAt(t), ...jeepsAt(t), ...helisAt(t), ...paraHeli(t)],
+    vehicles: [...tanksAt(t), ...jeepsAt(t), ...helisAt(t), ...paraHeli(t), ...airAt(t)],
   };
 }
 
@@ -566,4 +661,4 @@ function orbitFire(): [number, SimEvent][] {
   return events;
 }
 
-const EVENTS: [number, SimEvent][] = [...casualties(), ...firefight(), ...strike(), ...gun(), ...mg(), ...sideGun(), ...orbitFire()].sort((a, b) => a[0] - b[0]);
+const EVENTS: [number, SimEvent][] = [...casualties(), ...firefight(), ...strike(), ...gun(), ...mg(), ...sideGun(), ...orbitFire(), ...airFire()].sort((a, b) => a[0] - b[0]);

@@ -25,7 +25,7 @@ type Placement = { x?: number; y?: number; fx?: number; ammo?: number; suppressi
 
 /** Placing Soldiers stands in for a map script; everything after runs through `step`. Squad 0 is NATO's, the last Squad the Pact's. */
 function scene(place: Record<number, Placement>, o: { tune?: Partial<Tune>; size?: number } = {}): Match {
-  const tune: Tune = { ...DEFAULT_TUNE, squadSize: o.size ?? 1, speedJitter: 0, spread: 0, ...o.tune };
+  const tune: Tune = { ...DEFAULT_TUNE, squadSize: o.size ?? 1, speedJitter: 0, spread: 0, jetsPerSide: 0, aasPerSide: 0, ...o.tune };
   const m = createMatch({ seed: 1, map: field(), tune, squadsPerSide: 1, commanderSide: 'nato' });
   for (const [id, p] of Object.entries(place)) Object.assign(m.soldiers[Number(id)]!, p);
   return m;

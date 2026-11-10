@@ -27,7 +27,7 @@ const field: MapData = {
 
 /** Soldier ids run nato first, squad by squad, 4 each. Nobody sees anybody. `frozen`: nobody walks, Squads are moved by hand. */
 function scene(o: { tune?: Partial<Tune>; squads?: number; frozen?: boolean } = {}): Match {
-  const tune: Tune = { ...DEFAULT_TUNE, speedJitter: 0, visionM: 0, tanksPerSide: 0, jeepsPerSide: 0, helisPerSide: 0, pointJeeps: false, ...(o.frozen && { walkSpeed: 0 }), ...o.tune }; // #107 #108: no vehicles
+  const tune: Tune = { ...DEFAULT_TUNE, speedJitter: 0, visionM: 0, tanksPerSide: 0, jeepsPerSide: 0, helisPerSide: 0, jetsPerSide: 0, aasPerSide: 0, pointJeeps: false, ...(o.frozen && { walkSpeed: 0 }), ...o.tune }; // #107 #108: no vehicles
   return createMatch({ seed: 1, map: field, tune, squadsPerSide: o.squads ?? 1, commanderSide: 'nato' });
 }
 

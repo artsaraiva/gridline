@@ -27,7 +27,7 @@ const SEEDS = [10, 1, 2, 3, 4];
 
 /** Four Squads a Side, nobody sees anybody and nobody carries rockets; nato Squad 0 is Ordered to D across the river, pact Squad 7 to C on the bridge. */
 function run(seconds: number, seed = 10) {
-  const m: Match = thinkOnId(createMatch({ seed, map: KALTENBACH, tune: { ...DEFAULT_TUNE, ...NO_TRAITS, ...NO_TEMPO, visionM: 0, rockets: 0, helisPerSide: 0 }, squadsPerSide: 4, commanderSide: 'nato' }));
+  const m: Match = thinkOnId(createMatch({ seed, map: KALTENBACH, tune: { ...DEFAULT_TUNE, ...NO_TRAITS, ...NO_TEMPO, visionM: 0, rockets: 0, helisPerSide: 0, jetsPerSide: 0, aasPerSide: 0 }, squadsPerSide: 4, commanderSide: 'nato' }));
   const orders: Command[] = [
     { tick: 0, side: 'nato', kind: 'order', squad: 0, point: 'D' },
     { tick: 0, side: 'pact', kind: 'order', squad: 7, point: 'C' }, // the first pact Squad to think: its two pairs take both tanks
@@ -93,7 +93,7 @@ describe('#107 tanks on Kaltenbach', () => {
 
   it('no two matches send the tanks the same way: each driver brings its own seeded preference per point', () => {
     const goals = [1, 2, 3, 4].map((seed) => {
-      const g = thinkOnId(createMatch({ seed, map: KALTENBACH, tune: { ...DEFAULT_TUNE, ...NO_TRAITS, ...NO_TEMPO, helisPerSide: 0 }, squadsPerSide: 4, commanderSide: 'nato' }));
+      const g = thinkOnId(createMatch({ seed, map: KALTENBACH, tune: { ...DEFAULT_TUNE, ...NO_TRAITS, ...NO_TEMPO, helisPerSide: 0, jetsPerSide: 0, aasPerSide: 0 }, squadsPerSide: 4, commanderSide: 'nato' }));
       for (let i = 0; i < 10 * HZ; i++) step(g, []);
       return g.vehicles.filter((v) => v.point < 0).map((v) => g.points[v.goal]?.id).join('');
     });
@@ -116,7 +116,7 @@ describe('#107 tanks on Kaltenbach', () => {
 
 describe('#108 the jeep on Kaltenbach', () => {
   // No tanks: each Side's two jeeps wait in its HQ vehicle park; nobody sees anybody or carries rockets
-  const m: Match = thinkOnId(createMatch({ seed: 10, map: KALTENBACH, tune: { ...DEFAULT_TUNE, ...NO_TRAITS, ...NO_TEMPO, visionM: 0, rockets: 0, tanksPerSide: 0, helisPerSide: 0 }, squadsPerSide: 4, commanderSide: 'nato' }));
+  const m: Match = thinkOnId(createMatch({ seed: 10, map: KALTENBACH, tune: { ...DEFAULT_TUNE, ...NO_TRAITS, ...NO_TEMPO, visionM: 0, rockets: 0, tanksPerSide: 0, helisPerSide: 0, jetsPerSide: 0, aasPerSide: 0 }, squadsPerSide: 4, commanderSide: 'nato' }));
   const jeeps = m.vehicles.filter((v) => v.kind === 'jeep' && v.point < 0);
   const crews = jeeps.map(() => [] as number[]);
   const exits: { side: string; id: number; tick: number; x: number; y: number; goal: number }[] = [];
@@ -156,7 +156,7 @@ describe('#108 the jeeps drive mostly by road', () => {
   // Per seed, not pooled (see #107): the jeeps' routes should hold whatever the seed
   it('by distance, in every one of several seeds', () => {
     for (const seed of SEEDS) {
-      const m: Match = thinkOnId(createMatch({ seed, map: KALTENBACH, tune: { ...DEFAULT_TUNE, ...NO_TRAITS, ...NO_TEMPO, visionM: 0, rockets: 0, tanksPerSide: 0, helisPerSide: 0 }, squadsPerSide: 4, commanderSide: 'nato' }));
+      const m: Match = thinkOnId(createMatch({ seed, map: KALTENBACH, tune: { ...DEFAULT_TUNE, ...NO_TRAITS, ...NO_TEMPO, visionM: 0, rockets: 0, tanksPerSide: 0, helisPerSide: 0, jetsPerSide: 0, aasPerSide: 0 }, squadsPerSide: 4, commanderSide: 'nato' }));
       const jeeps = m.vehicles.filter((v) => v.kind === 'jeep' && v.point < 0);
       const trails = jeeps.map(() => [] as { x: number; y: number; road: boolean }[]);
       for (let i = 0; i < 110 * HZ; i++) {
@@ -170,7 +170,7 @@ describe('#108 the jeeps drive mostly by road', () => {
 
 describe('#109 the transport helicopter on Kaltenbach', () => {
   // Everything on, nobody sees anybody or carries rockets
-  const m: Match = thinkOnId(createMatch({ seed: 10, map: KALTENBACH, tune: { ...DEFAULT_TUNE, ...NO_TRAITS, ...NO_TEMPO, visionM: 0, rockets: 0 }, squadsPerSide: 4, commanderSide: 'nato' }));
+  const m: Match = thinkOnId(createMatch({ seed: 10, map: KALTENBACH, tune: { ...DEFAULT_TUNE, ...NO_TRAITS, ...NO_TEMPO, visionM: 0, rockets: 0, jetsPerSide: 0, aasPerSide: 0 }, squadsPerSide: 4, commanderSide: 'nato' }));
   const helis = m.vehicles.filter((v) => v.kind === 'helicopter');
   const flights = helis.map(() => ({ track: [] as { x: number; y: number }[], seats: [] as number[], landed: -1, lift: -1, lz: { x: 0, y: 0 } }));
   for (let i = 0; i < 160 * HZ; i++) { // #122: the Squad walks to it and climbs in first
