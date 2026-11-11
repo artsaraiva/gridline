@@ -88,6 +88,7 @@ export interface Squad {
   task: 'none' | 'point' | 'retreat' | 'resupply'; // `goal` is its Capture Point (-1 = the HQ)
   mode: 'travel' | 'bound' | 'hold' | 'fallback';
   route: number; // index into map.crossings of the crossing it takes to its goal, -1 = none
+  crossed: boolean; // #151: its leader has reached the middle of the route's crossing (or is otherwise over); it walks the point's field
   slow: boolean; // the leader waits for stragglers
   phase: number; // which bounding pair moves
   phaseUntil: number; // tick

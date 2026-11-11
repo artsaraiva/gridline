@@ -5,7 +5,7 @@ import { sideKnown } from '../memory';
 import { rnd } from '../rng';
 import type { Mix, Squad } from '../state';
 import type { SideId, Vec2 } from '../types';
-import { flowDist, routeFlow } from './flow';
+import { across, crossingFlow, flowDist, pointFlow } from './flow';
 
 /** A Soldier death, kept `routeLossSeconds` so Squads steer clear of crossings that cost them. */
 export interface Death {
@@ -34,13 +34,16 @@ export function hashDeaths(m: Match, mix: Mix) {
  * Sets `sq.route` for heading from `from` to point `p`. Each crossing's route is its length, plus `routeSeenM` per enemy the Side
  * saw near it lately, `routeLossM` per own death near it lately and `routeMateM` per other own Squad taking it to the same point,
  * plus seeded jitter; routes more than `routeMaxDetourM` longer than the shortest are dropped. The `bridge` takes no danger.
- * No route when the crossing makes no difference (the point is on this bank).
+ * No route when the crossing makes no difference (the point is on this bank). #151: a route's length is the way to the middle of its
+ * crossing's deck plus the point's own field from there.
  */
 export function chooseRoute(m: Match, sq: Squad, from: Vec2, p: number) {
   const t = m.tune;
   const crossings = m.map.crossings ?? [];
-  sq.route = -1;
-  const lengths = crossings.map((_, c) => flowDist(m, routeFlow(m, p, c), from));
+  Object.assign(sq, { route: -1, crossed: false });
+  if (!across(m, p, from)) return; // #151: the point is on this bank
+  const pf = pointFlow(m, p);
+  const lengths = crossings.map((c, i) => flowDist(m, crossingFlow(m, i), from) + flowDist(m, pf, c));
   const reachable = lengths.filter((d) => d < Infinity);
   if (reachable.length < 2) return;
   const shortest = Math.min(...reachable);
