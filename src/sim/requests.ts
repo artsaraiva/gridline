@@ -6,7 +6,7 @@ import { landed } from './assets/crate';
 import type { Match } from './index';
 import { dist2 } from './geometry';
 import { gridCentre, gridRef } from './grid-ref';
-import { inJet, membersOf, wiped, type Mix, type Squad } from './state';
+import { inSky, membersOf, wiped, type Mix, type Squad } from './state';
 import type { RequestKind, SideId, SimEvent, SquadView, Vec2 } from './types';
 
 /** An open Request: the Asset it asks for, the centre of the grid square it names, and the tick it expires. */
@@ -28,7 +28,7 @@ function answered(m: Match, side: SideId, asset: RequestKind, at: Vec2) {
 /** What `sq` needs and where, or null: Fire support when most are suppressed by enemies it sees, Recon when any is under fire it can't place, else Supplies. */
 function need(m: Match, sq: Squad): { asset: RequestKind; at: Vec2 } | null {
   const t = m.tune;
-  const alive = membersOf(m, sq).filter((s) => s.state === 'alive' && !inJet(m, s)); // #110: not a jet's pilot
+  const alive = membersOf(m, sq).filter((s) => s.state === 'alive' && !inSky(m, s)); // #110: not a jet's pilot, #101 nor anyone aboard the Gunship
   const L = alive[0];
   if (!L) return null;
   const nearest = (list: { x: number; y: number }[]) => list.reduce((a, c) => (dist2(c, L) < dist2(a, L) ? c : a));

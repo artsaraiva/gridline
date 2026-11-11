@@ -323,4 +323,16 @@ export const DEFAULT_TUNE: Tune = {
   airMissileHitChance: 0.7,
   airMissileVsJetHitChance: 0.5,
   airMissileDamage: 45,
+
+  // #101 Gunship
+  gunshipCooldownSeconds: 300,
+  gunshipOrbitM: 200,
+  gunshipRangeM: 200,
+  gunshipSpeedMps: 60,
+  gunshipStationSeconds: 45,
+  gunshipShotSeconds: 4,
+  gunshipShellFlightSeconds: 3,
+  gunshipScatterM: 8,
+  gunshipHp: 150,
+  paradropChance: 0.5,
 };

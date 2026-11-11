@@ -64,6 +64,16 @@ describe('Asset targeting', () => {
     expect(targeting.spot).toBeNull();
   });
 
+  it('#101: an Asset with a fixed route arms pinned on it; a tap elsewhere never moves it, Confirm calls it there', () => {
+    session.view = { ...view, assets: [{ asset: 'gunship', readyIn: 0, cooldown: 300, radius: 200, at: { x: 0, y: 0 } }] } as CommanderView;
+    arm('gunship');
+    expect(targeting.spot).toEqual({ x: 0, y: 0 });
+    tap({ x: 60, y: 20 }, 5);
+    expect(targeting.spot).toEqual({ x: 0, y: 0 });
+    confirm();
+    expect(sent).toEqual([{ side: 'nato', kind: 'asset', asset: 'gunship', at: { x: 0, y: 0 } }]);
+  });
+
   it('arming the armed Asset again, or disarming, backs out; taps then do nothing', () => {
     arm('scan');
     arm('scan');

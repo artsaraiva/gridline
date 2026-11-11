@@ -240,7 +240,7 @@ describe('#107 the tank fights', () => {
 
   it('takes `tanksPerSide` slots in each HQ, each further one 9 m toward the field, ids after the Soldiers', () => {
     const m = scene({ tune: { tanksPerSide: 3 } });
-    expect(m.vehicles.map((v) => [v.id, v.side, v.slot.x])).toEqual([
+    expect(m.vehicles.filter((v) => v.kind !== 'gunship').map((v) => [v.id, v.side, v.slot.x])).toEqual([ // #101: each Side's Gunship comes last, asleep
       [4, 'nato', -560], [5, 'nato', -551], [6, 'nato', -542],
       [7, 'pact', 560], [8, 'pact', 551], [9, 'pact', 542],
     ]);
@@ -430,7 +430,7 @@ describe('#108 a jeep at every Capture Point but the middle one, for its owner',
 
   it('one waits at a point owned from the start; one appears the moment a point is captured; never at the middle one', () => {
     const m = points();
-    expect(m.vehicles.map((v) => [v.id, v.side, v.deadAt === -1])).toEqual([[4, 'nato', false], [5, 'pact', true]]);
+    expect(m.vehicles.filter((v) => v.kind !== 'gunship').map((v) => [v.id, v.side, v.deadAt === -1])).toEqual([[4, 'nato', false], [5, 'pact', true]]);
     const { views } = play(m, 50 * HZ, 'nato');
     const pact = play(points(), 50 * HZ, 'pact').views;
     expect(jeepAt(pact[0]!, { x: 300, y: 0 })).toMatchObject({ side: 'pact', empty: true });

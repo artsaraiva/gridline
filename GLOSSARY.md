@@ -109,7 +109,7 @@ How a Soldier leaves a helicopter in the air: they come down over a few seconds,
 _Avoid_: Bail (the helicopter's own job), drop (the Ferry's hot-goal run), fast rope
 
 **Wreck**:
-A destroyed Vehicle's hull, left where it died until its slot gives the Side a fresh one.
+A destroyed Vehicle's hull, left where it died until its slot gives the Side a fresh one. A Gunship shot down leaves one where it fell.
 _Avoid_: Debris, corpse, destroyed vehicle (as a thing on the map)
 
 **Launcher**:
@@ -173,7 +173,7 @@ The Strike in which an aircraft flies in along a line the Commander chose, fires
 _Avoid_: Airstrike, gun run, CAS
 
 **Gunship**:
-The Strike that orbits a chosen spot for a while, reveals the enemies under it as Contacts and shells them from the air.
+The Strike that flies a fixed route over the battlefield for a while, reveals the enemies under it as Contacts and shells them from the air. Soldiers coming back may spawn aboard it: as its gunner, or to parachute down where its route passes nearest their goal.
 _Avoid_: AC-130, Spooky, air support
 
 **Scan UAV**:

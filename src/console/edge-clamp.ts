@@ -1,5 +1,5 @@
 // Edge-clamped marks (#99): a thing off screen is shown at the edge where its line to `toward` leaves the screen, so
-// the Commander sees which way it is coming from. The Cruise Missile uses it; the Strafing Run and Gunship are next.
+// the Commander sees which way it is coming from. The Cruise Missile uses it, and the jet (#110) and the Gunship (#101).
 import type { Vec2 } from '../sim/types';
 
 export interface Clamped extends Vec2 {

@@ -2,7 +2,7 @@
 // beside the target ring, and the Asset hotkeys. Rows read ready, cooling, active or armed from the view and targeting.
 // #44 owns the rail's look; this is the behaviour.
 import { gridRef } from '../../sim/grid-ref';
-import { MISSILE_ICON } from './icons';
+import { GUNSHIP_ICON, MISSILE_ICON } from './icons';
 import type { AssetKind, CommanderView, Vec2 } from '../../sim/types';
 import { pxToWorld, toScreen } from '../renderer';
 import { session } from '../session';
@@ -15,6 +15,7 @@ const ROWS: { key: string; asset: AssetKind; name: string; icon: string }[] = [
   { key: 'W', asset: 'supply', name: 'Supply Drop', icon: icon('<path d="M3.5 10a8.5 6.5 0 0 1 17 0Zm0 0 6.3 5.6m10.7-5.6-6.3 5.6M12 10v5.6"/><path d="M8.6 15.6h6.8v5.4H8.6z"/><path d="M8.6 18.3h6.8"/>') },
   { key: 'E', asset: 'barrage', name: 'Artillery Barrage', icon: icon('<path d="M5.5 3.5l1.6 3v8H3.9v-8z M12 6.5l1.6 3v8h-3.2v-8z M18.5 3.5l1.6 3v8h-3.2v-8z"/><path d="M3.5 18.5h17M5 21h14"/>') },
   { key: 'R', asset: 'missile', name: 'Cruise Missile', icon: icon(MISSILE_ICON) },
+  { key: 'T', asset: 'gunship', name: 'Gunship', icon: icon(GUNSHIP_ICON) },
 ];
 
 const box = document.getElementById('assets')!;
@@ -60,7 +61,7 @@ export function drawAssetRail(view: CommanderView | null) {
   if (!view || view.result) disarm();
   for (const r of rows) {
     const a = view?.assets?.find((a) => a.asset === r.asset);
-    const fx = view?.effects?.filter((e) => e.asset === r.asset && (e.side ?? view.side) === view.side).sort((p, q) => q.left - p.left)[0]; // #99: not the enemy's missile
+    const fx = view?.effects?.filter((e) => e.asset === r.asset && (e.side ?? view.side) === view.side && (e.asset !== 'gunship' || e.left > 0)).sort((p, q) => q.left - p.left)[0]; // #99: not the enemy's missile; #101 nor a Gunship off station
     const armed = targeting.armed === r.asset;
     const state = !a || a.off ? 'off' : armed ? 'armed' : fx ? 'active' : a.readyIn > 0 ? 'cooling' : 'ready';
     const cls = `asset ${state}`;

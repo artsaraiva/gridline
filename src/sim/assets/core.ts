@@ -1,5 +1,6 @@
 // Assets: each Side's cooldowns and the effects at work on the map. A Command calls one; the effect then works every
 // tick until its time runs out. Each kind lives in its own module and joins KINDS (Supply Drop #39, Barrage #40).
+// #101: a kind with a fixed route (the Gunship) goes there whatever spot the call names (`route`).
 import type { Match } from '../index';
 import { inHq, insidePolygon } from '../geometry';
 import { gridRef } from '../grid-ref';
@@ -7,6 +8,7 @@ import type { Mix } from '../state';
 import type { Soldier } from '../state';
 import { enemyOf, SIDES, type AssetKind, type AssetView, type Command, type EffectView, type SideId, type SimEvent, type Tune, type Vec2 } from '../types';
 import { barrage, type Shell } from './barrage';
+import { gunship } from './gunship';
 import { missile } from './missile';
 import { scan } from './scan';
 import { supply } from './supply';
@@ -25,6 +27,10 @@ export interface Effect {
   land?: number; // ... and the tick it lands
   given?: Record<number, number>; // #74 Supply Drop: Commander Score points each Soldier (by id) drew from this crate
   open?: Record<number, number>; // #74 Supply Drop: of those, what the Console has not heard of yet
+  vehicle?: number; // #101 Gunship: the id of the vehicle it flies ...
+  phase?: 'inbound' | 'station' | 'leaving' | 'down'; // ... where it is in its sortie ...
+  phaseAt?: number; // ... since this tick ...
+  nextShot?: number; // ... and the first tick its cannon may fire again
 }
 
 export interface Assets {
@@ -57,10 +63,12 @@ export interface Kind {
   // #39: a kind that falls before it works says how long the fall has left and takes in all
   landsIn?(m: Match, e: Effect): number;
   fall?(t: Tune): number;
+  /** #101: the centre of its fixed route: the effect works there whatever spot the call names, and the Console has none to pick. */
+  route?(m: Match): Vec2;
 }
 
-const KINDS: Partial<Record<AssetKind, Kind>> = { scan, supply, barrage, missile };
-const ORDER: AssetKind[] = ['scan', 'supply', 'barrage', 'missile'];
+const KINDS: Partial<Record<AssetKind, Kind>> = { scan, supply, barrage, missile, gunship };
+const ORDER: AssetKind[] = ['scan', 'supply', 'barrage', 'missile', 'gunship'];
 const kinds = () => ORDER.filter((k) => KINDS[k]);
 
 export function newAssets(t: Tune): Assets {
@@ -90,7 +98,8 @@ export function call(m: Match, c: Extract<Command, { kind: 'asset' }>, events: S
   const kind = KINDS[c.asset]!;
   const t = m.tune;
   m.assets.readyAt[c.side][c.asset] = m.tick + Math.round(kind.cooldownSeconds(t) * t.hz);
-  const e: Effect = { side: c.side, asset: c.asset, x: c.at.x, y: c.at.y, until: m.tick + Math.round(kind.seconds(t) * t.hz), told: false };
+  const at = kind.route?.(m) ?? c.at;
+  const e: Effect = { side: c.side, asset: c.asset, x: at.x, y: at.y, until: m.tick + Math.round(kind.seconds(t) * t.hz), told: false };
   kind.start?.(m, e);
   m.assets.effects.push(e);
   assetRadio(m, e, kind.called ?? `${kind.name} inbound`, events);
@@ -111,12 +120,14 @@ export function assetViews(m: Match, side: SideId): AssetView[] {
   const t = m.tune;
   return kinds().map((k) => {
     const off = KINDS[k]!.gate?.(m, side);
+    const at = KINDS[k]!.route?.(m);
     return {
       asset: k,
       readyIn: Math.max(0, m.assets.readyAt[side][k]! - m.tick) / t.hz,
       cooldown: KINDS[k]!.cooldownSeconds(t),
       radius: KINDS[k]!.radius(t),
       ...(off && { off }),
+      ...(at && { at }),
     };
   });
 }

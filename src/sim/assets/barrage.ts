@@ -5,18 +5,22 @@
 import { dist2 } from '../geometry';
 import { rnd } from '../rng';
 import type { Mix } from '../state';
-import type { Tune } from '../types';
+import type { Tune, Vec2 } from '../types';
 import { assetRadio, type Kind } from './core';
-import { blast } from './strike';
+import { blast, type Blast } from './strike';
 
-/** One shell: where it lands, the tick it leaves and the tick it lands. */
+/** One shell: where it lands, the tick it leaves and the tick it lands. #101: a Gunship's also where it left the aircraft. */
 export interface Shell {
   x: number;
   y: number;
   launch: number;
   land: number;
   done: boolean;
+  from?: Vec2;
 }
+
+/** A Barrage shell's blast (#101: a Gunship shell's too). */
+export const shellBlast = (t: Tune): Blast => ({ killM: t.barrageKillM, woundM: t.barrageWoundM, suppressM: t.barrageSuppressM, suppression: t.barrageSuppression });
 
 /** The danger zone: shells land within the spread of the spot, and suppress out to their own reach beyond that. */
 const zone = (t: Tune) => t.barrageSpreadM + t.barrageSuppressM;
@@ -55,7 +59,7 @@ export const barrage: Kind = {
         e.told = true;
         assetRadio(m, e, 'Splash', events);
       }
-      blast(m, e.side, shell, { killM: t.barrageKillM, woundM: t.barrageWoundM, suppressM: t.barrageSuppressM, suppression: t.barrageSuppression }, 'barrage', events, { damage: (v) => (v.airborne ? 0 : t.shellVehicleDamage) }); // #109: a shell never reaches the air
+      blast(m, e.side, shell, shellBlast(t), 'barrage', events, { damage: (v) => (v.airborne ? 0 : t.shellVehicleDamage) }); // #109: a shell never reaches the air
     }
   },
 

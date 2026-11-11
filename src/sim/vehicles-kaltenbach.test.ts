@@ -48,7 +48,7 @@ describe('#107 tanks on Kaltenbach', () => {
   it('two tanks a Side wait under the HQ vehicle park\'s camo nets, two jeeps beside them, and Soldiers board them all at match start; a jeep waits at every point but C', () => {
     const tanks = m.vehicles.filter((v) => v.kind === 'tank');
     expect(tanks.map((v) => [v.side, v.slot])).toEqual(['nato', 'nato', 'pact', 'pact'].map((side, k) => [side, KALTENBACH.vehicleSlots![side as 'nato']![k % 2]]));
-    const hq = m.vehicles.filter((v) => v.point < 0);
+    const hq = m.vehicles.filter((v) => v.point < 0 && v.kind !== 'gunship'); // #101: the Gunship sleeps off the map until its Asset is called
     for (const j of hq.filter((v) => v.kind === 'jeep')) {
       const last = tanks.filter((v) => v.side === j.side).at(-1)!.slot;
       expect(Math.hypot(j.slot.x - last.x, j.slot.y - last.y)).toBeLessThan(25);

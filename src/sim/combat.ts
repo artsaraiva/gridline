@@ -2,6 +2,7 @@
 // #107: Soldiers aboard a vehicle fire only its guns (the coax here, the main gun in vehicles.ts) and take no fire; a
 // Launcher's rockets hit vehicles. #108: rifles hit a jeep like a Soldier in the open; its gunner fires the MG as the coax.
 // #110: a jet's pilot fires its cannon as the coax, an AA's occupant its gun in bursts; lock-on missiles in air-missiles.ts.
+// #101: the Gunship's gunner fires its left side gun as a helicopter's.
 import type { Match } from './index';
 import { logDeath, resetSoldierAi } from './ai';
 import { dist2 } from './geometry';
@@ -55,7 +56,8 @@ function coax(m: Match, s: Soldier, v: Vehicle): Shot | null {
   if (v.kind === 'jet') return cannon(m, s, v);
   if (v.kind === 'aa') return aaRound(m, s, v);
   const gun = specOf(t, v.kind);
-  const e = v.kind === 'helicopter' ? sideGun(m, v, v.seats.indexOf(s.id)) : gunner(v) === s.id ? m.soldiers[v.coax] : undefined; // #129: a helicopter's guns are its side seats
+  const seat = v.seats.indexOf(s.id);
+  const e = v.kind === 'helicopter' || (v.kind === 'gunship' && gunner(v) === s.id) ? sideGun(m, v, seat) : gunner(v) === s.id ? m.soldiers[v.coax] : undefined; // #129: a helicopter's guns are its side seats; #101 the Gunship's one gun is seat 1's, its left
   if (!e || e.state !== 'alive' || m.tick < s.nextFire || dist2(v, e) > gun.gunM * gun.gunM) return null;
   return roll(m, s, e, t.hitChance * (cellAt(m, e.x, e.y) === COVER ? t.coverHitMul : 1), gun.gunSeconds);
 }
@@ -188,6 +190,8 @@ export function wound(m: Match, e: Soldier, events: SimEvent[]) {
   events.push({ kind: 'wounded', side: e.side, id: e.id, x: e.x, y: e.y });
 }
 
+const KILL = { barrage: 'Barrage kill', missile: 'Missile kill', gunship: 'Gunship kill' };
+
 export function die(m: Match, s: Soldier, events: SimEvent[]) {
   leave(m, s); // #107
   s.state = 'dead';
@@ -196,7 +200,7 @@ export function die(m: Match, s: Soldier, events: SimEvent[]) {
   m.tickets[s.side] = Math.max(0, m.tickets[s.side] - 1);
   logDeath(m, { side: s.side, x: s.x, y: s.y, tick: m.tick });
   events.push({ kind: 'death', side: s.side, id: s.id, x: s.x, y: s.y });
-  if (s.cause) award(m, enemyOf(s.side), 'artillery', m.tune.scoreArtilleryKill, s.cause === 'missile' ? 'Missile kill' : 'Barrage kill', events); // #55 #99: the enemy Commander's Strike
+  if (s.cause) award(m, enemyOf(s.side), 'artillery', m.tune.scoreArtilleryKill, KILL[s.cause], events); // #55 #99 #101: the enemy Commander's Strike
   if (s.uavAssist) award(m, enemyOf(s.side), 'uav', m.tune.scoreUavAssist, 'UAV assist', events); // #75: and their Scan
   s.cause = null;
   s.uavAssist = false;

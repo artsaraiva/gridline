@@ -41,11 +41,11 @@ function known(m: Match, side: SideId): Map<number, Vec2> {
   return spots;
 }
 
-/** An enemy a pass may be aimed at or the cannon fire on: a Soldier on foot, not Wounded, or a live vehicle but a jet. */
+/** An enemy a pass may be aimed at or the cannon fire on: a Soldier on foot, not Wounded, or a live vehicle but a jet (#101 or the Gunship). */
 function markable(m: Match, id: number): boolean {
   const s = m.soldiers[id];
   const u = vehicleOf(m, id);
-  return s ? s.state === 'alive' && s.vehicle < 0 : !!u && live(u) && u.kind !== 'jet';
+  return s ? s.state === 'alive' && s.vehicle < 0 : !!u && live(u) && u.kind !== 'jet' && u.kind !== 'gunship';
 }
 
 /** The next pass, at the pilot's point (picked at its Squad's think); home when it has none. */

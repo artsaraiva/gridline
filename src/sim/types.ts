@@ -242,7 +242,7 @@ export interface Tune {
   missileWoundM: number; // ... Wounds within this ...
   missileSuppressM: number; // ... and suppresses within this (the zone ring)
   missileSuppression: number; // suppression (0..1) the blast leaves
-  missileGated: boolean; // the call needs the middle Capture Point; off for review scenes (`?free=1`)
+  missileGated: boolean; // the heavy Assets' calls (Cruise Missile, #101 Gunship) need the middle Capture Point; off for review scenes (`?free=1`)
 
   // #106 Detached Soldiers
   detachM: number; // a stray that ends farther than this from the foot leader goes Detached instead of regrouping
@@ -403,6 +403,18 @@ export interface Tune {
   airMissileHitChance: number; // ... it hits with this chance (seeded), else flies on past ...
   airMissileVsJetHitChance: number; // ... (a jet, jinking and flaring: this chance) ...
   airMissileDamage: number; // ... for this much
+
+  // #101 Gunship
+  gunshipCooldownSeconds: number; // from the call; it also starts the match on this cooldown
+  gunshipOrbitM: number; // its fixed route: a counter-clockwise circle this far round the middle Capture Point, whatever spot the call names
+  gunshipRangeM: number; // its cannon and its gunner reach this far from the ground spot under it; the enemies on foot in it are Contacts
+  gunshipSpeedMps: number; // in from the launch point beyond the own map edge, round the route and home again, level
+  gunshipStationSeconds: number; // on station this long from the orbit's first tick
+  gunshipShotSeconds: number; // one shell this often at the nearest enemy in its range (none: no shot) ...
+  gunshipShellFlightSeconds: number; // ... flying this long from the aircraft ...
+  gunshipScatterM: number; // ... to within this of where the enemy was; the blast is a Barrage shell's
+  gunshipHp: number; // the enemy AA fires on it as on a helicopter; under a third it leaves early, at 0 it falls as a Wreck
+  paradropChance: number; // a Soldier coming back takes a passenger seat of its Side's Gunship on station with this chance, when the route passes nearer its goal than where it came back
 }
 
 /** #55: what a Commander Score award is for. */
@@ -410,11 +422,11 @@ export type ScoreCategory = 'uav' | 'supply' | 'artillery' | 'orders';
 
 export type Command =
   | { tick: number; side: SideId; kind: 'order'; squad: number; point: string | null }
-  | { tick: number; side: SideId; kind: 'asset'; asset: 'scan' | 'supply' | 'barrage' | 'missile'; at: Vec2 };
+  | { tick: number; side: SideId; kind: 'asset'; asset: 'scan' | 'supply' | 'barrage' | 'missile' | 'gunship'; at: Vec2 };
 
 export type AssetKind = Extract<Command, { kind: 'asset' }>['asset'];
-/** #99: what a Squad may Request: never a Cruise Missile (#58). */
-export type RequestKind = Exclude<AssetKind, 'missile'>;
+/** #99: what a Squad may Request: never a Cruise Missile (#58), #101 nor a Gunship. */
+export type RequestKind = Exclude<AssetKind, 'missile' | 'gunship'>;
 
 export interface MatchResult {
   winner: SideId | null; // null = draw
@@ -450,8 +462,8 @@ export interface FriendlyView extends SoldierView {
  * #107: a vehicle on the map: the Side's own (live, with `hp` and `seats`), an enemy one a friendly sees right now (position
  * and facing only), or a Wreck (`wreck`, no id: -1).
  */
-/** #107 #108: the vehicle classes on the ground; #109 the transport helicopter, in the air; #110 the jet (air) and the AA (ground). */
-export type VehicleKind = 'tank' | 'jeep' | 'helicopter' | 'jet' | 'aa';
+/** #107 #108: the vehicle classes on the ground; #109 the transport helicopter, in the air; #110 the jet (air) and the AA (ground); #101 the Gunship (air, flown by its Asset). */
+export type VehicleKind = 'tank' | 'jeep' | 'helicopter' | 'jet' | 'aa' | 'gunship';
 
 export interface VehicleView {
   id: number;
@@ -568,6 +580,8 @@ export interface AssetView {
   radius: number;
   /** #99: why the row is off (e.g. `needs C` for a point-gated Asset); the cooldown runs regardless. Absent when it can be called. */
   off?: string;
+  /** #101: the centre of a fixed route (the Gunship's): there is no spot to pick, the call goes there. Absent for the others. */
+  at?: Vec2;
 }
 
 export interface EffectView {
@@ -584,8 +598,8 @@ export interface EffectView {
   landsIn?: number;
   /** How long the fall takes in all, in seconds. Only on a crate. */
   fall?: number;
-  /** #40 Barrage: shells in the air, each with where it lands and how far along its flight it is (0..1). */
-  shells?: { x: number; y: number; flight: number }[];
+  /** #40 Barrage: shells in the air, each with where it lands and how far along its flight it is (0..1). #101: a Gunship's with the muzzle spot it left (`from`). */
+  shells?: { x: number; y: number; flight: number; from?: Vec2 }[];
   /** #40 Barrage: seconds until the first shell lands; 0 once it has. */
   impactIn?: number;
   // #99 Cruise Missile: in the sky, so in both Sides' views
@@ -595,6 +609,11 @@ export interface EffectView {
   from?: Vec2;
   /** How far along its flight it is (0..1); 1 once it has hit. Only on a missile. */
   flight?: number;
+  // #101 Gunship: in the sky, so in both Sides' views (with `side`, and `from` its launch point); `x`, `y` and `radius` are its route's circle
+  /** Where it is in its sortie: flying in, circling its route (revealing and shelling), or flying home. Absent once shot down. */
+  phase?: 'inbound' | 'station' | 'leaving';
+  /** The aircraft: the ground spot under it and its unit heading. Absent once shot down. */
+  craft?: { x: number; y: number; fx: number; fy: number };
 }
 
 /** Things that happened this tick, on every Side; `commanderEvents` keeps the ones a Side's Console may show. */
@@ -616,7 +635,7 @@ export type SimEvent =
   | { kind: 'radio'; side: SideId; squad: number | null; type: string; text: string; grid?: string; priority: number }
   /** #34: suppressive fire: a round at (x, y) near a Last Known Position, with no enemy in view. */
   | { kind: 'suppressive'; side: SideId; from: number; x: number; y: number; hit: boolean }
-  /** #40: a Barrage shell landed at (x, y); `side` called it. #99: or a Cruise Missile (`asset`). #107: or a tank's main gun, fired by vehicle `from`. */
-  | { kind: 'impact'; side: SideId; x: number; y: number; asset: 'barrage' | 'missile' | 'tank' | 'bomb'; from?: number }
+  /** #40: a Barrage shell landed at (x, y); `side` called it. #99: or a Cruise Missile (`asset`), #101 a Gunship's shell. #107: or a tank's main gun, fired by vehicle `from`. */
+  | { kind: 'impact'; side: SideId; x: number; y: number; asset: 'barrage' | 'missile' | 'tank' | 'bomb' | 'gunship'; from?: number }
   /** #55: `side`'s Commander earned `points` of Commander Score. `reason` is safe to show: it never names a position or an unseen enemy. */
   | { kind: 'award'; side: SideId; category: ScoreCategory; points: number; reason: string };

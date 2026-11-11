@@ -52,6 +52,11 @@ export function bar(x0: number, y0: number, x1: number, y1: number, w: number) {
   return g;
 }
 
+/** Four corner brackets round an icon (#99 the missile's, #101 the Gunship's), in its own units; `w` is the stroke width in them. */
+export function brackets(w: number, r = 0.95, l = 0.32) {
+  return merge([[1, 1], [-1, 1], [1, -1], [-1, -1]].flatMap(([sx, sy]) => [bar(sx! * r, sy! * r, sx! * (r - l), sy! * r, w), bar(sx! * r, sy! * r, sx! * r, sy! * (r - l), w)]));
+}
+
 /** Plain colour with no glow: the dark halos and fills under symbols. */
 export function shade(color: number, opacity: number) {
   const material = new THREE.MeshBasicNodeMaterial({ color, opacity, transparent: true, depthWrite: false, side: THREE.DoubleSide });

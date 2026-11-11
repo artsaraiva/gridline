@@ -11,7 +11,7 @@ import { lineWalk, nearestWalkable } from '../grid';
 import { sideKnown } from '../memory';
 import { quiet } from '../respawn';
 import { between, pickWeighted, rnd } from '../rng';
-import { inJet, membersOf, vehicleOf, type Point, type Soldier, type Squad } from '../state';
+import { inSky, membersOf, vehicleOf, type Point, type Soldier, type Squad } from '../state';
 import { enemyOf, type SimEvent, type Vec2 } from '../types';
 import { localPath, oct, pickCover, shelter } from './cover';
 import { crateFlow, flowDist, flowLook, hqFlow, pointFlow, routeFlow, type Flow } from './flow';
@@ -128,7 +128,7 @@ export function think(m: Match, sq: Squad, events: SimEvent[]) {
   const t = m.tune;
   const members = membersOf(m, sq);
   const alive = members.filter((s) => s.state === 'alive');
-  const leader = alive.find((s) => !inJet(m, s)); // #106: the Squad scores from its Squad Leader (member 0) while alive, wherever they are; #110 never from a jet's pilot
+  const leader = alive.find((s) => !inSky(m, s)); // #106: the Squad scores from its Squad Leader (member 0) while alive, wherever they are; #110 never from a jet's pilot, #101 nor from the Gunship
   if (!leader) {
     sq.task = 'none';
     return;

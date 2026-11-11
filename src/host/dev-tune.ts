@@ -4,7 +4,7 @@ import { DEFAULT_TUNE } from '../sim/tune';
 import type { Tune } from '../sim/types';
 
 /**
- * Returns a tune that keeps Asset cooldowns at zero, and the Missile's point gate open, so every Asset cycles continuously;
+ * Returns a tune that keeps Asset cooldowns at zero, and the heavy Assets' point gate open (Missile, #101 Gunship), so every Asset cycles continuously;
  * #107 `tanks` sets the tank slots per Side (`?tanks=3`), so tank fights come quickly.
  */
 export function devTune(freeAssets: boolean, tanks?: number): Tune {
@@ -16,6 +16,7 @@ export function devTune(freeAssets: boolean, tanks?: number): Tune {
     supplyCooldownSeconds: 0,
     barrageCooldownSeconds: 0,
     missileCooldownSeconds: 0,
+    gunshipCooldownSeconds: 0,
     missileGated: false,
     matchSeconds: 3600,
   };

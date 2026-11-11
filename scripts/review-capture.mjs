@@ -1,4 +1,4 @@
-// Usage: pnpm review:capture [--out dir] [--views barrage,scan,supply,tank,jeep,helicopter,jet,aa,overview] [--seconds 15] [--every 500]
+// Usage: pnpm review:capture [--out dir] [--views barrage,scan,supply,gunship,tank,jeep,helicopter,jet,aa,overview] [--seconds 15] [--every 500]
 // Screenshots the DEV Asset review scene (#60) for a by-eye check of baked Assets: a timed burst per view, at a
 // fixed 1440x900 CSS size, from its own dev server with file watching off so no reload interrupts a burst.
 // Writes <out>/<view>-NN.png and <out>/console.txt (console warnings/errors and page errors).
@@ -9,7 +9,7 @@ import { createServer } from 'vite';
 
 const args = Object.fromEntries(process.argv.slice(2).reduce((a, v, i, all) => (v.startsWith('--') ? [...a, [v.slice(2), all[i + 1]]] : a), []));
 const out = resolve(args.out ?? 'review-capture');
-const views = (args.views ?? 'barrage,scan,supply,tank,jeep,helicopter,jet,aa,overview').split(',');
+const views = (args.views ?? 'barrage,scan,supply,gunship,tank,jeep,helicopter,jet,aa,overview').split(',');
 const seconds = Number(args.seconds ?? 15);
 const every = Number(args.every ?? 500);
 mkdirSync(out, { recursive: true });
