@@ -354,6 +354,14 @@ describe('Commander Score: Supply', () => {
     expect(awards(run(m, DEFAULT_TUNE.supplyStaySeconds * HZ))).toEqual([]);
   });
 
+  it('#153: a recipient whose Squad is not Elite is not named', () => {
+    const m = crateScene({ eliteSquads: 0 });
+    run(m, LANDED + 1, [drop(m)]);
+    const visits = awards(revisit(m, 4));
+    expect(visits.length).toBeGreaterThan(0);
+    for (const a of visits) expect(a).toMatchObject({ category: 'supply', reason: 'Supply Drop resupplied friendlies' });
+  });
+
   it('a recipient that leaves before the cap hears what it drew the tick after it stops drawing, and nothing more until it draws again', () => {
     const m = crateScene();
     expect(awards(run(m, LANDED + HZ, [drop(m)]))).toEqual([]);

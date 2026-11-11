@@ -6,7 +6,7 @@ import { landed } from './assets/crate';
 import type { Match } from './index';
 import { dist2 } from './geometry';
 import { gridCentre, gridRef } from './grid-ref';
-import { inJet, membersOf, wiped, type Mix, type Squad } from './state';
+import { elite, inJet, membersOf, wiped, type Mix, type Squad } from './state';
 import type { RequestKind, SideId, SimEvent, SquadView, Vec2 } from './types';
 
 /** An open Request: the Asset it asks for, the centre of the grid square it names, and the tick it expires. */
@@ -43,11 +43,12 @@ function need(m: Match, sq: Squad): { asset: RequestKind; at: Vec2 } | null {
   return null;
 }
 
-/** The Request phase: close what has expired or been answered, then let each Squad without one ask. Runs before the radio phase. */
+/** The Request phase: close what has expired or been answered, then let each Elite Squad without one ask. Runs before the radio phase. */
 export function requests(m: Match, events: SimEvent[]) {
   const t = m.tune;
   const grid = m.map.grid;
   for (const sq of m.squads) {
+    if (!elite(m, sq)) continue; // #153: only an Elite Squad asks the Commander
     const r = sq.request;
     if (wiped(membersOf(m, sq))) sq.request = null;
     else if (r) {

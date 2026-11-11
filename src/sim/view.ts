@@ -7,7 +7,7 @@ import { requestView } from './requests';
 import { redeployPoint } from './respawn';
 import { scoreView } from './score';
 import { contactIds, justSeen, lastKnown } from './memory';
-import { lastDeath, membersOf, squadName, stageTicks, vehicleOf, wiped, type Soldier, type Squad } from './state';
+import { elite, lastDeath, membersOf, squadName, stageTicks, vehicleOf, wiped, type Soldier, type Squad } from './state';
 import { vehicleViews } from './vehicles';
 import type { CommanderView, SideId, SimEvent, SquadView } from './types';
 
@@ -48,7 +48,7 @@ export function commanderView(m: Match, side: SideId): CommanderView {
       .map((s) => ({ ...soldierView(s), squad: s.squad, state: s.state as 'alive' | 'wounded', suppressed: s.suppression > m.tune.suppressedAt, ammo: s.ammo / m.tune.ammo, ...(s.vehicle >= 0 && { vehicle: s.vehicle }) })),
     contacts: [...new Set([...seen.filter((id) => m.soldiers[id]), ...assetContacts(m, side).map((s) => s.id)])].map((id) => soldierView(m.soldiers[id]!)),
     lastKnown: lastKnown(m, side),
-    squads: m.squads.filter((sq) => sq.side === side).map((sq) => squadView(m, sq)),
+    squads: m.squads.filter((sq) => sq.side === side && elite(m, sq)).map((sq) => squadView(m, sq)), // #153: the rest are only `friendlies`
     points: m.points.map((p) => ({ id: p.id, name: p.name, x: p.x, y: p.y, radius: p.radius, owner: p.owner, progress: p.progress / stage })),
     tickets: { ...m.tickets },
     ticketsStart: ticketsStart(m),

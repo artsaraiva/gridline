@@ -6,7 +6,7 @@ import type { Match } from './index';
 import { insideCount } from './capture';
 import { dist2 } from './geometry';
 import { gridRef } from './grid-ref';
-import { callName, membersOf, squadName, wiped, type Mix, type Squad } from './state';
+import { callName, elite, membersOf, squadName, wiped, type Mix, type Squad } from './state';
 import { enemyOf, type SideId, type SimEvent, type Vec2 } from './types';
 
 /** Who gets the net first: Squad wiped = Man down, then Copy / Delayed acks, Contact, Taking fire, the rest (1). */
@@ -61,8 +61,10 @@ export function radio(m: Match, events: SimEvent[]) {
   const t = m.tune;
   const asked: Line[][] = m.squads.map(() => []); // everything each Squad wants to say this tick
   const out: SimEvent[] = [];
-  const say = (sq: Squad, type: string, text: string, at?: Vec2) =>
-    asked[sq.id]!.push({ kind: 'radio', side: sq.side, squad: sq.id, type, text, ...(at && m.map.grid && { grid: gridRef(m.map.grid, at) }), priority: priorityOf(type) });
+  const onNet = m.squads.map((sq) => elite(m, sq)); // #153: a Squad that is not Elite says nothing
+  const say = (sq: Squad, type: string, text: string, at?: Vec2) => {
+    if (onNet[sq.id]) asked[sq.id]!.push({ kind: 'radio', side: sq.side, squad: sq.id, type, text, ...(at && m.map.grid && { grid: gridRef(m.map.grid, at) }), priority: priorityOf(type) });
+  };
   const squadOf = (soldier: number) => m.squads[m.soldiers[soldier]!.squad]!;
   const inside = (sq: Squad, p: Vec2 & { radius: number }) => membersOf(m, sq).some((s) => s.state === 'alive' && dist2(s, p) < p.radius * p.radius);
 
@@ -87,7 +89,7 @@ export function radio(m: Match, events: SimEvent[]) {
   for (const e of events) {
     if (e.kind !== 'radio') out.push(e);
     else if (e.squad === null || e.type === 'wiped') out.push({ ...e, priority: priorityOf(e.type) });
-    else asked[e.squad]!.push({ ...e, priority: priorityOf(e.type) });
+    else if (onNet[e.squad]) asked[e.squad]!.push({ ...e, priority: priorityOf(e.type) });
   }
 
   m.points.forEach((p, i) => {
@@ -97,12 +99,15 @@ export function radio(m: Match, events: SimEvent[]) {
     // #85: a loss is the losing Side's net's to report, once and not held back by spam control: the Squad that held the
     // point may be gone, elsewhere, or have something louder waiting, and the Commander must hear it either way
     if (was) out.push({ kind: 'radio', side: was, squad: null, type: 'lost', text: `${callName(p.name)} lost`, ...(m.map.grid && { grid: gridRef(m.map.grid, p) }), priority: RADIO_PRIORITY.lost! });
-    for (const sq of m.squads) {
-      if (p.owner === sq.side && inside(sq, p) && !wiped(membersOf(m, sq))) say(sq, 'captured', `${callName(p.name)} captured`, p);
-    }
+    const takers = m.squads.filter((sq) => p.owner === sq.side && inside(sq, p) && !wiped(membersOf(m, sq)));
+    for (const sq of takers) say(sq, 'captured', `${callName(p.name)} captured`, p);
+    // #153: Squads that are not Elite don't talk, so the Side net reports their capture once, as it reports a loss. Only when
+    // one of them took it: a flip with no Squad inside stays silent as before, so a Match of Elite Squads only is unchanged
+    if (takers.length && !takers.some((sq) => onNet[sq.id])) out.push({ kind: 'radio', side: p.owner!, squad: null, type: 'captured', text: `${callName(p.name)} captured`, ...(m.map.grid && { grid: gridRef(m.map.grid, p) }), priority: RADIO_PRIORITY.captured! });
   });
 
   for (const sq of m.squads) {
+    if (!onNet[sq.id]) continue;
     const members = membersOf(m, sq);
     const i = sq.id;
     if (wiped(members)) {

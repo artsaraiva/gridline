@@ -3,7 +3,7 @@
 // #74: what it restores earns the caller Commander Score, capped per Soldier per drop.
 import type { Match } from '../index';
 import { dist2 } from '../geometry';
-import { squadName, type Mix } from '../state';
+import { elite, squadName, type Mix } from '../state';
 import type { SimEvent } from '../types';
 import { assetRadio, type Effect, type Kind } from './core';
 import { landed, stayTicks } from './crate';
@@ -51,9 +51,9 @@ export const supply: Kind = {
   },
 };
 
-/** #74: the contribution message for what a recipient drew since the last one, naming the Squad. */
+/** #74: the contribution message for what a recipient drew since the last one, naming the Squad (#153: if it is Elite). */
 function tell(m: Match, e: Effect, id: number, events: SimEvent[]) {
-  const s = m.soldiers[id]!;
-  events.push({ kind: 'award', side: e.side, category: 'supply', points: e.open![id]!, reason: `Supply Drop resupplied ${squadName(m, m.squads[s.squad]!)}` });
+  const sq = m.squads[m.soldiers[id]!.squad]!;
+  events.push({ kind: 'award', side: e.side, category: 'supply', points: e.open![id]!, reason: `Supply Drop resupplied ${elite(m, sq) ? squadName(m, sq) : 'friendlies'}` });
   e.open![id] = 0;
 }
