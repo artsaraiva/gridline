@@ -2,7 +2,7 @@
 // createMatch, step, stateHash and commanderView are its whole public surface; the rules live in the sibling modules.
 // Only + - * / and Math.sqrt touch floats: those are exact across engines (Math.hypot and trig are not).
 import { hashAi, newSoldierAi, newSquadAi, think, walk, type Death } from './ai';
-import { capture, drain, end, hashCapture } from './capture';
+import { capture, drain, end, hashCapture, ticketsStart } from './capture';
 import { casualties, fire, suppressionDecay } from './combat';
 import { assetEffects, hashAssets, newAssets, type Assets } from './assets/core';
 import { applyCommands } from './commands';
@@ -38,7 +38,7 @@ export interface Match {
   wrecks: Wreck[];
   tickets: Record<SideId, number>;
   pointLead: number; // nato points - pact points
-  drainTicks: number; // ticks the current point lead has been draining
+  drainDebt: number; // #152: tick units the current point lead has drained towards its next Ticket, growing by the Ticket scale each tick
   sightings: Record<SideId, Sighting[]>; // what each Side's Soldiers saw lately, one per enemy id; see memory.ts
   deaths: Death[]; // recent deaths, for route choice
   assets: Assets; // cooldowns and effects at work; see assets/core.ts
@@ -68,9 +68,9 @@ export function createMatch(opts: {
     drive: { nato: driveGrid(map, grid, 'nato', tune), pact: driveGrid(map, grid, 'pact', tune) },
     vehicles: [],
     wrecks: [],
-    tickets: { nato: tune.tickets, pact: tune.tickets },
+    tickets: { nato: 0, pact: 0 }, // set once the Squads are in: #152 scales them by the Squad count
     pointLead: 0,
-    drainTicks: 0,
+    drainDebt: 0,
     sightings: { nato: [], pact: [] },
     deaths: [],
     assets: newAssets(tune),
@@ -99,6 +99,7 @@ export function createMatch(opts: {
     }
   }
   for (const sq of m.squads) sq.rideM = between(m, tune.rideM); // #122: after every other draw, so no earlier Trait moves
+  m.tickets = { nato: ticketsStart(m), pact: ticketsStart(m) };
   m.vehicles = newVehicles(m);
   deployPilots(m); // #110
   return m;

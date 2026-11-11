@@ -403,6 +403,9 @@ export interface Tune {
   airMissileHitChance: number; // ... it hits with this chance (seeded), else flies on past ...
   airMissileVsJetHitChance: number; // ... (a jet, jinking and flaring: this chance) ...
   airMissileDamage: number; // ... for this much
+
+  // #152 Tickets and drain scale with points and Squads
+  ticketBaseSquads: number; // the Squads per Side `tickets` and `drainSeconds` were tuned at; other counts scale both
 }
 
 /** #55: what a Commander Score award is for. */
@@ -556,6 +559,10 @@ export interface CommanderView {
   score?: { total: number } & Record<ScoreCategory, number>;
   /** #107: own vehicles, enemy vehicles in sight, and Wrecks (own, and enemy ones that died in sight). */
   vehicles?: VehicleView[];
+  /** #152: each Side's starting Tickets, the same for both; the Ticket bars scale against it. */
+  ticketsStart?: number;
+  /** #152: seconds per enemy Ticket the point lead drains now; null when level. */
+  drainEvery?: number | null;
 }
 
 export interface AssetView {

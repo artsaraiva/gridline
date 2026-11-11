@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { commanderView, createMatch, stateHash, step, type Match } from './index';
+import { ticketsStart } from './capture';
 import { dogleg } from './flight';
 import { insidePolygon } from './geometry';
 import { DEFAULT_TUNE } from './tune';
@@ -149,7 +150,7 @@ describe('#107 the kill table', () => {
       expect.objectContaining({ category: 'artillery', points: DEFAULT_TUNE.scoreArtilleryKill }),
     ]);
     expect(missile.vehicles[0]!.deadAt).toBeGreaterThan(0);
-    expect(missile.tickets.nato).toBe(DEFAULT_TUNE.tickets - 2); // one Ticket each
+    expect(missile.tickets.nato).toBe(ticketsStart(missile) - 2); // one Ticket each
   });
 
   it('the crew get out under a third of its hit points, and the abandoned tank stays where it stopped', () => {
@@ -399,7 +400,7 @@ describe('#108 the jeep fights and dies', () => {
     seat(m, 10, [4, 5], { x: 150, y: 0, fx: -1, fy: 0 });
     const { events } = play(m, 4 * HZ);
     expect(events.filter((e) => e.kind === 'death').map((e) => (e as { id: number }).id).sort()).toEqual([0, 1, 2, 3]);
-    expect(m.tickets.nato).toBe(DEFAULT_TUNE.tickets - 4);
+    expect(m.tickets.nato).toBe(ticketsStart(m) - 4);
     expect(m.vehicles.find((v) => v.id === 9)!.deadAt).toBeGreaterThan(0);
   });
 
@@ -540,7 +541,7 @@ describe('#109 the transport helicopter ferries a Squad', () => {
     expect(new Set(events.filter((e) => e.kind === 'shot' && e.to === 8 && e.hit).map((e) => (e as { from: number }).from)).size).toBeGreaterThan(1);
     const deaths = events.filter((e) => e.kind === 'death' && e.tick === dead);
     expect(deaths).toHaveLength(aboard[0]!);
-    expect(m.tickets.nato).toBe(DEFAULT_TUNE.tickets - aboard[0]!);
+    expect(m.tickets.nato).toBe(ticketsStart(m) - aboard[0]!);
     const wreck = views.at(-1)!.vehicles!.find((x) => x.wreck)!;
     expect(wreck).toMatchObject({ side: 'nato', kind: 'helicopter' });
     expect(Math.hypot(wreck.x - A.x, wreck.y - A.y)).toBeLessThan(DEFAULT_TUNE.fireRangeM);

@@ -323,4 +323,7 @@ export const DEFAULT_TUNE: Tune = {
   airMissileHitChance: 0.7,
   airMissileVsJetHitChance: 0.5,
   airMissileDamage: 45,
+
+  // #152 Tickets and drain scale with points and Squads
+  ticketBaseSquads: 4, // #42 tuned 150 Tickets and the drain at 4 Squads per Side
 };

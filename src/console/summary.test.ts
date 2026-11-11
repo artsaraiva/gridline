@@ -111,8 +111,9 @@ describe('Rails score drain, HUD readouts and edge hugging', () => {
     const base = ended('nato', null as never, { nato: 150, pact: 150 }, 0);
     const pt = (id: string, owner: SideId | null) => ({ id, name: id, x: 0, y: 0, radius: 25, owner, progress: 0 });
     expect(drainLine({ ...base, points: [pt('A', 'nato'), pt('B', null), pt('E', 'pact')] })).toBe('Points 1–1 · even drain');
-    expect(drainLine({ ...base, points: [pt('A', 'nato'), pt('B', 'nato'), pt('E', 'pact')] })).toBe('Points 2–1 · Warsaw Pact −1 / 6 s');
-    expect(drainLine({ ...base, points: [pt('A', 'pact'), pt('B', 'pact'), pt('E', 'pact')] })).toBe('Points 0–3 · NATO −1 / 2.5 s');
+    expect(drainLine({ ...base, drainEvery: 6, points: [pt('A', 'nato'), pt('B', 'nato'), pt('E', 'pact')] })).toBe('Points 2–1 · Warsaw Pact −1 / 6 s');
+    expect(drainLine({ ...base, drainEvery: 2.5, points: [pt('A', 'pact'), pt('B', 'pact'), pt('E', 'pact')] })).toBe('Points 0–3 · NATO −1 / 2.5 s');
+    expect(drainLine({ ...base, drainEvery: 2.5 / 0.75, points: [pt('A', 'pact'), pt('B', 'pact'), pt('E', 'pact')] })).toBe('Points 0–3 · NATO −1 / 3.33 s'); // #152: 3 Squads a Side
   });
 
   it('formats MGRS, corner lat/long, date-time group and cursor readout from the selected Squad', () => {

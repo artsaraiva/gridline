@@ -137,7 +137,7 @@ describe('Artillery Barrage: the shells', () => {
       return f ? `${f.state}${f.suppressed ? ' suppressed' : ''}` : 'dead';
     };
     expect(offsets.map((_, i) => state(6 + i))).toEqual(['dead', 'wounded', 'wounded', 'alive suppressed', 'alive suppressed', 'alive']);
-    expect(after.tickets.pact).toBe(DEFAULT_TUNE.tickets - 1);
+    expect(after.tickets.pact).toBe(after.ticketsStart! - 1);
   });
 
   it('a Wounded Soldier killed by a shell frees the mate who was reviving them', () => {
@@ -157,7 +157,7 @@ describe('Artillery Barrage: the shells', () => {
     const m = scene({ 0: { x: first!.x + 3, y: first!.y } }, { barrageShells: 1, walkSpeed: 0 });
     const run = play(m, first!.tick + 1);
     expect(run.views.at(-1)!.friendlies.some((f) => f.id === 0)).toBe(false);
-    expect(run.views.at(-1)!.tickets.nato).toBe(DEFAULT_TUNE.tickets - 1);
+    expect(run.views.at(-1)!.tickets.nato).toBe(run.views.at(-1)!.ticketsStart! - 1);
   });
 });
 
