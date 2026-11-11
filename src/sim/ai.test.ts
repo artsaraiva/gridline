@@ -128,6 +128,41 @@ describe('routes over the river', () => {
     expect(atTheFootbridge(seen, { hp: 1e9 }, 'bridge')).toBe('N');
     expect(atTheFootbridge(lost, killed, 'bridge')).toBe('N');
   });
+
+  it('#151: a Squad on its point\'s bank takes no route', () => {
+    const m = scene({ map: toE, place: { 0: { x: 60, y: -40 } }, tune: { ...calm, squadSize: 1 } });
+    expect(play(m, HZ + 1).nato[HZ]!.squads[0]).toMatchObject({ point: 'E', route: null });
+  });
+
+  it('#151: a Squad walks to the middle of its crossing\'s deck, then on by the point\'s own field', () => {
+    const m = scene({ map: toE, tune: calm });
+    const sq = m.squads[0]!;
+    let at: { x: number; y: number } | null = null;
+    for (let i = 0; i < 150 * HZ && !at; i++) {
+      step(m, []);
+      if (sq.crossed) at = { ...m.soldiers[sq.members[0]!]! };
+    }
+    expect(sq.route).toBe(0); // N, the footbridge at (0, 120)
+    expect(at, 'crossed').not.toBeNull();
+    expect(dist(at!, { x: 0, y: 120 })).toBeLessThan(4);
+    expect(play(m, 60 * HZ).nato.at(-1)!.friendlies.every((f) => f.x > 6), 'all over').toBe(true);
+  });
+
+  it('#151: a Squad already over the river (a ride, a parachute) stops heading for its crossing at its next think', () => {
+    const m = scene({ map: toE, place: { 0: { x: 60, y: 60 } }, tune: { ...calm, squadSize: 1 } });
+    play(m, HZ + 1);
+    const sq = m.squads[0]!;
+    Object.assign(sq, { route: 0, crossed: false }); // as if it had set off from the far bank and been carried over
+    play(m, 5 * HZ);
+    expect(sq.crossed).toBe(true);
+  });
+
+  it('#151: having crossed is part of the state hash', () => {
+    const m = scene({ map: toE });
+    const h = stateHash(m);
+    m.squads[0]!.crossed = true;
+    expect(stateHash(m)).not.toBe(h);
+  });
 });
 
 describe('point choice', () => {

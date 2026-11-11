@@ -12,7 +12,7 @@ type SquadAi = Omit<Squad, 'id' | 'side' | 'members' | 'goal' | 'lastSeen' | 'la
 type SoldierAi = Pick<Soldier, 'ammo' | 'lastTarget' | 'dest' | 'path' | 'cover' | 'chaseUntil' | 'role' | 'regroup' | 'strayUntil' | 'slot' | 'blocked' | 'detached' | 'goal' | 'commitUntil' | 'boarding' | 'climbAt' | 'crew' | 'crewUntil' | 'crewSeat'>;
 
 export const newSquadAi = (): SquadAi => ({
-  task: 'none', mode: 'travel', route: -1, slow: false, phase: 0, phaseUntil: 0, holdAt: 0, holdOct: -1, flankSign: 0, flankSince: -1, flankDone: false,
+  task: 'none', mode: 'travel', route: -1, crossed: false, slow: false, phase: 0, phaseUntil: 0, holdAt: 0, holdOct: -1, flankSign: 0, flankSince: -1, flankDone: false,
 });
 
 /** A fresh Soldier's AI state; `slot` is seeded, so a new Soldier draws once from the Match RNG. */
@@ -33,7 +33,7 @@ export function hashAi(m: Match, mix: Mix) {
     mix(p ? Math.round(p.y * 1000) : -1);
   };
   for (const sq of m.squads)
-    for (const v of [TASK[sq.task], MODE[sq.mode], sq.route, +sq.slow, sq.phase, sq.phaseUntil, sq.holdAt, sq.holdOct, sq.flankSign, sq.flankSince, +sq.flankDone]) mix(v);
+    for (const v of [TASK[sq.task], MODE[sq.mode], sq.route, +sq.crossed, +sq.slow, sq.phase, sq.phaseUntil, sq.holdAt, sq.holdOct, sq.flankSign, sq.flankSince, +sq.flankDone]) mix(v);
   for (const s of m.soldiers) {
     for (const v of [s.lastTarget, s.path.length, s.chaseUntil, s.role ? ROLE[s.role] : 0, +s.regroup, s.strayUntil, s.blocked, +s.detached, s.goal, s.commitUntil]) mix(v);
     at(s.dest);

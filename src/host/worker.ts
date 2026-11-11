@@ -39,7 +39,7 @@ onmessage = async (e: MessageEvent<ToHost>) => {
     const map = id === 'test' ? TEST_FIELD : await loadBakedMap(`${import.meta.env.BASE_URL}maps/kaltenbach`, tune.cellM);
     record = { ...setup, map: map.name, log: [] };
     match = createMatch({ ...setup, map, tune });
-    warmFlows(match); // ~0.5 s once, so no tick of the match pays ~15 ms for a flow field
+    warmFlows(match); // once (#151: ~0.15 s on Kaltenbach, ~3 s on a 2.5 km map), so no tick of the match pays ~50 ms for a flow field
     post({ kind: 'started', map, hz: tune.hz, view: commanderView(match, setup.commanderSide) });
     loop(performance.now());
   } else if (match && !match.result) {

@@ -2,8 +2,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { createMatch, SIDES } from '../sim';
-import { routeFlow, flowDist } from '../sim/ai/flow';
-import { COVER, WALL, WATER, walkCost, cellAt, nearestWalkable } from '../sim/grid';
+import { across, build, crossingFlow, flowDist, pointFlow } from '../sim/ai/flow';
+import { COVER, WALL, WATER, walkCost, cellAt, cellIndex, nearestWalkable } from '../sim/grid';
 import { DEFAULT_TUNE } from '../sim/tune';
 import { insidePolygon } from '../sim/geometry';
 import type { BakedMap } from './baked';
@@ -104,8 +104,40 @@ describe('map loader: 1 m bake data to the Simulation\'s 2 m cells', () => {
   it('opens the river only at the five crossings, each one on its own', () => {
     const m = match();
     const from = m.map.hqs.nato;
-    const east = m.points.findIndex((p) => p.id === 'E');
-    expect(flowDist(m, routeFlow(m, east, -1), from), 'all crossings closed').toBe(Infinity);
-    meta.crossings.forEach((c, i) => expect(flowDist(m, routeFlow(m, east, i), from), c.id).toBeLessThan(Infinity));
+    const east = m.points.find((p) => p.id === 'E')!;
+    const over = (c: number) => build(m, m.grid, east, east.radius - 6, (k) => m.grid.crossing[k]! >= 0 && m.grid.crossing[k] !== c); // every crossing but `c` closed
+    expect(flowDist(m, over(-1), from), 'all crossings closed').toBe(Infinity);
+    meta.crossings.forEach((c, i) => expect(flowDist(m, over(i), from), c.id).toBeLessThan(Infinity));
+  });
+
+  it('#151: a composed route (to the middle of the crossing, then the point\'s field) is as long as the old field over that crossing alone', () => {
+    const m = match();
+    const t = m.tune;
+    let checked = 0;
+    m.points.forEach((p, i) => {
+      const r = Math.max(t.cellM, p.radius - 6);
+      const olds = meta.crossings.map((_, ci) => build(m, m.grid, p, r, (k) => m.grid.crossing[k]! >= 0 && m.grid.crossing[k] !== ci));
+      const bank = build(m, m.grid, p, r, (k) => m.grid.crossing[k]! >= 0); // every crossing closed: the point's own bank
+      for (let y = -460; y < 480; y += 40)
+        for (let x = -460; x < 480; x += 40) {
+          const from = nearestWalkable(m, { x, y });
+          if (flowDist(m, pointFlow(m, i), from) === Infinity || m.grid.crossing[cellIndex(m, from.x, from.y)]! >= 0) continue; // walled in, or on a deck
+          const over = flowDist(m, bank, from) === Infinity;
+          expect(across(m, i, from), `${p.id} across from ${x},${y}`).toBe(over);
+          if (!over) continue; // on the point's bank: no route
+          const was = olds.map((f) => flowDist(m, f, from));
+          meta.crossings.forEach((c, ci) => {
+            const at = `${p.id} over ${c.id} from ${x},${y}`;
+            const now = flowDist(m, crossingFlow(m, ci), from) + flowDist(m, pointFlow(m, i), c);
+            expect(now < Infinity, at).toBe(was[ci]! < Infinity);
+            if (was[ci] === Infinity) return;
+            // through the anchor rather than the best line over (up to half the deck's width), from a disc a cell round it, and with
+            // other crossings' abutment cells open on the way on (the old field closed them, so walked round them)
+            expect(Math.abs(now - was[ci]!), `${at}: ${now} against ${was[ci]}`).toBeLessThanOrEqual(c.halfWidth + 2 * t.cellM);
+            checked++;
+          });
+        }
+    });
+    expect(checked).toBeGreaterThan(1000);
   });
 });
