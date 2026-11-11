@@ -175,15 +175,16 @@ describe('casualties', () => {
   it('each death costs 1 Ticket; a Wounding costs nothing', () => {
     const { events, views } = play(exchange({ x: 0, y: 300 }), 10 * HZ);
     const deathTick = of(events, 'death')[0]!.tick;
-    expect(views[deathTick - 1]!.tickets).toEqual({ nato: 150, pact: 150 });
-    expect(views[deathTick]!.tickets).toEqual({ nato: 149, pact: 149 });
+    const n = views[0]!.ticketsStart!;
+    expect(views[deathTick - 1]!.tickets).toEqual({ nato: n, pact: n });
+    expect(views[deathTick]!.tickets).toEqual({ nato: n - 1, pact: n - 1 });
   });
 
   it('a squad mate beside them revives them in 3 s, and nothing is lost', () => {
     const { events, views } = play(exchange({ x: 1, y: 0 }), 12 * HZ);
     expect(of(events, 'revived', 'nato').map((e) => e.tick / HZ)).toEqual([3]);
     expect(of(events, 'death', 'nato')).toEqual([]);
-    expect(views.at(-1)!.tickets.nato).toBe(150);
+    expect(views.at(-1)!.tickets.nato).toBe(views[0]!.ticketsStart);
     expect(views.at(-1)!.friendlies.find((f) => f.id === 0)!.state).toBe('alive');
   });
 

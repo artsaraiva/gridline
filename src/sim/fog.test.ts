@@ -150,7 +150,7 @@ describe('the enemy roster', () => {
     // three Squads a Side; nato 0 and pact 3 shoot each other dead, so a pact Squad is wiped and waiting to Redeploy
     const m = scene({ 0: { x: 0, y: 0 }, 3: { x: 100, y: 0, fx: -1 } }, { tune: { hp: 100, hitChance: 1, damage: [100, 100] }, squads: 3 });
     for (const v of play(m, 12 * HZ)) {
-      expect(Object.keys(v).sort()).toEqual(['assets', 'contacts', 'effects', 'friendlies', 'lastKnown', 'points', 'result', 'score', 'seconds', 'side', 'squads', 'tick', 'tickets', 'vehicles']);
+      expect(Object.keys(v).sort()).toEqual(['assets', 'contacts', 'drainEvery', 'effects', 'friendlies', 'lastKnown', 'points', 'result', 'score', 'seconds', 'side', 'squads', 'tick', 'tickets', 'ticketsStart', 'vehicles']);
       expect(v.squads.map((q) => q.id)).toEqual([0, 1, 2]);
       expect(v.friendlies.every((f) => f.id < 3)).toBe(true);
       expect(v.vehicles!.map((x) => x.side)).toEqual(['nato']); // #107: the enemy tank, unseen in its HQ, is not there
@@ -163,7 +163,7 @@ describe('a Cruise Missile in the sky (#99)', () => {
     const m = scene({}, { map: { points: [{ id: 'C', name: 'C', x: 0, y: 0, owner: 'nato' }] }, tune: { missileCooldownSeconds: 0 } });
     step(m, [{ tick: 0, side: 'nato', kind: 'asset', asset: 'missile', at: { x: 100, y: 0 } }]);
     const enemy = commanderView(m, 'pact');
-    expect(Object.keys(enemy).sort()).toEqual(['assets', 'contacts', 'effects', 'friendlies', 'lastKnown', 'points', 'result', 'score', 'seconds', 'side', 'squads', 'tick', 'tickets', 'vehicles']);
+    expect(Object.keys(enemy).sort()).toEqual(['assets', 'contacts', 'drainEvery', 'effects', 'friendlies', 'lastKnown', 'points', 'result', 'score', 'seconds', 'side', 'squads', 'tick', 'tickets', 'ticketsStart', 'vehicles']);
     expect(enemy.effects).toHaveLength(1);
     expect(Object.keys(enemy.effects![0]!).sort()).toEqual(['asset', 'flight', 'from', 'impactIn', 'left', 'radius', 'side', 'total', 'x', 'y']);
     expect(enemy.effects![0]).toMatchObject({ asset: 'missile', side: 'nato', x: 100, y: 0 });

@@ -3,7 +3,7 @@ import type { Match } from './index';
 import { dist2 } from './geometry';
 import { award } from './score';
 import { callName, sideOf, sign, stageTicks, vehicleOf, type Mix, type Point, type Soldier } from './state';
-import { enemyOf, type SideId, type SimEvent } from './types';
+import { enemyOf, SIDES, type SideId, type SimEvent } from './types';
 
 /** A living Soldier inside the point, and not #109 up in a helicopter: they count for it. */
 const counts = (m: Match, s: Soldier, p: Point) => s.state === 'alive' && dist2(s, p) < p.radius * p.radius && !vehicleOf(m, s.vehicle)?.airborne && !s.chute;
@@ -56,20 +56,45 @@ function taken(m: Match, p: Point, events: SimEvent[]) {
   if (ordered) award(m, p.owner!, 'orders', m.tune.scoreOrderedCapture, `Ordered capture of ${callName(p.name)}`, events);
 }
 
-/** The Side with more Capture Points drains the other's Tickets; the interval restarts when the lead changes. */
+/** nato points − pact points. */
+const leadOf = (m: Match) => m.points.reduce((n, p) => n + (p.owner ? sign(p.owner) : 0), 0);
+
+/**
+ * #152: Squads per Side over `ticketBaseSquads`, the count #42 tuned Tickets and the drain at. Starting Tickets and the drain both
+ * scale by it, so a death costs the same share of a Side's Tickets and the drain keeps its weight against deaths.
+ */
+const ticketScale = (m: Match) => m.squads.length / SIDES.length / m.tune.ticketBaseSquads;
+
+/** #152: each Side's starting Tickets. */
+export const ticketsStart = (m: Match) => Math.round(m.tune.tickets * ticketScale(m));
+
+/** #152: seconds per Ticket at scale 1 for a lead of `lead`, the table indexed by the lead's share of the points; 5 points or fewer drain as #42 tuned. */
+function drainSeconds(m: Match, lead: number) {
+  const d = m.tune.drainSeconds;
+  return d[Math.ceil((d.length * Math.abs(lead)) / Math.max(m.points.length, d.length)) - 1]!;
+}
+
+/** #152: seconds per enemy Ticket the point lead drains right now, for the Console; null when level. */
+export function drainEvery(m: Match): number | null {
+  const lead = leadOf(m);
+  return lead ? drainSeconds(m, lead) / ticketScale(m) : null;
+}
+
+/**
+ * The Side with more Capture Points drains the other's Tickets; the debt restarts when the lead changes. #152: the debt grows by
+ * the Ticket scale each tick rather than the interval shrinking by it, which would round up to whole ticks (1.25 s / 8 at 20 Hz is
+ * 3.125 ticks, drained on tick 4); at scale 1 a Ticket goes on the same ticks as before.
+ */
 export function drain(m: Match) {
-  const t = m.tune;
-  const lead = m.points.reduce((n, p) => n + (p.owner ? sign(p.owner) : 0), 0);
+  const lead = leadOf(m);
   if (lead !== m.pointLead) {
     m.pointLead = lead;
-    m.drainTicks = 0;
+    m.drainDebt = 0;
   }
   if (lead === 0) return;
-  const seconds = t.drainSeconds[Math.min(Math.abs(lead), 5) - 1]!;
-  if (++m.drainTicks < seconds * t.hz) return;
-  m.drainTicks = 0;
+  const every = drainSeconds(m, lead) * m.tune.hz;
   const loser = enemyOf(sideOf(lead));
-  m.tickets[loser] = Math.max(0, m.tickets[loser] - 1);
+  for (m.drainDebt += ticketScale(m); m.drainDebt >= every; m.drainDebt -= every) m.tickets[loser] = Math.max(0, m.tickets[loser] - 1);
 }
 
 export function end(m: Match) {
@@ -86,5 +111,5 @@ export function hashCapture(m: Match, mix: Mix) {
   }
   mix(m.tickets.nato);
   mix(m.tickets.pact);
-  mix(m.drainTicks);
+  mix(Math.round(m.drainDebt * 1000));
 }
