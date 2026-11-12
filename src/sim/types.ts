@@ -366,7 +366,6 @@ export interface Tune {
 
   // #110 Jet and AA
   jetsPerSide: number | null; // #154: jets per Side, at the off-map base, each taking off with a pilot (at match start, then a Soldier coming back); null = the map's `jets`; 0 = none
-  jetGapSeconds: [number, number]; // #154: a Side's first jet takes off at match start, each next one this long after the one before (seeded), so they never fly out in formation
   jetHp: number; // only the AA and the enemy jet hurt it
   jetTurnDegPerS: number; // it turns toward where it flies (a mark, home, the enemy jet) this fast; in a dogfight x its pilot's quickness
   jetMps: number; // flight speed, base to point and through every pass
@@ -419,6 +418,9 @@ export interface Tune {
 
   // #153 Elite Squads
   eliteSquads: number; // each Side's first this many Squads are on the Commander's net: Orders, Requests, Callouts, tiles
+
+  // #154 Vehicles for 128 v 128
+  jetGapSeconds: [number, number]; // a Side's first jet takes off at match start, each next one this long after the one before (seeded), so no two fly out together
 }
 
 /** #55: what a Commander Score award is for. */

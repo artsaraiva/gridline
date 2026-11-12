@@ -149,12 +149,12 @@ const fresh = (m: Match, side: SideId, kind: VehicleKind, slot: Vec2) => ({
  * (`countOf`); each waits in its own slot or helipad, and one past them in the Side's row (`rowSlot`).
  */
 export function newVehicles(m: Match): Vehicle[] {
-  const made = (side: SideId, kind: VehicleKind, at: Vec2, point = -1) => ({ ...fresh(m, side, kind, { x: at.x, y: at.y }), point, rounds: [] as Round[], missiles: [] as AirMissile[] });
-  const row: Record<SideId, number> = { nato: 0, pact: 0 };
-  const hq = (kinds: VehicleKind[]) =>
-    SIDES.flatMap((side) => kinds.flatMap((kind) => Array.from({ length: countOf(m, side, kind) }, (_, i) => made(side, kind, kind === 'jet' ? launchPoint(m, side) : (slotsOf(m, side, kind)[i] ?? rowSlot(m, side, row[side]++))))));
-  const atPoints = m.tune.pointJeeps ? m.points.flatMap((p, i) => (m.map.points[i]!.vehicles ?? []).map((u) => ({ ...made(p.owner ?? 'nato', u.kind, u, i), ...(!p.owner && { deadAt: DORMANT }) }))) : [];
-  return [...hq(['tank', 'jeep', 'helicopter']), ...atPoints, ...hq(['jet', 'aa'])].map((v, i) => ({ ...v, id: m.soldiers.length + i }));
+  const standing = (side: SideId, kind: VehicleKind, at: Vec2, point: number) => ({ ...fresh(m, side, kind, { x: at.x, y: at.y }), point, rounds: [] as Round[], missiles: [] as AirMissile[] });
+  const nextInRow: Record<SideId, number> = { nato: 0, pact: 0 };
+  const atHqs = (kinds: VehicleKind[]) =>
+    SIDES.flatMap((side) => kinds.flatMap((kind) => Array.from({ length: countOf(m, side, kind) }, (_, i) => standing(side, kind, kind === 'jet' ? launchPoint(m, side) : (slotsOf(m, side, kind)[i] ?? rowSlot(m, side, nextInRow[side]++)), -1))));
+  const atPoints = m.tune.pointJeeps ? m.points.flatMap((p, i) => (m.map.points[i]!.vehicles ?? []).map((u) => ({ ...standing(p.owner ?? 'nato', u.kind, u, i), ...(!p.owner && { deadAt: DORMANT }) }))) : [];
+  return [...atHqs(['tank', 'jeep', 'helicopter']), ...atPoints, ...atHqs(['jet', 'aa'])].map((v, i) => ({ ...v, id: m.soldiers.length + i }));
 }
 
 /** #154: the map's slots of `kind` for `side` (a helicopter's are its helipads). */
@@ -262,16 +262,18 @@ function jetOnReturn(m: Match, sq: Squad, s: Soldier): boolean {
  * after the one before.
  */
 export function deployPilots(m: Match) {
-  const last: Partial<Record<SideId, number>> = {}; // when the Side's previous jet takes off
+  const offAt: Partial<Record<SideId, number>> = {}; // the tick the Side's previous jet takes off
   for (const v of m.vehicles) {
     if (v.kind !== 'jet') continue;
     const squads = m.squads.filter((sq) => sq.side === v.side && sq.members.length > 1 && !membersOf(m, sq).some((s) => inJet(m, s)));
     const sq = squads[Math.floor(rnd(m) * squads.length)];
     if (!sq) continue;
     mount(m, v, m.soldiers[sq.members.at(-1)!]!, sq);
-    const before = last[v.side];
-    last[v.side] = before === undefined ? m.tick : before + ticksOf(m.tune, between(m, m.tune.jetGapSeconds));
-    if (before !== undefined) Object.assign(v, { sortie: 'rearming', until: last[v.side], airborne: false, prey: -1, drop: false }); // at the base until its turn
+    const previous = offAt[v.side];
+    // #154 says "a seeded delay after it": after the one before, not the first, so no two later jets leave together either. The
+    // gap is drawn only for a later jet, so a Side with one jet draws exactly as before
+    offAt[v.side] = previous === undefined ? m.tick : previous + ticksOf(m.tune, between(m, m.tune.jetGapSeconds));
+    if (previous !== undefined) Object.assign(v, { sortie: 'rearming', until: offAt[v.side], airborne: false, prey: -1, drop: false }); // the rearm's wait at the base: `sortie` takes off at `until`
   }
 }
 
@@ -412,14 +414,16 @@ function aaPoint(m: Match, v: Vehicle): number {
   const len = Math.sqrt(ax * ax + ay * ay) || 1;
   const off = (p: Vec2) => ((p.x - own.x) * ay - (p.y - own.y) * ax) / len; // out on a flank, signed by which one
   const middle = middlePoint(m);
-  const others = m.vehicles.filter((o) => o !== v && o.kind === 'aa' && o.side === v.side && live(o) && o.seats[0]! >= 0 && o.goal >= 0).map((o) => off(m.points[o.goal]!));
+  // #154 counts another AA against its flag; it counts here against the flag's whole flank, since on Auental F scores as well as
+  // B and a count per flag would send both AAs south
+  const flanksTaken = m.vehicles.filter((o) => o !== v && o.kind === 'aa' && o.side === v.side && live(o) && o.seats[0]! >= 0 && o.goal >= 0).map((o) => off(m.points[o.goal]!));
   let best = -1;
   let top = -Infinity;
   m.points.forEach((p, i) => {
     if (p.owner !== v.side || p === middle) return;
     const flank = off(p);
-    const crowd = AA_SPREAD_M * others.filter((o) => o * flank > 0).length;
-    const score = Math.abs(flank) - Math.sqrt(dist2(p, own)) / 2 + (v.bias[i] ?? 0) * 100 - crowd; // ponytail: a metre out on a flank counts as two back toward the HQ, the preference in hundreds of metres; tune keys if the AA needs placing finer
+    const penalty = AA_SPREAD_M * flanksTaken.filter((f) => f * flank > 0).length;
+    const score = Math.abs(flank) - Math.sqrt(dist2(p, own)) / 2 + (v.bias[i] ?? 0) * 100 - penalty; // ponytail: a metre out on a flank counts as two back toward the HQ, the preference in hundreds of metres; tune keys if the AA needs placing finer
     if (score > top) [best, top] = [i, score];
   });
   return best;

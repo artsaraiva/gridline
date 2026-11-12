@@ -277,7 +277,6 @@ export const DEFAULT_TUNE: Tune = {
 
   // #110 Jet and AA
   jetsPerSide: null,
-  jetGapSeconds: [15, 45],
   jetHp: 100,
   jetTurnDegPerS: 40,
   jetMps: 120,
@@ -330,4 +329,7 @@ export const DEFAULT_TUNE: Tune = {
 
   // #153 Elite Squads
   eliteSquads: 8,
+
+  // #154 Vehicles for 128 v 128
+  jetGapSeconds: [15, 45],
 };
