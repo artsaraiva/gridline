@@ -9,7 +9,7 @@ import { sideKnown } from './memory';
 import { turnToward, approach } from './momentum';
 import { membersOf, ticksOf, type Point, type Soldier, type Squad } from './state';
 import type { Vec2 } from './types';
-import { clearOfHq, crippled, fitsRide, getOut, jump, onPad, plan, riders, specOf, wreck, type Vehicle } from './vehicles';
+import { clearOfHq, crippled, fitsRide, getOut, jump, live, onPad, plan, riders, specOf, wreck, type Vehicle } from './vehicles';
 
 const squared = (r: number) => r * r;
 
@@ -64,7 +64,10 @@ export function decideJob(m: Match, v: Vehicle) {
   if (v.job !== 'wait') set('wait');
 }
 
-/** #131: the friendly Squads on foot whose goal is a long ride (#122) with no vehicle that fits within `boardM`, and the foot leader of each. A Squad `v` is fetching stays one. */
+/**
+ * #131: the friendly Squads on foot whose goal is a long ride (#122) with no vehicle that fits within `boardM`, and the foot
+ * leader of each. A Squad `v` is fetching stays one; #154 one another helicopter is flying to fetch is not.
+ */
 export function callers(m: Match, v: Vehicle): { sq: Squad; L: Soldier }[] {
   const t = m.tune;
   return m.squads.flatMap((sq) => {
@@ -72,7 +75,7 @@ export function callers(m: Match, v: Vehicle): { sq: Squad; L: Soldier }[] {
     const alive = membersOf(m, sq).filter((s) => s.state === 'alive');
     const body = alive.filter((s) => !s.detached);
     const L = body[0];
-    if (!L || !p || sq.side !== v.side || sq.task !== 'point' || alive.some((s) => !s.crew && (s.boarding >= 0 || s.vehicle >= 0)) || m.vehicles.some((o) => o.claim === sq.id)) return [];
+    if (!L || !p || sq.side !== v.side || sq.task !== 'point' || alive.some((s) => !s.crew && (s.boarding >= 0 || s.vehicle >= 0)) || m.vehicles.some((o) => o.claim === sq.id || (o !== v && live(o) && o.fetch === sq.id))) return [];
     if (dist2(L, p) <= squared(sq.rideM) || (dist2(L, p) <= squared(t.heliFitM) && sq.route < 0)) return [];
     return v.fetch === sq.id || !m.vehicles.some((o) => fitsRide(m, sq, body, L, o, p, false)) ? [{ sq, L }] : [];
   });

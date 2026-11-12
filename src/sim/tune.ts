@@ -200,7 +200,7 @@ export const DEFAULT_TUNE: Tune = {
   shellVehicleDamage: 35,
 
   // #108 Jeep
-  jeepsPerSide: 2,
+  jeepsPerSide: null,
   pointJeeps: true,
   jeepRoadMps: 15,
   jeepOpenMps: 9,
@@ -221,7 +221,7 @@ export const DEFAULT_TUNE: Tune = {
   turnSpeedMin: 0.35,
 
   // #109 Transport helicopter
-  helisPerSide: 1,
+  helisPerSide: null,
   heliMps: 30,
   heliHp: 120,
   unloadSeconds: 3,
@@ -276,7 +276,8 @@ export const DEFAULT_TUNE: Tune = {
   crashSeconds: 3,
 
   // #110 Jet and AA
-  jetsPerSide: 1,
+  jetsPerSide: null,
+  jetGapSeconds: [15, 45],
   jetHp: 100,
   jetTurnDegPerS: 40,
   jetMps: 120,
@@ -304,7 +305,7 @@ export const DEFAULT_TUNE: Tune = {
   jetLockSeconds: 1,
   jetMissileRangeM: 500,
   jetReloadSeconds: 10,
-  aasPerSide: 1,
+  aasPerSide: null,
   aaHp: 100,
   aaRoadMps: 7,
   aaOpenMps: 4,

@@ -46,6 +46,8 @@ POINTS = [("A", -262.0, -322.0, "nato"), ("B", 0.0, 300.0, None), ("C", 0.0, 0.0
           ("E", 262.0, 322.0, "pact")]
 PT = {i: (x, y) for i, x, y, _ in POINTS}
 POINT_RADIUS = 25.0
+# #154: the jeep at every point but C, where the Simulation put it before vehicles were map data (the nearest drivable cell)
+POINT_VEHICLES = {"A": [("jeep", -263, -325)], "B": [("jeep", -1, 307)], "D": [("jeep", 0, -300)], "E": [("jeep", 265, 321)]}
 FORD_Y, FOOT_Y, FORD_HW, FOOT_HW, BRIDGE_HW = 345.0, 210.0, 6.5, 1.5, 4.0
 
 
@@ -626,16 +628,26 @@ def build_farmsteads():
 
 
 # ----------------------------------------------------------------- map.json
+def hq_vehicles(side, nets):
+    """#154: a tank under each camo net, then two jeeps and the AA 9, 18 and 36 m past the last toward the field, where the
+    Simulation's row put them before vehicles were map data."""
+    (x, y), s = nets[-1], 1 if side == "nato" else -1
+    tanks = [{"kind": "tank", "x": r2(a), "y": r2(b)} for a, b in nets]
+    return tanks + [{"kind": k, "x": r2(r2(x) + s * 9 * n), "y": r2(y)} for k, n in (("jeep", 1), ("jeep", 2), ("aa", 4))]
+
+
 def meta():
     return {
         "name": "Kaltenbach", "village": "Kaltenbach", "river": "Erlenbach", "sizeM": int(2 * HALF),
         "playArea": [{"x": x, "y": y} for x, y in PLAY_AREA],
         "hqs": {side: {"x": x, "y": y, "radius": HQ_RADIUS} for side, (x, y) in HQS.items()},
-        "points": [{"id": i, "name": i, "x": x, "y": y, "radius": POINT_RADIUS, "owner": o}
+        "points": [{"id": i, "name": i, "x": x, "y": y, "radius": POINT_RADIUS, "owner": o,
+                    **({"vehicles": [{"kind": k, "x": r2(vx), "y": r2(vy)} for k, vx, vy in POINT_VEHICLES[i]]} if i in POINT_VEHICLES else {})}
                    for i, x, y, o in POINTS],
         "crossings": [{"id": i, "kind": k, "x": r2(x), "y": r2(y), "halfWidth": hw} for i, k, x, y, hw in CROSSINGS],
-        "vehicleSlots": {side: [{"x": r2(x), "y": r2(y)} for x, y in slots] for side, slots in VEHICLE_SLOTS.items()},
-        "helipad": {side: {"x": r2(x), "y": r2(y)} for side, (x, y) in HELIPADS.items()},
+        "vehicleSlots": {side: hq_vehicles(side, nets) for side, nets in VEHICLE_SLOTS.items()},
+        "helipad": {side: [{"x": r2(x), "y": r2(y)}] for side, (x, y) in HELIPADS.items()},
+        "jets": {side: 1 for side in HQS},
         "grid": {"cols": 13, "rows": 13, "squareM": 2 * HALF / 13, "letters": "ABCDEFGHIJKLM"},
         "data": {"cells": int(2 * HALF), "cellM": 1, "cover": "cover_u8.bin", "ground": "ground_f32.bin", "top": "top_f32.bin",
                  "coverIds": COVER_IDS},

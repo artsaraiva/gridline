@@ -6,7 +6,7 @@ import { AUENTAL_FIELD } from './auental-field';
 
 describe('#151: flow fields on a 2.5 km map (the synthetic Auental field)', () => {
   it('builds every field within 16 bits and 160 MB, each crossing and point reachable from both HQs', () => {
-    const m = createMatch({ seed: 1, map: AUENTAL_FIELD, tune: DEFAULT_TUNE, squadsPerSide: 8, commanderSide: 'nato' });
+    const m = createMatch({ seed: 1, map: AUENTAL_FIELD, tune: { ...DEFAULT_TUNE, tanksPerSide: 1 }, squadsPerSide: 8, commanderSide: 'nato' }); // #154: the stand-in lists no vehicles
     expect(m.vehicles.length).toBeGreaterThan(0); // so the drive fields are built too
     warmFlows(m); // throws on a field too long for 16 bits
     expect(flowBytes(m)).toBeLessThanOrEqual(160e6);
