@@ -144,9 +144,11 @@ describe('map loader: 1 m bake data to the Simulation\'s 2 m cells', () => {
 });
 
 describe('#150: map loader on Auental', () => {
+  const a = readBake('auental');
+  const AUENTAL = { ...a.map, terrain: terrainOf(a.map, a.cover, DEFAULT_TUNE.cellM) };
+
   it('opens the 20 m Auer only at the seven crossings, each one on its own', () => {
-    const a = readBake('auental');
-    const m = createMatch({ seed: 1, map: { ...a.map, terrain: terrainOf(a.map, a.cover, DEFAULT_TUNE.cellM) }, tune: DEFAULT_TUNE, squadsPerSide: 4, commanderSide: 'nato' });
+    const m = createMatch({ seed: 1, map: AUENTAL, tune: DEFAULT_TUNE, squadsPerSide: 4, commanderSide: 'nato' });
     const { nato, pact } = m.map.hqs;
     const over = (c: number) => build(m, m.grid, pact, 30, (k) => m.grid.crossing[k]! >= 0 && m.grid.crossing[k] !== c); // every crossing but `c` closed
     expect(flowDist(m, over(-1), nato), 'all crossings closed').toBe(Infinity);
@@ -154,8 +156,7 @@ describe('#150: map loader on Auental', () => {
   });
 
   it('#151: builds every flow field within 16 bits and 160 MB, each crossing and point reachable from both HQs', () => {
-    const a = readBake('auental');
-    const m = createMatch({ seed: 1, map: { ...a.map, terrain: terrainOf(a.map, a.cover, DEFAULT_TUNE.cellM) }, tune: DEFAULT_TUNE, squadsPerSide: 8, commanderSide: 'nato' });
+    const m = createMatch({ seed: 1, map: AUENTAL, tune: DEFAULT_TUNE, squadsPerSide: 8, commanderSide: 'nato' });
     expect(m.vehicles.length).toBeGreaterThan(0); // so the drive fields are built too
     warmFlows(m); // throws on a field too long for 16 bits
     expect(flowBytes(m)).toBeLessThanOrEqual(160e6);
