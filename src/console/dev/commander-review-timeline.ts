@@ -575,7 +575,7 @@ function sortieView(s: Sortie, shells: typeof OWN_SHELLS, t: number): EffectView
   if (!a && !flying.length) return [];
   const left = !a ? 0 : a.phase === 'inbound' ? p.arrive - t + GUNSHIP_STATION_S : a.phase === 'station' ? p.leave - t : 0;
   const total = p.arrive - s.call + GUNSHIP_STATION_S;
-  return [{ asset: 'gunship', ...ROUTE, radius: G.gunshipRangeM, left, total, side: s.side, from: s.from, shells: flying.map((h) => ({ ...h.to, from: h.from, flight: (t - h.at) / G.gunshipShellFlightSeconds })), ...a }];
+  return [{ asset: 'gunship', ...ROUTE, radius: G.gunshipFocusM, left, total, side: s.side, from: s.from, shells: flying.map((h) => ({ ...h.to, from: h.from, flight: (t - h.at) / G.gunshipShellFlightSeconds })), ...a }];
 }
 
 // Who rides nato's: Bravo's 6 in the gun seat until it turns for home, Bravo's 7 as a passenger until the route passes nearest B
@@ -620,7 +620,7 @@ function gunshipBodies(t: number): VehicleView[] {
   if (t >= DOWN.down!) out.push(DOWN_WRECK);
   return out;
 }
-const gunshipRow = (t: number): AssetView => ({ asset: 'gunship', readyIn: t < OWN.call ? 0 : Math.max(0, OWN.call + G.gunshipCooldownSeconds - t), cooldown: G.gunshipCooldownSeconds, radius: G.gunshipRangeM });
+const gunshipRow = (t: number): AssetView => ({ asset: 'gunship', readyIn: t < OWN.call ? 0 : Math.max(0, OWN.call + G.gunshipCooldownSeconds - t), cooldown: G.gunshipCooldownSeconds, radius: G.gunshipFocusM });
 
 /** #101: nato's radio lines, both sorties' impacts, its gunner's bursts on the Contacts in reach on its left, and the AA's bursts at pact's. */
 function gunshipEvents(): [number, SimEvent][] {

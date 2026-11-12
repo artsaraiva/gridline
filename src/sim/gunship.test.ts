@@ -84,9 +84,9 @@ const rejections = (events: SimEvent[]) => events.flatMap((e) => (e.kind === 're
 const comeBack = (m: Match, id: number) => Object.assign(m.soldiers[id]!, { state: 'dead', deadAt: m.tick - DEFAULT_TUNE.respawnSeconds * HZ });
 
 describe('Gunship: the call', () => {
-  it('starts on cooldown: first ready at 5:00; its ring is its reach, round the focus the Commander picks', () => {
+  it('starts on cooldown: first ready at 5:00; its ring is the focus the Commander picks', () => {
     const m = scene({}, { gunshipCooldownSeconds: 300 });
-    expect(row(commanderView(m, 'nato'))).toEqual({ asset: 'gunship', readyIn: 300, cooldown: 300, radius: R });
+    expect(row(commanderView(m, 'nato'))).toEqual({ asset: 'gunship', readyIn: 300, cooldown: 300, radius: DEFAULT_TUNE.gunshipFocusM });
     expect(rejections(step(m, [gunship(m)]))).toEqual(['cooling down']);
   });
 
@@ -140,7 +140,7 @@ describe('Gunship: the sortie', () => {
     expect(said(run, 'Gunship inbound')).toBe(0);
     const station = said(run, 'Gunship on station');
     const leaving = said(run, 'Gunship leaving');
-    expect(effect(run.views[0]!)).toMatchObject({ side: 'nato', phase: 'inbound', from: { x: -1556, y: 0 }, ...focus, radius: R });
+    expect(effect(run.views[0]!)).toMatchObject({ side: 'nato', phase: 'inbound', from: { x: -1556, y: 0 }, ...focus, radius: DEFAULT_TUNE.gunshipFocusM });
     expect(station / HZ).toBeCloseTo((gap({ x: -1556, y: 0 }, focus) - R) / MPS, 0);
     for (let i = 1; i < station; i++) expect(craft(run, i).fx * 150 - craft(run, i).fy * 1356).toBeCloseTo(0, 6); // straight in
     expect(leaving - station).toBe(STATION);
@@ -167,7 +167,7 @@ describe('Gunship: the sortie', () => {
   });
 
   it('flies over the enemies its Side knows: one round the focus before one farther out, however near the aircraft that one is', () => {
-    const spots: Record<number, Vec2> = { 6: { x: 120, y: 100 }, 7: { x: -180, y: -330 } }; // 156 m and 376 m from the focus
+    const spots: Record<number, Vec2> = { 6: { x: 50, y: 40 }, 7: { x: -100, y: -120 } }; // 64 m from the focus, and 156 m: outside it
     const m = scene(spots, { gunshipShotSeconds: 1e6 }); // its cannon silent: they live
     const seen = () => void (m.sightings.nato = [6, 7].map((id) => ({ id, ...spots[id]!, tick: m.tick, source: 'seen' as const }))); // its Soldiers see nobody here
     const run = play(m, 106 * HZ, { each: seen });
@@ -249,7 +249,7 @@ describe('Gunship: the sortie', () => {
   it('a seeded replay shows the same shells, seats, jumps and casualties on every run', () => {
     const place = { 6: { x: 0, y: -150 }, 7: { x: -60, y: -100 }, 8: { x: 40, y: -60 }, 9: { x: 10, y: -20 } };
     const once = () => {
-      const m = scene(place, { crewSpawnChance: 0.5, paradropChance: 0.5 }, 7);
+      const m = scene(place, { crewSpawnChance: 0.5, paradropChance: 0.5 }, 11);
       const sq = m.squads.find((q) => q.side === 'nato')!;
       Object.assign(sq, { task: 'point', goal: 0, nextThink: Infinity }); // B
       const back = (i: number) => {

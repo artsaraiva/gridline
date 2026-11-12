@@ -1,8 +1,8 @@
 // Asset effects on the map: the armed Asset's preview ring (with its grid and the distance to the nearest friendly
 // Squad) and each working Asset's ring with its time left. Labels are DOM tags over the canvas and keep clear of the
 // map Confirm button. The baked objects (Scan UAV, Supply Drop crate, shells, impacts) each have a layer of their own (#77).
-// The Barrage ring turns while it works and pulses on each impact (#98). #101: the Gunship's focus is a thin, faint, solid
-// ring in its caller's colour (the enemy's too: it is in the sky), no disc, while it flies in and circles.
+// The Barrage ring turns while it works and pulses on each impact (#98). #101: the Gunship has no ring once called:
+// its focus is a mark (layers/gunship.ts), and only its label is here.
 import * as THREE from 'three/webgpu';
 import { gridRef } from '../../sim/grid-ref';
 import type { CommanderView, Vec2 } from '../../sim/types';
@@ -14,8 +14,6 @@ import { overlaps, targeting, validSpot } from '../targeting';
 import { css, dashedRing, fading } from './symbols';
 
 const NAME = { scan: 'Scan UAV', supply: 'Supply Drop', barrage: 'Barrage', missile: 'Missile', gunship: 'Gunship' };
-/** #101: the Gunship's focus ring: thin and faint, no dashes. */
-const ZONE = { width: 1.5, alpha: 0.4 };
 const discGeometry = new THREE.CircleGeometry(1, 96);
 /** The Barrage ring turns this fast while it works, so an ongoing strike reads at a glance. */
 const RING_TURN_RAD_PER_S = 0.25;
@@ -23,13 +21,9 @@ const RING_PULSE_MS = 600;
 
 /** A ring and a faint disc, pooled: rings carry no id, so they are reused in draw order. */
 const rings = pool(() => {
-  const ring = dashedRing(200, COLOR.friendly, { dash: 2, gap: 6, width: 2 }); // a quad big enough for every Asset ring (#101: the Gunship's 200 m focus)
+  const ring = dashedRing(200, COLOR.friendly, { dash: 2, gap: 6, width: 2 }); // a quad big enough for every Asset ring
   const disc = new THREE.Mesh(discGeometry, fading(COLOR.friendly, 0.06));
   return Object.assign(new THREE.Group().add(disc, ring.mesh), { ring, disc });
-});
-const zones = pool(() => {
-  const ring = dashedRing(400, COLOR.friendly, { dash: 1, gap: 0, width: ZONE.width, opacity: ZONE.alpha }); // a quad big enough for any focus ring
-  return Object.assign(ring.mesh, { ring });
 });
 const labelBox = document.getElementById('labels')!;
 const labels: HTMLElement[] = [];
@@ -76,13 +70,8 @@ export function drawEffects(view: CommanderView, now: number) {
   for (const e of view.effects ?? []) {
     if (e.asset === 'missile') continue; // #99: layers/missile.ts draws its marker, ring and line
     if (e.asset === 'gunship') {
-      if (e.left <= 0) continue; // off station, flying home: no focus ring
-      const z = zones.next();
-      const color = sideColor(e.side ?? view.side);
-      z.position.set(e.x, e.y, 0.5);
-      z.ring.r.value = e.radius;
-      z.ring.tint.value.setHex(color);
-      if (e.side === view.side) label(tags++, { x: e.x + e.radius * 0.72, y: e.y + e.radius * 0.72 }, 6, -18, `GUNSHIP ${e.phase === 'inbound' ? 'INBOUND' : clock(Math.ceil(e.left))}`, css(color));
+      // layers/gunship.ts draws its focus mark; here the label beside it, to its own Commander, until it turns for home
+      if (e.left > 0 && e.side === view.side) label(tags++, e, 14, -18, `GUNSHIP ${e.phase === 'inbound' ? 'INBOUND' : clock(Math.ceil(e.left))}`, css(sideColor(e.side)));
       continue;
     }
     const danger = e.asset === 'barrage';
@@ -110,7 +99,6 @@ export function drawEffects(view: CommanderView, now: number) {
     if (near) label(tags++, edge, 6, 2, `${near.name.toUpperCase()} ${Math.round(near.d)} M`, css(color));
   }
   rings.end();
-  zones.end();
   for (let i = tags; i < labels.length; i++) labels[i]!.hidden = true;
 }
 

@@ -5,8 +5,8 @@
 // At the call its Side's Gunship vehicle (vehicles.ts) wakes at the missile's launch point, beyond the Play Area behind the
 // caller's HQ, and flies level at `gunshipSpeedMps`, turning no faster than `gunshipTurnDegPerS`: wide arcs, never a sudden
 // about-face. It flies in at the focus and is on station once that is within `gunshipRangeM`, for `gunshipStationSeconds`.
-// There it flies as a jet's pilot would, slowly: at a mark drawn among the enemies on foot its Side knows (those round the
-// focus first, the more of them close together the likelier), over it, then at the next; with none known, over the focus.
+// There it flies as a jet's pilot would, slowly: at a mark drawn among the enemies on foot its Side knows (those within
+// `gunshipFocusM` of the focus first, the more of them close together the likelier), over it, then at the next; with none known, over the focus.
 // A mark too close inside its turn to reach is flown away from first, so it comes back round in a loop. Then it turns for home
 // and flies back to the launch point, where it sleeps until the next call. On station the enemies on foot within
 // `gunshipRangeM` of the ground under it are Contacts, and its cannon fires one shell every `gunshipShotSeconds` at the one
@@ -98,7 +98,7 @@ function drop(m: Match, v: Vehicle) {
 
 /**
  * Where it flies now: its mark's last known spot, or the focus (`prey` -1). A mark it is over, or one its Side has lost, is
- * done, and so is a pass at the focus once it is over it or an enemy is known within `gunshipRangeM` of the focus. The next is
+ * done, and so is a pass at the focus once it is over it or an enemy is known within `gunshipFocusM` of the focus. The next is
  * drawn among the known enemies on foot outside their HQ and not under it, each weighing as many as the known enemies within
  * `gunshipRangeM` of it: those round the focus when there are any; else all of them, the farther from the focus the less
  * likely, and the focus itself (as one enemy there).
@@ -109,7 +109,7 @@ function aim(m: Match, e: Effect, v: Vehicle): Vec2 {
   const r2 = m.tune.gunshipRangeM * m.tune.gunshipRangeM;
   const foes = [...spots].filter(([id, p]) => m.soldiers[id] && markable(m, id) && !inHq(m, enemyOf(e.side), p));
   const ahead = foes.filter(([, p]) => !over(p));
-  const focused = ahead.filter(([, p]) => dist2(p, e) <= r2);
+  const focused = ahead.filter(([, p]) => dist2(p, e) <= m.tune.gunshipFocusM * m.tune.gunshipFocusM);
   const at = e.prey! < 0 ? (focused.length ? undefined : e) : markable(m, e.prey!) ? spots.get(e.prey!) : undefined;
   if (at && !over(at)) return at;
   const marks: [number, Vec2][] = focused.length ? focused : over(e) ? ahead : [...ahead, [-1, e]];
@@ -145,7 +145,7 @@ export const gunship: Kind = {
   cooldownSeconds: (t) => t.gunshipCooldownSeconds,
   firstReadySeconds: (t) => t.gunshipCooldownSeconds, // starts on cooldown, as the Cruise Missile does
   seconds: (t) => t.gunshipStationSeconds, // `until` is set at the call, and again as it ends
-  radius: (t) => t.gunshipRangeM, // round the focus
+  radius: (t) => t.gunshipFocusM,
   gate: heavyGate,
   retask(m, side, at) {
     const e = m.assets.effects.find((o) => o.asset === 'gunship' && o.side === side && (o.phase === 'inbound' || o.phase === 'station'));

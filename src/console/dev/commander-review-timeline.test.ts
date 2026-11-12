@@ -355,7 +355,7 @@ describe('commander review timeline (#69)', () => {
     expect(station.length / 4).toBeCloseTo(GUNSHIP_STATION_S, 0);
     for (const v of station) {
       const e = gunship(v, 'nato')!;
-      expect(e).toMatchObject({ x: 0, y: 0, radius: DEFAULT_TUNE.gunshipRangeM }); // C
+      expect(e).toMatchObject({ x: 0, y: 0, radius: DEFAULT_TUNE.gunshipFocusM }); // C
       expect(Math.hypot(e.craft!.x - e.x, e.craft!.y - e.y)).toBeCloseTo(GUNSHIP_LOOP_M, 3);
       expect((e.craft!.x - e.x) * e.craft!.fy - (e.craft!.y - e.y) * e.craft!.fx).toBeGreaterThan(0); // the centre on its left
       expect(e.left).toBeGreaterThan(0);

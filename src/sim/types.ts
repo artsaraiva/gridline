@@ -426,7 +426,8 @@ export interface Tune {
 
   // #101 Gunship
   gunshipCooldownSeconds: number; // from the call; it also starts the match on this cooldown
-  gunshipRangeM: number; // its cannon and its gunner reach this far from the ground spot under it; the enemies on foot in it are Contacts; the focus ring is this wide
+  gunshipRangeM: number; // its cannon and its gunner reach this far from the ground spot under it; the enemies on foot in it are Contacts
+  gunshipFocusM: number; // the known enemies within this of its focus are flown at first; the ring while the Commander picks the spot
   gunshipSpeedMps: number; // slow: in from the launch point beyond the own map edge, over the enemies its Side knows and home again, level ...
   gunshipTurnDegPerS: number; // ... turning no faster than this: wide arcs
   gunshipStationSeconds: number; // on station this long from the first tick the focus is in reach
@@ -633,7 +634,7 @@ export interface EffectView {
   from?: Vec2;
   /** How far along its flight it is (0..1); 1 once it has hit. Only on a missile. */
   flight?: number;
-  // #101 Gunship: in the sky, so in both Sides' views (with `side`, and `from` its launch point); `x`, `y` and `radius` are its focus
+  // #101 Gunship: in the sky, so in both Sides' views (with `side`, and `from` its launch point); `x` and `y` are its focus (`radius`: `gunshipFocusM`)
   /** Where it is in its sortie: flying in, on station (hunting, revealing and shelling), or flying home. Absent once shot down. */
   phase?: 'inbound' | 'station' | 'leaving';
   /** The aircraft: the ground spot under it, its unit heading and the way it is turning (1 left, -1 right, 0 straight on). Absent once shot down. */

@@ -2,19 +2,20 @@
 // heading, lifted north-east of its ground shadow to the Cruise Missile's altitude and banked into its turns; its
 // bracketed tactical icon in the caller's colour over it at constant screen size, glued to the screen edge toward it while it
 // is off screen, with an arrow out to it (#99); its shells arcing down from the aircraft, each the Barrage's round and streak,
-// the shared impact taking over where they land. A Wreck lies flat where it fell. The focus ring is layers/effects.ts'.
+// the shared impact taking over where they land. A Wreck lies flat where it fell. Its focus is the Cruise Missile's target mark, shown to its own Commander; the label beside it is layers/effects.ts'.
 // sprites/gunship.ts says where everything is.
 import * as THREE from 'three/webgpu';
 import type { CommanderView } from '../../sim/types';
 import { edgeClamp } from '../edge-clamp';
 import { metresPerPx, pool, sideColor, toScreen, toWorld } from '../renderer';
+import { MARKER_OPACITY, markerGeometry } from './missile';
 import { GUNSHIP_OUTLINE, GUNSHIP_SHEET, gunshipPose, gunshipShell, gunshipsInAir } from '../sprites/gunship';
 import { spriteMesh } from '../sprites/sheet';
 import { SHELL_SHEET } from '../sprites/shell';
 import { bar, brackets, fading, merge, px, shade, streak } from './symbols';
 
 // In the air over the jet's body (it flies its pass lower); its Wreck on the ground with the others
-const Z = { wreck: 0.44, shadow: 0.43, streak: 0.6, shell: 0.72, body: 0.76, icon: 0.94 };
+const Z = { wreck: 0.44, shadow: 0.43, streak: 0.6, shell: 0.72, body: 0.76, marker: 0.9, icon: 0.94 };
 const SHADOW_OPACITY = 0.42;
 /** Icon size in chevrons (its brackets span about 1.9 of these), as the missile's. */
 const ICON_SCALE = 1.44;
@@ -49,6 +50,7 @@ const icons = pool(() => {
   return Object.assign(new THREE.Group().add(icon, corners), { icon });
 });
 const arrows = pool(() => new THREE.Mesh(arrowGeometry, fading(0xffffff)));
+const markers = pool(() => new THREE.Mesh(markerGeometry, fading(0xffffff, MARKER_OPACITY)));
 
 const material = (m: THREE.Mesh) => m.material as THREE.MeshBasicNodeMaterial;
 
@@ -93,6 +95,13 @@ export function drawGunships(view: CommanderView, scale: number) {
     b.scale.set(p.body.mirror ? -p.size : p.size, p.size, 1);
     b.frame.value = p.body.frame;
 
+    if (g.side === view.side && g.e.left > 0) { // its focus, to its own Commander, until it turns for home: the missile's target mark
+      const mark = markers.next();
+      mark.position.set(g.e.x, g.e.y, Z.marker);
+      mark.scale.setScalar(scale);
+      material(mark).color.setHex(sideColor(g.side));
+    }
+
     // The icon sits on the aircraft on screen; off screen it is glued to the edge where the line from its focus leaves the screen
     iconColor.setHex(sideColor(g.side)).lerp(WHITE, ICON_WHITEN);
     const at = edgeClamp(toScreen(p), toScreen(g.e), box);
@@ -112,5 +121,5 @@ export function drawGunships(view: CommanderView, scale: number) {
       material(arrow).color.copy(iconColor);
     }
   }
-  for (const q of [shadows, bodies, shells, streaks, icons, arrows]) q.end();
+  for (const q of [shadows, bodies, shells, streaks, icons, arrows, markers]) q.end();
 }

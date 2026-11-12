@@ -28,7 +28,7 @@ const iconColor = new THREE.Color();
 /** Edge arrow size in chevrons. */
 const ARROW_SCALE = 1.6;
 const Z = { shadow: 0.42, trail: 0.6, line: 0.56, body: 0.72, marker: 0.9, icon: 0.92 };
-const MARKER_OPACITY = 0.9;
+export const MARKER_OPACITY = 0.9;
 
 const iconGeometry = new THREE.ShapeGeometry(new THREE.Shape(MISSILE_OUTLINE.map(([x, y]) => new THREE.Vector2(x, y))));
 /** One non-indexed geometry from several pieces, for a mark drawn as a single mesh. */
@@ -42,8 +42,8 @@ function merge(pieces: THREE.BufferGeometry[]) {
 const bracketGeometry = brackets(px(1.6 / ICON_SCALE));
 /** The edge arrow: a chevron pointing +x, set just outside the brackets toward the missile. */
 const arrowGeometry = merge([bar(-0.14, 0.26, 0.1, 0, px(3 / ARROW_SCALE)), bar(0.1, 0, -0.14, -0.26, px(3 / ARROW_SCALE))]);
-/** BF4's target mark, in chevrons: a diamond outline round a small solid diamond, with a tick out from each point. */
-const markerGeometry = merge([
+/** BF4's target mark, in chevrons: a diamond outline round a small solid diamond, with a tick out from each point. #101: the Gunship's focus too. */
+export const markerGeometry = merge([
   frameOutline('hostile', 0.62, px(1.5)), // the 'hostile' frame is the diamond; only its shape is borrowed
   frameFill('hostile', 0.26),
   bar(0.71, 0, 0.98, 0, px(1.5)), bar(-0.71, 0, -0.98, 0, px(1.5)), bar(0, 0.71, 0, 0.98, px(1.5)), bar(0, -0.71, 0, -0.98, px(1.5)),
