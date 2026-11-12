@@ -406,6 +406,9 @@ export interface Tune {
 
   // #152 Tickets and drain scale with points and Squads
   ticketBaseSquads: number; // the Squads per Side `tickets` and `drainSeconds` were tuned at; other counts scale both
+
+  // #153 Elite Squads
+  eliteSquads: number; // each Side's first this many Squads are on the Commander's net: Orders, Requests, Callouts, tiles
 }
 
 /** #55: what a Commander Score award is for. */
@@ -618,7 +621,8 @@ export type SimEvent =
    * `text` is the line without the Grid Reference; `grid` is set when the line is located (see `gridRef`).
    * `priority` is set by radio.ts from the `type` (RADIO_PRIORITY): a higher one pre-empts a waiting lower one. Callouts: 'contact',
    * 'fire', 'mandown', 'capturing', 'captured', 'redeploying'. Commander-side lines (`squad` null): 'lost' (a Capture Point the Side
-   * held, #85) and 'wiped' (sent for a Squad that is gone, with its `squad`).
+   * held, #85), 'captured' (#153: a point only Squads that are not Elite took) and 'wiped' (sent for a Squad that is gone, with its
+   * `squad`). Only Elite Squads (#153) send lines of their own.
    */
   | { kind: 'radio'; side: SideId; squad: number | null; type: string; text: string; grid?: string; priority: number }
   /** #34: suppressive fire: a round at (x, y) near a Last Known Position, with no enemy in view. */

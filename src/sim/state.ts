@@ -154,6 +154,12 @@ export const squadName = (m: Match, sq: Squad) => {
   return SQUAD_NAMES[i] ?? `Squad ${i + 1}`;
 };
 
+/** #153: per Squad id, whether it is an Elite Squad, one of its Side's first `eliteSquads`: the only Squads on the Commander's net. */
+export function elite(m: Match): boolean[] {
+  const before: Record<SideId, number> = { nato: 0, pact: 0 };
+  return m.squads.map((sq) => before[sq.side]++ < m.tune.eliteSquads);
+}
+
 /** A Capture Point's letter spoken as its call sign (A = Alpha); any other name as written. */
 export const callName = (name: string) => (name.length === 1 && SQUAD_NAMES.find((n) => n[0] === name)) || name;
 

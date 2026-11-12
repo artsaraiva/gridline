@@ -17,11 +17,12 @@ beforeEach(() => {
   select(null);
 });
 
-// Squad 0 stands (two Soldiers) 100 m west of point B; Squad 1 stands in B's ring.
+// Squad 0 stands (two Soldiers) 100 m west of point B; Squad 1 stands in B's ring; Squad 8, not Elite (#153), stands in A's ring.
 const soldier = (id: number, squad: number, x: number, y: number) => ({ id, squad, x, y, fx: 1, fy: 0, state: 'alive' as const, suppressed: false });
 const view = {
   side: 'nato',
-  friendlies: [soldier(0, 0, -100, 0), soldier(1, 0, -102, 3), soldier(2, 1, 10, 5)],
+  friendlies: [soldier(0, 0, -100, 0), soldier(1, 0, -102, 3), soldier(2, 1, 10, 5), soldier(3, 8, 5, 195)],
+  squads: [{ id: 0 }, { id: 1 }],
   points: [
     { id: 'A', name: 'A', x: 0, y: 200, radius: 25, owner: null, progress: 0 },
     { id: 'B', name: 'B', x: 0, y: 0, radius: 25, owner: 'nato', progress: 1 },
@@ -115,6 +116,13 @@ describe('Order targeting', () => {
     tap({ x: 300, y: 300 }, 5, 6);
     expect(sent).toEqual([]);
     expect(targeting.selected).toBeNull();
+  });
+
+  it('#153: the chevron of a Squad that is not Elite is not a Squad to select: the tap goes to the ring it stands in', () => {
+    select(0);
+    tap({ x: 5, y: 195 }, 5, 6);
+    expect(sent).toEqual([{ side: 'nato', kind: 'order', squad: 0, point: 'A' }]);
+    expect(targeting.selected).toBe(0);
   });
 
   it('a chevron wins over the point ring it stands in: that taps selects the other Squad instead of ordering', () => {

@@ -326,4 +326,7 @@ export const DEFAULT_TUNE: Tune = {
 
   // #152 Tickets and drain scale with points and Squads
   ticketBaseSquads: 4, // #42 tuned 150 Tickets and the drain at 4 Squads per Side
+
+  // #153 Elite Squads
+  eliteSquads: 8,
 };
