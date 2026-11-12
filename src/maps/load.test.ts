@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { createMatch, SIDES } from '../sim';
-import { across, build, crossingFlow, flowDist, pointFlow } from '../sim/ai/flow';
+import { across, build, crossingFlow, flowBytes, flowDist, pointFlow, warmFlows } from '../sim/ai/flow';
 import { COVER, WALL, WATER, walkCost, cellAt, cellIndex, nearestWalkable } from '../sim/grid';
 import { DEFAULT_TUNE } from '../sim/tune';
 import { insidePolygon } from '../sim/geometry';
@@ -152,4 +152,16 @@ describe('#150: map loader on Auental', () => {
     expect(flowDist(m, over(-1), nato), 'all crossings closed').toBe(Infinity);
     a.map.crossings.forEach((c, i) => expect(flowDist(m, over(i), nato), c.id).toBeLessThan(Infinity));
   });
+
+  it('#151: builds every flow field within 16 bits and 160 MB, each crossing and point reachable from both HQs', () => {
+    const a = readBake('auental');
+    const m = createMatch({ seed: 1, map: { ...a.map, terrain: terrainOf(a.map, a.cover, DEFAULT_TUNE.cellM) }, tune: DEFAULT_TUNE, squadsPerSide: 8, commanderSide: 'nato' });
+    expect(m.vehicles.length).toBeGreaterThan(0); // so the drive fields are built too
+    warmFlows(m); // throws on a field too long for 16 bits
+    expect(flowBytes(m)).toBeLessThanOrEqual(160e6);
+    for (const hq of Object.values(m.map.hqs)) {
+      a.map.crossings.forEach((c, i) => expect(flowDist(m, crossingFlow(m, i), hq), c.id).toBeLessThan(Infinity));
+      m.points.forEach((p, i) => expect(flowDist(m, pointFlow(m, i), hq), p.id).toBeLessThan(Infinity));
+    }
+  }, 60_000);
 });
