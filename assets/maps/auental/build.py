@@ -233,9 +233,10 @@ def build_fields():
         if abs(cx) > EXT + 60 or abs(cy) > EXT + 60 or depth == 0 and frame_of(cx, cy) != fi:
             return
         w, d = W - 2.5, L - 2.5
-        zs = [zone(cx + px * ca - py * sa, cy + px * sa + py * ca) for px in np.linspace(-w / 2, w / 2, 5)
+        ps = [(cx + px * ca - py * sa, cy + px * sa + py * ca) for px in np.linspace(-w / 2, w / 2, 5)
               for py in np.linspace(-d / 2, d / 2, 7)]
-        if any(z != "farm" for z in zs):  # split round a road, the river or a clearing
+        # split round a road, the river, a clearing, or the next frame's block, whose parcels would overlap this one
+        if any(zone(*p) != "farm" or frame_of(*p) != fi for p in ps):
             if depth < 3 and max(W, L) > 30 * k:
                 if L >= W:
                     parcel(fi, a, uc, vc - L / 4, W, L / 2, depth + 1)
