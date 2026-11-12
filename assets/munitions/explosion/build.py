@@ -189,7 +189,7 @@ bpy.ops.mesh.primitive_plane_add(size=4.0, location=(0, 0, 0))
 ground = bpy.context.object
 ground.is_shadow_catcher = True
 
-# --- camera, sun, sky (as assets/maps/kaltenbach/build.py and the other munitions bakes)
+# --- camera, sun, sky (as assets/maps/bake.py and the other munitions bakes)
 cam_d = bpy.data.cameras.new("TopDownCamera")
 cam_d.type = "ORTHO"
 cam_d.ortho_scale = 2.0

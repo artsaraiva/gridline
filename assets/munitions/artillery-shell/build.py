@@ -160,7 +160,7 @@ cam.location = (0, 0, 5.0)
 scene.collection.objects.link(cam)
 scene.camera = cam
 
-# Sun and sky matching assets/maps/kaltenbach/build.py (SUN_ELEV = 24 deg, azimuth = 45 deg NE), in world
+# Sun and sky matching assets/maps/bake.py (SUN_ELEV = 24 deg, azimuth = 45 deg NE), in world
 # space: +X east, +Y north. The shell is yawed to each baked heading, so the light never turns with it.
 sun_d = bpy.data.lights.new("sun", "SUN")
 sun_d.energy = 4.2
