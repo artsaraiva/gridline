@@ -14,7 +14,7 @@ import { boundarySdf, SDF_PER_M } from './boundary';
 
 const SDF_RES = 512;
 const OOB_BLOCK_M = 4;
-const HQ_TINT = 0.1; // blends in linear light, where a faint fill over this dark map reads stronger than in CSS
+const HQ_TINT = 0.06; // blends in linear light, where a faint fill over this dark map reads stronger than in CSS
 
 /** Zoom limits of the current map; the whole surroundings fill the screen at `min`, the bake's full detail is one texel per px at `max`. */
 export const zoomRange = { min: 0.5, max: 20 };
