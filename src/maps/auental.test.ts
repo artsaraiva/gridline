@@ -10,35 +10,57 @@ import { terrainOf } from './load';
 const { dir, map, n, cover, ids, floats, cell, point, twinOf, riverCrossings, coverShare } = readBake('auental');
 
 describe('Auental map metadata', () => {
-  it('is a 2.5 km map with working names', () => {
-    expect(map).toMatchObject({ name: 'Auental', river: 'Auer', sizeM: 2500 });
+  it('is a 3 km map with working names', () => {
+    expect(map).toMatchObject({ name: 'Auental', river: 'Auer', sizeM: 3000 });
   });
 
-  it('has a closed Play Area of 6.05 km² inside the bake, its corners cut north-west and south-east', () => {
+  it('has a closed Play Area of 6.27 km² inside the bake, its corners cut north-west and south-east, an HQ bulging out of its west and east edges', () => {
     let area = 0;
     map.playArea.forEach((a, i) => {
       const b = map.playArea[(i + 1) % map.playArea.length]!;
       area += a.x * b.y - b.x * a.y;
     });
-    expect(Math.abs(area / 2) / 1e6).toBeCloseTo(6.05, 2);
+    expect(Math.abs(area / 2) / 1e6).toBeCloseTo(6.27, 2); // the 2.5 km field's 6.05 and 0.108 a bulge
     expect(near(map.playArea[0]!, map.playArea.at(-1)!)).toBe(false);
-    for (const p of map.playArea) expect(Math.max(Math.abs(p.x), Math.abs(p.y))).toBeLessThanOrEqual(1250);
+    for (const p of map.playArea) expect(Math.abs(p.y)).toBeLessThanOrEqual(1250), expect(Math.abs(p.x)).toBeLessThan(1500);
+    expect(inside({ x: -1300, y: 600 }, map.playArea), 'beyond the west edge, north of the HQ').toBe(false);
+    expect(inside({ x: -1400, y: -50 }, map.playArea), "in NATO's HQ").toBe(true);
     expect(inside({ x: -1200, y: 1200 }, map.playArea)).toBe(false);
     expect(inside({ x: 1200, y: -1200 }, map.playArea)).toBe(false);
   });
 
-  it('has NATO HQ west and Warsaw Pact HQ east with 60 m zones inside the Play Area', () => {
-    expect(map.hqs.nato).toMatchObject({ x: -1120, y: -40, radius: 60 });
-    expect(map.hqs.pact).toMatchObject({ x: 1120, y: 40, radius: 60 });
-    for (const hq of [map.hqs.nato, map.hqs.pact])
-      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]])
-        expect(inside({ x: hq.x + dx! * hq.radius, y: hq.y + dy! * hq.radius }, map.playArea)).toBe(true);
+  it('has NATO HQ west and Warsaw Pact HQ east, each an area of about 0.13 km² round its centre: 250 m out past the old edge, 50 m in', () => {
+    expect(map.hqs.nato).toMatchObject({ x: -1350, y: -50, radius: 150 });
+    expect(map.hqs.pact).toMatchObject({ x: 1350, y: 50, radius: 150 });
+    for (const hq of [map.hqs.nato, map.hqs.pact]) {
+      const area = hq.area!;
+      const size = Math.abs(area.reduce((n, a, i) => n + a.x * area[(i + 1) % area.length]!.y - area[(i + 1) % area.length]!.x * a.y, 0)) / 2;
+      expect(size / 1e6).toBeCloseTo(0.13, 2);
+      expect(inside(hq, area)).toBe(true);
+      const xs = area.map((p) => Math.abs(p.x));
+      expect([Math.min(...xs), Math.max(...xs)]).toEqual([1192, 1490]);
+      // its back is the Play Area's own edge, its front lies inside the Play Area
+      for (const p of area) expect(Math.abs(p.x) >= 1250 ? map.playArea.some((q) => near(q, p)) : inside(p, map.playArea), `${p.x},${p.y}`).toBe(true);
+    }
   });
 
-  it('has the 12 points of the layout table: letters, positions, radii and owners at the start', () => {
+  it('gives each HQ 12 spawn spots inside its area, 15 m apart or more, on open ground', () => {
+    const open = new Set([ids.open, ids.road]);
+    for (const hq of [map.hqs.nato, map.hqs.pact]) {
+      const spots = hq.spawns!;
+      expect(spots).toHaveLength(12);
+      for (const p of spots) {
+        expect(inside(p, hq.area!), `${p.x},${p.y}`).toBe(true);
+        for (const [dx, dy] of [[0, 0], [3, 0], [-3, 0], [0, 3], [0, -3]]) expect(open.has(cover[cell(p.x + dx!, p.y + dy!)]!), `${p.x},${p.y}`).toBe(true);
+      }
+      expect(Math.min(...spots.flatMap((a, i) => spots.slice(i + 1).map((b) => Math.hypot(a.x - b.x, a.y - b.y))))).toBeGreaterThanOrEqual(15);
+    }
+  });
+
+  it('has the 12 points of the layout table: letters, positions and radii, every one neutral at the start', () => {
     expect(map.points.map((p) => [p.id, p.x, p.y, p.radius, p.owner])).toEqual([
-      ['A', -900, 480, 30, 'nato'],
-      ['B', -840, -640, 30, 'nato'],
+      ['A', -900, 480, 30, null],
+      ['B', -840, -640, 30, null],
       ['C', -520, 560, 35, null],
       ['D', -430, -520, 35, null],
       ['E', -130, 40, 45, null],
@@ -47,8 +69,8 @@ describe('Auental map metadata', () => {
       ['H', 130, -40, 45, null],
       ['I', 430, 520, 35, null],
       ['J', 520, -560, 35, null],
-      ['K', 840, 640, 30, 'pact'],
-      ['L', 900, -480, 30, 'pact'],
+      ['K', 840, 640, 30, null],
+      ['L', 900, -480, 30, null],
     ]);
     for (const p of map.points) {
       expect(p.name, 'the radio speaks a point by its letter').toBe(p.id);
@@ -57,8 +79,8 @@ describe('Auental map metadata', () => {
     expect(map.keystone).toEqual(['E', 'H']);
   });
 
-  it('has a 10 x 10 grid of 250 m squares, A-J west to east', () => {
-    expect(map.grid).toEqual({ cols: 10, rows: 10, squareM: 250, letters: 'ABCDEFGHIJ' });
+  it('has a 12 x 12 grid of 250 m squares, A-L west to east', () => {
+    expect(map.grid).toEqual({ cols: 12, rows: 12, squareM: 250, letters: 'ABCDEFGHIJKL' });
   });
 
   it('has 7 crossings, 3 / 1 / 3 north to south: the main bridge and three twin pairs, armour at 5', () => {
@@ -79,6 +101,10 @@ describe('Auental map metadata', () => {
   it('places points, HQs, crossings and the boundary to match under a half turn', () => {
     for (const p of map.playArea) expect(map.playArea.some((q) => near(q, rotated(p)))).toBe(true);
     expect(near(map.hqs.pact, rotated(map.hqs.nato))).toBe(true);
+    for (const key of ['area', 'spawns'] as const) {
+      expect(map.hqs.pact[key]).toHaveLength(map.hqs.nato[key]!.length);
+      map.hqs.nato[key]!.forEach((p, k) => expect(near(map.hqs.pact[key]![k]!, rotated(p)), `${key} ${k}`).toBe(true));
+    }
     const twins = map.points.map((p) => p.id + twinOf(p).id);
     expect(twins).toEqual(['AL', 'BK', 'CJ', 'DI', 'EH', 'FG', 'GF', 'HE', 'ID', 'JC', 'KB', 'LA']);
     for (const p of map.points) {
@@ -95,8 +121,8 @@ describe('Auental data grids', () => {
   const ground = floats(map.data.ground);
   const top = floats(map.data.top);
 
-  it('covers the 2.5 km map with a 1 m cover grid and 2 m height grids', () => {
-    expect(n * map.data.cellM).toBe(2500);
+  it('covers the 3 km map with a 1 m cover grid and 2 m height grids', () => {
+    expect(n * map.data.cellM).toBe(3000);
     expect(cover.length).toBe(n * n);
     expect(map.data.heightCellM).toBe(2);
     expect(ground.length).toBe(hn * hn);
@@ -126,11 +152,12 @@ describe('Auental data grids', () => {
   });
 
   it('puts Hochwacht (G) on the highest ground, about 60 m above the river', () => {
-    const at = (x: number, y: number) => ground[Math.floor((1250 - y) / 2) * hn + Math.floor((x + 1250) / 2)]!;
+    const half = map.sizeM / 2;
+    const at = (x: number, y: number) => ground[Math.floor((half - y) / 2) * hn + Math.floor((x + half) / 2)]!;
     let max = -Infinity;
     for (let j = 0; j < hn; j++)
       for (let i = 0; i < hn; i++) {
-        const x = i * 2 - 1249, y = 1249 - j * 2;
+        const x = i * 2 - half + 1, y = half - 1 - j * 2;
         if (inside({ x, y }, map.playArea) && Math.hypot(x - 120, y - 1000) > 150) max = Math.max(max, at(x, y));
       }
     const g = point('G');
@@ -191,7 +218,7 @@ describe('Auental vehicles (#154)', () => {
   const drive = { nato: driveGrid(played, grid, 'nato', t), pact: driveGrid(played, grid, 'pact', t) };
   /** On the Side's ground-vehicle grid, the one the Simulation drives it on. */
   const drivable = (side: SideId, p: Vec2) => drive[side].cost[Math.floor((p.y - grid.y0) / t.cellM) * grid.cols + Math.floor((p.x - grid.x0) / t.cellM)]! > 0;
-  const inHq = (side: SideId, p: Vec2) => Math.hypot(p.x - map.hqs[side].x, p.y - map.hqs[side].y) < map.hqs[side].radius;
+  const inHq = (side: SideId, p: Vec2) => inside(p, map.hqs[side].area!);
   const closest = (ps: Vec2[]) => Math.min(...ps.flatMap((a, i) => ps.slice(i + 1).map((b) => Math.hypot(a.x - b.x, a.y - b.y))));
   const slots = (side: SideId) => map.vehicleSlots?.[side] ?? [];
   const pads = (side: SideId) => map.helipad?.[side] ?? [];

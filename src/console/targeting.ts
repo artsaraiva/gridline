@@ -6,7 +6,7 @@
 // Command and the Squad stays selected; Clear sends a null Order. Only the Simulation decides what an Order does.
 // Mark (#136): in Mark mode every tap places a Mark, or renews the one tapped; out of it a tap on a Mark clears it. The spec
 // says both "tap a Mark to clear it" and "re-tapped" renews it: the mode is what tells them apart.
-import { insidePolygon } from '../sim/geometry';
+import { hqHolds, insidePolygon } from '../sim/geometry';
 import { DEFAULT_TUNE } from '../sim/tune';
 import { enemyOf, type AssetKind, type Vec2 } from '../sim/types';
 import { session } from './session';
@@ -82,7 +82,7 @@ export function validSpot(p: Vec2): boolean {
   if (!map || !inPlayArea(p)) return false;
   const hq = map.hqs[enemyOf(session.commanderSide)];
   const r = hq.radius ?? DEFAULT_TUNE.hqRadius;
-  return (p.x - hq.x) ** 2 + (p.y - hq.y) ** 2 >= r * r;
+  return !hqHolds(hq, r, p);
 }
 
 /** Called after an Asset is confirmed (the feed throws a static burst). */

@@ -155,11 +155,11 @@ describe('#150: map loader on Auental', () => {
     a.map.crossings.forEach((c, i) => expect(flowDist(m, over(i), nato), c.id).toBeLessThan(Infinity));
   });
 
-  it('#151: builds every flow field within 16 bits and 160 MB, each crossing and point reachable from both HQs', () => {
+  it('#151: builds every flow field within 16 bits and 190 MB, each crossing and point reachable from both HQs', () => {
     const m = createMatch({ seed: 1, map: AUENTAL, tune: DEFAULT_TUNE, squadsPerSide: 8, commanderSide: 'nato' });
     expect(m.vehicles.length).toBeGreaterThan(0); // so the drive fields are built too
     warmFlows(m); // throws on a field too long for 16 bits
-    expect(flowBytes(m)).toBeLessThanOrEqual(160e6);
+    expect(flowBytes(m)).toBeLessThanOrEqual(190e6); // 184 MB: the grid is the Play Area's box, 19% wider since each HQ bulges out of its end
     for (const hq of Object.values(m.map.hqs)) {
       a.map.crossings.forEach((c, i) => expect(flowDist(m, crossingFlow(m, i), hq), c.id).toBeLessThan(Infinity));
       m.points.forEach((p, i) => expect(flowDist(m, pointFlow(m, i), hq), p.id).toBeLessThan(Infinity));
