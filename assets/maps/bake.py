@@ -2,7 +2,8 @@
 mesh helpers, buildings, scenery prototypes and scatter, lighting, the data render and the image outputs.
 A map's assets/maps/<map>/build.py holds its layout and landmarks, imports this module and calls finish().
 
-Blender runs the map's build.py as __main__, and this module reads the map from it as MAP, at call time:
+Blender runs the map's build.py as __main__, and this module reads the map from it as MAP. The output paths
+come from MAP.__file__ on import; the rest is read at call time, and build_materials() checks it is all there:
   HALF, EXT       half the map's side in metres, and half the side of what this mode renders
   CROSSINGS       [(id, kind, x, y, half width)], kind bridge | footbridge | ford
   height(x, y)    ground height with the river cut in
@@ -28,6 +29,7 @@ import numpy as np
 from mathutils import Euler, Vector, kdtree, noise
 
 MAP = sys.modules["__main__"]
+NEEDS = ("HALF", "EXT", "CROSSINGS", "height", "rdist", "river_dxdy", "zone", "clearing", "woods_val", "meadow")
 argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 MODE = argv[0] if argv else "preview"
 # play and outer sizes are fixed: map.json lists those files and the mip chain needs a power of two
@@ -250,6 +252,9 @@ def mat(name):
 
 
 def build_materials():
+    missing = [k for k in NEEDS if not hasattr(MAP, k)]
+    if missing:  # every bake builds its materials before anything else, once the map script has defined its layout
+        raise SystemExit(f"{MAP.__file__} must define {', '.join(missing)} (see assets/maps/bake.py)")
     # terrain: zone colour attribute + noise, micro-relief bump
     M = Mat("terrain")
     attr = M.node("ShaderNodeAttribute", attribute_name="zcol").outputs["Color"]
