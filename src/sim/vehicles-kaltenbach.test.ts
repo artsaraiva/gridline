@@ -83,11 +83,17 @@ describe('#107 tanks on Kaltenbach', () => {
     }
   });
 
+  it('never stops dead from speed: it brakes for blocked ground ahead and rounds corners it cannot cut, where it used to run into them', () => {
+    const moved = (t: { x: number; y: number }[], i: number) => Math.hypot(t[i]!.x - t[i - 1]!.x, t[i]!.y - t[i - 1]!.y);
+    const dead = track.flatMap((t) => t.filter((_, i) => i > 1 && moved(t, i) === 0 && moved(t, i - 1) > 2 / HZ)); // 2 m/s to nothing in a tick
+    expect(dead.length).toBe(0);
+  });
+
   // Per seed, not pooled: a seed whose route leaves the roads is a route fault an average over the others would hide.
   it('drives mostly by road, by distance, in every one of several seeds', () => {
     for (const seed of SEEDS) {
-      const r = seed === 10 ? { track } : run(300, seed);
-      r.track.forEach((t, k) => { if (Number.isNaN(roadShare(t))) return; /* never left its slot */ expect(roadShare(t), `seed ${seed} vehicle ${k}`).toBeGreaterThan(0.5); });
+      const r = seed === 10 ? { m, track } : run(300, seed);
+      r.track.forEach((t, k) => { if (Number.isNaN(roadShare(t)) || r.m.vehicles[k]!.point >= 0) return; /* never left its slot; or a point's jeep, whose hop from its off-road slot is no route */ expect(roadShare(t), `seed ${seed} vehicle ${k}`).toBeGreaterThan(0.5); });
     }
   }, 60_000);
 
