@@ -1134,16 +1134,17 @@ def church(ccx, ccy, ang):
         tree_at(ccx + lx * ca - ly * sa, ccy + lx * sa + ly * ca, "decid1", 1.1)
 
 
-def build_houses(inside, box, river, quay):
+def build_houses(inside, box, river, quay, road_margin=0.6):
     """A village's houses: rows along the streets where inside(x, y, s) holds (s scales the village's outline), barns and back
     houses filled in behind them over box (centre x, y, half width, half height), and cars parked on the streets. Houses keep
-    river metres from the river's centre line, parked cars quay metres."""
+    river metres from the river's centre line, parked cars quay metres; road_margin more keeps a house's corner off a street
+    it stands askew to, where vehicles must pass."""
     n = 0
 
     def place(cx, cy, a, w, d, kind):
         nonlocal n
         r = 0.5 * math.hypot(w, d) * 0.62 + 0.5  # a Hessian village packs houses close
-        if not inside(cx, cy, 1.05) or not free(cx, cy, r, 0.6, river):
+        if not inside(cx, cy, 1.05) or not free(cx, cy, r, road_margin, river):
             return
         house(f"house_{n}", cx, cy, a, w, d, kind)
         FOOT.append((cx, cy, r))

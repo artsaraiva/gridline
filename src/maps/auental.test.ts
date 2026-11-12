@@ -14,33 +14,36 @@ describe('Auental map metadata', () => {
     expect(map).toMatchObject({ name: 'Auental', river: 'Auer', sizeM: 3000 });
   });
 
-  it('has a closed Play Area of 6.27 km² inside the bake, its corners cut north-west and south-east, an HQ bulging out of its west and east edges', () => {
+  it('has a closed Play Area of 6.71 km² inside the bake, its corners cut north-west and south-east, its west and east ends each an arc swung out round an HQ', () => {
     let area = 0;
     map.playArea.forEach((a, i) => {
       const b = map.playArea[(i + 1) % map.playArea.length]!;
       area += a.x * b.y - b.x * a.y;
     });
-    expect(Math.abs(area / 2) / 1e6).toBeCloseTo(6.27, 2); // the 2.5 km field's 6.05 and 0.108 a bulge
+    expect(Math.abs(area / 2) / 1e6).toBeCloseTo(6.71, 2); // the 2.5 km field's 6.05 and 0.33 beyond each end
     expect(near(map.playArea[0]!, map.playArea.at(-1)!)).toBe(false);
     for (const p of map.playArea) expect(Math.abs(p.y)).toBeLessThanOrEqual(1250), expect(Math.abs(p.x)).toBeLessThan(1500);
-    expect(inside({ x: -1300, y: 600 }, map.playArea), 'beyond the west edge, north of the HQ').toBe(false);
+    expect(inside({ x: -1450, y: 700 }, map.playArea), 'beyond the arc').toBe(false);
+    expect(inside({ x: -1300, y: 600 }, map.playArea), 'between the old west edge and the arc').toBe(true);
     expect(inside({ x: -1400, y: -50 }, map.playArea), "in NATO's HQ").toBe(true);
     expect(inside({ x: -1200, y: 1200 }, map.playArea)).toBe(false);
     expect(inside({ x: 1200, y: -1200 }, map.playArea)).toBe(false);
   });
 
-  it('has NATO HQ west and Warsaw Pact HQ east, each an area of about 0.13 km² round its centre: 250 m out past the old edge, 50 m in', () => {
+  it('has NATO HQ west and Warsaw Pact HQ east, each the crescent of 0.35 km² between the old edge and the arc, 240 m deep at its centre and 50 m into the valley there', () => {
     expect(map.hqs.nato).toMatchObject({ x: -1350, y: -50, radius: 150 });
     expect(map.hqs.pact).toMatchObject({ x: 1350, y: 50, radius: 150 });
     for (const hq of [map.hqs.nato, map.hqs.pact]) {
       const area = hq.area!;
       const size = Math.abs(area.reduce((n, a, i) => n + a.x * area[(i + 1) % area.length]!.y - area[(i + 1) % area.length]!.x * a.y, 0)) / 2;
-      expect(size / 1e6).toBeCloseTo(0.13, 2);
+      expect(size / 1e6).toBeCloseTo(0.35, 2);
       expect(inside(hq, area)).toBe(true);
       const xs = area.map((p) => Math.abs(p.x));
       expect([Math.min(...xs), Math.max(...xs)]).toEqual([1192, 1490]);
       // its back is the Play Area's own edge, its front lies inside the Play Area
-      for (const p of area) expect(Math.abs(p.x) >= 1250 ? map.playArea.some((q) => near(q, p)) : inside(p, map.playArea), `${p.x},${p.y}`).toBe(true);
+      for (const p of area) expect(map.playArea.some((q) => near(q, p)) || inside(p, map.playArea), `${p.x},${p.y}`).toBe(true);
+      expect(area.filter((p) => map.playArea.some((q) => near(q, p)))).toHaveLength(17);
+      expect([Math.min(...area.map((p) => p.y * Math.sign(hq.x))), Math.max(...area.map((p) => p.y * Math.sign(hq.x)))]).toEqual([-800, 1250]); // from cut corner to far corner
     }
   });
 
@@ -242,6 +245,27 @@ describe('Auental vehicles (#154)', () => {
       expect(closest(pads(side)), side).toBeGreaterThanOrEqual(25);
     }
   });
+
+  it('lets each Side drive from its motor pool onto every bridge and ford along its own bank (the town, the dam and the war leave the roads open)', () => {
+    const at = (p: Vec2) => Math.floor((p.y - grid.y0) / t.cellM) * grid.cols + Math.floor((p.x - grid.x0) / t.cellM);
+    for (const side of sides) {
+      const { cost, crossing } = drive[side];
+      // as a driver's way to a crossing is found: every other crossing closed
+      const cut = map.crossings.filter((c, n) => {
+        if (c.kind === 'footbridge') return false;
+        const seen = new Uint8Array(cost.length);
+        const queue = [at(slots(side)[0]!)];
+        seen[queue[0]!] = 1;
+        for (let head = 0; head < queue.length; head++) {
+          const k = queue[head]!, i = k % grid.cols;
+          for (const j of [i > 0 ? k - 1 : -1, i < grid.cols - 1 ? k + 1 : -1, k - grid.cols, k + grid.cols])
+            if (j >= 0 && j < cost.length && !seen[j] && cost[j]! > 0 && (crossing[j]! < 0 || crossing[j] === n)) (seen[j] = 1), queue.push(j);
+        }
+        return !seen[at(c)];
+      });
+      expect(cut.map((c) => c.id), side).toEqual([]);
+    }
+  }, 60_000);
 
   it('waits a jeep at every point but the twin town, and a tank too at the armour points D and I', () => {
     expect(Object.fromEntries(map.points.map((p) => [p.id, (p.vehicles ?? []).map((v) => v.kind).sort().join(' ')]))).toEqual({
