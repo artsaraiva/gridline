@@ -345,4 +345,15 @@ export const DEFAULT_TUNE: Tune = {
   gunshipScatterM: 8,
   gunshipHp: 150,
   paradropChance: 0.5,
+
+  // Vehicle routes: road, fields or another crossing
+  driveSeenS: 8,
+  driveLossS: 15,
+  driveWreckS: 60,
+  driveMateS: 5,
+  driveJitterS: 10,
+  driveMaxDetourS: 120,
+  driveCaution: [0.5, 1.5],
+  tankOutgunnedPenalty: 0.5,
+  tankWreckPenalty: 0.3,
 };
