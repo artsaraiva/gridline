@@ -117,7 +117,7 @@ cam.location = (0, 0, 10.0)
 scene.collection.objects.link(cam)
 scene.camera = cam
 
-# Sun and sky matching assets/maps/kaltenbach/build.py, in world space: +X east, +Y north. The jeep is yawed to each baked
+# Sun and sky matching assets/maps/bake.py, in world space: +X east, +Y north. The jeep is yawed to each baked
 # heading, so the light never turns with it.
 sun_d = bpy.data.lights.new("sun", "SUN")
 sun_d.energy = 4.2
