@@ -80,9 +80,7 @@ const inPlayArea = (p: Vec2) => !!session.host && insidePolygon(session.host.map
 export function validSpot(p: Vec2): boolean {
   const map = session.host?.map;
   if (!map || !inPlayArea(p)) return false;
-  const hq = map.hqs[enemyOf(session.commanderSide)];
-  const r = hq.radius ?? DEFAULT_TUNE.hqRadius;
-  return !hqHolds(hq, r, p);
+  return !hqHolds(map.hqs[enemyOf(session.commanderSide)], DEFAULT_TUNE.hqRadius, p);
 }
 
 /** Called after an Asset is confirmed (the feed throws a static burst). */

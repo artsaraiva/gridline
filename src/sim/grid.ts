@@ -120,7 +120,7 @@ export function driveGrid(map: MapData, g: Grid, side: SideId, t: Tune): Grid {
   const hi = (v: number[], o: number, n: number) => Math.min(n, Math.ceil((Math.max(...v) - o) / t.cellM));
   const [xs, ys] = [box.map((p) => p.x), box.map((p) => p.y)];
   for (let j = lo(ys, y0); j < hi(ys, y0, rows); j++)
-    for (let i = lo(xs, x0); i < hi(xs, x0, cols); i++) if (hqHolds(hq, r, { x: x0 + (i + 0.5) * t.cellM, y: y0 + (j + 0.5) * t.cellM })) cost[j * cols + i] = 0;
+    for (let i = lo(xs, x0); i < hi(xs, x0, cols); i++) if (hqHolds(hq, t.hqRadius, { x: x0 + (i + 0.5) * t.cellM, y: y0 + (j + 0.5) * t.cellM })) cost[j * cols + i] = 0;
   return { ...g, cost };
 }
 

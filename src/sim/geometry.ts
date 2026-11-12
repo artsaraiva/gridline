@@ -25,10 +25,10 @@ export function keystone(m: Match) {
   return middle ? [middle] : [];
 }
 
-/** Whether the HQ holds the spot: inside its `area`, or without one inside the circle of radius `r`. */
-export const hqHolds = (hq: Hq, r: number, p: Vec2) => (hq.area ? insidePolygon(hq.area, p.x, p.y) : dist2(p, hq) < r * r);
+/** Whether the HQ holds the spot: inside its `area`, or without one inside its circle (`hqRadius` wide when it names no radius). */
+export const hqHolds = (hq: Hq, hqRadius: number, p: Vec2) => (hq.area ? insidePolygon(hq.area, p.x, p.y) : dist2(p, hq) < (hq.radius ?? hqRadius) ** 2);
 
-export const inHq = (m: Match, side: SideId, p: Vec2) => hqHolds(m.map.hqs[side], m.map.hqs[side].radius ?? m.tune.hqRadius, p);
+export const inHq = (m: Match, side: SideId, p: Vec2) => hqHolds(m.map.hqs[side], m.tune.hqRadius, p);
 
 /** The Play Area boundary, walls, water and the enemy HQ are walls to a Soldier. */
 export const canStand = (m: Match, s: Soldier, p: Vec2) =>
