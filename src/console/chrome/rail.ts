@@ -1,17 +1,17 @@
-// Left rail Faction header and score block (point badges with capture arcs, Tickets with bars, clock, drain line, Commander
-// Score), the contribution messages under it (#72), plus right-side toasts on major radio events. #37's `chrome/assets.ts`
-// owns the Asset rows between them.
+// The score strip top-centre (Capture Point badges with capture arcs between the two Sides' Tickets and bars, the clock
+// under them, a mark on the Side that is draining), the contribution messages under the Asset rail (#72), and right-side
+// toasts on major radio events. `chrome/assets.ts` owns the Asset rail itself.
 import { DEFAULT_TUNE } from '../../sim/tune';
 import type { CommanderView, PointView, SideId, SimEvent } from '../../sim/types';
 import { session } from '../session';
-import { awardLine, clock, drainLine, FACTION } from '../summary';
+import { awardLine, clock, drainingSide, FACTION } from '../summary';
 
-/** Variant A ("Rails") geometry in px: 16 px margin, 248 px left rail, 56 px right Squad tile column, 16 px inner gap. */
-export const RAILS = { margin: 16, left: 248, right: 56, gap: 16, vMargin: 32 };
+/** Chrome geometry in px, which frames the map (`fitView`) and places its grid labels. `console.css` sizes the same boxes:
+ * `margin` is every panel's inset, `assetRail` the `.asset` icon cell, `squadRail` the `.tile`, `top` clears the score strip
+ * and the grid letters under it, `bottom` the cursor readout, `gridLabels` the numbers left of the map. */
+export const LAYOUT = { margin: 16, assetRail: 40, squadRail: 56, gap: 16, gridLabels: 26, top: 92, bottom: 44 };
 
 const rail = document.getElementById('rail')!;
-const factionCell = document.getElementById('faction-cell')!;
-const factionSub = document.getElementById('faction-sub')!;
 const score = document.getElementById('score')!;
 const awards = document.getElementById('awards')!;
 const toastEl = document.getElementById('toast')!;
@@ -46,7 +46,7 @@ export function showToast(title: string, sub: string) {
   toastEl.classList.add('show');
 }
 
-/** #72: shows an award as a contribution message under the score block for a few seconds. */
+/** #72: shows an award as a contribution message under the Asset rail for a few seconds. */
 export function showAward(e: SimEvent, view: CommanderView) {
   const line = awardLine(e, view);
   if (!line) return;
@@ -70,9 +70,9 @@ export function toastEvent(e: SimEvent, view: CommanderView) {
   }
 }
 
-/** Updates the left rail Faction cell and score block for `view`, or hides the rail between matches. */
+/** Updates the score strip for `view`, or hides it and the rail between matches. */
 export function drawRail(view: CommanderView | null) {
-  rail.hidden = !view;
+  rail.hidden = score.hidden = !view;
   if (!view) {
     toastEl.hidden = true;
     toastEl.classList.remove('show');
@@ -80,22 +80,13 @@ export function drawRail(view: CommanderView | null) {
     return;
   }
   const { commanderSide: us, enemySide: them } = session;
-  const cell = us === 'nato' ? 'NATO' : 'PACT';
-  const sub = `${FACTION[us]} · ${session.host?.map.name ?? 'Kaltenbach'}`;
-  if (factionCell.textContent !== cell) factionCell.textContent = cell;
-  if (factionSub.textContent !== sub) factionSub.textContent = sub;
-
   const max = view.ticketsStart ?? DEFAULT_TUNE.tickets; // #152: Tickets scale with the Squad count
-  const usPct = Math.max(0, Math.min(100, (100 * view.tickets[us]) / max));
-  const themPct = Math.max(0, Math.min(100, (100 * view.tickets[them]) / max));
-  const html =
-    `<div class="pts">${view.points.map((p) => pointBadge(p, us)).join('')}</div>` +
-    `<div class="row">` +
-    `<div class="side fr"><small>${FACTION[us]}</small><b>${view.tickets[us]}</b><div class="tbar"><i style="width:${usPct.toFixed(1)}%"></i></div></div>` +
-    `<div class="clock">${clock(view.seconds)}</div>` +
-    `<div class="side ho"><small>${FACTION[them]}</small><b>${view.tickets[them]}</b><div class="tbar"><i style="width:${themPct.toFixed(1)}%"></i></div></div>` +
-    `</div>` +
-    `<div class="drain">${drainLine(view)}</div>` +
-    `<div class="cscore"><small>Commander Score</small><b>${Math.round(view.score?.total ?? 0)}</b></div>`;
+  const draining = drainingSide(view);
+  const side = (s: SideId, cls: string) => {
+    const pct = Math.max(0, Math.min(100, (100 * view.tickets[s]) / max)).toFixed(1);
+    return `<div class="side ${cls}${draining === s ? ' draining' : ''}"><small>${FACTION[s]}</small><b>${view.tickets[s]}</b><div class="tbar"><i style="width:${pct}%"></i></div></div>`;
+  };
+  const badges = view.points.map((p) => pointBadge(p, us)).join('');
+  const html = `${side(us, 'fr')}<div class="pts">${badges}</div><div class="clock">${clock(view.seconds)}</div>${side(them, 'ho')}`;
   if (score.dataset.h !== html) score.innerHTML = score.dataset.h = html;
 }

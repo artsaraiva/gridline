@@ -64,8 +64,6 @@ export async function startAssetReview(): Promise<() => void> {
   $('setup').hidden = true;
   $('end').hidden = true;
   $('rail').hidden = false;
-  $('faction-cell').textContent = 'NATO';
-  $('faction-sub').textContent = 'Kaltenbach · Asset review';
   $('assets').hidden = false;
 
   const controls = document.createElement('div');

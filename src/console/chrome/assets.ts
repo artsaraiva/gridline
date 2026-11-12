@@ -1,6 +1,6 @@
-// Left rail Asset rows (hotkey, icon, name, timer, bar), the Confirm row under the armed Asset, the map Confirm button
-// beside the target ring, and the Asset hotkeys. Rows read ready, cooling, active or armed from the view and targeting.
-// #44 owns the rail's look; this is the behaviour.
+// Asset rail (hotkey and icon; the name, timer and bar open beside it), the Confirm row under the armed Asset, the map
+// Confirm button beside the target ring, and the Asset hotkeys. Rows read ready, cooling, active or armed from the view
+// and targeting.
 import { gridRef } from '../../sim/grid-ref';
 import { GUNSHIP_ICON, MISSILE_ICON } from './icons';
 import type { AssetKind, CommanderView, Vec2 } from '../../sim/types';
