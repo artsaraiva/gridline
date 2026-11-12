@@ -26,7 +26,7 @@ import { launchPoint } from './assets/missile';
 import { hashMissiles, type AirMissile } from './air-missiles';
 import { jetPoint, SORTIE, sortie, takeOff, type Sortie } from './jet';
 import { circle, decideJob, glide, JOBS, repairOnPad, spinFor, type Job } from './heli-jobs';
-import { cellIndex, los, nearestWalkable } from './grid';
+import { cellIndex, los, nearestWalkable, openRun } from './grid';
 import { alongPath, overCrossing, pickRoute, routeFlow } from './drive-route';
 import { see, sideKnown } from './memory';
 import { footLeader, membersOf, ticksOf, vehicleOf, type Mix, type Soldier, type Squad } from './state';
@@ -635,11 +635,14 @@ export function drive(m: Match) {
 }
 
 /**
- * #123: one tick along the drive flow field. The hull turns toward the way ahead (a few cells down the flow field, or the next
- * cell when a step toward that would clip blocked ground) by at most its class's turn rate, and its speed moves toward the
- * speed it wants by at most its acceleration (braking `brakeMul` times that). It wants the road or open speed of the ground
- * under it, less the sharper the turn ahead, and no more than lets it stop at the end of the flow field (`halt`: none at all,
- * for a dismount). A step that would end on blocked ground is not taken: it stops there and keeps turning. Parked once there.
+ * #123: one tick along the drive flow field. The hull steers toward the way ahead by at most its class's turn rate, easing
+ * into a small correction (`STEER_EASE`), and its speed moves toward the speed it wants by at most its acceleration (braking
+ * `brakeMul` times that). The way ahead is the middle of a few cells down the flow field when a straight line to it stays on
+ * open ground no worse than the hull's own (so it neither clips a corner nor cuts a bend off the road), else nearer, else the
+ * next cell. It wants the road or open speed of the ground under it, less the sharper the turn ahead, no more than lets it
+ * stop at the end of the flow field (`halt`: none at all, for a dismount), and no more than stops short of blocked ground
+ * dead ahead. A turn it could not stop out of it does not make yet: it brakes straight on, and turns once slow enough. A step
+ * that would still end on blocked ground is not taken: it stops there and keeps turning. Parked once there.
  */
 function step(m: Match, v: Vehicle, halt: boolean) {
   const t = m.tune;
@@ -653,35 +656,64 @@ function step(m: Match, v: Vehicle, halt: boolean) {
   const tank = v.kind !== 'jeep'; // #110: an AA handles as a tank
   const accel = tank ? t.tankAccel : t.jeepAccel;
   const { roadMps, openMps } = specOf(t, v.kind);
-  /** The tick if the way ahead is `n` flow cells on: where the hull points, how fast it goes, where that lands. */
-  const attempt = (n: number) => {
-    const to = alongPath(m, v, n) ?? flowLook(m, f, v, n, g);
-    const d = to ? Math.sqrt(dist2(v, to)) : 0;
-    let { fx, fy } = v;
-    let want = 0;
-    if (to && d >= 0.01) {
-      const way = { x: (to.x - v.x) / d, y: (to.y - v.y) / d };
-      ({ fx, fy } = turnToward(fx, fy, way.x, way.y, tank ? t.tankTurnDegPerS : t.jeepTurnDegPerS, t.hz));
-      if (!halt && !v.parked) {
-        const align = Math.max(0, fx * way.x + fy * way.y); // 1 straight on, 0 at a right angle or worse
-        const base = cost === 10 ? roadMps : (openMps * 20) / cost;
-        want = Math.min(base * (t.turnSpeedMin + (1 - t.turnSpeedMin) * align), stopSpeed(left, accel, t.brakeMul));
-      }
+  const open = (x: number, y: number) => {
+    const c = cellIndex(m, x, y);
+    return c >= 0 && g.cost[c]! > 0;
+  };
+  const clear = (ux: number, uy: number, most: number, dearest?: number) => openRun(m, g, v, ux, uy, most, dearest);
+  const seen = (p: Vec2, dearest?: number) => {
+    const d = Math.sqrt(dist2(v, p));
+    return d < 0.01 || clear((p.x - v.x) / d, (p.y - v.y) / d, d, dearest) >= d;
+  };
+  /** The way ahead: the middle of the `span` flow cells from `n` on, so it does not hop as the hull crosses a cell. */
+  const aim = (n: number, span: number): Vec2 | null => {
+    let [x, y] = [0, 0];
+    for (let i = 0; i < span; i++) {
+      const p = alongPath(m, v, n + i, (q) => seen(q)) ?? flowLook(m, f, v, n + i, g);
+      if (!p) return null;
+      [x, y] = [x + p.x / span, y + p.y / span];
     }
-    const speed = approach(v.speed, want, accel, t.brakeMul, t.hz);
-    return { speed, fx, fy, x: v.x + (fx * speed) / t.hz, y: v.y + (fy * speed) / t.hz };
+    return { x, y };
   };
-  const blocked = (a: { speed: number; x: number; y: number }) => {
-    const nk = cellIndex(m, a.x, a.y);
-    return a.speed > 0 && (nk < 0 || !g.cost[nk]);
+  /** The tick heading (fx, fy) and wanting speed `want`: no faster than stops short of blocked ground dead ahead. `safe`: it lands on open ground and can still stop before any. */
+  const move = (fx: number, fy: number, want: number) => {
+    const room = clear(fx, fy, (v.speed * v.speed) / (accel * t.brakeMul * BRAKE_RESERVE) + t.cellM);
+    const speed = approach(v.speed, Math.min(want, stopSpeed(Math.max(0, room - t.cellM / 2), accel, t.brakeMul, BRAKE_RESERVE) + accel / t.hz), accel, t.brakeMul, t.hz);
+    const [x, y] = [v.x + (fx * speed) / t.hz, v.y + (fy * speed) / t.hz];
+    const lands = speed === 0 || open(x, y);
+    return { speed, fx, fy, x, y, lands, safe: lands && speed * speed <= 2 * accel * t.brakeMul * room };
   };
-  let a = attempt(3);
-  if (blocked(a)) a = attempt(1);
-  if (blocked(a)) v.path = []; // a detour it can't follow: back to its route
-  v.speed = blocked(a) ? 0 : a.speed;
+  /** The tick if the way ahead is `n` flow cells on (past the next cell, only with a clear straight line to it): where the hull points, how fast it goes, where that lands. */
+  const attempt = (n: number, span = 1) => {
+    const to = aim(n, span);
+    const d = to ? Math.sqrt(dist2(v, to)) : 0;
+    if (!to || d < 0.01) return move(v.fx, v.fy, 0);
+    const way = { x: (to.x - v.x) / d, y: (to.y - v.y) / d };
+    if (n > 1 && !seen(to, cost)) return null; // nor over worse ground than it is on: it keeps to the road round a bend
+    const dot = v.fx * way.x + v.fy * way.y;
+    const soft = dot > 0 && dot < cosDeg(1) ? { x: v.fx + (way.x - v.fx) * STEER_EASE, y: v.fy + (way.y - v.fy) * STEER_EASE } : way; // eased: a correction is steered in over a few ticks, not snapped to (within a degree it is, or it would never quite get there)
+    const n2 = Math.sqrt(soft.x * soft.x + soft.y * soft.y);
+    const { fx, fy } = turnToward(v.fx, v.fy, soft.x / n2, soft.y / n2, tank ? t.tankTurnDegPerS : t.jeepTurnDegPerS, t.hz);
+    if (halt || v.parked) return move(fx, fy, 0);
+    const align = Math.max(0, fx * way.x + fy * way.y); // 1 straight on, 0 at a right angle or worse
+    const base = cost === 10 ? roadMps : (openMps * 20) / cost;
+    return move(fx, fy, Math.min(base * (t.turnSpeedMin + (1 - t.turnSpeedMin) * align), stopSpeed(left, accel, t.brakeMul)));
+  };
+  const far = attempt(3, AIM_SPAN);
+  const mid = far?.safe ? far : attempt(2, 2);
+  const near = mid?.safe ? mid : attempt(1)!;
+  const on = near.safe ? near : move(v.fx, v.fy, 0); // it cannot turn that way yet: straight on, braking
+  const a = near.safe ? near : on.safe && on.speed > 0 ? on : near; // stopped, it turns where it stands
+  if (!a.lands) v.path = []; // a detour it can't follow: back to its route
+  v.speed = a.lands ? a.speed : 0;
   Object.assign(v, { fx: a.fx, fy: a.fy });
   if (v.speed > 0) Object.assign(v, { x: a.x, y: a.y, movedAt: m.tick });
 }
+
+/** How many flow cells the far way ahead is averaged over. */
+const AIM_SPAN = 4;
+/** The share of the turn still to make that a driver steers in each tick (the class's turn rate caps it). ponytail: per tick, so it rides on `hz`; scale it if the tick rate ever changes. */
+const STEER_EASE = 0.15;
 
 /** #109: the passengers' majority goal (the pilot's breaks a tie), -1 = none aboard with a Capture Point: home. */
 function ferryGoal(m: Match, v: Vehicle): number {

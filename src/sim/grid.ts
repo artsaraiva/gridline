@@ -177,6 +177,26 @@ export function los(m: Match, a: Vec2, b: Vec2): boolean {
   return true;
 }
 
+/**
+ * Metres of open ground over `g` from `p` along the unit way (ux, uy), up to `most`: an exact walk of the cells the line
+ * crosses, so a blocked cell's clipped corner counts (a sampled line steps over it). Ground costlier than `dearest` ends it too.
+ */
+export function openRun(m: Match, g: Grid, p: Vec2, ux: number, uy: number, most: number, dearest = Infinity): number {
+  const c = m.tune.cellM;
+  let i = Math.floor((p.x - g.x0) / c);
+  let j = Math.floor((p.y - g.y0) / c);
+  let tx = ux ? (g.x0 + (i + (ux > 0 ? 1 : 0)) * c - p.x) / ux : Infinity; // metres along the way to the next cell line
+  let ty = uy ? (g.y0 + (j + (uy > 0 ? 1 : 0)) * c - p.y) / uy : Infinity;
+  for (;;) {
+    const d = Math.min(tx, ty);
+    if (d >= most) return most;
+    if (tx < ty) (i += ux > 0 ? 1 : -1), (tx += c / Math.abs(ux));
+    else (j += uy > 0 ? 1 : -1), (ty += c / Math.abs(uy));
+    const cost = i < 0 || j < 0 || i >= g.cols || j >= g.rows ? 0 : g.cost[j * g.cols + i]!;
+    if (!cost || cost > dearest) return d;
+  }
+}
+
 /** Walkable all the way along the straight line, sampled every metre. */
 export function lineWalk(m: Match, a: Vec2, b: Vec2): boolean {
   const dx = b.x - a.x;

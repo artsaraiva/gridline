@@ -45,11 +45,14 @@ export function overCrossing(m: Match, v: Vehicle) {
   if (v.route >= VIA && flowDist(m, routeFlow(m, v), v) <= 3 * m.tune.cellM) v.route = ROAD;
 }
 
-/** On a detour, the cell `n` ahead on it (the last, with fewer left), having dropped the ones reached; null with no detour. */
-export function alongPath(m: Match, v: Vehicle, n: number): Vec2 | null {
-  const reach = 2.5 * m.tune.cellM;
+/**
+ * On a detour, the cell `n` ahead on it (the last, with fewer left), having dropped the ones reached: those within a cell of
+ * the hull, and those a few cells on that it has a straight line to (`seen`), so it rounds a corner and does not cut it. Null with no detour.
+ */
+export function alongPath(m: Match, v: Vehicle, n: number, seen: (p: Vec2) => boolean): Vec2 | null {
+  const within = (i: number, r: number) => dist2(v, v.path[i]!) < r * r;
   for (let i = Math.min(5, v.path.length - 1); i >= 0; i--)
-    if (dist2(v, v.path[i]!) < reach * reach) {
+    if (within(i, m.tune.cellM) || (within(i, 2.5 * m.tune.cellM) && seen(v.path[i]!))) {
       v.path.splice(0, i + 1);
       break;
     }
