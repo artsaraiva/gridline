@@ -4,6 +4,7 @@
 import { gridRef } from '../../sim/grid-ref';
 import { GUNSHIP_ICON, MISSILE_ICON } from './icons';
 import type { AssetKind, CommanderView, Vec2 } from '../../sim/types';
+import { FOCUS_MARK_PX } from '../layers/effects';
 import { pxToWorld, toScreen } from '../renderer';
 import { session } from '../session';
 import { clock } from '../summary';
@@ -88,7 +89,7 @@ function placeMapConfirm(view: CommanderView | null) {
   mapConfirm.querySelector('span')!.textContent = `Confirm ${grid(spot)}`;
   const c = toScreen(spot);
   const panels = [...document.querySelectorAll('[data-hit]')].map((e) => e.getBoundingClientRect()).filter((r) => r.width > 0);
-  const at = placeConfirm({ ...c, r: radius / pxToWorld() }, { w: mapConfirm.offsetWidth, h: mapConfirm.offsetHeight }, { w: innerWidth, h: innerHeight }, panels);
+  const at = placeConfirm({ ...c, r: armed === 'gunship' ? FOCUS_MARK_PX : radius / pxToWorld() }, { w: mapConfirm.offsetWidth, h: mapConfirm.offsetHeight }, { w: innerWidth, h: innerHeight }, panels);
   mapConfirm.style.left = `${at.x}px`;
   mapConfirm.style.top = `${at.y}px`;
 }

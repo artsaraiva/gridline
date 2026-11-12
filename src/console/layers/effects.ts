@@ -11,7 +11,10 @@ import { session } from '../session';
 import { lastImpactAt } from './impacts';
 import { clock, eliteSquad } from '../summary';
 import { overlaps, targeting, validSpot } from '../targeting';
-import { css, dashedRing, fading } from './symbols';
+import { css, dashedRing, fading, UNIT_PX } from './symbols';
+
+/** #101: how far the Gunship's focus mark reaches from its spot on screen (the Cruise Missile's target mark: a chevron unit). */
+export const FOCUS_MARK_PX = UNIT_PX;
 
 const NAME = { scan: 'Scan UAV', supply: 'Supply Drop', barrage: 'Barrage', missile: 'Missile', gunship: 'Gunship' };
 const discGeometry = new THREE.CircleGeometry(1, 96);
@@ -71,7 +74,7 @@ export function drawEffects(view: CommanderView, now: number) {
     if (e.asset === 'missile') continue; // #99: layers/missile.ts draws its marker, ring and line
     if (e.asset === 'gunship') {
       // layers/gunship.ts draws its focus mark; here the label beside it, to its own Commander, until it turns for home
-      if (e.left > 0 && e.side === view.side) label(tags++, e, 14, -18, `GUNSHIP ${e.phase === 'inbound' ? 'INBOUND' : clock(Math.ceil(e.left))}`, css(sideColor(e.side)));
+      if (e.left > 0 && e.side === view.side) label(tags++, e, FOCUS_MARK_PX + 4, -18, `GUNSHIP ${e.phase === 'inbound' ? 'INBOUND' : clock(Math.ceil(e.left))}`, css(sideColor(e.side)));
       continue;
     }
     const danger = e.asset === 'barrage';
@@ -91,12 +94,14 @@ export function drawEffects(view: CommanderView, now: number) {
   const radius = targeting.armed && view.assets?.find((a) => a.asset === targeting.armed)?.radius;
   if (at && radius) {
     const color = validSpot(at) ? COLOR.bone : COLOR.hostile;
-    ringAt(at, radius, color, targeting.spot ? 0.12 : 0.06);
-    const edge = { x: at.x + radius * 0.72, y: at.y + radius * 0.72 };
+    const mark = targeting.armed === 'gunship'; // #101: its focus is a spot, not an area: layers/gunship.ts draws the mark
+    if (!mark) ringAt(at, radius, color, targeting.spot ? 0.12 : 0.06);
+    const edge = mark ? at : { x: at.x + radius * 0.72, y: at.y + radius * 0.72 };
+    const dx = mark ? FOCUS_MARK_PX + 4 : 6;
     const g = session.host?.map.grid;
-    label(tags++, edge, 6, -18, `${NAME[targeting.armed!].toUpperCase()} ${g ? gridRef(g, at) : ''}`, css(color));
+    label(tags++, edge, dx, -18, `${NAME[targeting.armed!].toUpperCase()} ${g ? gridRef(g, at) : ''}`, css(color));
     const near = nearestSquad(view, at);
-    if (near) label(tags++, edge, 6, 2, `${near.name.toUpperCase()} ${Math.round(near.d)} M`, css(color));
+    if (near) label(tags++, edge, dx, 2, `${near.name.toUpperCase()} ${Math.round(near.d)} M`, css(color));
   }
   rings.end();
   for (let i = tags; i < labels.length; i++) labels[i]!.hidden = true;
