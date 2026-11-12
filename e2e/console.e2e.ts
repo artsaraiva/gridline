@@ -1,7 +1,7 @@
-// Console smoke test (#44): page loads, map and Rails chrome render, arming an Asset and confirming sends a Command the Sim host receives.
+// Console smoke test (#44): page loads, map and chrome render, arming an Asset and confirming sends a Command the Sim host receives.
 import { expect, test } from '@playwright/test';
 
-test('Console loads, renders the map and Rails chrome, and confirming an armed Asset reaches the Sim host', async ({ page }) => {
+test('Console loads, renders the map and chrome, and confirming an armed Asset reaches the Sim host', async ({ page }) => {
   await page.setViewportSize({ width: 1366, height: 768 });
   await page.goto('/?seed=4&squads=8');
   await page.getByRole('button', { name: 'Start match' }).click();
@@ -10,11 +10,11 @@ test('Console loads, renders the map and Rails chrome, and confirming an armed A
   await expect(page.locator('#score .pts svg')).toHaveCount(5);
   await expect(page.locator('#squads .tile')).toHaveCount(8);
 
-  // Opening a Squad tile in place into the 248 px card
+  // Opening a Squad tile in place into the 264 px card
   await page.locator('#squads .tile').first().click();
   const card = page.locator('#squads .card');
   await expect(card).toBeVisible();
-  expect((await card.boundingBox())?.width).toBe(248);
+  expect((await card.boundingBox())?.width).toBe(264);
 
   // Arm Scan UAV, pin a spot on the map, and confirm: the Sim host receives the Command and starts the active Scan effect
   const scanRow = page.locator('#assets .asset').first();
@@ -30,7 +30,7 @@ test('Console loads, renders the map and Rails chrome, and confirming an armed A
   await expect(scanRow).toHaveClass(/active/);
 });
 
-test('#150: Auental picked on the setup screen offers up to 32 Squads, shows a waiting screen, then its 12 points and 8 Elite Squads on the Rails', async ({ page }) => {
+test('#150: Auental picked on the setup screen offers up to 32 Squads, shows a waiting screen, then its 12 points and 8 Elite Squads on the Squad tiles', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.setViewportSize({ width: 1366, height: 768 });
@@ -47,7 +47,6 @@ test('#150: Auental picked on the setup screen offers up to 32 Squads, shows a w
   await expect(page.locator('#rail')).toBeVisible({ timeout: 30000 });
   await expect(page.locator('#loading')).toBeHidden();
   await expect(page.locator('#score .pts svg')).toHaveCount(12);
-  await expect(page.locator('#faction-sub')).toContainText('Auental');
   await expect(page.locator('#squads .tile')).toHaveCount(8); // #153: only the first 8 of 32 are on the Commander's net
   expect(errors).toEqual([]);
 });

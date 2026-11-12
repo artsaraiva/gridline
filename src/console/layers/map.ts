@@ -7,7 +7,7 @@ import type { BakedMap } from '../../maps/baked';
 import { atFallback, frameBudget, playStart } from '../../maps/quality';
 import type { MapData, SideId } from '../../sim/types';
 import { SIDES } from '../../sim/types';
-import { RAILS } from '../chrome/rail';
+import { LAYOUT } from '../chrome/rail';
 import { camera, COLOR, grade, layer, renderer } from '../renderer';
 import { session } from '../session';
 import { boundarySdf, SDF_PER_M } from './boundary';
@@ -111,22 +111,23 @@ function setZoomRange(map: BakedMap) {
   zoomRange.max = zoomFor(map.sizeM / 2 ** (map.images.play.length - 1 - start)); // the top level is a power of two px wide
 }
 
-/** Fits the Play Area between the rails and sets the zoom range. */
+/** Fits the Play Area between the Asset rail and the Squad tiles, under the score strip, and sets the zoom range. */
 export function fitView(map: MapData | BakedMap) {
   const xs = map.playArea.map((p) => p.x);
   const ys = map.playArea.map((p) => p.y);
   const w = Math.max(...xs) - Math.min(...xs);
   const h = Math.max(...ys) - Math.min(...ys);
   if ('images' in map) setZoomRange(map);
-  const leftPx = RAILS.margin + RAILS.left + RAILS.gap;
-  const rightPx = RAILS.margin + RAILS.right + RAILS.gap;
+  const leftPx = LAYOUT.margin + LAYOUT.assetRail + LAYOUT.gap + LAYOUT.gridLabels;
+  const rightPx = LAYOUT.margin + LAYOUT.squadRail + LAYOUT.gap;
   const freeW = Math.max(1, innerWidth - leftPx - rightPx);
-  const freeH = Math.max(1, innerHeight - 2 * RAILS.vMargin);
+  const freeH = Math.max(1, innerHeight - LAYOUT.top - LAYOUT.bottom);
   const mpp = Math.max(w / freeW, h / freeH);
   camera.zoom = zoomFor(mpp);
   const fx = leftPx + freeW / 2;
+  const fy = LAYOUT.top + freeH / 2;
   camera.position.x = (Math.min(...xs) + Math.max(...xs)) / 2 - (fx - innerWidth / 2) * mpp;
-  camera.position.y = (Math.min(...ys) + Math.max(...ys)) / 2;
+  camera.position.y = (Math.min(...ys) + Math.max(...ys)) / 2 + (fy - innerHeight / 2) * mpp; // screen y runs down, world y up
   camera.updateProjectionMatrix();
 }
 

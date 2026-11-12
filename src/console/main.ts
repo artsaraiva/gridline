@@ -45,7 +45,7 @@ renderer.setAnimationLoop(() => {
     drawAssetRail(null);
     drawSquads(null);
     showRadioLog(false);
-    drawGrid(null, 0);
+    drawGrid(null);
     hideEffectLabels();
     hideOrderTags();
     lastFrame = now;
@@ -75,7 +75,7 @@ renderer.setAnimationLoop(() => {
   drawSquads(view);
   showRadioLog(true);
   drawRadioLog(now);
-  drawGrid(view, now);
+  drawGrid(view);
   drawImpacts(now);
   drawEffects(view, now);
   drawScanUavs(view, scale, now);

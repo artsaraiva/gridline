@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { awardLine, cursorReadout, drainLine, dtg, edgeLine, endSummary, latlon, leaderOf, mgrs, orderLine, radioLine, requestLine } from './summary';
+import { awardLine, cursorReadout, drainingSide, endSummary, leaderOf, orderLine, orderState, radioLine, requestLine } from './summary';
 import type { CommanderView, MapGrid, MatchResult, SideId, SimEvent, SquadView } from '../sim/types';
 
 function ended(side: SideId, result: MatchResult, tickets: Record<SideId, number>, seconds: number): CommanderView {
@@ -64,13 +64,16 @@ describe('Order line and Squad tag', () => {
   const view = { points: [{ id: 'C', name: 'C' }] } as CommanderView;
   const squad = (extra: Partial<SquadView> = {}): SquadView => ({ id: 0, name: 'Bravo', size: 4, strength: 3, respawnIn: [7.2], redeployIn: null, ...extra });
 
-  it('the Order line names the verb, the point and what delays it', () => {
-    expect(orderLine(squad(), view)).toBe('NO ORDER');
-    expect(orderLine(squad({ order: { point: 'C', state: 'pending' } }), view)).toBe('ORDER SENT · C');
+  it('the Order line names the verb and the point; the Order state names what delays it', () => {
+    expect(orderLine(squad(), view)).toBeNull();
+    expect(orderLine(squad({ order: { point: 'C', state: 'pending' } }), view)).toBe('ORDER C');
     expect(orderLine(squad({ order: { point: null, state: 'pending' } }), view)).toBe('CLEAR SENT');
     expect(orderLine(squad({ order: { point: 'C', state: 'following' } }), view)).toBe('TAKE C');
     expect(orderLine(squad({ order: { point: 'C', state: 'holding' } }), view)).toBe('HOLD C');
-    expect(orderLine(squad({ order: { point: 'C', state: 'delayed', reason: 'resupply' } }), view)).toBe('RESUPPLYING · ORDER C');
+    expect(orderLine(squad({ order: { point: 'C', state: 'delayed', reason: 'resupply' } }), view)).toBe('ORDER C');
+    expect(orderState({ point: 'C', state: 'following' })).toBe('FOLLOWING');
+    expect(orderState({ point: 'C', state: 'delayed', reason: 'resupply' })).toBe('RESUPPLYING');
+    expect(orderState({ point: 'C', state: 'delayed', reason: 'retreat' })).toBe('RETREATING');
   });
 });
 
@@ -104,23 +107,20 @@ describe('Request line', () => {
   });
 });
 
-describe('Rails score drain, HUD readouts and edge hugging', () => {
-  const grid: MapGrid = { cols: 13, rows: 13, squareM: 960 / 13, letters: 'ABCDEFGHIJKLM' };
-
-  it('the drain line shows point counts and even drain or the losing Side interval', () => {
+describe('Draining Side', () => {
+  it('is the Side holding fewer Capture Points, or null when they hold the same', () => {
     const base = ended('nato', null as never, { nato: 150, pact: 150 }, 0);
     const pt = (id: string, owner: SideId | null) => ({ id, name: id, x: 0, y: 0, radius: 25, owner, progress: 0 });
-    expect(drainLine({ ...base, points: [pt('A', 'nato'), pt('B', null), pt('E', 'pact')] })).toBe('Points 1–1 · even drain');
-    expect(drainLine({ ...base, drainEvery: 6, points: [pt('A', 'nato'), pt('B', 'nato'), pt('E', 'pact')] })).toBe('Points 2–1 · Warsaw Pact −1 / 6 s');
-    expect(drainLine({ ...base, drainEvery: 2.5, points: [pt('A', 'pact'), pt('B', 'pact'), pt('E', 'pact')] })).toBe('Points 0–3 · NATO −1 / 2.5 s');
-    expect(drainLine({ ...base, drainEvery: 2.5 / 0.75, points: [pt('A', 'pact'), pt('B', 'pact'), pt('E', 'pact')] })).toBe('Points 0–3 · NATO −1 / 3.33 s'); // #152: 3 Squads a Side
+    expect(drainingSide({ ...base, points: [pt('A', 'nato'), pt('B', null), pt('E', 'pact')] })).toBeNull();
+    expect(drainingSide({ ...base, points: [pt('A', 'nato'), pt('B', 'nato'), pt('E', 'pact')] })).toBe('pact');
+    expect(drainingSide({ ...base, points: [pt('A', 'pact'), pt('B', null), pt('E', 'pact')] })).toBe('nato');
   });
+});
 
-  it('formats MGRS, corner lat/long, date-time group and cursor readout from the selected Squad', () => {
-    expect(mgrs({ x: 0, y: 0 })).toBe('32U NB 6720 1895');
-    expect(latlon({ x: 0, y: 0 })).toBe('50°43\'07"N 009°57\'07"E');
-    expect(dtg(0)).toBe('UAV-2 // FEED 04 · NORTH-UP · 04103200Z NOV 34');
+describe('Cursor readout', () => {
+  const grid: MapGrid = { cols: 13, rows: 13, squareM: 960 / 13, letters: 'ABCDEFGHIJKLM' };
 
+  it('gives the grid, with bearing and range from the selected Squad if there is one, and nothing off the map', () => {
     const view: CommanderView = {
       ...ended('nato', null as never, { nato: 150, pact: 150 }, 0),
       squads: [
@@ -132,30 +132,9 @@ describe('Rails score drain, HUD readouts and edge hugging', () => {
         { id: 1, squad: 1, x: 0, y: -100, fx: 0, fy: 1, state: 'alive', suppressed: false },
       ],
     };
-    expect(cursorReadout(null, view, grid, 1)).toBe('Cursor off map');
-    expect(cursorReadout({ x: 0, y: 0 }, view, grid, 1)).toBe('G7 · 32U NB 6720 1895 · 000° 100 m from Bravo');
-    expect(cursorReadout({ x: 0, y: 0 }, view, grid, null)).toBe('G7 · 32U NB 6720 1895 · 090° 100 m from Alpha');
-  });
-
-  it('places edge labels on one straight line along the first clear edge and drops labels behind deep panels', () => {
-    const screen = { w: 1366, h: 768 };
-    const rail = { left: 16, top: 16, right: 264, bottom: 320 };
-    const radio = { left: 16, top: 610, right: 486, bottom: 752 };
-    const leftAt = edgeLine([rail, radio], 'left', 300, [100, 450, 680], screen);
-    expect(leftAt(100)).toBe(264);
-    expect(leftAt(450)).toBe(264);
-    expect(leftAt(680)).toBeNull();
-
-    const topAt = edgeLine([rail, radio], 'top', 140, [100, 400, 800], screen);
-    expect(topAt(100)).toBeNull();
-    expect(topAt(400)).toBe(0);
-    expect(topAt(800)).toBe(0);
-
-    // #54: with no depth allowed the line is pinned to the edge and only the covered positions drop out
-    const pinned = edgeLine([rail, { left: 1100, top: 16, right: 1350, bottom: 140 }], 'top', 0, [100, 400, 1200], screen);
-    expect(pinned(100)).toBeNull();
-    expect(pinned(400)).toBe(0);
-    expect(pinned(1200)).toBeNull();
+    expect(cursorReadout(null, view, grid, 1)).toBe('');
+    expect(cursorReadout({ x: 0, y: 0 }, view, grid, 1)).toBe('G7 · 000° 100 m from Bravo');
+    expect(cursorReadout({ x: 0, y: 0 }, view, grid, null)).toBe('G7');
   });
 });
 

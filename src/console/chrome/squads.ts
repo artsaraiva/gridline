@@ -1,10 +1,11 @@
 // Right rail (#36, #41, #44): one 56 × 48 tile per Squad (letter, 4 health pips, amber border when Delayed, blinking
-// amber corner when a Request is open, dimmed when wiped); the selected Squad opens in place into a 248 px card (letter,
-// name, pips, Order and state, grid, open Request with timer, Clear order).
+// amber corner when a Request is open, dimmed when wiped); the selected Squad opens in place into a 264 × 90 px card whose
+// height never changes: name and pips, then alert, state and grid, then the Request and the Order as two buttons side by
+// side, each disabled while there is nothing to answer or clear.
 import { gridRef } from '../../sim/grid-ref';
 import type { CommanderView, SquadView } from '../../sim/types';
 import { session } from '../session';
-import { clock, orderLine, requestLine, squadAlert, squadCentroid } from '../summary';
+import { clock, orderLine, orderState, requestLine, squadAlert, squadCentroid } from '../summary';
 import { answer, clearOrder, select, targeting } from '../targeting';
 import { assetIcon, VEHICLE_BADGE } from './icons';
 
@@ -48,7 +49,7 @@ function whereOf(q: SquadView, view: CommanderView): string {
 
 function stateOf(q: SquadView): string {
   if (wiped(q)) return `REDEPLOY ${clock(Math.ceil(q.redeployIn!))}`;
-  if (q.order) return q.order.state.toUpperCase();
+  if (q.order) return orderState(q.order);
   return (q.task ?? 'Free to engage').toUpperCase();
 }
 
@@ -86,26 +87,27 @@ export function drawSquads(view: CommanderView | null) {
   const cardCls = `squad card sel${wiped(q) ? ' wiped' : ''}`;
   if (card.className !== cardCls) card.className = cardCls;
   const delayed = q.order?.state === 'delayed';
+  const alert = alertOf(q, view);
+  const order = orderLine(q, view);
   const html =
     `<div class="letter">${q.name[0]}</div>` +
     `<div class="body">` +
-    `<div class="top"><b>${q.name}</b>${alertOf(q, view) ? `<span class="alert">${alertOf(q, view)}</span>` : ''}<span class="pips">${pips(q, view)}${badges(q, view)}</span></div>` +
-    `<div class="ord${delayed ? ' delayed' : ''}"><span>${orderLine(q, view)}</span><span class="st${delayed ? ' delayed' : ''}">${stateOf(q)}</span><span class="where">${whereOf(q, view)}</span></div>` +
-    (q.request ? `<button type="button" class="ask">${assetIcon(q.request.asset, 2)}<span>${requestLine(q.request)}</span></button>` : '') +
-    (q.order ? '<button type="button" class="clr">Clear order</button>' : '') +
-    `</div>`;
+    `<div class="top"><b>${q.name}</b><span class="pips">${pips(q, view)}${badges(q, view)}</span></div>` +
+    `<div class="st">${alert ? `<span class="alert">${alert}</span>` : ''}<span${delayed ? ' class="delayed"' : ''}>${stateOf(q)}</span><span class="where">${whereOf(q, view)}</span></div>` +
+    `<div class="acts">` +
+    (q.request
+      ? `<button type="button" class="ask" title="${requestLine(q.request)}">${assetIcon(q.request.asset, 2)}<span>${q.request.grid ?? ''} ${clock(Math.ceil(q.request.left))}</span></button>`
+      : '<button type="button" class="ask" disabled>No request</button>') +
+    (order ? `<button type="button" class="clr" title="Clear order ${order}"><span>${order}</span><i>✕</i></button>` : '<button type="button" class="clr" disabled>No order</button>') +
+    `</div></div>`;
   if (card.dataset.h === html) return;
   card.innerHTML = card.dataset.h = html;
-  const clr = card.querySelector<HTMLButtonElement>('.clr');
-  if (clr)
-    clr.onclick = (e) => {
-      e.stopPropagation();
-      clearOrder();
-    };
-  const ask = card.querySelector<HTMLButtonElement>('.ask');
-  if (ask)
-    ask.onclick = (e) => {
-      e.stopPropagation();
-      answer(q.id);
-    };
+  card.querySelector<HTMLButtonElement>('.clr')!.onclick = (e) => {
+    e.stopPropagation();
+    clearOrder();
+  };
+  card.querySelector<HTMLButtonElement>('.ask')!.onclick = (e) => {
+    e.stopPropagation();
+    answer(q.id);
+  };
 }
