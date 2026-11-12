@@ -81,6 +81,18 @@ describe('Cruise Missile: the call', () => {
     expect(rejections(step(m, [missile(m, { x: 100, y: 0 })]))).toEqual([]);
   });
 
+  it('#150: on a map that names its keystone, needs every keystone point, and the row names the ones still missing', () => {
+    const m = scene({}, {}, 1, { ...field, keystone: ['B', 'D'] }); // C, nearest the centre and held, is no longer the keystone
+    const [b, d] = ['B', 'D'].map((id) => m.points.find((p) => p.id === id)!);
+    expect(row(commanderView(m, 'nato'))).toMatchObject({ off: 'needs B, D' });
+    b!.owner = 'nato';
+    expect(row(commanderView(m, 'nato'))).toMatchObject({ off: 'needs D' });
+    expect(rejections(step(m, [missile(m, { x: 100, y: 0 })]))).toEqual(['needs D']);
+    d!.owner = 'nato';
+    expect(row(commanderView(m, 'nato')).off).toBeUndefined();
+    expect(rejections(step(m, [missile(m, { x: 100, y: 0 })]))).toEqual([]);
+  });
+
   it('with the gate tuned off (review scenes), it needs no point at all', () => {
     const m = scene({}, { missileGated: false });
     m.points.find((p) => p.id === 'C')!.owner = 'pact';

@@ -34,6 +34,8 @@ export interface MapData {
    * point for whoever owns it (#108), each at its own spot; unset = none.
    */
   points: { id: string; name: string; x: number; y: number; radius?: number; owner?: SideId | null; vehicles?: (Vec2 & { kind: 'tank' | 'jeep' })[] }[];
+  /** #150: the ids of the points that make the keystone (both halves of Auental's twin town); unset = the point nearest the centre. */
+  keystone?: string[];
   /** Cells that block line of sight. */
   walls?: Rect[];
   /** Cells that make a Soldier standing in them harder to hit. */
@@ -251,7 +253,7 @@ export interface Tune {
   missileWoundM: number; // ... Wounds within this ...
   missileSuppressM: number; // ... and suppresses within this (the zone ring)
   missileSuppression: number; // suppression (0..1) the blast leaves
-  missileGated: boolean; // the call needs the middle Capture Point; off for review scenes (`?free=1`)
+  missileGated: boolean; // the call needs every keystone Capture Point (#150); off for review scenes (`?free=1`)
 
   // #106 Detached Soldiers
   detachM: number; // a stray that ends farther than this from the foot leader goes Detached instead of regrouping

@@ -17,7 +17,7 @@ import { between, rnd } from './rng';
 import { blast } from './assets/strike';
 import { die } from './combat';
 import { approach, BRAKE_RESERVE, cosDeg, stopSpeed, turnToward } from './momentum';
-import { canStand, dist2, inHq, insidePolygon, middlePoint } from './geometry';
+import { canStand, dist2, inHq, insidePolygon, keystone } from './geometry';
 import { dogleg, landingZone } from './flight';
 import { launchPoint } from './assets/missile';
 import { hashMissiles, type AirMissile } from './air-missiles';
@@ -403,7 +403,7 @@ function drivePoint(m: Match, sq: Squad, s: Soldier, v: Vehicle): number {
 const AA_SPREAD_M = 300;
 
 /**
- * #110: the Capture Point an AA's driver lays back on: its Side's own, never the middle one, the nearer its HQ and the farther out
+ * #110: the Capture Point an AA's driver lays back on: its Side's own, never a keystone one (#150), the nearer its HQ and the farther out
  * on a flank (off the line between the HQs) the better, with the driver's seeded preference; #154 less on a flank another
  * friendly AA is heading for, so two spread over both. -1 with none (it holds where it is, at first in the HQ park).
  */
@@ -413,14 +413,14 @@ function aaPoint(m: Match, v: Vehicle): number {
   const [ax, ay] = [foe.x - own.x, foe.y - own.y];
   const len = Math.sqrt(ax * ax + ay * ay) || 1;
   const off = (p: Vec2) => ((p.x - own.x) * ay - (p.y - own.y) * ax) / len; // out on a flank, signed by which one
-  const middle = middlePoint(m);
+  const keys = keystone(m);
   // #154 counts another AA against its flag; it counts here against the flag's whole flank, since on Auental F scores as well as
   // B and a count per flag would send both AAs south
   const flanksTaken = m.vehicles.filter((o) => o !== v && o.kind === 'aa' && o.side === v.side && live(o) && o.seats[0]! >= 0 && o.goal >= 0).map((o) => off(m.points[o.goal]!));
   let best = -1;
   let top = -Infinity;
   m.points.forEach((p, i) => {
-    if (p.owner !== v.side || p === middle) return;
+    if (p.owner !== v.side || keys.includes(p)) return;
     const flank = off(p);
     const penalty = AA_SPREAD_M * flanksTaken.filter((f) => f * flank > 0).length;
     const score = Math.abs(flank) - Math.sqrt(dist2(p, own)) / 2 + (v.bias[i] ?? 0) * 100 - penalty; // ponytail: a metre out on a flank counts as two back toward the HQ, the preference in hundreds of metres; tune keys if the AA needs placing finer

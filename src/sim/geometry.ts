@@ -17,8 +17,13 @@ export function insidePolygon(poly: Vec2[], x: number, y: number): boolean {
 }
 
 const CENTRE = { x: 0, y: 0 };
-/** The middle Capture Point: the one nearest the map centre (Lane 2 on Kaltenbach); undefined on a map with none. */
-export const middlePoint = (m: Match) => m.points.reduce<Match['points'][number] | undefined>((a, p) => (!a || dist2(p, CENTRE) < dist2(a, CENTRE) ? p : a), undefined);
+/** #150: the keystone Capture Points: those the map names, else the one nearest the map centre (Lane 2 on Kaltenbach); none on a map with no points. */
+export function keystone(m: Match) {
+  const named = m.map.keystone;
+  if (named) return m.points.filter((p) => named.includes(p.id));
+  const middle = m.points.reduce<Match['points'][number] | undefined>((a, p) => (!a || dist2(p, CENTRE) < dist2(a, CENTRE) ? p : a), undefined);
+  return middle ? [middle] : [];
+}
 
 export const inHq = (m: Match, side: SideId, p: Vec2) => {
   const hq = m.map.hqs[side];

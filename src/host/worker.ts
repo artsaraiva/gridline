@@ -36,7 +36,7 @@ onmessage = async (e: MessageEvent<ToHost>) => {
   if (msg.kind === 'start') {
     const { kind: _, map: id, dev, ...setup } = msg;
     const tune = devTune(import.meta.env.DEV && (dev?.freeAssets ?? false), import.meta.env.DEV ? dev?.tanks : undefined);
-    const map = id === 'test' ? TEST_FIELD : await loadBakedMap(`${import.meta.env.BASE_URL}maps/kaltenbach`, tune.cellM);
+    const map = id === 'test' ? TEST_FIELD : await loadBakedMap(`${import.meta.env.BASE_URL}maps/${id ?? 'kaltenbach'}`, tune.cellM);
     record = { ...setup, map: map.name, log: [] };
     match = createMatch({ ...setup, map, tune });
     warmFlows(match); // once (#151: ~0.15 s on Kaltenbach, ~3 s on a 2.5 km map), so no tick of the match pays ~50 ms for a flow field

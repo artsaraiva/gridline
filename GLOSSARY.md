@@ -59,8 +59,12 @@ The part of the map inside its boundary where the battle happens; the land beyon
 _Avoid_: Map (for the bounded part), arena, battlefield
 
 **Lane**:
-One of the three corridors running from HQ to HQ across the front, each passing through one of the three Capture Points on the border spine.
+One of the three corridors running from HQ to HQ across the front, each passing through one part of the spine where the front meets: on Kaltenbach one of its three spine Capture Points, on Auental the north river flags, the twin town or the south river flags.
 _Avoid_: Flank, sector, route
+
+**Keystone**:
+The Capture Points at the heart of the spine: those the map names (both halves of Auental's twin town), else the one nearest the map centre. The Cruise Missile needs every one of them held.
+_Avoid_: Middle point, centre flag
 
 **Ticket**:
 One unit of a side's remaining strength; a side loses tickets when its soldiers die and when the enemy holds more capture points.
