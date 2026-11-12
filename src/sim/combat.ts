@@ -5,7 +5,7 @@
 // #101: the Gunship's gunner fires its left side gun as a helicopter's.
 import type { Match } from './index';
 import { logDeath, resetSoldierAi } from './ai';
-import { dist2 } from './geometry';
+import { dist2, inHq } from './geometry';
 import { cellAt, COVER, los } from './grid';
 import { flyMissiles, launchMissiles } from './air-missiles';
 import { between, rnd } from './rng';
@@ -160,6 +160,7 @@ export function fire(m: Match, events: SimEvent[]) {
   for (const s of m.soldiers) {
     if (s.state !== 'alive' || s.chute) continue; // #130: never fires on a parachute
     const v = vehicleOf(m, s.vehicle);
+    if (inHq(m, s.side, v ?? s)) continue; // nobody fires out of its own HQ: the enemy can't fire back into it
     const shot = v ? coax(m, s, v) : (rocket(m, s) ?? aim(m, s) ?? suppressive(m, s));
     if (shot) shots.push(shot);
   }

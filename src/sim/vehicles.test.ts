@@ -10,6 +10,9 @@ import type { Command, CommanderView, MapData, SideId, SimEvent, Tune } from './
 const HZ = DEFAULT_TUNE.hz;
 
 /** Open ground 1200 m across, HQs far out on the flanks; each tank waits on its HQ (no slot given, the ground is open). */
+/** An HQ of no size: these vehicles fight from the slot they wait in, and nobody fires out of its own HQ. */
+const NO_HQ: Partial<Tune> = { hqRadius: 0 };
+
 function field(extra: Partial<MapData> = {}): MapData {
   return {
     name: 'field',
@@ -168,7 +171,7 @@ describe('#107 the kill table', () => {
 describe('#107 the tank fights', () => {
   it('its main gun fires every tankFireSeconds, a round flying at tankShellMps to a Strike-shaped impact; the coax fires at infantry; nobody aboard is shot', () => {
     // the crewed nato tank on its HQ facing east, pact Soldiers 120 m and 156 m off in the open
-    const m = scene({ tune: { hp: 1e9, tankAimSeconds: [0, 0] }, place: { 2: { x: -440, y: 0, fx: -1 }, 3: { x: -440, y: 100, fx: -1 } } });
+    const m = scene({ tune: { hp: 1e9, tankAimSeconds: [0, 0], ...NO_HQ }, place: { 2: { x: -440, y: 0, fx: -1 }, 3: { x: -440, y: 100, fx: -1 } } });
     crewed(m, [0, 1]);
     const { events } = play(m, 13 * HZ);
     const impacts = events.filter((e) => e.kind === 'impact');
@@ -184,7 +187,7 @@ describe('#107 the tank fights', () => {
 
   it('the main gun fires on a new target only after a seeded aim time of tankAimSeconds', () => {
     const firsts = [1, 2, 3, 4].map((seed) => {
-      const m = createMatch({ seed, map: field(), tune: { ...DEFAULT_TUNE, ...NO_TRAITS, ...NO_TEMPO, squadSize: 2, spread: 0, speedJitter: 0, tanksPerSide: 1 }, squadsPerSide: 1, commanderSide: 'nato' });
+      const m = createMatch({ seed, map: field(), tune: { ...DEFAULT_TUNE, ...NO_TRAITS, ...NO_TEMPO, squadSize: 2, spread: 0, speedJitter: 0, tanksPerSide: 1, ...NO_HQ }, squadsPerSide: 1, commanderSide: 'nato' });
       Object.assign(m.soldiers[2]!, { x: -500, y: 0 });
       Object.assign(m.soldiers[3]!, { x: -500, y: 0 });
       crewed(m, [0, 1]);
@@ -197,7 +200,7 @@ describe('#107 the tank fights', () => {
   });
 
   it('the main gun takes an enemy tank before infantry, for tankVsVehicleDamage', () => {
-    const m = scene({ tune: { visionM: 0, tankAimSeconds: [0, 0] }, place: { 2: { x: -440, y: 0 }, 3: { x: -440, y: 0 } } });
+    const m = scene({ tune: { visionM: 0, tankAimSeconds: [0, 0], ...NO_HQ }, place: { 2: { x: -440, y: 0 }, 3: { x: -440, y: 0 } } });
     crewed(m, [0, 1]);
     Object.assign(m.vehicles[1]!, { x: -400, y: 0 });
     m.tune.visionM = DEFAULT_TUNE.visionM;
@@ -370,7 +373,7 @@ describe('#108 the jeep fights and dies', () => {
   it('the MG fires only with a gunner aboard, every mgFireSeconds, at infantry within mgRangeM', () => {
     // nato's jeep (4) on its HQ facing east; pact Soldier 2 150 m off, Soldier 3 at 170 m
     const crew = (ids: number[]) => {
-      const m = scene({ tune: { tanksPerSide: 0, jeepsPerSide: 1, hp: 1e9, fireJitterSeconds: 0, walkSpeed: 0 }, place: { 2: { x: -410, y: 0, fx: 1 }, 3: { x: -390, y: 0, fx: 1 } } });
+      const m = scene({ tune: { tanksPerSide: 0, jeepsPerSide: 1, hp: 1e9, fireJitterSeconds: 0, walkSpeed: 0, ...NO_HQ }, place: { 2: { x: -410, y: 0, fx: 1 }, 3: { x: -390, y: 0, fx: 1 } } });
       seat(m, 4, ids, { x: -560, y: 0 });
       return play(m, 4 * HZ).events;
     };

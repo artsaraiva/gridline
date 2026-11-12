@@ -1,7 +1,7 @@
 import type { Match } from './index';
 import { walkCost } from './grid';
 import type { Soldier } from './state';
-import { enemyOf, type SideId, type Vec2 } from './types';
+import { enemyOf, type Hq, type SideId, type Vec2 } from './types';
 
 export const dist2 = (a: Vec2, b: Vec2) => (a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y);
 
@@ -25,11 +25,10 @@ export function keystone(m: Match) {
   return middle ? [middle] : [];
 }
 
-export const inHq = (m: Match, side: SideId, p: Vec2) => {
-  const hq = m.map.hqs[side];
-  const r = hq.radius ?? m.tune.hqRadius;
-  return dist2(p, hq) < r * r;
-};
+/** Whether the HQ holds the spot: inside its `area`, or without one inside the circle of radius `r`. */
+export const hqHolds = (hq: Hq, r: number, p: Vec2) => (hq.area ? insidePolygon(hq.area, p.x, p.y) : dist2(p, hq) < r * r);
+
+export const inHq = (m: Match, side: SideId, p: Vec2) => hqHolds(m.map.hqs[side], m.map.hqs[side].radius ?? m.tune.hqRadius, p);
 
 /** The Play Area boundary, walls, water and the enemy HQ are walls to a Soldier. */
 export const canStand = (m: Match, s: Soldier, p: Vec2) =>

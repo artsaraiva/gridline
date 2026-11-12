@@ -23,12 +23,18 @@ export interface MapGrid {
   letters: string;
 }
 
+/**
+ * A Side's HQ, at its centre. `radius` defaults to `tune.hqRadius`. With an `area` the HQ is that polygon (the centre lies in
+ * it) and `radius` only sizes the margins kept round it (jets, vehicles, where a Squad counts as home); without, it is the circle.
+ * `spawns` are the spots its Squads start the Match and Redeploy on, each on one no friendly Soldier stands by; unset = the centre.
+ */
+export type Hq = Vec2 & { radius?: number; area?: Vec2[]; spawns?: Vec2[] };
+
 /** Metres, origin at map centre, x east, y north. */
 export interface MapData {
   name: string;
   playArea: Vec2[];
-  /** `radius` defaults to `tune.hqRadius`. */
-  hqs: Record<SideId, Vec2 & { radius?: number }>;
+  hqs: Record<SideId, Hq>;
   /**
    * `radius` defaults to `tune.captureRadius`; `owner` is the Side holding the point at the start. #154: `vehicles` wait at the
    * point for whoever owns it (#108), each at its own spot; unset = none.
