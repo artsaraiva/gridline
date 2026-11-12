@@ -1,5 +1,5 @@
-// #110: the jet. One per Side, living at the off-map base (the Cruise Missile's launch point) and taking off with its pilot
-// already aboard (vehicles.ts: one at match start, then a Soldier coming back). Its pilot scores Capture Points as any
+// #110: the jet. A Side's jets (#154: as many as its map lists) live at the off-map base (the Cruise Missile's launch point), each
+// taking off with its pilot already aboard (vehicles.ts: at match start, #154 a seeded gap apart, then a Soldier coming back). Its pilot scores Capture Points as any
 // Soldier, from the base; a sortie is `jetPasses`
 // passes, each an attack run on a mark the Side knows by its pilot's point: inbound straight at it, the cannon along the
 // last `jetFireM` at what the Side knows there (and a bomb on a vehicle or a group), overfly, outbound past the Play Area, a
@@ -74,10 +74,15 @@ function aim(m: Match, v: Vehicle) {
 /** A jet over its own HQ, within this past the circle, is left alone: a chase there would only circle the rim it may not cross. */
 const HOME_SAFE_M = 150;
 
-/** The enemy jet worth fighting: in the air within `jetDogfightM` (x `reach`), not a third down and not over its own HQ; if any. */
+/**
+ * The enemy jet worth fighting: in the air within `jetDogfightM` (x `reach`), not a third down and not over its own HQ; #154 one
+ * no other friendly jet is fighting first; if any.
+ */
 function foeJet(m: Match, v: Vehicle, reach = 1): Vehicle | undefined {
   const safe = (u: Vehicle) => (m.map.hqs[u.side].radius ?? m.tune.hqRadius) + HOME_SAFE_M;
-  return m.vehicles.find((u) => u.kind === 'jet' && u.side !== v.side && live(u) && u.airborne && !crippled(m, u) && dist2(u, v) <= (m.tune.jetDogfightM * reach) ** 2 && dist2(u, m.map.hqs[u.side]) > safe(u) ** 2);
+  const foes = m.vehicles.filter((u) => u.kind === 'jet' && u.side !== v.side && live(u) && u.airborne && !crippled(m, u) && dist2(u, v) <= (m.tune.jetDogfightM * reach) ** 2 && dist2(u, m.map.hqs[u.side]) > safe(u) ** 2);
+  const fought = (u: Vehicle) => m.vehicles.some((o) => o !== v && o.kind === 'jet' && o.side === v.side && live(o) && o.sortie === 'dogfight' && o.prey === u.id);
+  return foes.find((u) => !fought(u)) ?? foes[0];
 }
 
 /** `e` lies within a `deg` cone ahead of `v`'s nose and `r` metres. */

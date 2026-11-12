@@ -3,7 +3,10 @@ import { COVER, WALL, WATER } from '../sim/grid';
 import type { Terrain } from '../sim/types';
 import type { BakedMap } from './baked';
 
-/** A crossing owns the deck and ford cells within this of its centre (a footbridge runs diagonally over a ~14 m river). */
+/**
+ * A crossing owns the deck and ford cells within this of its centre (a footbridge runs diagonally over Kaltenbach's 12 m river).
+ * #150: on Auental's 20 m Auer every deck and ford cell over the water lies within 12 m of its crossing, so one reach fits both.
+ */
 const CROSSING_R = 16;
 
 /**

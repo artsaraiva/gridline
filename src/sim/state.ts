@@ -88,6 +88,7 @@ export interface Squad {
   task: 'none' | 'point' | 'retreat' | 'resupply'; // `goal` is its Capture Point (-1 = the HQ)
   mode: 'travel' | 'bound' | 'hold' | 'fallback';
   route: number; // index into map.crossings of the crossing it takes to its goal, -1 = none
+  crossed: boolean; // #151: its leader has reached the middle of the route's crossing (or is otherwise over); it walks the point's field
   slow: boolean; // the leader waits for stragglers
   phase: number; // which bounding pair moves
   phaseUntil: number; // tick
@@ -152,6 +153,12 @@ export const squadName = (m: Match, sq: Squad) => {
   const i = m.squads.filter((o) => o.side === sq.side).indexOf(sq);
   return SQUAD_NAMES[i] ?? `Squad ${i + 1}`;
 };
+
+/** #153: per Squad id, whether it is an Elite Squad, one of its Side's first `eliteSquads`: the only Squads on the Commander's net. */
+export function elite(m: Match): boolean[] {
+  const before: Record<SideId, number> = { nato: 0, pact: 0 };
+  return m.squads.map((sq) => before[sq.side]++ < m.tune.eliteSquads);
+}
 
 /** A Capture Point's letter spoken as its call sign (A = Alpha); any other name as written. */
 export const callName = (name: string) => (name.length === 1 && SQUAD_NAMES.find((n) => n[0] === name)) || name;

@@ -35,9 +35,11 @@
         <label><input type="radio" name="side" value="nato" checked /> NATO</label>
         <label><input type="radio" name="side" value="pact" /> Warsaw Pact</label>
       </fieldset>
+      <label>Map <select name="map"><option value="kaltenbach">Kaltenbach</option><option value="auental">Auental</option></select></label>
       <label>Squads per Side <select name="squads"></select></label>
       <button type="submit">Start match</button>
     </form>
+    <div id="loading" class="screen" hidden>Loading map…</div>
     <div id="end" class="screen" hidden>
       <h1 id="end-result"></h1>
       <div id="end-reason"></div>

@@ -15,10 +15,17 @@ export const RIVER_FIELD: MapData = {
   ],
   hqs: { nato: { x: -280, y: 0 }, pact: { x: 280, y: 0 } },
   points: [
-    { id: 'A', name: 'A', x: -100, y: -140 },
+    { id: 'A', name: 'A', x: -100, y: -140, vehicles: [{ kind: 'jeep', x: -100, y: -140 }] },
     { id: 'C', name: 'C', x: 0, y: 0 },
-    { id: 'E', name: 'E', x: 100, y: 140 },
+    { id: 'E', name: 'E', x: 100, y: 140, vehicles: [{ kind: 'jeep', x: 100, y: 140 }] },
   ],
+  // #154: a tank, two jeeps, a helicopter, a jet and an AA a Side, in a row 9 m apart from the HQ
+  vehicleSlots: {
+    nato: [{ kind: 'tank', x: -280, y: 0 }, { kind: 'jeep', x: -271, y: 0 }, { kind: 'jeep', x: -262, y: 0 }, { kind: 'aa', x: -235, y: 0 }],
+    pact: [{ kind: 'tank', x: 280, y: 0 }, { kind: 'jeep', x: 271, y: 0 }, { kind: 'jeep', x: 262, y: 0 }, { kind: 'aa', x: 235, y: 0 }],
+  },
+  helipad: { nato: [{ x: -253, y: 0 }], pact: [{ x: 253, y: 0 }] },
+  jets: { nato: 1, pact: 1 },
   water: [{ x0: -6, y0: -200, x1: 6, y1: 200 }],
   crossings: [
     { id: 'N', kind: 'footbridge', x: 0, y: 120, halfWidth: 2 },

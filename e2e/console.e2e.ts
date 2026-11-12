@@ -30,6 +30,37 @@ test('Console loads, renders the map and Rails chrome, and confirming an armed A
   await expect(scanRow).toHaveClass(/active/);
 });
 
+test('#150: Auental picked on the setup screen offers up to 32 Squads, shows a waiting screen, then its 12 points and 8 Elite Squads on the Rails', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await page.goto('/?seed=4&squads=8');
+  const squads = page.getByLabel('Squads per Side');
+  await expect(squads.locator('option')).toHaveText(['3', '4', '5', '6', '7', '8']);
+  await page.getByLabel('Map').selectOption('auental');
+  await expect(squads.locator('option')).toHaveText(['3', '4', '5', '6', '7', '8', '16', '24', '32']);
+  await expect(squads).toHaveValue('8');
+  await squads.selectOption('32');
+  await page.getByRole('button', { name: 'Start match' }).click();
+  await expect(page.locator('#loading')).toBeVisible();
+
+  await expect(page.locator('#rail')).toBeVisible({ timeout: 30000 });
+  await expect(page.locator('#loading')).toBeHidden();
+  await expect(page.locator('#score .pts svg')).toHaveCount(12);
+  await expect(page.locator('#faction-sub')).toContainText('Auental');
+  await expect(page.locator('#squads .tile')).toHaveCount(8); // #153: only the first 8 of 32 are on the Commander's net
+  expect(errors).toEqual([]);
+});
+
+test('#150: back on Kaltenbach the Squads select drops 16, 24 and 32 and falls back to 8', async ({ page }) => {
+  await page.goto('/?map=auental&squads=32');
+  const squads = page.getByLabel('Squads per Side');
+  await expect(squads).toHaveValue('32');
+  await page.getByLabel('Map').selectOption('kaltenbach');
+  await expect(squads.locator('option')).toHaveText(['3', '4', '5', '6', '7', '8']);
+  await expect(squads).toHaveValue('8');
+});
+
 test('the mixer (#85): the speaker button opens the panel, M toggles mute, the levels survive a reload, nothing errors', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));

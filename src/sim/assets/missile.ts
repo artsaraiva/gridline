@@ -1,9 +1,9 @@
-// Cruise Missile (#99): one heavy precise blast. Usable only while the caller holds the middle Capture Point (the one
-// nearest the map centre); the cooldown runs regardless, and losing the point mid-flight changes nothing. At the call
+// Cruise Missile (#99): one heavy precise blast. Usable only while the caller holds every keystone Capture Point (#150: the
+// map's `keystone`, else the one nearest the map centre); the cooldown runs regardless, and losing one mid-flight changes nothing. At the call
 // it leaves at once from beyond the Play Area behind the caller's HQ and flies level and straight at the spot; the
 // flight is its warning, and it is in the sky, so both Sides' views carry it.
 import type { Match } from '../index';
-import { dist2, middlePoint } from '../geometry';
+import { dist2, keystone } from '../geometry';
 import type { Mix } from '../state';
 import type { SideId, Vec2 } from '../types';
 import { assetRadio, type Effect, type Kind } from './core';
@@ -33,11 +33,12 @@ export function launchPoint(m: Match, side: SideId): Vec2 {
   return { x: d.x * far + (d.x / len) * BEYOND_M, y: d.y * far + (d.y / len) * BEYOND_M };
 }
 
-/** Why `side` can't call a heavy Asset (this, #101 the Gunship) now: it needs the middle Capture Point; null when it may. */
+/** Why `side` can't call a heavy Asset (this, #101 the Gunship) now: it needs every keystone Capture Point (#150); null when it may. */
 export function heavyGate(m: Match, side: SideId): string | null {
   if (!m.tune.missileGated) return null;
-  const p = middlePoint(m);
-  return !p ? 'no Capture Point' : p.owner === side ? null : `needs ${p.name}`;
+  const keys = keystone(m);
+  const missing = keys.filter((p) => p.owner !== side).map((p) => p.name);
+  return !keys.length ? 'no Capture Point' : missing.length ? `needs ${missing.join(', ')}` : null;
 }
 
 const flight = (m: Match, e: Effect) => Math.min(1, (m.tick - e.launch!) / (e.land! - e.launch!));

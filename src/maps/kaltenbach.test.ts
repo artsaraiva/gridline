@@ -1,35 +1,14 @@
-/// <reference types="node" />
-import { existsSync, readFileSync } from 'node:fs';
-import { pathToFileURL } from 'node:url';
+import { existsSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { gridRef as ref } from '../sim/grid-ref';
-import type { SideId, Vec2 } from '../sim/types';
-import type { BakedMap } from './baked';
+import type { Vec2 } from '../sim/types';
+import { enemy, inside, near, readBake, rotated } from './bake-check';
 
 // Checks the committed Kaltenbach bake against the slice layout (#25 as revised 2026-11-04, #30).
 // MAP_DIR points it at a preview bake instead (assets/maps/kaltenbach/work/).
-const DIR = process.env.MAP_DIR
-  ? pathToFileURL(process.env.MAP_DIR.replace(/\/?$/, '/'))
-  : new URL('../../public/maps/kaltenbach/', import.meta.url);
-const map: BakedMap = JSON.parse(readFileSync(new URL('map.json', DIR), 'utf8'));
+const { dir: DIR, map, n, cover, ids, floats, cell, point, twinOf, riverCrossings, coverShare } = readBake('kaltenbach');
 
 const gridRef = (x: number, y: number) => ref(map.grid, { x, y });
-
-/** Ray-casting point-in-polygon. */
-function inside(p: Vec2, poly: Vec2[]): boolean {
-  let hit = false;
-  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-    const a = poly[i]!, b = poly[j]!;
-    if (a.y > p.y !== b.y > p.y && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) hit = !hit;
-  }
-  return hit;
-}
-
-const rotated = (p: Vec2) => ({ x: -p.x, y: -p.y });
-const near = (a: Vec2, b: Vec2, tol = 0.5) => Math.hypot(a.x - b.x, a.y - b.y) <= tol;
-const point = (id: string) => map.points.find((p) => p.id === id)!;
-const twinOf = (p: Vec2) => map.points.find((q) => near(q, rotated(p)))!;
-const enemy = (s: SideId): SideId => (s === 'nato' ? 'pact' : 'nato');
 
 describe('Kaltenbach map metadata', () => {
   it('is a 960 m map with working names', () => {
@@ -119,53 +98,14 @@ describe('Kaltenbach map metadata', () => {
 });
 
 describe('Kaltenbach data grids', () => {
-  const n = map.data.cells;
-  const bytes = (f: string) => readFileSync(new URL(f, DIR));
-  const floats = (f: string) => {
-    const b = bytes(f);
-    return new Float32Array(b.buffer, b.byteOffset, b.byteLength / 4);
-  };
-  const cover = bytes(map.data.cover);
   const ground = floats(map.data.ground);
   const top = floats(map.data.top);
-  const ids = map.data.coverIds;
-  /** Cell holding world point (x, y): row 0 north, column 0 west. */
-  const cell = (x: number, y: number) =>
-    Math.floor((map.sizeM / 2 - y) / map.data.cellM) * n + Math.floor((x + map.sizeM / 2) / map.data.cellM);
-  const isRiver = (k: number) => cover[k] === ids.water || cover[k] === ids.ford;
 
   /** Mean ground height on a ring of radius r around p. */
   const ringGround = (p: Vec2, r: number) => {
     let s = 0;
     for (let k = 0; k < 64; k++) s += ground[cell(p.x + r * Math.cos((2 * Math.PI * k) / 64), p.y + r * Math.sin((2 * Math.PI * k) / 64))]!;
     return s / 64;
-  };
-
-  /** Times a straight walk from the HQ to the edge of the point's zone wades into the river. */
-  const riverCrossings = (from: Vec2, p: Vec2 & { radius: number }) => {
-    const d = Math.hypot(p.x - from.x, p.y - from.y);
-    let count = 0, last = -Infinity;
-    for (let s = 0; s <= d - p.radius; s += 0.5) {
-      const k = cell(from.x + ((p.x - from.x) * s) / d, from.y + ((p.y - from.y) * s) / d);
-      if (isRiver(k)) {
-        if (s - last > 30) count++;
-        last = s;
-      }
-    }
-    return count;
-  };
-
-  /** Share of cells within r of p that give cover (hedge, woods, building, wall, prop). */
-  const coverShare = (p: Vec2, r: number) => {
-    const solid = new Set([ids.hedge, ids.woods, ids.building, ids.wall, ids.prop]);
-    let all = 0, hit = 0;
-    for (let dy = -r; dy <= r; dy++)
-      for (let dx = -r; dx <= r; dx++) {
-        if (dx * dx + dy * dy > r * r) continue;
-        all++;
-        if (solid.has(cover[cell(p.x + dx, p.y + dy)]!)) hit++;
-      }
-    return hit / all;
   };
 
   it('covers the 960 m map at 1 m with a cover id and two heights per cell', () => {

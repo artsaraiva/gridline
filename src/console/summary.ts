@@ -1,5 +1,4 @@
 import { gridRef } from '../sim/grid-ref';
-import { DEFAULT_TUNE } from '../sim/tune';
 import { enemyOf, type CommanderView, type FriendlyView, type MapGrid, type SideId, type SimEvent, type SquadView, type Vec2 } from '../sim/types';
 import type { Box } from './targeting';
 
@@ -71,7 +70,7 @@ export function drainLine(view: CommanderView): string {
   const theirPts = view.points.filter((p) => p.owner === them).length;
   const lead = ourPts - theirPts;
   if (lead === 0) return `Points ${ourPts}–${theirPts} · even drain`;
-  const sec = DEFAULT_TUNE.drainSeconds[Math.min(Math.abs(lead), DEFAULT_TUNE.drainSeconds.length) - 1]!;
+  const sec = +(view.drainEvery ?? 0).toFixed(2); // #152: from the Simulation, which scales it by points and Squads
   return `Points ${ourPts}–${theirPts} · ${lead > 0 ? FACTION[them] : FACTION[us]} −1 / ${sec} s`;
 }
 
@@ -114,6 +113,9 @@ export function squadCentroid(view: CommanderView, squadId: number): Vec2 | null
   }
   return { x: x / men.length, y: y / men.length };
 }
+
+/** #153: the Squad `id` as the view lists it; undefined for a Squad that is not Elite, which the Console never names or selects. */
+export const eliteSquad = (view: CommanderView, id: number): SquadView | undefined => view.squads.find((q) => q.id === id);
 
 /** The Squad Leader's FriendlyView (#68: Wounded or not), or undefined while the Squad has none. */
 export const leaderOf = (view: CommanderView, q: SquadView): FriendlyView | undefined => view.friendlies.find((f) => f.id === q.leader);

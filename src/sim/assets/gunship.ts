@@ -1,7 +1,7 @@
-// Gunship (#101): a heavy Strike that works its route for a while. Usable only while the caller holds the middle Capture Point
+// Gunship (#101): a heavy Strike that works its route for a while. Usable only while the caller holds every keystone Capture Point
 // (the Cruise Missile's gate) and its Side's Gunship is not already up; the cooldown runs regardless, and losing the point
 // mid-sortie changes nothing. Its route is fixed, so the call names no spot: a counter-clockwise circle (the Scan UAV's way
-// round) `gunshipOrbitM` round the middle Capture Point.
+// round) `gunshipOrbitM` round the keystone Capture Points (#150: the middle of them, where a map names more than one).
 // ponytail: the route is that circle until maps carry their own; `route`, the tangent in `start` and `routeGap` change with it.
 // At the call its Side's Gunship vehicle (vehicles.ts) wakes at the missile's launch point, beyond the Play Area behind the
 // caller's HQ, and flies level at `gunshipSpeedMps` straight to where that line touches the circle; there it circles for
@@ -14,7 +14,7 @@
 // on a helicopter: under a third of its hit points it leaves early, at 0 it falls as a Wreck where it was and fires no more
 // (shells already in the air still land). Its path is stepped a tick at a time; the orbit turns by `turnToward`'s polynomial
 // step (no trig).
-import { dist2, inHq, middlePoint } from '../geometry';
+import { dist2, inHq, keystone } from '../geometry';
 import { turnToward } from '../momentum';
 import { rnd } from '../rng';
 import { ticksOf, vehicleOf, type Mix } from '../state';
@@ -102,8 +102,8 @@ export const gunship: Kind = {
   // One aircraft a Side: not while the last is still flying (only once the cooldown is over, so in play, with a cooldown longer than any sortie, never: the row keeps its timers)
   gate: (m, side) => heavyGate(m, side) ?? (m.tick >= m.assets.readyAt[side].gunship! && live(body(m, side)) ? 'up' : null),
   route: (m) => {
-    const p = middlePoint(m);
-    return p ? { x: p.x, y: p.y } : { x: 0, y: 0 };
+    const keys = keystone(m); // #150: Auental's twin town has two; the circle goes round the middle of them
+    return { x: keys.reduce((a, p) => a + p.x, 0) / (keys.length || 1), y: keys.reduce((a, p) => a + p.y, 0) / (keys.length || 1) };
   },
 
   start(m, e) {

@@ -29,8 +29,13 @@ export interface MapData {
   playArea: Vec2[];
   /** `radius` defaults to `tune.hqRadius`. */
   hqs: Record<SideId, Vec2 & { radius?: number }>;
-  /** `radius` defaults to `tune.captureRadius`; `owner` is the Side holding the point at the start. */
-  points: { id: string; name: string; x: number; y: number; radius?: number; owner?: SideId | null }[];
+  /**
+   * `radius` defaults to `tune.captureRadius`; `owner` is the Side holding the point at the start. #154: `vehicles` wait at the
+   * point for whoever owns it (#108), each at its own spot; unset = none.
+   */
+  points: { id: string; name: string; x: number; y: number; radius?: number; owner?: SideId | null; vehicles?: (Vec2 & { kind: 'tank' | 'jeep' })[] }[];
+  /** #150: the ids of the points that make the keystone (both halves of Auental's twin town); unset = the point nearest the centre. */
+  keystone?: string[];
   /** Cells that block line of sight. */
   walls?: Rect[];
   /** Cells that make a Soldier standing in them harder to hit. */
@@ -46,10 +51,16 @@ export interface MapData {
   crossings?: Crossing[];
   /** #42: a baked map's terrain on cells; when present it replaces `walls`, `cover`, `water` and the box rule of `crossings`. */
   terrain?: Terrain;
-  /** #107: where each Side's tanks wait and respawn (its HQ vehicle park), one per tank; unset = one, on the drivable ground nearest the HQ. */
-  vehicleSlots?: Partial<Record<SideId, Vec2[]>>;
-  /** #109: where each Side's transport helicopter waits and respawns; unset = the next HQ park slot past its ground vehicles. */
-  helipad?: Partial<Record<SideId, Vec2>>;
+  /**
+   * #107 #154: where each Side's HQ ground vehicles wait and respawn, one vehicle per slot: its count of a kind is its slots of
+   * that kind. A vehicle the tune adds past them waits in a row 9 m apart toward the field, past the last slot (without any, from
+   * the drivable ground nearest the HQ).
+   */
+  vehicleSlots?: Partial<Record<SideId, (Vec2 & { kind: 'tank' | 'jeep' | 'aa' })[]>>;
+  /** #109 #154: where each Side's transport helicopters wait and respawn, one per pad; one the tune adds past them waits in the row. */
+  helipad?: Partial<Record<SideId, Vec2[]>>;
+  /** #110 #154: each Side's jets, at its off-map base (`launchPoint`); unset = none. */
+  jets?: Partial<Record<SideId, number>>;
 }
 
 /**
@@ -242,7 +253,7 @@ export interface Tune {
   missileWoundM: number; // ... Wounds within this ...
   missileSuppressM: number; // ... and suppresses within this (the zone ring)
   missileSuppression: number; // suppression (0..1) the blast leaves
-  missileGated: boolean; // the heavy Assets' calls (Cruise Missile, #101 Gunship) need the middle Capture Point; off for review scenes (`?free=1`)
+  missileGated: boolean; // the heavy Assets' calls (Cruise Missile, #101 Gunship) need every keystone Capture Point (#150); off for review scenes (`?free=1`)
 
   // #106 Detached Soldiers
   detachM: number; // a stray that ends farther than this from the foot leader goes Detached instead of regrouping
@@ -270,7 +281,7 @@ export interface Tune {
   tankShellMps: number; // a main gun round flies to the spot at this speed, then lands
   tankAimSeconds: [number, number]; // the main gun fires on a new target this long after it is laid on it (seeded between the two)
   tankGoalBias: number; // ± a fresh driver's seeded preference per Capture Point, in point-score units, kept for its drive
-  tanksPerSide: number | null; // tanks in each HQ; null = one per slot the map has (one without); 0 = none
+  tanksPerSide: number | null; // #154: tanks in each HQ; null = the map's (one per tank slot); 0 = none
   coaxFireSeconds: number; // the gunner's coax: the rifle shot model this often ...
   coaxRangeM: number; // ... at infantry this close
   rockets: number; // a Launcher (roster member 1 of every Squad) carries this many, refilled like ammo
@@ -280,8 +291,8 @@ export interface Tune {
   shellVehicleDamage: number; // a Barrage shell within its kill radius of the hull; a Cruise Missile destroys outright
 
   // #108 Jeep (and the #27 passenger rule for every transport)
-  jeepsPerSide: number; // jeeps in each HQ, each slot past the tanks'; 0 = none
-  pointJeeps: boolean; // a jeep at every Capture Point but the middle one, for whoever owns it
+  jeepsPerSide: number | null; // #154: jeeps in each HQ; null = the map's (one per jeep slot); 0 = none
+  pointJeeps: boolean; // #154: the vehicles each Capture Point lists in the map, for whoever owns it; false = none
   jeepRoadMps: number; // on road
   jeepOpenMps: number; // off road
   jeepHp: number; // rifles hit it like a Soldier (no cover), rockets and shells as any vehicle, a tank's main gun destroys it
@@ -301,7 +312,7 @@ export interface Tune {
   turnSpeedMin: number; // the share of full speed it wants at a 90° or sharper turn ahead
 
   // #109 Transport helicopter
-  helisPerSide: number; // transport helicopters in each HQ, on its helipad; 0 = none
+  helisPerSide: number | null; // #154: transport helicopters in each HQ; null = the map's (one per helipad); 0 = none
   heliMps: number; // top flight speed, over the ground grid
   heliHp: number; // rifles hit it like a Soldier (airborne or landed), rockets as any vehicle, a tank's main gun destroys it
   unloadSeconds: number; // landed at its passengers' goal, it sits this long before it flies on (or home)
@@ -356,7 +367,7 @@ export interface Tune {
   crashSeconds: number; // a helicopter bailed out of glides this long, then crashes and is a Wreck
 
   // #110 Jet and AA
-  jetsPerSide: number; // jets per Side, at the off-map base, each taking off with a pilot (one at match start, then a Soldier coming back); 0 = none
+  jetsPerSide: number | null; // #154: jets per Side, at the off-map base, each taking off with a pilot (at match start, then a Soldier coming back); null = the map's `jets`; 0 = none
   jetHp: number; // only the AA and the enemy jet hurt it
   jetTurnDegPerS: number; // it turns toward where it flies (a mark, home, the enemy jet) this fast; in a dogfight x its pilot's quickness
   jetMps: number; // flight speed, base to point and through every pass
@@ -384,7 +395,7 @@ export interface Tune {
   jetLockSeconds: number; // ... for this long ...
   jetMissileRangeM: number; // ... this close; then one missile ...
   jetReloadSeconds: number; // ... and the next this long after
-  aasPerSide: number; // AAs per Side in its HQ park; 0 = none
+  aasPerSide: number | null; // #154: AAs per Side in its HQ park; null = the map's (one per AA slot); 0 = none
   aaHp: number; // rockets, Barrage shells, a tank's main gun and the jet's cannon hurt it, a Cruise Missile destroys it, rifles nothing
   aaRoadMps: number; // on road
   aaOpenMps: number; // off road
@@ -404,9 +415,18 @@ export interface Tune {
   airMissileVsJetHitChance: number; // ... (a jet, jinking and flaring: this chance) ...
   airMissileDamage: number; // ... for this much
 
+  // #152 Tickets and drain scale with points and Squads
+  ticketBaseSquads: number; // the Squads per Side `tickets` and `drainSeconds` were tuned at; other counts scale both
+
+  // #153 Elite Squads
+  eliteSquads: number; // each Side's first this many Squads are on the Commander's net: Orders, Requests, Callouts, tiles
+
+  // #154 Vehicles for 128 v 128
+  jetGapSeconds: [number, number]; // a Side's first jet takes off at match start, each next one this long after the one before (seeded), so no two fly out together
+
   // #101 Gunship
   gunshipCooldownSeconds: number; // from the call; it also starts the match on this cooldown
-  gunshipOrbitM: number; // its fixed route: a counter-clockwise circle this far round the middle Capture Point, whatever spot the call names
+  gunshipOrbitM: number; // its fixed route: a counter-clockwise circle this far round the keystone Capture Points, whatever spot the call names
   gunshipRangeM: number; // its cannon and its gunner reach this far from the ground spot under it; the enemies on foot in it are Contacts
   gunshipSpeedMps: number; // in from the launch point beyond the own map edge, round the route and home again, level
   gunshipStationSeconds: number; // on station this long from the orbit's first tick
@@ -568,6 +588,10 @@ export interface CommanderView {
   score?: { total: number } & Record<ScoreCategory, number>;
   /** #107: own vehicles, enemy vehicles in sight, and Wrecks (own, and enemy ones that died in sight). */
   vehicles?: VehicleView[];
+  /** #152: each Side's starting Tickets, the same for both; the Ticket bars scale against it. */
+  ticketsStart?: number;
+  /** #152: seconds per enemy Ticket the point lead drains now; null when level. */
+  drainEvery?: number | null;
 }
 
 export interface AssetView {
@@ -630,7 +654,8 @@ export type SimEvent =
    * `text` is the line without the Grid Reference; `grid` is set when the line is located (see `gridRef`).
    * `priority` is set by radio.ts from the `type` (RADIO_PRIORITY): a higher one pre-empts a waiting lower one. Callouts: 'contact',
    * 'fire', 'mandown', 'capturing', 'captured', 'redeploying'. Commander-side lines (`squad` null): 'lost' (a Capture Point the Side
-   * held, #85) and 'wiped' (sent for a Squad that is gone, with its `squad`).
+   * held, #85), 'captured' (#153: a point only Squads that are not Elite took) and 'wiped' (sent for a Squad that is gone, with its
+   * `squad`). Only Elite Squads (#153) send lines of their own.
    */
   | { kind: 'radio'; side: SideId; squad: number | null; type: string; text: string; grid?: string; priority: number }
   /** #34: suppressive fire: a round at (x, y) near a Last Known Position, with no enemy in view. */

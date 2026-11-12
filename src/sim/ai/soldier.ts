@@ -5,7 +5,7 @@ import { canStand, dist2, inHq } from '../geometry';
 import { lineWalk, walkCost } from '../grid';
 import { membersOf, type Soldier } from '../state';
 import type { Vec2 } from '../types';
-import { flowLook, pointFlow } from './flow';
+import { crossingFlow, flowDist, flowLook, pointFlow } from './flow';
 import { flowOf, goalOf, setDest, wedgeSlot } from './squad';
 import { boardStep } from '../vehicles';
 
@@ -31,6 +31,7 @@ export function walk(m: Match, s: Soldier) {
   const alive = membersOf(m, sq).filter((o) => o.state === 'alive');
   const body = alive.filter((o) => !o.detached && o.vehicle < 0); // #106; #107 nobody aboard
   const L = body[0]!;
+  if (s === L && sq.task === 'point' && sq.route >= 0 && !sq.crossed && flowDist(m, crossingFlow(m, sq.route), s) === 0) sq.crossed = true; // #151: the middle of its crossing's deck; on from here by the point's own field
   const flow = flowOf(m, sq);
   let to: Vec2 | null = null;
   let pace = 1;

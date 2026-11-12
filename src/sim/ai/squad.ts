@@ -14,7 +14,7 @@ import { between, pickWeighted, rnd } from '../rng';
 import { inSky, membersOf, vehicleOf, type Point, type Soldier, type Squad } from '../state';
 import { enemyOf, type SimEvent, type Vec2 } from '../types';
 import { localPath, oct, pickCover, shelter } from './cover';
-import { crateFlow, flowDist, flowLook, hqFlow, pointFlow, routeFlow, type Flow } from './flow';
+import { across, crateFlow, crossingFlow, flowDist, flowLook, hqFlow, pointFlow, type Flow } from './flow';
 import { chooseRoute } from './routes';
 import { board, decideCrew, decideRide, ride } from '../vehicles';
 
@@ -37,13 +37,13 @@ export function goalOf(m: Match, sq: Squad): (Vec2 & { r: number }) | null {
   return { x: hq.x, y: hq.y, r: (hq.radius ?? m.tune.hqRadius) * 0.6 };
 }
 
-/** The flow field the Squad walks on to its goal. */
+/** The flow field the Squad walks on to its goal. #151: on a route, its crossing's field until it has crossed, then the point's. */
 export function flowOf(m: Match, sq: Squad): Flow | null {
   if (sq.task === 'none') return null;
   const crate = crateOf(m, sq);
   if (crate) return crateFlow(m, crate);
   if (sq.goal < 0) return hqFlow(m, sq.side);
-  return sq.task === 'point' && sq.route >= 0 ? routeFlow(m, sq.goal, sq.route) : pointFlow(m, sq.goal);
+  return sq.task === 'point' && sq.route >= 0 && !sq.crossed ? crossingFlow(m, sq.route) : pointFlow(m, sq.goal);
 }
 
 /** The wedge slot of the `n`th living member (0 = the leader), `scale` its seeded spread. */
@@ -180,6 +180,7 @@ export function think(m: Match, sq: Squad, events: SimEvent[]) {
   else {
     if (prevTask !== 'point' || prevGoal !== best) chooseRoute(m, sq, L, best);
     Object.assign(sq, { task: 'point', goal: best });
+    if (sq.route >= 0 && !sq.crossed && !across(m, best, L)) sq.crossed = true; // #151: already over, by a ride, a parachute or a new leader
   }
 
   // movement mode

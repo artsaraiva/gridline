@@ -20,7 +20,7 @@ import { between, rnd } from './rng';
 import { blast } from './assets/strike';
 import { die } from './combat';
 import { approach, BRAKE_RESERVE, cosDeg, stopSpeed, turnToward } from './momentum';
-import { canStand, dist2, inHq, insidePolygon, middlePoint } from './geometry';
+import { canStand, dist2, inHq, insidePolygon, keystone } from './geometry';
 import { dogleg, landingZone } from './flight';
 import { launchPoint } from './assets/missile';
 import { hashMissiles, type AirMissile } from './air-missiles';
@@ -152,32 +152,19 @@ const fresh = (m: Match, side: SideId, kind: VehicleKind, slot: Vec2) => ({
 });
 
 /**
- * The first fresh vehicles of each Side in their slots: its tanks, one per slot the map gives (else one on the drivable cell
- * nearest the HQ) or `tanksPerSide` when the tune says, then `jeepsPerSide` jeeps (#108); any beyond the map's slots each 9 m
- * farther toward the field than the last; then #109 `helisPerSide` helicopters, on the map's helipad when it has one, else in
- * the next of those slots. Then #108 a jeep slot at every Capture Point but the middle one (`pointJeeps`): a jeep for its
- * owner, dormant while it has none. Last, #110 each Side's `jetsPerSide` jets at its off-map base and `aasPerSide` AAs, in the park slots after the jeeps'.
+ * The first fresh vehicles (#154: map data). Each Side's HQ tanks, jeeps (#108) and helicopters (#109), then the vehicles each
+ * Capture Point lists (#108, `pointJeeps`: for its owner, dormant while it has none), then each Side's jets (#110, at its
+ * off-map base) and AAs: last, so every earlier id stays put. A Side's count of a kind is the tune's, else the map's
+ * (`countOf`); each waits in its own slot or helipad, and one past them in the Side's row (`rowSlot`).
  */
 export function newVehicles(m: Match): Vehicle[] {
-  const middle = middlePoint(m);
-  const points = m.tune.pointJeeps ? m.points.flatMap((p, i) => (p === middle ? [] : [i])) : [];
-  const atPoints = points.map((i) => {
-    const p = m.points[i]!;
-    const slot = nearestWalkable(m, { x: p.x, y: p.y }, m.drive.nato);
-    return { ...fresh(m, p.owner ?? 'nato', 'jeep', slot), ...(!p.owner && { deadAt: DORMANT }), point: i, rounds: [] as Round[], missiles: [] as AirMissile[] };
-  });
-  const count = (kind: VehicleKind, n: number) => Array<VehicleKind>(n).fill(kind);
-  const tanks = (side: SideId) => m.tune.tanksPerSide ?? parkSlots(m, side).length;
-  const placed = (side: SideId, kind: VehicleKind, k: number) => {
-    const pad = kind === 'helicopter' ? m.map.helipad?.[side] : kind === 'jet' || kind === 'gunship' ? launchPoint(m, side) : undefined;
-    return { ...fresh(m, side, kind, pad ?? parkSlot(m, side, k)), point: -1, rounds: [] as Round[], missiles: [] as AirMissile[] };
-  };
-  return [
-    ...SIDES.flatMap((side) => [...count('tank', tanks(side)), ...count('jeep', m.tune.jeepsPerSide), ...count('helicopter', m.tune.helisPerSide)].map((kind, k) => placed(side, kind, k))),
-    ...atPoints,
-    ...SIDES.flatMap((side) => [...count('jet', m.tune.jetsPerSide), ...count('aa', m.tune.aasPerSide)].map((kind, j) => placed(side, kind, tanks(side) + m.tune.jeepsPerSide + (m.map.helipad?.[side] ? 0 : m.tune.helisPerSide) + j))), // #110: last, so every earlier id stays put
-    ...SIDES.map((side) => ({ ...placed(side, 'gunship', 0), deadAt: DORMANT })), // #101: after those, asleep until its Asset is called
-  ].map((v, i) => ({ ...v, id: m.soldiers.length + i }));
+  const standing = (side: SideId, kind: VehicleKind, at: Vec2, point: number) => ({ ...fresh(m, side, kind, { x: at.x, y: at.y }), point, rounds: [] as Round[], missiles: [] as AirMissile[] });
+  const nextInRow: Record<SideId, number> = { nato: 0, pact: 0 };
+  const atHqs = (kinds: VehicleKind[]) =>
+    SIDES.flatMap((side) => kinds.flatMap((kind) => Array.from({ length: countOf(m, side, kind) }, (_, i) => standing(side, kind, kind === 'jet' || kind === 'gunship' ? launchPoint(m, side) : (slotsOf(m, side, kind)[i] ?? rowSlot(m, side, nextInRow[side]++)), -1))));
+  const atPoints = m.tune.pointJeeps ? m.points.flatMap((p, i) => (m.map.points[i]!.vehicles ?? []).map((u) => ({ ...standing(p.owner ?? 'nato', u.kind, u, i), ...(!p.owner && { deadAt: DORMANT }) }))) : [];
+  const gunships = atHqs(['gunship']).map((g) => ({ ...g, deadAt: DORMANT })); // #101: after those, asleep until its Asset is called
+  return [...atHqs(['tank', 'jeep', 'helicopter']), ...atPoints, ...atHqs(['jet', 'aa']), ...gunships].map((v, i) => ({ ...v, id: m.soldiers.length + i }));
 }
 
 /** #101: the Gunship `v` wakes fresh where it waits (its Side's launch point), in the air, heading along (fx, fy). */
@@ -185,14 +172,23 @@ export const wake = (m: Match, v: Vehicle, fx: number, fy: number) => Object.ass
 /** #101: the Gunship `v` home off the map: asleep again until its next call. */
 export const sleep = (v: Vehicle) => Object.assign(v, { deadAt: DORMANT, airborne: false, speed: 0 });
 
-/** A Side's HQ park slots: the map's, else one on the drivable ground nearest the HQ. */
-const parkSlots = (m: Match, side: SideId) => m.map.vehicleSlots?.[side] ?? [nearestWalkable(m, { x: m.map.hqs[side].x, y: m.map.hqs[side].y }, m.drive[side])];
+/** #154: the map's slots of `kind` for `side` (a helicopter's are its helipads). */
+const slotsOf = (m: Match, side: SideId, kind: VehicleKind): Vec2[] => (kind === 'helicopter' ? (m.map.helipad?.[side] ?? []) : (m.map.vehicleSlots?.[side] ?? []).filter((s) => s.kind === kind));
 
-/** Park slot `k`: the map's, else each one past them 9 m farther toward the field than the last. */
-function parkSlot(m: Match, side: SideId, k: number): Vec2 {
-  const slots = parkSlots(m, side);
-  const last = slots.at(-1)!;
-  return slots[k] ?? nearestWalkable(m, { x: last.x + (side === 'nato' ? 9 : -9) * (k - slots.length + 1), y: last.y }, m.drive[side]);
+/** #154: a Side's count of `kind`: the tune's number, else the map's (its slots of that kind, or its `jets`). */
+function countOf(m: Match, side: SideId, kind: VehicleKind): number {
+  const t = m.tune;
+  const n = { tank: t.tanksPerSide, jeep: t.jeepsPerSide, helicopter: t.helisPerSide, jet: t.jetsPerSide, aa: t.aasPerSide, gunship: 1 }[kind]; // #101: one Gunship a Side, whatever the map
+  return n ?? (kind === 'jet' ? (m.map.jets?.[side] ?? 0) : slotsOf(m, side, kind).length);
+}
+
+/** #154: spot `n` of a Side's row, for a vehicle the map has no slot for: 9 m apart toward the field past its last slot, or from the drivable ground nearest the HQ when it lists none. */
+function rowSlot(m: Match, side: SideId, n: number): Vec2 {
+  const listed = m.map.vehicleSlots?.[side] ?? [];
+  const hq = m.map.hqs[side];
+  const start = listed.at(-1) ?? nearestWalkable(m, { x: hq.x, y: hq.y }, m.drive[side]);
+  const k = n + (listed.length ? 1 : 0);
+  return k ? nearestWalkable(m, { x: start.x + (side === 'nato' ? 9 : -9) * k, y: start.y }, m.drive[side]) : start;
 }
 
 /** The Capture Point `s` is heading for: its own when Detached, else its Squad's; -1 when that is not a Capture Point. */
@@ -278,13 +274,24 @@ function jetOnReturn(m: Match, sq: Squad, s: Soldier): boolean {
   return true;
 }
 
-/** #110: at match start each Side's jet takes off with a pilot: the last member of one of its Squads of two or more, seeded. */
+/**
+ * #110: at match start each jet gets a pilot: the last member of one of its Side's Squads of two or more, seeded; #154 never
+ * a Squad that already has one. A Side's first jet takes off at once, each next one waits at the base a seeded `jetGapSeconds`
+ * after the one before.
+ */
 export function deployPilots(m: Match) {
+  const offAt: Partial<Record<SideId, number>> = {}; // the tick the Side's previous jet takes off
   for (const v of m.vehicles) {
     if (v.kind !== 'jet') continue;
-    const squads = m.squads.filter((sq) => sq.side === v.side && sq.members.length > 1);
+    const squads = m.squads.filter((sq) => sq.side === v.side && sq.members.length > 1 && !membersOf(m, sq).some((s) => vehicleOf(m, s.vehicle)?.kind === 'jet'));
     const sq = squads[Math.floor(rnd(m) * squads.length)];
-    if (sq) mount(m, v, m.soldiers[sq.members.at(-1)!]!, sq);
+    if (!sq) continue;
+    mount(m, v, m.soldiers[sq.members.at(-1)!]!, sq);
+    const previous = offAt[v.side];
+    // #154 says "a seeded delay after it": after the one before, not the first, so no two later jets leave together either. The
+    // gap is drawn only for a later jet, so a Side with one jet draws exactly as before
+    offAt[v.side] = previous === undefined ? m.tick : previous + ticksOf(m.tune, between(m, m.tune.jetGapSeconds));
+    if (previous !== undefined) Object.assign(v, { sortie: 'rearming', until: offAt[v.side], airborne: false, prey: -1, drop: false }); // the rearm's wait at the base: `sortie` takes off at `until`
   }
 }
 
@@ -433,23 +440,31 @@ function drivePoint(m: Match, sq: Squad, s: Soldier, v: Vehicle): number {
   return bestPoint(m, sq, v, 0, { flow: (i) => driveFlow(m, v.side, i), bias });
 }
 
+/** #154: what another friendly AA laying back on a flank takes off each point on that flank, in the metres `aaPoint` scores in: more than the gap between Auental's two rear flags with both preferences against it. */
+const AA_SPREAD_M = 300;
+
 /**
- * #110: the Capture Point an AA's driver lays back on: its Side's own, never the middle one, the nearer its HQ and the farther out
- * on a flank (off the line between the HQs) the better, with the driver's seeded preference; -1 with none (it holds where it is,
- * at first in the HQ park).
+ * #110: the Capture Point an AA's driver lays back on: its Side's own, never a keystone one (#150), the nearer its HQ and the farther out
+ * on a flank (off the line between the HQs) the better, with the driver's seeded preference; #154 less on a flank another
+ * friendly AA is heading for, so two spread over both. -1 with none (it holds where it is, at first in the HQ park).
  */
 function aaPoint(m: Match, v: Vehicle): number {
   const own = m.map.hqs[v.side];
   const foe = m.map.hqs[enemyOf(v.side)];
   const [ax, ay] = [foe.x - own.x, foe.y - own.y];
   const len = Math.sqrt(ax * ax + ay * ay) || 1;
-  const middle = middlePoint(m);
+  const off = (p: Vec2) => ((p.x - own.x) * ay - (p.y - own.y) * ax) / len; // out on a flank, signed by which one
+  const keys = keystone(m);
+  // #154 counts another AA against its flag; it counts here against the flag's whole flank, since on Auental F scores as well as
+  // B and a count per flag would send both AAs south
+  const flanksTaken = m.vehicles.filter((o) => o !== v && o.kind === 'aa' && o.side === v.side && live(o) && o.seats[0]! >= 0 && o.goal >= 0).map((o) => off(m.points[o.goal]!));
   let best = -1;
   let top = -Infinity;
   m.points.forEach((p, i) => {
-    if (p.owner !== v.side || p === middle) return;
-    const flank = Math.abs((p.x - own.x) * ay - (p.y - own.y) * ax) / len;
-    const score = flank - Math.sqrt(dist2(p, own)) / 2 + (v.bias[i] ?? 0) * 100; // ponytail: a metre out on a flank counts as two back toward the HQ, the preference in hundreds of metres; tune keys if the AA needs placing finer
+    if (p.owner !== v.side || keys.includes(p)) return;
+    const flank = off(p);
+    const penalty = AA_SPREAD_M * flanksTaken.filter((f) => f * flank > 0).length;
+    const score = Math.abs(flank) - Math.sqrt(dist2(p, own)) / 2 + (v.bias[i] ?? 0) * 100 - penalty; // ponytail: a metre out on a flank counts as two back toward the HQ, the preference in hundreds of metres; tune keys if the AA needs placing finer
     if (score > top) [best, top] = [i, score];
   });
   return best;
@@ -559,7 +574,8 @@ function wantsOut(m: Match, sq: Squad, s: Soldier, v: Vehicle): boolean {
 
 /**
  * The vehicle phase, after the Soldiers walk: fresh vehicles in empty slots `vehicleRespawnSeconds` after the last one died
- * (#108: a point's for its owner, at once when the point first has one or has changed hands), then every one with a driver
+ * (#108: a point's for its owner, at once when the point first has one or has changed hands; #154 so does a live one with
+ * nobody aboard standing in its slot, so a captured point never keeps the enemy's parked vehicle), then every one with a driver
  * drives (#109: or flies, #110 a jet its sortie) unless it stands for a dismount (long enough for everyone who wants out to have thought once); its
  * riders ride along.
  */
@@ -567,12 +583,13 @@ export function drive(m: Match) {
   const t = m.tune;
   descend(m); // #130
   for (const v of m.vehicles) {
+    const side = v.point < 0 ? v.side : m.points[v.point]!.owner;
     if (!live(v)) {
       if (v.kind === 'gunship') continue; // #101: only its Asset's next call brings it back
-      const side = v.point < 0 ? v.side : m.points[v.point]!.owner;
       if (side && (v.deadAt === DORMANT || side !== v.side || m.tick - v.deadAt >= t.vehicleRespawnSeconds * t.hz)) Object.assign(v, fresh(m, side, v.kind, v.slot));
       continue;
     }
+    if (side && side !== v.side && v.seats.every((id) => id < 0) && dist2(v, v.slot) < 1) Object.assign(v, fresh(m, side, v.kind, v.slot));
     if (v.claim >= 0) {
       const walking = m.soldiers.filter((s) => s.boarding === v.id && !s.crew && s.state === 'alive' && s.vehicle < 0);
       if (!walking.length || m.tick >= v.claimUntil) { // everyone is in, or the wait is out: it leaves with whoever is aboard

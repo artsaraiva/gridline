@@ -1,7 +1,7 @@
 /// <reference types="node" />
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { KALTENBACH } from '../../scripts/kaltenbach';
+import { KALTENBACH } from '../../scripts/bakes';
 import { createMatch, step, type Match } from './index';
 import { driveFlow, flowDist } from './ai/flow';
 import { cellCentre, cellIndex } from './grid';
@@ -47,7 +47,7 @@ describe('#107 tanks on Kaltenbach', () => {
 
   it('two tanks a Side wait under the HQ vehicle park\'s camo nets, two jeeps beside them, and Soldiers board them all at match start; a jeep waits at every point but C', () => {
     const tanks = m.vehicles.filter((v) => v.kind === 'tank');
-    expect(tanks.map((v) => [v.side, v.slot])).toEqual(['nato', 'nato', 'pact', 'pact'].map((side, k) => [side, KALTENBACH.vehicleSlots![side as 'nato']![k % 2]]));
+    expect(tanks.map((v) => [v.side, v.slot.x, v.slot.y])).toEqual((['nato', 'pact'] as const).flatMap((side) => KALTENBACH.vehicleSlots![side]!.filter((s) => s.kind === 'tank').map((s) => [side, s.x, s.y])));
     const hq = m.vehicles.filter((v) => v.point < 0 && v.kind !== 'gunship'); // #101: the Gunship sleeps off the map until its Asset is called
     for (const j of hq.filter((v) => v.kind === 'jeep')) {
       const last = tanks.filter((v) => v.side === j.side).at(-1)!.slot;
@@ -187,7 +187,7 @@ describe('#109 the transport helicopter on Kaltenbach', () => {
   it('waits on its HQ\'s helipad; a Squad boards at match start, it flies a dogleg over the river to a point on the other bank, lands within lzM of it, unloads, spools, and comes home to the pad (#131: or goes on to Support a point)', () => {
     helis.forEach((h, k) => {
       const f = flights[k]!;
-      expect(h.slot).toEqual(KALTENBACH.helipad![h.side]);
+      expect(h.slot).toEqual(KALTENBACH.helipad![h.side]![0]);
       expect(f.seats.filter((id) => id >= 0).length, `${h.side} crewed and carrying a Squad`).toBeGreaterThanOrEqual(3);
       const p = m.points.find((q) => Math.hypot(f.lz.x - q.x, f.lz.y - q.y) <= DEFAULT_TUNE.lzM[1] + 1);
       expect(p, `${h.side} lands within lzM of a point`).toBeDefined();
@@ -206,3 +206,30 @@ describe('#109 the transport helicopter on Kaltenbach', () => {
   });
 });
 
+
+describe('#154 Kaltenbach\'s vehicles come from its map.json', () => {
+  it('the vehicles createMatch makes (id, side, kind, slot, point, dormant) are the ones the tune and the 9 m row made before', () => {
+    const m = createMatch({ seed: 1, map: KALTENBACH, tune: DEFAULT_TUNE, squadsPerSide: 4, commanderSide: 'nato' });
+    const base = 1555.5294117647059; // the jet's off-map base (`launchPoint`)
+    expect(m.vehicles.filter((v) => v.kind !== 'gunship').map((v) => [v.id, v.side, v.kind, v.slot.x, v.slot.y, v.point, v.deadAt === -2])).toEqual([ // #101: the Gunships come after, asleep off the map
+      [32, 'nato', 'tank', -411.1, -17.83, -1, false],
+      [33, 'nato', 'tank', -408.91, 18.33, -1, false],
+      [34, 'nato', 'jeep', -399.91, 18.33, -1, false],
+      [35, 'nato', 'jeep', -390.91, 18.33, -1, false],
+      [36, 'nato', 'helicopter', -409.01, 0.3, -1, false],
+      [37, 'pact', 'tank', 415.82, -18.23, -1, false],
+      [38, 'pact', 'tank', 424.1, 17.03, -1, false],
+      [39, 'pact', 'jeep', 415.1, 17.03, -1, false],
+      [40, 'pact', 'jeep', 406.1, 17.03, -1, false],
+      [41, 'pact', 'helicopter', 420.96, -0.72, -1, false],
+      [42, 'nato', 'jeep', -263, -325, 0, false],
+      [43, 'nato', 'jeep', -1, 307, 1, true],
+      [44, 'nato', 'jeep', 0, -300, 3, true],
+      [45, 'pact', 'jeep', 265, 321, 4, false],
+      [46, 'nato', 'jet', -base, 0, -1, false],
+      [47, 'nato', 'aa', -372.91, 18.33, -1, false],
+      [48, 'pact', 'jet', base, 0, -1, false],
+      [49, 'pact', 'aa', 388.1, 17.03, -1, false],
+    ]);
+  });
+});

@@ -9,8 +9,12 @@ The player's role: one side's leader, who sees the battlefield only from above a
 _Avoid_: Player (ambiguous once soldiers exist), general
 
 **Squad**:
-A small group of AI-controlled soldiers on one side that moves and fights as a unit and takes orders from its commander.
+A small group of AI-controlled soldiers on one side that moves and fights as a unit. Only an Elite Squad takes the Commander's Orders; the others choose for themselves.
 _Avoid_: Unit, team, platoon
+
+**Elite Squad**:
+One of the few Squads of a Side that the Commander directs: it takes Orders, sends Callouts and Requests and answers the Commander. Elite is the link to the Commander only, never better Soldiers or a bonus.
+_Avoid_: Net Squad, listening Squad, veteran, regular Squad (for the others)
 
 **Soldier**:
 One AI-controlled combatant, always a member of a squad.
@@ -55,8 +59,12 @@ The part of the map inside its boundary where the battle happens; the land beyon
 _Avoid_: Map (for the bounded part), arena, battlefield
 
 **Lane**:
-One of the three corridors running from HQ to HQ across the front, each passing through one of the three Capture Points on the border spine.
+One of the three corridors running from HQ to HQ across the front, each passing through one part of the spine where the front meets: on Kaltenbach one of its three spine Capture Points, on Auental the north river flags, the twin town or the south river flags.
 _Avoid_: Flank, sector, route
+
+**Keystone**:
+The Capture Points at the heart of the spine: those the map names (both halves of Auental's twin town), else the one nearest the map centre. The Cruise Missile needs every one of them held.
+_Avoid_: Middle point, centre flag
 
 **Ticket**:
 One unit of a side's remaining strength; a side loses tickets when its soldiers die and when the enemy holds more capture points.
@@ -153,7 +161,7 @@ _Avoid_: Contribution message, bonus, reward, XP
 ### Commander actions
 
 **Order**:
-A standing directive from the Commander to one Squad, naming a capture point to take or hold; the squad weighs it against its own situation and may delay it to survive, but never drops it. Only the Commander clears or replaces an Order.
+A standing directive from the Commander to one Elite Squad, naming a capture point to take or hold; the squad weighs it against its own situation and may delay it to survive, but never drops it. Only the Commander clears or replaces an Order.
 _Avoid_: Command, asset, squad order (as an asset)
 
 **Asset**:
@@ -191,7 +199,7 @@ _Avoid_: Strike, airstrike, bombardment, arty
 ### Radio
 
 **Callout**:
-A radio line a Squad sends on its own to report an event, naming the Grid Reference when the event has a location. The Commander's own radio lines are not Callouts.
+A radio line an Elite Squad sends on its own to report an event, naming the Grid Reference when the event has a location. The Commander's own radio lines are not Callouts.
 _Avoid_: Message, notification, alert
 
 **Request**:

@@ -2,11 +2,12 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { createMatch, SIDES } from '../sim';
-import { routeFlow, flowDist } from '../sim/ai/flow';
-import { COVER, WALL, WATER, walkCost, cellAt, nearestWalkable } from '../sim/grid';
+import { across, build, crossingFlow, flowBytes, flowDist, pointFlow, warmFlows } from '../sim/ai/flow';
+import { COVER, WALL, WATER, walkCost, cellAt, cellIndex, nearestWalkable } from '../sim/grid';
 import { DEFAULT_TUNE } from '../sim/tune';
 import { insidePolygon } from '../sim/geometry';
 import type { BakedMap } from './baked';
+import { readBake } from './bake-check';
 import { terrainOf } from './load';
 
 const DIR = new URL('../../public/maps/kaltenbach/', import.meta.url);
@@ -104,8 +105,64 @@ describe('map loader: 1 m bake data to the Simulation\'s 2 m cells', () => {
   it('opens the river only at the five crossings, each one on its own', () => {
     const m = match();
     const from = m.map.hqs.nato;
-    const east = m.points.findIndex((p) => p.id === 'E');
-    expect(flowDist(m, routeFlow(m, east, -1), from), 'all crossings closed').toBe(Infinity);
-    meta.crossings.forEach((c, i) => expect(flowDist(m, routeFlow(m, east, i), from), c.id).toBeLessThan(Infinity));
+    const east = m.points.find((p) => p.id === 'E')!;
+    const over = (c: number) => build(m, m.grid, east, east.radius - 6, (k) => m.grid.crossing[k]! >= 0 && m.grid.crossing[k] !== c); // every crossing but `c` closed
+    expect(flowDist(m, over(-1), from), 'all crossings closed').toBe(Infinity);
+    meta.crossings.forEach((c, i) => expect(flowDist(m, over(i), from), c.id).toBeLessThan(Infinity));
   });
+
+  it('#151: a composed route (to the middle of the crossing, then the point\'s field) is as long as the old field over that crossing alone', () => {
+    const m = match();
+    const t = m.tune;
+    let checked = 0;
+    m.points.forEach((p, i) => {
+      const r = Math.max(t.cellM, p.radius - 6);
+      const olds = meta.crossings.map((_, ci) => build(m, m.grid, p, r, (k) => m.grid.crossing[k]! >= 0 && m.grid.crossing[k] !== ci));
+      const bank = build(m, m.grid, p, r, (k) => m.grid.crossing[k]! >= 0); // every crossing closed: the point's own bank
+      for (let y = -460; y < 480; y += 40)
+        for (let x = -460; x < 480; x += 40) {
+          const from = nearestWalkable(m, { x, y });
+          if (flowDist(m, pointFlow(m, i), from) === Infinity || m.grid.crossing[cellIndex(m, from.x, from.y)]! >= 0) continue; // walled in, or on a deck
+          const over = flowDist(m, bank, from) === Infinity;
+          expect(across(m, i, from), `${p.id} across from ${x},${y}`).toBe(over);
+          if (!over) continue; // on the point's bank: no route
+          const was = olds.map((f) => flowDist(m, f, from));
+          meta.crossings.forEach((c, ci) => {
+            const at = `${p.id} over ${c.id} from ${x},${y}`;
+            const now = flowDist(m, crossingFlow(m, ci), from) + flowDist(m, pointFlow(m, i), c);
+            expect(now < Infinity, at).toBe(was[ci]! < Infinity);
+            if (was[ci] === Infinity) return;
+            // through the anchor rather than the best line over (up to half the deck's width), from a disc a cell round it, and with
+            // other crossings' abutment cells open on the way on (the old field closed them, so walked round them)
+            expect(Math.abs(now - was[ci]!), `${at}: ${now} against ${was[ci]}`).toBeLessThanOrEqual(c.halfWidth + 2 * t.cellM);
+            checked++;
+          });
+        }
+    });
+    expect(checked).toBeGreaterThan(1000);
+  });
+});
+
+describe('#150: map loader on Auental', () => {
+  const a = readBake('auental');
+  const AUENTAL = { ...a.map, terrain: terrainOf(a.map, a.cover, DEFAULT_TUNE.cellM) };
+
+  it('opens the 20 m Auer only at the seven crossings, each one on its own', () => {
+    const m = createMatch({ seed: 1, map: AUENTAL, tune: DEFAULT_TUNE, squadsPerSide: 4, commanderSide: 'nato' });
+    const { nato, pact } = m.map.hqs;
+    const over = (c: number) => build(m, m.grid, pact, 30, (k) => m.grid.crossing[k]! >= 0 && m.grid.crossing[k] !== c); // every crossing but `c` closed
+    expect(flowDist(m, over(-1), nato), 'all crossings closed').toBe(Infinity);
+    a.map.crossings.forEach((c, i) => expect(flowDist(m, over(i), nato), c.id).toBeLessThan(Infinity));
+  });
+
+  it('#151: builds every flow field within 16 bits and 160 MB, each crossing and point reachable from both HQs', () => {
+    const m = createMatch({ seed: 1, map: AUENTAL, tune: DEFAULT_TUNE, squadsPerSide: 8, commanderSide: 'nato' });
+    expect(m.vehicles.length).toBeGreaterThan(0); // so the drive fields are built too
+    warmFlows(m); // throws on a field too long for 16 bits
+    expect(flowBytes(m)).toBeLessThanOrEqual(160e6);
+    for (const hq of Object.values(m.map.hqs)) {
+      a.map.crossings.forEach((c, i) => expect(flowDist(m, crossingFlow(m, i), hq), c.id).toBeLessThan(Infinity));
+      m.points.forEach((p, i) => expect(flowDist(m, pointFlow(m, i), hq), p.id).toBeLessThan(Infinity));
+    }
+  }, 60_000);
 });

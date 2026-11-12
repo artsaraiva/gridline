@@ -2,6 +2,11 @@
 <meta charset="utf-8" />
 <title>Replay</title>
 <script type="module">
-  import { REPLAY_RECORD, REPLAY_TICKS, replayHashes } from '/src/host/replay.ts';
-  window.hashes = replayHashes(REPLAY_RECORD, REPLAY_TICKS);
+  import { AUENTAL_RECORD, REPLAY_RECORD, REPLAY_TICKS, replayHashes } from '/src/host/replay.ts';
+  import { loadBakedMap } from '/src/maps/load.ts';
+  import { DEFAULT_TUNE } from '/src/sim/tune.ts';
+  // `?map=auental` replays AUENTAL_RECORD on the bake, fetched the way the worker does; else REPLAY_RECORD on the test field
+  window.hashes = new URLSearchParams(location.search).get('map') === 'auental'
+    ? replayHashes(AUENTAL_RECORD, REPLAY_TICKS, await loadBakedMap('/maps/auental', DEFAULT_TUNE.cellM))
+    : replayHashes(REPLAY_RECORD, REPLAY_TICKS);
 </script>

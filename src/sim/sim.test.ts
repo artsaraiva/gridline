@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { drainEvery } from './capture';
 import { commanderView, createMatch, stateHash, step, type Match } from './index';
 import { DEFAULT_TUNE } from './tune';
 import { NO_TEMPO, NO_TRAITS, thinkOnId } from './test-tune';
@@ -111,15 +112,50 @@ describe('capture', () => {
 });
 
 describe('tickets', () => {
-  // Three points close to nato, the pact HQ far away: nato takes them one by one, leads 1, 2 then 3.
+  // Three points close to nato, the pact HQ far away: nato takes them one by one, leads 1, 2 then 3. Three Squads at a base of three: #152 scale 1.
   const runaway = (tune: Partial<Tune> = {}) =>
-    run(start(map([{ x: 0, y: 0 }, { x: 0, y: 100 }, { x: 0, y: -150 }]), { squadSize: 1, ...tune }, 3), 300 * HZ);
+    run(start(map([{ x: 0, y: 0 }, { x: 0, y: 100 }, { x: 0, y: -150 }]), { squadSize: 1, ticketBaseSquads: 3, ...tune }, 3), 300 * HZ);
   const lead = (v: CommanderView) =>
     v.points.filter((p) => p.owner === 'nato').length - v.points.filter((p) => p.owner === 'pact').length;
 
-  it('each Side starts with 150', () => {
-    const v = commanderView(start(map([{ x: 0, y: 0 }])), 'nato');
+  it('each Side starts with 150 at 4 Squads, and #152 Tickets scale with the Squad count', () => {
+    const v = commanderView(start(map([{ x: 0, y: 0 }]), {}, 4), 'nato');
     expect(v.tickets).toEqual({ nato: 150, pact: 150 });
+    const at = (squads: number) => commanderView(start(map([{ x: 0, y: 0 }], 300), { squadSize: 1 }, squads), 'pact');
+    expect([3, 4, 8, 32].map((n) => [at(n).ticketsStart, at(n).tickets.nato, at(n).tickets.pact])).toEqual([[113, 113, 113], [150, 150, 150], [300, 300, 300], [1200, 1200, 1200]]);
+  });
+
+  it('#152: the drain table is indexed by the lead\'s share of the points; 5 points or fewer drain as tuned', () => {
+    const every = (points: number) => {
+      const m = start(map(Array.from({ length: points }, (_, i) => ({ x: i * 10, y: 0, name: `P${i}` })), 300), { squadSize: 1 }, 4);
+      return Array.from({ length: points }, (_, lead) => {
+        m.points.forEach((p, i) => (p.owner = i <= lead ? 'nato' : null));
+        return drainEvery(m);
+      });
+    };
+    expect(every(3)).toEqual([6, 4, 2.5]);
+    expect(every(5)).toEqual([6, 4, 2.5, 1.75, 1.25]);
+    expect(every(12)).toEqual([6, 6, 4, 4, 2.5, 2.5, 2.5, 1.75, 1.75, 1.25, 1.25, 1.25]);
+  });
+
+  it('#152: at 8 times the base Squads the drain runs exactly 8 times as fast, never rounded to whole ticks', () => {
+    const m = start(map([0, 1, 2, 3, 4].map((i) => ({ x: i * 10, y: 0 }))), { squadSize: 1, ticketBaseSquads: 1, matchSeconds: 1e6 }, 8);
+    m.points.forEach((p) => (p.owner = 'nato')); // lead 5: 1.25 s, 25 ticks a Ticket at scale 1
+    const lost: number[] = [];
+    for (let i = 0; i < 250; i++) {
+      step(m, []);
+      lost.push(1200 - m.tickets.pact);
+    }
+    expect(m.tickets.nato).toBe(1200);
+    expect(lost).toEqual(lost.map((_, i) => Math.floor((8 * (i + 1)) / 25)));
+    expect(drainEvery(m)).toBe(1.25 / 8);
+  });
+
+  it('#152: the drain debt is in the hash', () => {
+    const m = start(map([{ x: 0, y: 0 }]));
+    const h = stateHash(m);
+    m.drainDebt += 0.25;
+    expect(stateHash(m)).not.toBe(h);
   });
 
   it('the point lead drains 1 enemy Ticket every `drainSeconds` entry for a lead of 1, 2 or 3', () => {

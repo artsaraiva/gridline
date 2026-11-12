@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { commanderView, createMatch, stateHash, step, type Match } from './index';
+import { ticketsStart } from './capture';
 import { dogleg } from './flight';
 import { insidePolygon } from './geometry';
 import { DEFAULT_TUNE } from './tune';
@@ -29,7 +30,7 @@ function field(extra: Partial<MapData> = {}): MapData {
  * that. Placing Soldiers (and a tank's hit points) stands in for a map script; everything after it runs through `step`.
  */
 function scene(o: { map?: Partial<MapData>; tune?: Partial<Tune>; place?: Record<number, { x: number; y: number; fx?: number; fy?: number }>; squads?: number }): Match {
-  const tune: Tune = { ...DEFAULT_TUNE, squadSize: 2, speedJitter: 0, spread: 0, strayChance: 0, drainSeconds: [1e9, 1e9, 1e9, 1e9, 1e9], jeepsPerSide: 0, helisPerSide: 0, jetsPerSide: 0, aasPerSide: 0, pointJeeps: false, ...NO_TRAITS, ...NO_TEMPO, ...o.tune };
+  const tune: Tune = { ...DEFAULT_TUNE, squadSize: 2, speedJitter: 0, spread: 0, strayChance: 0, drainSeconds: [1e9, 1e9, 1e9, 1e9, 1e9], tanksPerSide: 1, jeepsPerSide: 0, helisPerSide: 0, jetsPerSide: 0, aasPerSide: 0, pointJeeps: false, ...NO_TRAITS, ...NO_TEMPO, ...o.tune };
   const m = thinkOnId(createMatch({ seed: 1, map: field(o.map), tune, squadsPerSide: o.squads ?? 1, commanderSide: 'nato' }));
   for (const [id, p] of Object.entries(o.place ?? {})) Object.assign(m.soldiers[Number(id)]!, p);
   return m;
@@ -149,7 +150,7 @@ describe('#107 the kill table', () => {
       expect.objectContaining({ category: 'artillery', points: DEFAULT_TUNE.scoreArtilleryKill }),
     ]);
     expect(missile.vehicles[0]!.deadAt).toBeGreaterThan(0);
-    expect(missile.tickets.nato).toBe(DEFAULT_TUNE.tickets - 2); // one Ticket each
+    expect(missile.tickets.nato).toBe(ticketsStart(missile) - 2); // one Ticket each
   });
 
   it('the crew get out under a third of its hit points, and the abandoned tank stays where it stopped', () => {
@@ -183,7 +184,7 @@ describe('#107 the tank fights', () => {
 
   it('the main gun fires on a new target only after a seeded aim time of tankAimSeconds', () => {
     const firsts = [1, 2, 3, 4].map((seed) => {
-      const m = createMatch({ seed, map: field(), tune: { ...DEFAULT_TUNE, ...NO_TRAITS, ...NO_TEMPO, squadSize: 2, spread: 0, speedJitter: 0, jetsPerSide: 0, aasPerSide: 0 }, squadsPerSide: 1, commanderSide: 'nato' });
+      const m = createMatch({ seed, map: field(), tune: { ...DEFAULT_TUNE, ...NO_TRAITS, ...NO_TEMPO, squadSize: 2, spread: 0, speedJitter: 0, tanksPerSide: 1 }, squadsPerSide: 1, commanderSide: 'nato' });
       Object.assign(m.soldiers[2]!, { x: -500, y: 0 });
       Object.assign(m.soldiers[3]!, { x: -500, y: 0 });
       crewed(m, [0, 1]);
@@ -399,7 +400,7 @@ describe('#108 the jeep fights and dies', () => {
     seat(m, 10, [4, 5], { x: 150, y: 0, fx: -1, fy: 0 });
     const { events } = play(m, 4 * HZ);
     expect(events.filter((e) => e.kind === 'death').map((e) => (e as { id: number }).id).sort()).toEqual([0, 1, 2, 3]);
-    expect(m.tickets.nato).toBe(DEFAULT_TUNE.tickets - 4);
+    expect(m.tickets.nato).toBe(ticketsStart(m) - 4);
     expect(m.vehicles.find((v) => v.id === 9)!.deadAt).toBeGreaterThan(0);
   });
 
@@ -418,17 +419,59 @@ describe('#108 the jeep fights and dies', () => {
   });
 });
 
-describe('#108 a jeep at every Capture Point but the middle one, for its owner', () => {
-  // A neutral, C in the middle, E pact's from the start; nato's Soldiers stand in A, pact's in C. Vehicles: A's jeep 4, E's 5
+describe('#154 vehicles are map data', () => {
+  // Each Side lists two tank slots, a jeep's and an AA's, two helipads and two jets; A (nato's) a jeep, the middle point M none,
+  // neutral D a tank and a jeep. Soldiers are ids 0..7, so the vehicles start at 8.
+  const hq = (s: number) => ({
+    slots: [{ kind: 'tank' as const, x: -500 * s, y: -20 }, { kind: 'tank' as const, x: -500 * s, y: 20 }, { kind: 'jeep' as const, x: -490 * s, y: 20 }, { kind: 'aa' as const, x: -480 * s, y: 20 }],
+    pads: [{ x: -520 * s, y: -30 }, { x: -520 * s, y: 30 }],
+  });
+  const map = field({
+    vehicleSlots: { nato: hq(1).slots, pact: hq(-1).slots },
+    helipad: { nato: hq(1).pads, pact: hq(-1).pads },
+    jets: { nato: 2, pact: 2 },
+    points: [
+      { id: 'A', name: 'A', x: -300, y: 0, owner: 'nato', vehicles: [{ kind: 'jeep', x: -300, y: 10 }] },
+      { id: 'M', name: 'M', x: 0, y: 0 },
+      { id: 'D', name: 'D', x: 300, y: 0, vehicles: [{ kind: 'tank', x: 300, y: -10 }, { kind: 'jeep', x: 300, y: 10 }] },
+    ],
+  });
+  const made = (tune: Partial<Tune> = {}) =>
+    createMatch({ seed: 1, map, tune: { ...DEFAULT_TUNE, ...tune }, squadsPerSide: 1, commanderSide: 'nato' }).vehicles.filter((v) => v.kind !== 'gunship').map((v) => [v.id, v.side, v.kind, v.slot.x, v.slot.y, v.point, v.deadAt === -1]); // #101: the Gunships come after, asleep off the map
+
+  it('the tune keys default to the map\'s counts: every slot and pad gets its vehicle, each point the ones it lists, ids in the old order', () => {
+    expect(made()).toEqual([
+      [8, 'nato', 'tank', -500, -20, -1, true], [9, 'nato', 'tank', -500, 20, -1, true], [10, 'nato', 'jeep', -490, 20, -1, true],
+      [11, 'nato', 'helicopter', -520, -30, -1, true], [12, 'nato', 'helicopter', -520, 30, -1, true],
+      [13, 'pact', 'tank', 500, -20, -1, true], [14, 'pact', 'tank', 500, 20, -1, true], [15, 'pact', 'jeep', 490, 20, -1, true],
+      [16, 'pact', 'helicopter', 520, -30, -1, true], [17, 'pact', 'helicopter', 520, 30, -1, true],
+      [18, 'nato', 'jeep', -300, 10, 0, true], [19, 'nato', 'tank', 300, -10, 2, false], [20, 'nato', 'jeep', 300, 10, 2, false], // D's wait for an owner
+      [21, 'nato', 'jet', -1700, 0, -1, true], [22, 'nato', 'jet', -1700, 0, -1, true], [23, 'nato', 'aa', -480, 20, -1, true],
+      [24, 'pact', 'jet', 1700, 0, -1, true], [25, 'pact', 'jet', 1700, 0, -1, true], [26, 'pact', 'aa', 480, 20, -1, true],
+    ]);
+  });
+
+  it('a number overrides the map: the first slots of that kind, then 9 m apart toward the field past the Side\'s last slot; pointJeeps off drops the point vehicles', () => {
+    expect(made({ tanksPerSide: 1, jeepsPerSide: 2, helisPerSide: 0, jetsPerSide: 0, aasPerSide: 1, pointJeeps: false })).toEqual([
+      [8, 'nato', 'tank', -500, -20, -1, true], [9, 'nato', 'jeep', -490, 20, -1, true], [10, 'nato', 'jeep', -471, 20, -1, true],
+      [11, 'pact', 'tank', 500, -20, -1, true], [12, 'pact', 'jeep', 490, 20, -1, true], [13, 'pact', 'jeep', 471, 20, -1, true],
+      [14, 'nato', 'aa', -480, 20, -1, true], [15, 'pact', 'aa', 480, 20, -1, true],
+    ]);
+  });
+});
+
+describe('#108 a jeep at a Capture Point, for its owner', () => {
+  // A neutral, C in the middle (#154: it lists no vehicle), E pact's from the start; nato's Soldiers stand in A, pact's in C. Vehicles: A's jeep 4, E's 5
+  const jeep = (x: number) => [{ kind: 'jeep' as const, x, y: 0 }];
   const points = () =>
     scene({
-      map: { points: [{ id: 'A', name: 'A', x: -300, y: 0 }, { id: 'C', name: 'C', x: 0, y: 0 }, { id: 'E', name: 'E', x: 300, y: 0, owner: 'pact' }] },
+      map: { points: [{ id: 'A', name: 'A', x: -300, y: 0, vehicles: jeep(-300) }, { id: 'C', name: 'C', x: 0, y: 0 }, { id: 'E', name: 'E', x: 300, y: 0, owner: 'pact', vehicles: jeep(300) }] },
       tune: { tanksPerSide: 0, pointJeeps: true, visionM: 0, walkSpeed: 0, rockets: 0, boardM: 0 }, // nobody drives off in them
       place: { 0: { x: -300, y: 0 }, 1: { x: -300, y: 5 }, 2: { x: 0, y: 0 }, 3: { x: 0, y: 5 } },
     });
   const jeepAt = (v: CommanderView, p: { x: number; y: number }) => v.vehicles!.find((x) => x.kind === 'jeep' && !x.wreck && Math.hypot(x.x - p.x, x.y - p.y) < 25);
 
-  it('one waits at a point owned from the start; one appears the moment a point is captured; never at the middle one', () => {
+  it('one waits at a point owned from the start; one appears the moment a point is captured; never at a point that lists none', () => {
     const m = points();
     expect(m.vehicles.filter((v) => v.kind !== 'gunship').map((v) => [v.id, v.side, v.deadAt === -1])).toEqual([[4, 'nato', false], [5, 'pact', true]]);
     const { views } = play(m, 50 * HZ, 'nato');
@@ -454,6 +497,30 @@ describe('#108 a jeep at every Capture Point but the middle one, for its owner',
     expect((back + 1) / HZ).toBeCloseTo(DEFAULT_TUNE.vehicleRespawnSeconds, 0);
     expect(m.tick - dead).toBeGreaterThan(back);
     expect(jeepAt(views.at(-1)!, { x: -300, y: 0 })).toMatchObject({ side: 'nato', hp: 1 });
+  });
+
+  it('#154: an empty one parked in its slot changes hands with its point, as a fresh one; one with a rider aboard does not', () => {
+    // pact holds A from the start, its jeep 4 parked just outside the ring; nato's Squad stands in A. Pact's Soldier 2 may sit in
+    // the jeep as a passenger, with no driver: nothing moves it, and it never gets out on its own
+    const taken = (aboard: boolean) => {
+      const m = scene({
+        map: { points: [{ id: 'A', name: 'A', x: -300, y: 0, owner: 'pact', vehicles: [{ kind: 'jeep', x: -300, y: 35 }] }] },
+        tune: { tanksPerSide: 0, pointJeeps: true, visionM: 0, walkSpeed: 0, rockets: 0, boardM: 0, stillSeconds: 1e9, dismountM: 0 },
+        place: { 0: { x: -300, y: 0 }, 1: { x: -300, y: 5 } },
+      });
+      const j = m.vehicles[0]!;
+      Object.assign(j, { hp: 20 }); // a scratched one: the hand-over is a fresh vehicle
+      if (aboard) {
+        j.seats[2] = 2;
+        Object.assign(m.soldiers[2]!, { x: j.x, y: j.y, vehicle: j.id });
+      }
+      for (let i = 0; i < 120 * HZ && m.points[0]!.owner !== 'nato'; i++) step(m, []);
+      expect(m.points[0]!.owner).toBe('nato');
+      step(m, []); // the vehicle phase runs before the capture phase: it sees the new owner next tick
+      return j;
+    };
+    expect(taken(false)).toMatchObject({ id: 4, side: 'nato', x: -300, y: 35, hp: DEFAULT_TUNE.jeepHp, seats: [-1, -1, -1, -1], deadAt: -1 });
+    expect(taken(true)).toMatchObject({ id: 4, side: 'pact', hp: 20, seats: [-1, -1, 2, -1] });
   });
 });
 
@@ -540,7 +607,7 @@ describe('#109 the transport helicopter ferries a Squad', () => {
     expect(new Set(events.filter((e) => e.kind === 'shot' && e.to === 8 && e.hit).map((e) => (e as { from: number }).from)).size).toBeGreaterThan(1);
     const deaths = events.filter((e) => e.kind === 'death' && e.tick === dead);
     expect(deaths).toHaveLength(aboard[0]!);
-    expect(m.tickets.nato).toBe(DEFAULT_TUNE.tickets - aboard[0]!);
+    expect(m.tickets.nato).toBe(ticketsStart(m) - aboard[0]!);
     const wreck = views.at(-1)!.vehicles!.find((x) => x.wreck)!;
     expect(wreck).toMatchObject({ side: 'nato', kind: 'helicopter' });
     expect(Math.hypot(wreck.x - A.x, wreck.y - A.y)).toBeLessThan(DEFAULT_TUNE.fireRangeM);
@@ -672,6 +739,38 @@ describe('#109 the helicopter\'s sight, and being seen', () => {
     };
     expect(wreck(true)).toMatchObject({ side: 'nato', kind: 'helicopter', x: 0, y: 0 });
     expect(wreck(false)).toBeUndefined();
+  });
+});
+
+describe('#154 two AAs', () => {
+  it('lay back on the two flanks: the second AA leaves the better flank to the first', () => {
+    // nato holds A on the north flank (the better lay-back: farther out) and B on the south; C in the middle. Soldier 0 drives
+    // AA 8, Soldier 2 (the next Squad) AA 9; no seeded preference
+    const m = scene({
+      map: { points: [{ id: 'A', name: 'A', x: -300, y: 320, owner: 'nato' }, { id: 'B', name: 'B', x: -300, y: -280, owner: 'nato' }, { id: 'C', name: 'C', x: 0, y: 0 }] },
+      tune: { tanksPerSide: 0, aasPerSide: 2, tankGoalBias: 0, visionM: 0 },
+      squads: 2,
+    });
+    const aas = m.vehicles.filter((v) => v.side === 'nato' && v.kind === 'aa');
+    aas.forEach((v, k) => {
+      v.seats[0] = 2 * k;
+      Object.assign(m.soldiers[2 * k]!, { x: v.x, y: v.y, vehicle: v.id });
+    });
+    play(m, 3 * HZ);
+    expect(aas.map((v) => m.points[v.goal]?.id).sort()).toEqual(['A', 'B']);
+  });
+
+  it('#150: never lay back on a keystone point the map names, however good its flank', () => {
+    // as above, but the map names A and C its keystone: the one AA leaves the better flank and takes B
+    const m = scene({
+      map: { points: [{ id: 'A', name: 'A', x: -300, y: 320, owner: 'nato' }, { id: 'B', name: 'B', x: -300, y: -280, owner: 'nato' }, { id: 'C', name: 'C', x: 0, y: 0 }], keystone: ['A', 'C'] },
+      tune: { tanksPerSide: 0, aasPerSide: 1, tankGoalBias: 0, visionM: 0 },
+    });
+    const aa = m.vehicles.find((v) => v.side === 'nato' && v.kind === 'aa')!;
+    aa.seats[0] = 0;
+    Object.assign(m.soldiers[0]!, { x: aa.x, y: aa.y, vehicle: aa.id });
+    play(m, 3 * HZ);
+    expect(m.points[aa.goal]?.id).toBe('B');
   });
 });
 

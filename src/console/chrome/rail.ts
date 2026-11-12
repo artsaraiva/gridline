@@ -85,7 +85,7 @@ export function drawRail(view: CommanderView | null) {
   if (factionCell.textContent !== cell) factionCell.textContent = cell;
   if (factionSub.textContent !== sub) factionSub.textContent = sub;
 
-  const max = DEFAULT_TUNE.tickets;
+  const max = view.ticketsStart ?? DEFAULT_TUNE.tickets; // #152: Tickets scale with the Squad count
   const usPct = Math.max(0, Math.min(100, (100 * view.tickets[us]) / max));
   const themPct = Math.max(0, Math.min(100, (100 * view.tickets[them]) / max));
   const html =

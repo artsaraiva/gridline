@@ -17,9 +17,11 @@ export interface BakedMap extends MapData {
   /**
    * 1 m top-down data render, row-major, row 0 at the north edge, column 0 at the west edge.
    * `cover`: one byte per cell (ids in `coverIds`); `ground`, `top`: float32 heights in metres,
-   * ground without objects and top of whatever is highest.
+   * ground without objects and top of whatever is highest, in cells of `heightCellM` metres (`cellM` when absent).
    */
-  data: { cells: number; cellM: number; cover: string; ground: string; top: string; coverIds: Record<string, number> };
+  data: {
+    cells: number; cellM: number; cover: string; ground: string; top: string; heightCellM?: number; coverIds: Record<string, number>;
+  };
   images: {
     /** Play-area bake, largest first, halving down to 1 px: a ready-made mip chain. The 4096 level doubles as the fallback. */
     play: string[];
