@@ -8,7 +8,7 @@ import type { CommanderView, Vec2 } from '../../sim/types';
 import { COLOR, pool, toScreen } from '../renderer';
 import { session } from '../session';
 import { lastImpactAt } from './impacts';
-import { clock } from '../summary';
+import { clock, eliteSquad } from '../summary';
 import { overlaps, targeting, validSpot } from '../targeting';
 import { css, dashedRing, fading } from './symbols';
 
@@ -96,13 +96,13 @@ export function drawEffects(view: CommanderView, now: number) {
   for (let i = tags; i < labels.length; i++) labels[i]!.hidden = true;
 }
 
-/** The friendly Squad with a Soldier nearest `p`, and that distance in metres; `Friendlies` for a Squad that is not Elite (#153). */
+/** The friendly Squad with a Soldier nearest `p`, and that distance in metres; `friendlies` for a Squad that is not Elite (#153). */
 function nearestSquad(view: CommanderView, p: Vec2) {
   let best: { name: string; d: number } | null = null;
   for (const f of view.friendlies) {
     const d = Math.sqrt((f.x - p.x) ** 2 + (f.y - p.y) ** 2);
     if (best && d >= best.d) continue;
-    best = { name: view.squads.find((q) => q.id === f.squad)?.name ?? 'Friendlies', d };
+    best = { name: eliteSquad(view, f.squad)?.name ?? 'friendlies', d };
   }
   return best;
 }

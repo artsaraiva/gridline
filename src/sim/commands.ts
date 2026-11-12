@@ -17,7 +17,7 @@ interface Handler<C extends Command> {
 const order: Handler<Of<'order'>> = {
   check: (m, c) =>
     m.squads[c.squad]?.side !== c.side ? 'unknown squad'
-    : !elite(m, m.squads[c.squad]!) ? 'not elite'
+    : !elite(m)[c.squad] ? 'not elite'
     : c.point !== null && !m.points.some((p) => p.id === c.point) ? 'unknown point'
     : null,
   apply: giveOrder,

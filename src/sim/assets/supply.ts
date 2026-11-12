@@ -54,6 +54,6 @@ export const supply: Kind = {
 /** #74: the contribution message for what a recipient drew since the last one, naming the Squad (#153: if it is Elite). */
 function tell(m: Match, e: Effect, id: number, events: SimEvent[]) {
   const sq = m.squads[m.soldiers[id]!.squad]!;
-  events.push({ kind: 'award', side: e.side, category: 'supply', points: e.open![id]!, reason: `Supply Drop resupplied ${elite(m, sq) ? squadName(m, sq) : 'friendlies'}` });
+  events.push({ kind: 'award', side: e.side, category: 'supply', points: e.open![id]!, reason: `Supply Drop resupplied ${elite(m)[sq.id] ? squadName(m, sq) : 'friendlies'}` });
   e.open![id] = 0;
 }

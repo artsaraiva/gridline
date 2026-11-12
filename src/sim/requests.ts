@@ -47,8 +47,9 @@ function need(m: Match, sq: Squad): { asset: RequestKind; at: Vec2 } | null {
 export function requests(m: Match, events: SimEvent[]) {
   const t = m.tune;
   const grid = m.map.grid;
+  const elites = elite(m);
   for (const sq of m.squads) {
-    if (!elite(m, sq)) continue; // #153: only an Elite Squad asks the Commander
+    if (!elites[sq.id]) continue; // #153: only an Elite Squad asks the Commander
     const r = sq.request;
     if (wiped(membersOf(m, sq))) sq.request = null;
     else if (r) {

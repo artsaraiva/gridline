@@ -8,6 +8,7 @@ import { insidePolygon } from '../sim/geometry';
 import { DEFAULT_TUNE } from '../sim/tune';
 import { enemyOf, type AssetKind, type Vec2 } from '../sim/types';
 import { session } from './session';
+import { eliteSquad } from './summary';
 
 export const targeting = {
   armed: null as AssetKind | null,
@@ -96,7 +97,7 @@ export function tap(p: Vec2, sameM: number, pickM = sameM) {
   }
   const near = (q: Vec2, r: number) => (p.x - q.x) ** 2 + (p.y - q.y) ** 2 <= r * r;
   const view = session.view;
-  const friend = view?.friendlies.find((f) => near(f, pickM) && view.squads.some((q) => q.id === f.squad)); // #153: Elite Squads only
+  const friend = view?.friendlies.find((f) => near(f, pickM) && eliteSquad(view, f.squad));
   if (friend) return select(friend.squad);
   const point = view?.points.find((q) => near(q, Math.max(q.radius, pickM)));
   if (!point) return select(null); // a tap on empty ground drops the selection

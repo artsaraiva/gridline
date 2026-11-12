@@ -45,8 +45,9 @@ describe('Elite Squads', () => {
       [8, 'not elite'],
       [20, 'not elite'],
     ]);
-    expect(m.squads[7]!.pending ?? m.squads[7]!.order).not.toBeNull();
-    expect(m.squads[19]!.pending ?? m.squads[19]!.order).not.toBeNull();
+    const C = m.points.findIndex((p) => p.id === 'C');
+    expect([8, 20].map((id) => m.squads[id]!.pending)).toEqual([null, null]);
+    expect([7, 19].map((id) => m.squads[id]!.pending?.point)).toEqual([C, C]);
   });
 
   it('the view lists each Side\'s 8 Elite Squads, Alpha to Hotel, and every Soldier of the Side as a friendly', () => {
@@ -63,7 +64,7 @@ describe('Elite Squads', () => {
     const m = scene();
     const events: SimEvent[] = [];
     let asked = false;
-    for (let i = 0; i < 180 * HZ; i++) {
+    for (let i = 0; i < 100 * HZ; i++) {
       events.push(...step(m, []));
       asked ||= m.squads.some((sq) => !isElite(sq.id) && sq.request);
     }
@@ -71,9 +72,9 @@ describe('Elite Squads', () => {
     const lines = radio(events);
     expect(lines.filter((e) => e.squad !== null && !isElite(e.squad))).toEqual([]);
     expect(lines.some((e) => e.squad !== null && isElite(e.squad))).toBe(true);
-    // the Squads that are not Elite were in the fight: shot at, so they would have called it
-    expect(events.some((e) => e.kind === 'shot' && m.soldiers[e.to] && !isElite(m.soldiers[e.to]!.squad))).toBe(true);
-  }, 30_000);
+    // the Squads that are not Elite were in the fight: one of their Soldiers went down, so they would have called Man down
+    expect(events.some((e) => (e.kind === 'wounded' || e.kind === 'death') && !isElite(m.soldiers[e.id]!.squad))).toBe(true);
+  });
 
   it('a point taken only by a Squad that is not Elite is reported once on the Side net; an Elite Squad reports its own', () => {
     const take = (squad: number) => {

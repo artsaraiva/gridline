@@ -114,6 +114,9 @@ export function squadCentroid(view: CommanderView, squadId: number): Vec2 | null
   return { x: x / men.length, y: y / men.length };
 }
 
+/** #153: the Squad `id` as the view lists it; undefined for a Squad that is not Elite, which the Console never names or selects. */
+export const eliteSquad = (view: CommanderView, id: number): SquadView | undefined => view.squads.find((q) => q.id === id);
+
 /** The Squad Leader's FriendlyView (#68: Wounded or not), or undefined while the Squad has none. */
 export const leaderOf = (view: CommanderView, q: SquadView): FriendlyView | undefined => view.friendlies.find((f) => f.id === q.leader);
 

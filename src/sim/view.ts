@@ -39,6 +39,7 @@ export function commanderView(m: Match, side: SideId): CommanderView {
   const stage = stageTicks(m.tune);
   const soldierView = (s: Soldier) => ({ id: s.id, x: s.x, y: s.y, fx: s.fx, fy: s.fy, ...(s.chute && { chute: (m.tick - s.chute.t0) / (s.chute.t1 - s.chute.t0) }) });
   const seen = contactIds(m, side);
+  const elites = elite(m);
   return {
     side,
     tick: m.tick,
@@ -48,7 +49,7 @@ export function commanderView(m: Match, side: SideId): CommanderView {
       .map((s) => ({ ...soldierView(s), squad: s.squad, state: s.state as 'alive' | 'wounded', suppressed: s.suppression > m.tune.suppressedAt, ammo: s.ammo / m.tune.ammo, ...(s.vehicle >= 0 && { vehicle: s.vehicle }) })),
     contacts: [...new Set([...seen.filter((id) => m.soldiers[id]), ...assetContacts(m, side).map((s) => s.id)])].map((id) => soldierView(m.soldiers[id]!)),
     lastKnown: lastKnown(m, side),
-    squads: m.squads.filter((sq) => sq.side === side && elite(m, sq)).map((sq) => squadView(m, sq)), // #153: the rest are only `friendlies`
+    squads: m.squads.filter((sq) => sq.side === side && elites[sq.id]).map((sq) => squadView(m, sq)), // #153: the rest are only `friendlies`
     points: m.points.map((p) => ({ id: p.id, name: p.name, x: p.x, y: p.y, radius: p.radius, owner: p.owner, progress: p.progress / stage })),
     tickets: { ...m.tickets },
     ticketsStart: ticketsStart(m),

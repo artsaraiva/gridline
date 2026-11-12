@@ -148,16 +148,17 @@ export const lastDeath = (members: Soldier[]) => Math.max(...members.map((s) => 
 
 const SQUAD_NAMES = ['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo', 'Foxtrot', 'Golf', 'Hotel'];
 
-const sideIndex = (m: Match, sq: Squad) => m.squads.filter((o) => o.side === sq.side).indexOf(sq);
-
 /** The call sign of `sq`: Alpha, Bravo... in the order of its Side's Squads. */
 export const squadName = (m: Match, sq: Squad) => {
-  const i = sideIndex(m, sq);
+  const i = m.squads.filter((o) => o.side === sq.side).indexOf(sq);
   return SQUAD_NAMES[i] ?? `Squad ${i + 1}`;
 };
 
-/** #153: `sq` is an Elite Squad, one of its Side's first `eliteSquads`: the only Squads on the Commander's net. */
-export const elite = (m: Match, sq: Squad) => sideIndex(m, sq) < m.tune.eliteSquads;
+/** #153: per Squad id, whether it is an Elite Squad, one of its Side's first `eliteSquads`: the only Squads on the Commander's net. */
+export function elite(m: Match): boolean[] {
+  const before: Record<SideId, number> = { nato: 0, pact: 0 };
+  return m.squads.map((sq) => before[sq.side]++ < m.tune.eliteSquads);
+}
 
 /** A Capture Point's letter spoken as its call sign (A = Alpha); any other name as written. */
 export const callName = (name: string) => (name.length === 1 && SQUAD_NAMES.find((n) => n[0] === name)) || name;

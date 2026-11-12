@@ -17,6 +17,6 @@ Elite means only the link to the Commander. Elite Squads draw their Soldiers and
 
 ## Consequences
 
-- The Console, the radio and the Requests stay sized for 8 Squads, and so does the Side's radio volume: Squads that are not Elite send nothing, so the Side needs no shared radio budget. The one Side-level line they cause is a capture with no Elite Squad inside, reported once on the Side net the way a loss already is.
+- The Console, the radio and the Requests stay sized for 8 Squads, and so does the Side's radio volume: Squads that are not Elite send nothing, so the Side needs no shared radio budget. The one Side-level line they cause is a capture they make with no Elite Squad inside, reported once on the Side net the way a loss already is.
 - Most of the Side is outside the Commander's direct reach. The Commander moves it through what every Squad shares: Assets (crates, Strikes, Scans), Contacts, and the Side's knowledge.
 - The enemy Side still has no Commander, so its 32 Squads all play for themselves. An AI Commander would be a spec of its own.
