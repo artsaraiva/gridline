@@ -6,7 +6,7 @@ import { commanderView, createMatch, step, SIDES, type MapData, type MatchResult
 import { DEFAULT_TUNE } from '../src/sim/tune';
 import { JOBS, type Job } from '../src/sim/heli-jobs';
 import { live, PILOT_SEAT } from '../src/sim/vehicles';
-import { inJet } from '../src/sim/state';
+import { inSky } from '../src/sim/state';
 
 /** Built on first use: Auental's terrain takes a moment to resample. */
 export const MAPS: Record<string, () => MapData> = { kaltenbach: () => KALTENBACH, auental: () => bake('auental'), river: () => RIVER_FIELD, test: () => TEST_FIELD };
@@ -81,7 +81,7 @@ export function balance(o: { seeds: number; squads: number; map: MapData; tune?:
     while (!m.result) {
       step(m, []);
       if (m.tick <= OPENING_S * tune.hz)
-        for (const side of SIDES) aboard[side] = Math.max(aboard[side], m.soldiers.filter((s) => s.side === side && s.state === 'alive' && s.vehicle >= 0 && !inJet(m, s)).length);
+        for (const side of SIDES) aboard[side] = Math.max(aboard[side], m.soldiers.filter((s) => s.side === side && s.state === 'alive' && s.vehicle >= 0 && !inSky(m, s)).length);
       for (const v of m.vehicles) {
         if (v.kind === 'helicopter' && v.goal >= 0 && v.lz && v.lz !== lastZone.get(v.id)) zones.push({ side: v.side, goal: m.points[v.goal]!.id, x: v.lz.x, y: v.lz.y });
         if (v.kind === 'helicopter') lastZone.set(v.id, v.lz);

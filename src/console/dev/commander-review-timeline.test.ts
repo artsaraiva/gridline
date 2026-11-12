@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { insidePolygon } from '../../sim/geometry';
 import { DEFAULT_TUNE } from '../../sim/tune';
 import type { SimEvent } from '../../sim/types';
-import { CHAPTERS, eventsBetween, LENGTH, viewAt } from './commander-review-timeline';
+import { CHAPTERS, eventsBetween, GUNSHIP_LOOP_M, GUNSHIP_STATION_S, LENGTH, viewAt } from './commander-review-timeline';
 
 const chapter = (title: string) => CHAPTERS.find((c) => c.title === title)!.at + 1;
 const OLD = chapter('Ferry') - 1; // #131: the chapters before it end here (the Parachute chapter's end was the timeline's)
@@ -342,5 +342,67 @@ describe('commander review timeline (#69)', () => {
   it('#131 the helicopter stays inside the Play Area through all four job chapters, and waits on its pad before Support and Bail (Repair begins over the circle)', () => {
     for (const v of at4(chapter('Ferry') - 1, LENGTH)) for (const x of v.vehicles!.filter((o) => o.kind === 'helicopter')) expect(insidePolygon(PLAY_AREA, x.x, x.y), `${x.id} at ${v.seconds}`).toBe(true);
     for (const title of ['Support', 'Bail']) expect(heli(viewAt(chapter(title) - 1)), title).toMatchObject({ x: PAD.x, y: PAD.y }); // each starts from the pad, the one before is over
+  });
+
+  const gunship = (v: ReturnType<typeof viewAt>, side: 'nato' | 'pact') => v.effects!.find((e) => e.asset === 'gunship' && e.side === side);
+
+  it('#101 Gunship: nato\'s circles its route round C counter-clockwise, banked on station, shelling the Contacts; the ring counts its station down, then it flies home', () => {
+    const from = chapter('Gunship') - 1;
+    const frames = Array.from({ length: (chapter('Gunship down') - from) * 4 }, (_, i) => viewAt(from + i / 4));
+    const phases = [...new Set(frames.map((v) => gunship(v, 'nato')?.phase).filter(Boolean))];
+    expect(phases).toEqual(['inbound', 'station', 'leaving']);
+    const station = frames.filter((v) => gunship(v, 'nato')?.phase === 'station');
+    expect(station.length / 4).toBeCloseTo(GUNSHIP_STATION_S, 0);
+    for (const v of station) {
+      const e = gunship(v, 'nato')!;
+      expect(e).toMatchObject({ x: 0, y: 0, radius: DEFAULT_TUNE.gunshipFocusM }); // C
+      expect(Math.hypot(e.craft!.x - e.x, e.craft!.y - e.y)).toBeCloseTo(GUNSHIP_LOOP_M, 3);
+      expect((e.craft!.x - e.x) * e.craft!.fy - (e.craft!.y - e.y) * e.craft!.fx).toBeGreaterThan(0); // the centre on its left
+      expect(e.left).toBeGreaterThan(0);
+      expect(v.vehicles).toContainEqual(expect.objectContaining({ kind: 'gunship', side: 'nato', x: e.craft!.x, y: e.craft!.y, airborne: true }));
+    }
+    expect(station.some((v) => gunship(v, 'nato')!.shells!.length)).toBe(true);
+    const events = eventsBetween(from, chapter('Gunship down'));
+    const shells = events.filter((e) => e.kind === 'impact' && e.asset === 'gunship');
+    expect(shells.length).toBeGreaterThanOrEqual(10); // about 11 over 45 s
+    for (const text of ['Gunship on station', 'Splash', 'Gunship leaving']) expect(events).toContainEqual(expect.objectContaining({ kind: 'radio', text }));
+    expect(viewAt(chapter('Gunship') + 10).assets!.find((a) => a.asset === 'gunship')!.readyIn).toBeGreaterThan(0);
+  });
+
+  it('#101 Gunship: Bravo\'s 6 rides in its gun seat firing bursts and bails out as it leaves; Bravo\'s 7 jumps where the route passes nearest B', () => {
+    const from = chapter('Gunship') - 1;
+    const frames = Array.from({ length: (chapter('Gunship down') - from) * 4 }, (_, i) => viewAt(from + i / 4));
+    const man = (v: ReturnType<typeof viewAt>, id: number) => v.friendlies.find((f) => f.id === id)!;
+    const aboard = (id: number) => frames.filter((v) => man(v, id).vehicle !== undefined);
+    expect(aboard(6).length).toBeGreaterThan(0);
+    expect(aboard(7).length).toBeGreaterThan(0);
+    expect(aboard(7).length).toBeLessThan(aboard(6).length);
+    const chute7 = frames.find((v) => man(v, 7).chute !== undefined)!;
+    expect(Math.hypot(man(chute7, 7).x - 0, man(chute7, 7).y - 300)).toBeLessThan(300 - GUNSHIP_LOOP_M + 20); // near the circle's nearest to B, 100 m short of it
+    const leave = frames.findIndex((v) => gunship(v, 'nato')?.phase === 'leaving');
+    expect(man(frames[leave]!, 6).chute).toBeDefined();
+    const shots = eventsBetween(from, chapter('Gunship down')).filter((e) => e.kind === 'shot' && e.from === 6);
+    expect(shots.length).toBeGreaterThan(8); // bursts
+    expect(frames.some((v) => v.squads.some((q) => q.id === 1) && man(v, 6).vehicle === 44)).toBe(true);
+  });
+
+  it('#101 Gunship down: pact\'s comes in from the east; the AA fires bursts at it with its turret on it; it leaves early and falls as a Wreck, its last shell still landing', () => {
+    const from = chapter('Gunship down') - 1;
+    const events = eventsBetween(from, LENGTH);
+    const fire = events.filter((e): e is Extract<SimEvent, { kind: 'shot' }> => e.kind === 'shot' && e.to === 45);
+    expect(fire.length).toBeGreaterThan(40);
+    expect(fire.every((e) => e.side === 'nato' && e.from === 2)).toBe(true);
+    const mid = viewAt(chapter('Gunship down') + 8);
+    const g = gunship(mid, 'pact')!;
+    const aa = mid.vehicles!.find((v) => v.kind === 'aa')!;
+    expect(mid.vehicles).toContainEqual(expect.objectContaining({ id: 45, kind: 'gunship', side: 'pact', airborne: true })); // the sky rule
+    expect(Math.hypot(g.craft!.x - aa.x, g.craft!.y - aa.y)).toBeLessThanOrEqual(DEFAULT_TUNE.aaRangeM);
+    expect(aa.tx * (g.craft!.x - aa.x) + aa.ty * (g.craft!.y - aa.y)).toBeCloseTo(Math.hypot(g.craft!.x - aa.x, g.craft!.y - aa.y), 6); // laid on it
+    const phases = [...new Set(Array.from({ length: 160 }, (_, i) => gunship(viewAt(from + i / 4), 'pact')?.phase ?? null))];
+    expect(phases).toEqual(['inbound', 'station', 'leaving', null]);
+    const last = viewAt(LENGTH);
+    expect(last.vehicles).toContainEqual(expect.objectContaining({ kind: 'gunship', side: 'pact', wreck: true }));
+    expect(last.vehicles!.some((v) => v.id === 45)).toBe(false);
+    expect(events.some((e) => e.kind === 'impact' && e.asset === 'gunship' && e.side === 'pact')).toBe(true);
   });
 });

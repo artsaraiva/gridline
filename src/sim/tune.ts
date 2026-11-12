@@ -332,4 +332,17 @@ export const DEFAULT_TUNE: Tune = {
 
   // #154 Vehicles for 128 v 128
   jetGapSeconds: [15, 45],
+
+  // #101 Gunship
+  gunshipCooldownSeconds: 300,
+  gunshipRangeM: 200,
+  gunshipFocusM: 80,
+  gunshipSpeedMps: 45, // a jet's is 120
+  gunshipTurnDegPerS: 12, // a 215 m turn at that speed
+  gunshipStationSeconds: 75,
+  gunshipShotSeconds: 4,
+  gunshipShellFlightSeconds: 3,
+  gunshipScatterM: 8,
+  gunshipHp: 150,
+  paradropChance: 0.5,
 };

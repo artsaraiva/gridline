@@ -64,13 +64,16 @@ export function commanderView(m: Match, side: SideId): CommanderView {
 
 /**
  * The tick's events a Side's Console may show: all of its own, and an enemy's shot, suppressive fire or Wounding only
- * when that enemy Soldier was in sight (#107: or the vehicle it fires from, as for a main gun impact). Enemy deaths (of the
+ * when that enemy Soldier was in sight (#107: or the vehicle it fires from, as for a main gun impact; #101 the Gunship's always). Enemy deaths (of the
  * unseen Wounded), Squad Respawns and Redeploys never pass. Call after `step`.
  */
 export function commanderEvents(m: Match, side: SideId, events: SimEvent[]): SimEvent[] {
   return events.filter((e) => {
     if (e.side === side) return true;
-    if (e.kind === 'shot' || e.kind === 'suppressive') return justSeen(m, side, vehicleOf(m, m.soldiers[e.from]!.vehicle)?.id ?? e.from);
+    if (e.kind === 'shot' || e.kind === 'suppressive') {
+      const v = vehicleOf(m, m.soldiers[e.from]!.vehicle);
+      return v?.kind === 'gunship' || justSeen(m, side, v?.id ?? e.from); // #101: the Gunship's gun fires from the sky
+    }
     if (e.kind === 'impact' && e.from !== undefined) return justSeen(m, side, e.from);
     return e.kind === 'wounded' && justSeen(m, side, e.id);
   });

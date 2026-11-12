@@ -10,7 +10,7 @@ import { edgeClamp } from '../edge-clamp';
 import { metresPerPx, pool, sideColor, toScreen, toWorld } from '../renderer';
 import { MISSILE_OUTLINE, MISSILE_SHADOW_FRAME, MISSILE_SHEET, missileInFlight, missiles, missileTrail } from '../sprites/missile';
 import { spriteMesh } from '../sprites/sheet';
-import { bar, fading, frameFill, frameOutline, px, streak } from './symbols';
+import { bar, brackets, fading, frameFill, frameOutline, px, streak } from './symbols';
 
 const LINE_PX = 1.5;
 const LINE_OPACITY = 0.85;
@@ -28,7 +28,7 @@ const iconColor = new THREE.Color();
 /** Edge arrow size in chevrons. */
 const ARROW_SCALE = 1.6;
 const Z = { shadow: 0.42, trail: 0.6, line: 0.56, body: 0.72, marker: 0.9, icon: 0.92 };
-const MARKER_OPACITY = 0.9;
+export const MARKER_OPACITY = 0.9;
 
 const iconGeometry = new THREE.ShapeGeometry(new THREE.Shape(MISSILE_OUTLINE.map(([x, y]) => new THREE.Vector2(x, y))));
 /** One non-indexed geometry from several pieces, for a mark drawn as a single mesh. */
@@ -39,21 +39,11 @@ function merge(pieces: THREE.BufferGeometry[]) {
   merged.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   return merged;
 }
-/** Four corner brackets round the icon. */
-const bracketGeometry = (() => {
-  const g: THREE.BufferGeometry[] = [];
-  const r = 0.95;
-  const l = 0.32;
-  const w = px(1.6 / ICON_SCALE);
-  for (const [sx, sy] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) {
-    g.push(bar(sx! * r, sy! * r, sx! * (r - l), sy! * r, w), bar(sx! * r, sy! * r, sx! * r, sy! * (r - l), w));
-  }
-  return merge(g);
-})();
+const bracketGeometry = brackets(px(1.6 / ICON_SCALE));
 /** The edge arrow: a chevron pointing +x, set just outside the brackets toward the missile. */
 const arrowGeometry = merge([bar(-0.14, 0.26, 0.1, 0, px(3 / ARROW_SCALE)), bar(0.1, 0, -0.14, -0.26, px(3 / ARROW_SCALE))]);
-/** BF4's target mark, in chevrons: a diamond outline round a small solid diamond, with a tick out from each point. */
-const markerGeometry = merge([
+/** BF4's target mark, in chevrons: a diamond outline round a small solid diamond, with a tick out from each point. #101: the Gunship's focus too. */
+export const markerGeometry = merge([
   frameOutline('hostile', 0.62, px(1.5)), // the 'hostile' frame is the diamond; only its shape is borrowed
   frameFill('hostile', 0.26),
   bar(0.71, 0, 0.98, 0, px(1.5)), bar(-0.71, 0, -0.98, 0, px(1.5)), bar(0, 0.71, 0, 0.98, px(1.5)), bar(0, -0.71, 0, -0.98, px(1.5)),
@@ -68,8 +58,8 @@ const markers = pool(() => new THREE.Mesh(markerGeometry, fading(0xffffff, MARKE
 const arrows = pool(() => new THREE.Mesh(arrowGeometry, fading(0xffffff)));
 const icons = pool(() => {
   const icon = new THREE.Mesh(iconGeometry, fading(0xffffff));
-  const brackets = new THREE.Mesh(bracketGeometry, icon.material);
-  return Object.assign(new THREE.Group().add(icon, brackets), { icon });
+  const corners = new THREE.Mesh(bracketGeometry, icon.material);
+  return Object.assign(new THREE.Group().add(icon, corners), { icon });
 });
 
 const material = (m: THREE.Mesh) => m.material as THREE.MeshBasicNodeMaterial;

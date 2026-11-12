@@ -1,0 +1,11 @@
+{
+  "frames": 81,
+  "framePx": 192,
+  "cols": 16,
+  "constants": {
+    "GUNSHIP_HEADINGS": 16,
+    "GUNSHIP_ROWS": 5,
+    "GUNSHIP_BANK_DEG": 22.0,
+    "GUNSHIP_WORLD_M": 44.0
+  }
+}

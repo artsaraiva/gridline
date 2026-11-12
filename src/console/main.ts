@@ -14,6 +14,7 @@ import { addImpact, drawImpacts } from './layers/impacts';
 import { addDeathMarker, drawDeathMarkers } from './layers/markers';
 import { watchFrame } from './layers/map';
 import { drawMissiles } from './layers/missile';
+import { drawGunships } from './layers/gunship';
 import { drawTanks } from './layers/tank';
 import { drawJeeps } from './layers/jeep';
 import { drawHelicopters } from './layers/helicopter';
@@ -81,6 +82,7 @@ renderer.setAnimationLoop(() => {
   drawSupplyDrops(view, scale);
   drawShells(view, now);
   drawMissiles(view, scale);
+  drawGunships(view, scale);
   drawTanks(view, scale);
   drawJeeps(view, scale);
   drawHelicopters(view, scale, now);

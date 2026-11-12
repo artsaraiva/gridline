@@ -1,18 +1,22 @@
 // Asset effects on the map: the armed Asset's preview ring (with its grid and the distance to the nearest friendly
 // Squad) and each working Asset's ring with its time left. Labels are DOM tags over the canvas and keep clear of the
 // map Confirm button. The baked objects (Scan UAV, Supply Drop crate, shells, impacts) each have a layer of their own (#77).
-// The Barrage ring turns while it works and pulses on each impact (#98).
+// The Barrage ring turns while it works and pulses on each impact (#98). #101: the Gunship has no ring once called:
+// its focus is a mark (layers/gunship.ts), and only its label is here.
 import * as THREE from 'three/webgpu';
 import { gridRef } from '../../sim/grid-ref';
 import type { CommanderView, Vec2 } from '../../sim/types';
-import { COLOR, pool, toScreen } from '../renderer';
+import { COLOR, pool, sideColor, toScreen } from '../renderer';
 import { session } from '../session';
 import { lastImpactAt } from './impacts';
 import { clock, eliteSquad } from '../summary';
 import { overlaps, targeting, validSpot } from '../targeting';
-import { css, dashedRing, fading } from './symbols';
+import { css, dashedRing, fading, UNIT_PX } from './symbols';
 
-const NAME = { scan: 'Scan UAV', supply: 'Supply Drop', barrage: 'Barrage', missile: 'Missile' };
+/** #101: how far the Gunship's focus mark reaches from its spot on screen (the Cruise Missile's target mark: a chevron unit). */
+export const FOCUS_MARK_PX = UNIT_PX;
+
+const NAME = { scan: 'Scan UAV', supply: 'Supply Drop', barrage: 'Barrage', missile: 'Missile', gunship: 'Gunship' };
 const discGeometry = new THREE.CircleGeometry(1, 96);
 /** The Barrage ring turns this fast while it works, so an ongoing strike reads at a glance. */
 const RING_TURN_RAD_PER_S = 0.25;
@@ -20,7 +24,7 @@ const RING_PULSE_MS = 600;
 
 /** A ring and a faint disc, pooled: rings carry no id, so they are reused in draw order. */
 const rings = pool(() => {
-  const ring = dashedRing(120, COLOR.friendly, { dash: 2, gap: 6, width: 2 });
+  const ring = dashedRing(200, COLOR.friendly, { dash: 2, gap: 6, width: 2 }); // a quad big enough for every Asset ring
   const disc = new THREE.Mesh(discGeometry, fading(COLOR.friendly, 0.06));
   return Object.assign(new THREE.Group().add(disc, ring.mesh), { ring, disc });
 });
@@ -68,6 +72,11 @@ export function drawEffects(view: CommanderView, now: number) {
   let tags = 0;
   for (const e of view.effects ?? []) {
     if (e.asset === 'missile') continue; // #99: layers/missile.ts draws its marker, ring and line
+    if (e.asset === 'gunship') {
+      // layers/gunship.ts draws its focus mark; here the label beside it, to its own Commander, until it turns for home
+      if (e.left > 0 && e.side === view.side) label(tags++, e, FOCUS_MARK_PX + 4, -18, `GUNSHIP ${e.phase === 'inbound' ? 'INBOUND' : clock(Math.ceil(e.left))}`, css(sideColor(e.side)));
+      continue;
+    }
     const danger = e.asset === 'barrage';
     const r = ringAt(e, e.radius, danger ? COLOR.hostile : COLOR.friendly, danger ? 0.1 : 0.06);
     r.ring.mesh.rotation.z = danger ? (now / 1000) * RING_TURN_RAD_PER_S : 0;
@@ -85,12 +94,14 @@ export function drawEffects(view: CommanderView, now: number) {
   const radius = targeting.armed && view.assets?.find((a) => a.asset === targeting.armed)?.radius;
   if (at && radius) {
     const color = validSpot(at) ? COLOR.bone : COLOR.hostile;
-    ringAt(at, radius, color, targeting.spot ? 0.12 : 0.06);
-    const edge = { x: at.x + radius * 0.72, y: at.y + radius * 0.72 };
+    const mark = targeting.armed === 'gunship'; // #101: its focus is a spot, not an area: layers/gunship.ts draws the mark
+    if (!mark) ringAt(at, radius, color, targeting.spot ? 0.12 : 0.06);
+    const edge = mark ? at : { x: at.x + radius * 0.72, y: at.y + radius * 0.72 };
+    const dx = mark ? FOCUS_MARK_PX + 4 : 6;
     const g = session.host?.map.grid;
-    label(tags++, edge, 6, -18, `${NAME[targeting.armed!].toUpperCase()} ${g ? gridRef(g, at) : ''}`, css(color));
+    label(tags++, edge, dx, -18, `${NAME[targeting.armed!].toUpperCase()} ${g ? gridRef(g, at) : ''}`, css(color));
     const near = nearestSquad(view, at);
-    if (near) label(tags++, edge, 6, 2, `${near.name.toUpperCase()} ${Math.round(near.d)} M`, css(color));
+    if (near) label(tags++, edge, dx, 2, `${near.name.toUpperCase()} ${Math.round(near.d)} M`, css(color));
   }
   rings.end();
   for (let i = tags; i < labels.length; i++) labels[i]!.hidden = true;

@@ -1,7 +1,7 @@
 // Targeting: the Console's arm / preview / confirm state machine for Assets. No DOM here: input.ts feeds it pointer
 // moves and taps, chrome/assets.ts arms and confirms, layers/effects.ts draws the preview from it.
 // Arm an Asset, and its preview ring follows the pointer; a tap pins the ring, a second tap on the same spot (or Confirm)
-// calls the Asset there; arming it again, Cancel or Esc disarms.
+// calls the Asset there; arming it again, Cancel or Esc disarms. #101: while the Gunship is up its row arms again, and the call moves its focus.
 // Orders (#36): select a Squad (its tile, or its chevrons on the map), then tap a Capture Point: the Order goes out as a
 // Command and the Squad stays selected; Clear sends a null Order. Only the Simulation decides what an Order does.
 import { insidePolygon } from '../sim/geometry';

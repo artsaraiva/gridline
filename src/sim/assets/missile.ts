@@ -5,7 +5,7 @@
 import type { Match } from '../index';
 import { dist2, keystone } from '../geometry';
 import type { Mix } from '../state';
-import type { Vec2 } from '../types';
+import type { SideId, Vec2 } from '../types';
 import { assetRadio, type Effect, type Kind } from './core';
 import { blast } from './strike';
 
@@ -15,7 +15,7 @@ const BEYOND_M = 1100;
 
 
 /** Where the ray from the map centre through `side`'s HQ leaves the Play Area, BEYOND_M further on. */
-export function launchPoint(m: Match, side: 'nato' | 'pact'): Vec2 {
+export function launchPoint(m: Match, side: SideId): Vec2 {
   const d = m.map.hqs[side];
   const poly = m.map.playArea;
   let far = 1; // the HQ itself, should the ray miss every edge
@@ -33,6 +33,14 @@ export function launchPoint(m: Match, side: 'nato' | 'pact'): Vec2 {
   return { x: d.x * far + (d.x / len) * BEYOND_M, y: d.y * far + (d.y / len) * BEYOND_M };
 }
 
+/** Why `side` can't call a heavy Asset (this, #101 the Gunship) now: it needs every keystone Capture Point (#150); null when it may. */
+export function heavyGate(m: Match, side: SideId): string | null {
+  if (!m.tune.missileGated) return null;
+  const keys = keystone(m);
+  const missing = keys.filter((p) => p.owner !== side).map((p) => p.name);
+  return !keys.length ? 'no Capture Point' : missing.length ? `needs ${missing.join(', ')}` : null;
+}
+
 const flight = (m: Match, e: Effect) => Math.min(1, (m.tick - e.launch!) / (e.land! - e.launch!));
 
 export const missile: Kind = {
@@ -43,12 +51,7 @@ export const missile: Kind = {
   firstReadySeconds: (t) => t.missileCooldownSeconds, // starts on cooldown, as the Barrage does
   seconds: (t) => t.barrageContactSeconds, // the flight is added at the call, by distance
   radius: (t) => t.missileSuppressM,
-  gate(m, side) {
-    if (!m.tune.missileGated) return null;
-    const keys = keystone(m);
-    const missing = keys.filter((p) => p.owner !== side).map((p) => p.name);
-    return !keys.length ? 'no Capture Point' : missing.length ? `needs ${missing.join(', ')}` : null;
-  },
+  gate: heavyGate,
 
   start(m, e) {
     const t = m.tune;

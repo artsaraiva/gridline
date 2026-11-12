@@ -1,4 +1,4 @@
-// DEV-only Asset review scene (#60): Barrage, Scan UAV and Supply Drop cycle together
+// DEV-only Asset review scene (#60): Barrage, Scan UAV and Supply Drop cycle together (#101: and a Gunship, one at a time)
 // on the real Kaltenbach bake, using the real Simulation and real Console layers.
 // This file is only reachable through dev-asset-review.html; production builds ignore it.
 import { startSimHost } from '../../host/host';
@@ -28,10 +28,10 @@ function setClose() {
   camera.updateProjectionMatrix();
 }
 
-/** Close tactical zoom centred on one Asset's call spot. */
+/** Close tactical zoom centred on one Asset's call spot (#101: wider for the Gunship's loops). */
 function setFocus(asset: AssetKind) {
   const { at } = ASSETS.find((a) => a.asset === asset)!;
-  camera.zoom = 8;
+  camera.zoom = asset === 'gunship' ? 1.6 : 8;
   camera.position.set(at.x, at.y, 100);
   camera.updateProjectionMatrix();
 }
@@ -46,7 +46,7 @@ function follow(kind: VehicleKind) {
   }, 100);
 }
 
-/** `?focus=barrage|scan|supply` frames that Asset close up, `?focus=tank|jeep|helicopter|jet|aa` follows nato's vehicle of that class, `?focus=close` the cluster; anything else is the overview. */
+/** `?focus=barrage|scan|supply|gunship` frames that Asset close up, `?focus=tank|jeep|helicopter|jet|aa` follows nato's vehicle of that class, `?focus=close` the cluster; anything else is the overview. */
 function applyFocus(focus: string | null) {
   if (focus === 'close') setClose();
   else if (VEHICLES.includes(focus as VehicleKind)) follow(focus as VehicleKind);
@@ -73,7 +73,7 @@ export async function startAssetReview(): Promise<() => void> {
   controls.innerHTML = `
     <div class="eyebrow">DEV review / #60</div>
     <h2>Asset review</h2>
-    <p>Barrage · Scan UAV · Supply Drop cycling on the real bake.</p>
+    <p>Barrage · Scan UAV · Supply Drop · Gunship cycling on the real bake.</p>
     <div class="row">
       <button id="ar-overview" type="button">Overview</button>
       <button id="ar-close" type="button">Close tactical</button>
@@ -105,7 +105,8 @@ export async function startAssetReview(): Promise<() => void> {
   document.body.dataset.reviewReady = 'true'; // scripts/review-capture.mjs waits for this
 
   function callAll() {
-    for (const { asset, at } of ASSETS) host.send({ side: 'nato', kind: 'asset', asset, at });
+    const gunshipUp = session.view?.effects?.some((e) => e.asset === 'gunship' && e.side === 'nato');
+    for (const { asset, at } of ASSETS) if (asset !== 'gunship' || !gunshipUp) host.send({ side: 'nato', kind: 'asset', asset, at });
   }
   callAll();
   const interval = setInterval(callAll, CYCLE_SECONDS * 1000);

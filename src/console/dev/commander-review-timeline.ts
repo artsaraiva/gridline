@@ -1,14 +1,14 @@
 // DEV-only Commander look review timeline (#69): a hand-written, deterministic script of CommanderViews and Events on
 // Kaltenbach coordinates, so the Console's readability treatments (#70 firing pulse, #71 selection and Squad Leader
 // markers), the Cruise Missile's marks (#99), the tank (#107: sprite, turret, Wreck, badge, main gun), the jeep (#108:
-// sprite, Wreck, badge, MG, dismount), the jet and the AA (#110: a pass, the AA's stream on a helicopter and a jet), the helicopter's jobs (#131: a pickup away from the HQ, a hot drop, Support, a repair trip home, a bail-out and crash) and the parachute jump (#130: a crippled helicopter's riders come down on a chevron that grows from 70% to full size) and the transport helicopter (#109: lift-off, flight, landing, unload, home; #124: dogleg, flare, Landing Zone) are judged on every
+// sprite, Wreck, badge, MG, dismount), the jet and the AA (#110: a pass, the AA's stream on a helicopter and a jet), the helicopter's jobs (#131: a pickup away from the HQ, a hot drop, Support, a repair trip home, a bail-out and crash) and the parachute jump (#130: a crippled helicopter's riders come down on a chevron that grows from 70% to full size) and the transport helicopter (#109: lift-off, flight, landing, unload, home; #124: dogleg, flare, Landing Zone) and the Gunship (#101: its route ring, orbit and shells, its gunner's bursts and a paratrooper; the enemy's under the AA's bursts, falling as a Wreck) are judged on every
 // Squad Leader state without a Simulation. `viewAt` and `eventsBetween` are pure.
 import { DEFAULT_TUNE } from '../../sim/tune';
-import type { CommanderView, EffectView, FriendlyView, LastKnownView, SimEvent, SoldierView, SquadView, VehicleView } from '../../sim/types';
+import type { AssetView, CommanderView, EffectView, FriendlyView, LastKnownView, SideId, SimEvent, SoldierView, SquadView, Vec2, VehicleView } from '../../sim/types';
 
 /** The first twelve chapters end here; #131 adds the helicopter jobs after them. */
 const OLD_END = 192;
-export const LENGTH = 512;
+export const LENGTH = 600;
 
 /** Where each state starts, for scrubbing. */
 export const CHAPTERS = [
@@ -29,6 +29,8 @@ export const CHAPTERS = [
   { at: 392, title: 'Bail' },
   { at: 432, title: 'Jet pass' },
   { at: 472, title: 'AA' },
+  { at: 512, title: 'Gunship' },
+  { at: 570, title: 'Gunship down' },
 ];
 
 /** Centre of the overlapping Squads, for the close zoom preset. */
@@ -455,7 +457,7 @@ function airAt(t: number): VehicleView[] {
   if (t < AA_AT - 1) return out;
   const heli = at(AA_HELI_PATH, t);
   const jet = at(ENEMY_JET_PATH, t);
-  const target = inSpan([AA_HELI_FIRE], t) ? heli : inSpan([ENEMY_JET_FIRE], t) ? jet : null;
+  const target = inSpan([AA_HELI_FIRE], t) ? heli : inSpan([ENEMY_JET_FIRE], t) ? jet : inSpan([FLAK], t) ? sortieAt(DOWN, t)!.craft : null;
   const d = target ? Math.hypot(target.x - AA_AT_SPOT.x, target.y - AA_AT_SPOT.y) : 0;
   const turret = target ? { tx: (target.x - AA_AT_SPOT.x) / d, ty: (target.y - AA_AT_SPOT.y) / d } : { tx: 0.95, ty: 0.3 };
   const missiles = AA_MISSILES.map((s) => aaMissileAt(t, s)).filter((s) => s !== null);
@@ -476,6 +478,169 @@ function airFire(): [number, SimEvent][] {
   for (const [[a, b], to] of [[AA_HELI_FIRE, AA_HELI_ID], [ENEMY_JET_FIRE, ENEMY_JET_ID]] as const)
     for (let t0 = a, k = 0; t0 < b; t0 += bursts[k % 3]! + pauses[k % 2]!, k++)
       for (let t = t0, n = 0; t < Math.min(b, t0 + bursts[k % 3]!); t += DEFAULT_TUNE.aaFireSeconds, n++) events.push([t, { kind: 'shot', side: 'nato', from: AA_CREW, to, hit: n % 3 === 0 }]);
+  return events;
+}
+
+// #101 GUNSHIP: nato's Gunship is called on the Contacts 18 s before the chapter, so it opens on the edge-glued icon. It flies in
+// from the missile's launch point at `gunshipSpeedMps` to where its line touches a loop round its focus (the circle `GUNSHIP_LOOP_M` round C),
+// circles it counter-clockwise for `gunshipStationSeconds` while a shell leaves it every `gunshipShotSeconds` for a Contact (each
+// flies `gunshipShellFlightSeconds` and lands within `gunshipScatterM`), then carries on round to where the line home leaves the
+// circle and flies home (the Simulation's turn at the orbit's rate traces the same circle). Bravo's 6 comes back into its gun
+// seat and fires bursts from its left side gun on the Contacts in reach; Bravo's 7 comes back into a passenger seat and jumps
+// where the route passes nearest B; the gunner bails out as it turns for home. GUNSHIP DOWN: pact's comes in from the east; the
+// AA (Alpha's 2) fires bursts at it once it is within `aaRangeM`; under a third of `gunshipHp` it leaves, at 0 it falls where
+// it is: a Wreck. Its shells already in the air still land.
+const G = DEFAULT_TUNE;
+// ponytail: scripted as one wide left turn round its focus, not the Simulation's hunt over the enemies it knows (`/dev-asset-review.html` flies that); script marks and loops if this chapter has to show them
+export const GUNSHIP_LOOP_M = 200;
+// The chapters are timed for this speed and time on station, not the tune's
+const GUNSHIP_MPS = 60;
+export const GUNSHIP_STATION_S = 45;
+const W = GUNSHIP_MPS / GUNSHIP_LOOP_M; // round the loop, radians a second
+const ROUTE = { x: 0, y: 0 }; // its focus: C, the middle point
+const [OWN_ID, DOWN_ID] = [44, 45];
+interface Sortie {
+  side: SideId;
+  id: number;
+  call: number;
+  from: Vec2;
+  /** Leaves early (shot about), and falls, at these times; else it leaves when its station is up. */
+  leave?: number;
+  down?: number;
+}
+const GUNSHIP_AT = CHAPTERS[17]!.at;
+const DOWN_AT = CHAPTERS[18]!.at;
+const OWN: Sortie = { side: 'nato', id: OWN_ID, call: GUNSHIP_AT - 18, from: { x: -1556, y: 0 } };
+
+/** Where the sortie flies: in to `entry`, round from `arrive` to `leave`, on round to `exit` at `out`, home by `gone`. */
+function plan(s: Sortie) {
+  const R = GUNSHIP_LOOP_M;
+  const [ox, oy] = [s.from.x - ROUTE.x, s.from.y - ROUTE.y];
+  const d2 = ox * ox + oy * oy;
+  const l = Math.sqrt(d2 - R * R);
+  const touch = (k: number) => ({ x: ROUTE.x + (R * R * ox - k * R * l * oy) / d2, y: ROUTE.y + (R * R * oy + k * R * l * ox) / d2 }); // as the Simulation's
+  const [entry, exit] = [touch(1), touch(-1)];
+  const arrive = s.call + l / GUNSHIP_MPS;
+  const leave = s.leave ?? arrive + GUNSHIP_STATION_S;
+  const a0 = Math.atan2(entry.y - ROUTE.y, entry.x - ROUTE.x);
+  const aLeave = a0 + W * (leave - arrive);
+  let aExit = Math.atan2(exit.y - ROUTE.y, exit.x - ROUTE.x);
+  while (aExit < aLeave) aExit += 2 * Math.PI;
+  const out = leave + (aExit - aLeave) / W;
+  return { entry, exit, arrive, leave, a0, out, gone: out + l / GUNSHIP_MPS, l };
+}
+
+/** The aircraft at `t`: its phase, the ground spot under it and its heading; null before the call, once home, or once down. */
+function sortieAt(s: Sortie, t: number): { phase: 'inbound' | 'station' | 'leaving'; craft: { x: number; y: number; fx: number; fy: number; turn: number } } | null {
+  const p = plan(s);
+  if (t < s.call || t >= p.gone || t >= (s.down ?? Infinity)) return null;
+  const R = GUNSHIP_LOOP_M;
+  const line = (a: Vec2, b: Vec2, k: number) => ({ x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, fx: (b.x - a.x) / p.l, fy: (b.y - a.y) / p.l, turn: 0 });
+  const round = (a: number) => ({ x: ROUTE.x + R * Math.cos(a), y: ROUTE.y + R * Math.sin(a), fx: -Math.sin(a), fy: Math.cos(a), turn: 1 });
+  if (t < p.arrive) return { phase: 'inbound', craft: line(s.from, p.entry, (t - s.call) / (p.arrive - s.call)) };
+  const craft = t < p.out ? round(p.a0 + W * (t - p.arrive)) : line(p.exit, s.from, (t - p.out) / (p.gone - p.out));
+  return { phase: t < p.leave ? 'station' : 'leaving', craft };
+}
+
+/** Its shells: one every `gunshipShotSeconds` on station, each at the next of `targets` at the shot, `scatter` metres off. */
+function shellsOf(s: Sortie, targets: Man[]) {
+  const p = plan(s);
+  const out: { at: number; from: Vec2; to: Vec2 }[] = [];
+  for (let k = 0, t = p.arrive; t < p.leave; t += G.gunshipShotSeconds, k++) {
+    const aim = at(targets[k % targets.length]!.path, t);
+    const off = (G.gunshipScatterM * ((k * 37) % 9)) / 9; // a fixed spread inside the scatter, as the Simulation's seeded disc
+    out.push({ at: t, from: { x: sortieAt(s, t)!.craft.x, y: sortieAt(s, t)!.craft.y }, to: { x: aim.x + off * Math.cos(k * 2.4), y: aim.y + off * Math.sin(k * 2.4) } });
+  }
+  return out;
+}
+
+const OWN_SHELLS = shellsOf(OWN, CONTACTS);
+/** pact's comes in from the east; the AA fires from when it is first within `aaRangeM` (`FLAK`). */
+const DOWN_IN: Sortie = { side: 'pact', id: DOWN_ID, call: DOWN_AT - 20, from: { x: 1556, y: 0 } };
+const FLAK_FROM = (() => {
+  let t = DOWN_IN.call;
+  for (const c = () => sortieAt(DOWN_IN, t)!.craft; Math.hypot(c().x - AA_AT_SPOT.x, c().y - AA_AT_SPOT.y) > G.aaRangeM; ) t += 1 / HZ;
+  return t;
+})();
+// ponytail: scripted, about what the AA's bursts and a missile take off its `gunshipHp` in the Simulation
+const DOWN: Sortie = { ...DOWN_IN, leave: FLAK_FROM + 11, down: FLAK_FROM + 16 };
+const FLAK: Span = [FLAK_FROM, DOWN.down!];
+const DOWN_SHELLS = shellsOf(DOWN, MEN.filter((m) => m.squad === 0 && m.id !== AA_CREW));
+
+/** A sortie's EffectView: its route, time on station, aircraft and shells in the air. */
+function sortieView(s: Sortie, shells: typeof OWN_SHELLS, t: number): EffectView[] {
+  const p = plan(s);
+  const flying = shells.filter((h) => t >= h.at && t < h.at + G.gunshipShellFlightSeconds);
+  const a = sortieAt(s, t);
+  if (!a && !flying.length) return [];
+  const left = !a ? 0 : a.phase === 'inbound' ? p.arrive - t + GUNSHIP_STATION_S : a.phase === 'station' ? p.leave - t : 0;
+  const total = p.arrive - s.call + GUNSHIP_STATION_S;
+  return [{ asset: 'gunship', ...ROUTE, radius: G.gunshipFocusM, left, total, side: s.side, from: s.from, shells: flying.map((h) => ({ ...h.to, from: h.from, flight: (t - h.at) / G.gunshipShellFlightSeconds })), ...a }];
+}
+
+// Who rides nato's: Bravo's 6 in the gun seat until it turns for home, Bravo's 7 as a passenger until the route passes nearest B
+const OWN_PLAN = plan(OWN);
+const [GUNNER, PARA] = [6, 7];
+const BOARD = OWN_PLAN.arrive + 2;
+const B_SPOT = { x: 0, y: 300 }; // POINTS' B
+const NEAREST_B = (() => {
+  let da = Math.atan2(B_SPOT.y - ROUTE.y, B_SPOT.x - ROUTE.x) - OWN_PLAN.a0 - W * (BOARD - OWN_PLAN.arrive);
+  while (da < 0) da += 2 * Math.PI;
+  return BOARD + da / W;
+})();
+const JUMPS: Record<number, { t: number; off: Vec2 }> = { [GUNNER]: { t: OWN_PLAN.leave, off: { x: -9, y: 6 } }, [PARA]: { t: NEAREST_B, off: { x: 7, y: 10 } } };
+
+/** #101: Bravo's 6 and 7 aboard nato's Gunship, then under a parachute to where they land, then standing there. */
+function gunshipMan(id: number, t: number) {
+  const j = JUMPS[id];
+  if (!j || t < BOARD) return {};
+  if (t < j.t) {
+    const c = sortieAt(OWN, t)!.craft;
+    return { x: c.x, y: c.y, vehicle: OWN_ID };
+  }
+  const a = sortieAt(OWN, j.t)!.craft;
+  const f = Math.min(1, (t - j.t) / G.chuteSeconds);
+  return { x: a.x + j.off.x * f, y: a.y + j.off.y * f, ...(f < 1 && { chute: f }) };
+}
+
+/** #101: both sorties' effects. */
+const gunshipsAt = (t: number) => [...sortieView(OWN, OWN_SHELLS, t), ...sortieView(DOWN, DOWN_SHELLS, t)];
+const DOWN_WRECK: VehicleView = (() => {
+  const c = sortieAt(DOWN, DOWN.down! - 1e-6)!.craft;
+  return { id: -1, side: 'pact', kind: 'gunship', ...c, tx: c.fx, ty: c.fy, wreck: true };
+})();
+/** #101: both Gunships as vehicles (in the sky: both Sides see them; nato's with its seats), then pact's Wreck. */
+function gunshipBodies(t: number): VehicleView[] {
+  const out: VehicleView[] = [];
+  const aboard = (id: number) => (t >= BOARD && t < JUMPS[id]!.t ? id : -1);
+  for (const s of [OWN, DOWN]) {
+    const c = sortieAt(s, t)?.craft;
+    if (c) out.push({ id: s.id, side: s.side, kind: 'gunship', ...c, tx: c.fx, ty: c.fy, airborne: true, ...(s === OWN && { hp: 1, seats: [-1, aboard(GUNNER), aboard(PARA), -1, -1, -1] }) });
+  }
+  if (t >= DOWN.down!) out.push(DOWN_WRECK);
+  return out;
+}
+const gunshipRow = (t: number): AssetView => ({ asset: 'gunship', readyIn: t < OWN.call ? 0 : Math.max(0, OWN.call + G.gunshipCooldownSeconds - t), cooldown: G.gunshipCooldownSeconds, radius: G.gunshipFocusM });
+
+/** #101: nato's radio lines, both sorties' impacts, its gunner's bursts on the Contacts in reach on its left, and the AA's bursts at pact's. */
+function gunshipEvents(): [number, SimEvent][] {
+  const p = OWN_PLAN;
+  const line = (t: number, text: string): [number, SimEvent] => [t, { kind: 'radio', side: 'nato', squad: null, type: 'asset', text, grid: 'G7', priority: 1 }];
+  const events: [number, SimEvent][] = [line(OWN.call, 'Gunship inbound'), line(p.arrive, 'Gunship on station'), line(OWN_SHELLS[0]!.at + G.gunshipShellFlightSeconds, 'Splash'), line(p.leave, 'Gunship leaving')];
+  for (const [s, shells] of [[OWN, OWN_SHELLS], [DOWN, DOWN_SHELLS]] as const) for (const h of shells) events.push([h.at + G.gunshipShellFlightSeconds, { kind: 'impact', side: s.side, ...h.to, asset: 'gunship' }]);
+  const cos = Math.cos(((G.gunArcDeg / 2) * Math.PI) / 180);
+  for (let t = BOARD + 1, n = 0; t < JUMPS[GUNNER]!.t; t += (n + 1) % 8 ? G.mgFireSeconds : 1.1, n++) { // bursts of eight, a second or so apart
+    const c = sortieAt(OWN, t)!.craft;
+    const prey = CONTACTS.findIndex((m) => {
+      const e = at(m.path, t);
+      const d = Math.hypot(e.x - c.x, e.y - c.y);
+      return d <= G.gunshipRangeM && (e.x - c.x) * -c.fy + (e.y - c.y) * c.fx >= cos * d; // within its left gun's arc
+    });
+    if (prey >= 0) events.push([t, { kind: 'shot', side: 'nato', from: GUNNER, to: CONTACTS[prey]!.id, hit: n % 3 === 0 }]);
+  }
+  const [bursts, pauses] = [[1.2, 0.9, 1.5], [0.8, 1.2]]; // as airFire's
+  for (let t0 = FLAK[0], k = 0; t0 < FLAK[1]; t0 += bursts[k % 3]! + pauses[k % 2]!, k++)
+    for (let t = t0, n = 0; t < Math.min(FLAK[1], t0 + bursts[k % 3]!); t += G.aaFireSeconds, n++) events.push([t, { kind: 'shot', side: 'nato', from: AA_CREW, to: DOWN_ID, hit: n % 3 === 0 }]);
   return events;
 }
 
@@ -542,6 +707,7 @@ export function viewAt(t: number): CommanderView {
     ...(inAa(m.id, t) && { ...AA_AT_SPOT, vehicle: AA_ID }),
     ...paraMan(m.id, t),
     ...jumper131(m.id, t),
+    ...gunshipMan(m.id, t),
   }));
   return {
     side: 'nato',
@@ -554,9 +720,9 @@ export function viewAt(t: number): CommanderView {
     points: POINTS,
     tickets: { nato: 150, pact: 150 },
     result: null,
-    assets: [{ asset: 'missile', readyIn: t < MISSILE.at ? 0 : Math.max(0, MISSILE.at + DEFAULT_TUNE.missileCooldownSeconds - t), cooldown: DEFAULT_TUNE.missileCooldownSeconds, radius: DEFAULT_TUNE.missileSuppressM }],
-    effects: missileAt(t),
-    vehicles: [...tanksAt(t), ...jeepsAt(t), ...helisAt(t), ...paraHeli(t), ...airAt(t)],
+    assets: [{ asset: 'missile', readyIn: t < MISSILE.at ? 0 : Math.max(0, MISSILE.at + DEFAULT_TUNE.missileCooldownSeconds - t), cooldown: DEFAULT_TUNE.missileCooldownSeconds, radius: DEFAULT_TUNE.missileSuppressM }, gunshipRow(t)],
+    effects: [...missileAt(t), ...gunshipsAt(t)],
+    vehicles: [...tanksAt(t), ...jeepsAt(t), ...helisAt(t), ...paraHeli(t), ...airAt(t), ...gunshipBodies(t)],
   };
 }
 
@@ -661,4 +827,4 @@ function orbitFire(): [number, SimEvent][] {
   return events;
 }
 
-const EVENTS: [number, SimEvent][] = [...casualties(), ...firefight(), ...strike(), ...gun(), ...mg(), ...sideGun(), ...orbitFire(), ...airFire()].sort((a, b) => a[0] - b[0]);
+const EVENTS: [number, SimEvent][] = [...casualties(), ...firefight(), ...strike(), ...gun(), ...mg(), ...sideGun(), ...orbitFire(), ...airFire(), ...gunshipEvents()].sort((a, b) => a[0] - b[0]);

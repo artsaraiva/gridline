@@ -35,17 +35,17 @@ export function takeOff(m: Match, v: Vehicle) {
 const home = (v: Vehicle) => Object.assign(v, { sortie: 'rearming', until: -1, prey: -1, drop: false });
 
 /** Where the Side knows its enemies: each one's last seen spot (its sightings, kept `lkpSeconds`), and its Assets' Contacts where they are. */
-function known(m: Match, side: SideId): Map<number, Vec2> {
+export function known(m: Match, side: SideId): Map<number, Vec2> {
   const spots = new Map(m.sightings[side].map((s) => [s.id, { x: s.x, y: s.y }]));
   for (const s of assetContacts(m, side)) spots.set(s.id, { x: s.x, y: s.y });
   return spots;
 }
 
-/** An enemy a pass may be aimed at or the cannon fire on: a Soldier on foot, not Wounded, or a live vehicle but a jet. */
-function markable(m: Match, id: number): boolean {
+/** An enemy a pass may be aimed at or the cannon fire on: a Soldier on foot, not Wounded, or a live vehicle but a jet (#101 or the Gunship). */
+export function markable(m: Match, id: number): boolean {
   const s = m.soldiers[id];
   const u = vehicleOf(m, id);
-  return s ? s.state === 'alive' && s.vehicle < 0 : !!u && live(u) && u.kind !== 'jet';
+  return s ? s.state === 'alive' && s.vehicle < 0 : !!u && live(u) && u.kind !== 'jet' && u.kind !== 'gunship';
 }
 
 /** The next pass, at the pilot's point (picked at its Squad's think); home when it has none. */

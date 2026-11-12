@@ -63,7 +63,7 @@ One of the three corridors running from HQ to HQ across the front, each passing 
 _Avoid_: Flank, sector, route
 
 **Keystone**:
-The Capture Points at the heart of the spine: those the map names (both halves of Auental's twin town), else the one nearest the map centre. The Cruise Missile needs every one of them held.
+The Capture Points at the heart of the spine: those the map names (both halves of Auental's twin town), else the one nearest the map centre. The Cruise Missile and the Gunship need every one of them held.
 _Avoid_: Middle point, centre flag
 
 **Ticket**:
@@ -117,7 +117,7 @@ How a Soldier leaves a helicopter in the air: they come down over a few seconds,
 _Avoid_: Bail (the helicopter's own job), drop (the Ferry's hot-goal run), fast rope
 
 **Wreck**:
-A destroyed Vehicle's hull, left where it died until its slot gives the Side a fresh one.
+A destroyed Vehicle's hull, left where it died until its slot gives the Side a fresh one. A Gunship shot down leaves one where it fell.
 _Avoid_: Debris, corpse, destroyed vehicle (as a thing on the map)
 
 **Launcher**:
@@ -181,7 +181,7 @@ The Strike in which an aircraft flies in along a line the Commander chose, fires
 _Avoid_: Airstrike, gun run, CAS
 
 **Gunship**:
-The Strike that orbits a chosen spot for a while, reveals the enemies under it as Contacts and shells them from the air.
+The Strike that flies slowly over the battlefield for a while in wide turns, over the enemies its Side knows, reveals the ones under it as Contacts and shells them from the air. The Commander gives it a focus, the spot it works round, and may move that while it flies. Soldiers coming back may spawn aboard it: as its gunner, or to parachute down as it passes their goal.
 _Avoid_: AC-130, Spooky, air support
 
 **Scan UAV**:

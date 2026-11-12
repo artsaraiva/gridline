@@ -50,7 +50,7 @@ export interface Soldier {
   away: number; // aboard: the drive metres from its vehicle to its own Capture Point at its last think, -1 = not yet measured
   awaySince: number; // aboard: tick that distance began to grow, -1 = it is not growing
   // #55 Commander Score
-  cause: 'barrage' | 'missile' | null; // what an enemy Strike did to it: scores for the enemy Commander on death; cleared by Revive
+  cause: 'barrage' | 'missile' | 'gunship' | null; // what an enemy Strike did to it: scores for the enemy Commander on death; cleared by Revive
   uavUntil: number; // #75 last tick it counts as UAV-discovered by the enemy Side (the Scan found it unseen, then the grace); see assets/scan.ts
   // #121 Staggered set-off
   reaction: number; // seconds it holds before moving off after its Squad's change, seeded
@@ -141,8 +141,8 @@ export const membersOf = (m: Match, sq: Squad) => sq.members.map((id) => m.soldi
 export const footLeader = (alive: Soldier[]) => alive.find((s) => !s.detached && s.vehicle < 0) ?? alive[0];
 /** #107: the vehicle with id `id` (vehicle ids follow the Soldiers'), or undefined for a Soldier id or -1. */
 export const vehicleOf = (m: Match, id: number): Vehicle | undefined => (id >= m.soldiers.length ? m.vehicles[id - m.soldiers.length] : undefined);
-/** #110: `s` flies a jet: off at its base or in the sky, never where its Squad leads, comes back or asks from. */
-export const inJet = (m: Match, s: Soldier) => vehicleOf(m, s.vehicle)?.kind === 'jet';
+/** #110: `s` flies a jet, #101 or rides the Gunship: off at its base or high in the sky, never where its Squad leads, comes back or asks from. */
+export const inSky = (m: Match, s: Soldier) => vehicleOf(m, s.vehicle)?.kind === 'jet' || vehicleOf(m, s.vehicle)?.kind === 'gunship';
 export const wiped = (members: Soldier[]) => members.every((s) => s.state === 'dead');
 export const lastDeath = (members: Soldier[]) => Math.max(...members.map((s) => s.deadAt));
 
@@ -182,7 +182,7 @@ export function hashSoldiers(m: Match, mix: Mix) {
     mix(s.reviving);
     mix(s.deadAt);
     mix(s.ammo);
-    mix(s.cause === 'barrage' ? 1 : s.cause === 'missile' ? 2 : 0);
+    mix(s.cause === 'barrage' ? 1 : s.cause === 'missile' ? 2 : s.cause === 'gunship' ? 3 : 0);
     mix(s.uavUntil); // #75
     mix(+s.uavAssist);
     mix(s.vehicle); // #107
