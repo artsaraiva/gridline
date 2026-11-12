@@ -23,7 +23,7 @@ from mathutils import kdtree
 
 sys.dont_write_bytecode = True  # no __pycache__ beside the shared module
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from bake import (COVER_IDS, HELIPADS, MB, OUTER, ROAD_PTS, VEHICLE_SLOTS, bank, build_crossings, build_hq,  # noqa: E402
+from bake import (COVER_IDS, MB, OUTER, ROAD_PTS, bank, build_crossings, build_hq,  # noqa: E402
                   build_materials, build_protos, build_roads, build_terrain, bump, catmull, finish, flat_patch, index_roads,
                   log, near_crossing, nz, on_road, r2, rng, sstep)
 
@@ -61,6 +61,18 @@ CROSSINGS = [  # north to south, twins under the half turn; armour crosses at th
     ("MAIN", "bridge", 0.0, 0.0, 4.0),
     ("WEIR", "footbridge", 165.0, -430.0, 1.5), ("SF", "ford", 190.0, -720.0, 6.5), ("DAM", "bridge", 60.0, -1020.0, 4.0),
 ]
+# #154: each Side's vehicles, sized so about a third of a Side can ride out at the opening. HQ slots and helipads are metres
+# from NATO's HQ, x toward the field, and PACT's are their half turn. Odd metres put each one on a 2 m cell centre, so a slot
+# and its twin fall in twin cells. The slots clear the compound's tents and containers on both Sides.
+HQ_VEHICLES = [("tank", 1, 29), ("tank", 13, 29), ("tank", 25, 29), ("tank", 37, 29),
+               ("jeep", 1, 15), ("jeep", 13, 15), ("jeep", 25, 15), ("jeep", 1, -17), ("jeep", 13, -17), ("jeep", 25, -17),
+               ("aa", 1, -29), ("aa", 13, -29)]
+HQ_PADS = [(-15, 25), (-15, -1), (-15, -27)]  # one helicopter on each
+JETS = 3  # at the off-map base
+# Metres from NATO's bank's points, on the road back toward its HQ; each PACT-bank point takes its twin's half turn. None in
+# the twin town (the keystone is an infantry fight), a tank and a jeep at the armour points D and I, a jeep at every other.
+POINT_VEHICLES = {"A": [("jeep", -5, -7)], "B": [("jeep", -5, 9)], "C": [("jeep", -9, -1)],
+                  "D": [("tank", -9, -3), ("jeep", -19, -7)], "F": [("jeep", -9, -1)]}
 
 # The Auer north of the centre, through the north crossings; the south is its half turn, so the twin crossings sit on it too.
 # It runs on past both edges: north out of the map, south into the reservoir and beyond it for the surroundings.
@@ -268,16 +280,31 @@ def build_fields():
 
 
 # ----------------------------------------------------------------- map.json
+def hq_slot(side, dx, dy):
+    """#154: the spot dx, dy metres from the Side's HQ as NATO's HQ_VEHICLES and HQ_PADS give it; PACT's is the half turn."""
+    s, (x, y) = 1 if side == "nato" else -1, HQS[side]
+    return {"x": x + s * dx, "y": y + s * dy}
+
+
+def point_vehicles(i):
+    """#154: the vehicles waiting at point i for its owner: its own POINT_VEHICLES, else its twin's half-turned."""
+    x, y = PT[i]
+    twin = next(j for j, p in PT.items() if p == (-x, -y))
+    s, listed = (1, POINT_VEHICLES[i]) if i in POINT_VEHICLES else (-1, POINT_VEHICLES.get(twin, []))
+    return {"vehicles": [{"kind": k, "x": x + s * dx, "y": y + s * dy} for k, dx, dy in listed]} if listed else {}
+
+
 def meta():
     return {
         "name": "Auental", "village": "Unterau", "river": "Auer", "sizeM": int(2 * HALF),
         "playArea": [{"x": x, "y": y} for x, y in PLAY_AREA],
         "hqs": {side: {"x": x, "y": y, "radius": HQ_RADIUS} for side, (x, y) in HQS.items()},
-        "points": [{"id": i, "name": i, "x": x, "y": y, "radius": r, "owner": o} for i, x, y, r, o in POINTS],
+        "points": [{"id": i, "name": i, "x": x, "y": y, "radius": r, "owner": o, **point_vehicles(i)} for i, x, y, r, o in POINTS],
         "keystone": KEYSTONE,
         "crossings": [{"id": i, "kind": k, "x": r2(x), "y": r2(y), "halfWidth": hw} for i, k, x, y, hw in CROSSINGS],
-        "vehicleSlots": {side: [{"x": r2(x), "y": r2(y)} for x, y in slots] for side, slots in VEHICLE_SLOTS.items()},
-        "helipad": {side: {"x": r2(x), "y": r2(y)} for side, (x, y) in HELIPADS.items()},
+        "vehicleSlots": {side: [{"kind": k, **hq_slot(side, dx, dy)} for k, dx, dy in HQ_VEHICLES] for side in HQS},
+        "helipad": {side: [hq_slot(side, dx, dy) for dx, dy in HQ_PADS] for side in HQS},
+        "jets": {side: JETS for side in HQS},
         "grid": {"cols": 10, "rows": 10, "squareM": 250.0, "letters": "ABCDEFGHIJ"},
         "data": {"cells": int(2 * HALF), "cellM": 1, "cover": "cover_u8.bin", "ground": "ground_f32.bin", "top": "top_f32.bin",
                  "heightCellM": HEIGHT_CELL_M, "coverIds": COVER_IDS},
