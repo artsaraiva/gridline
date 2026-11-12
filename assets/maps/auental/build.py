@@ -1,5 +1,6 @@
 """Auental, the 128 v 128 Conquest map (#150): terrain, the river Auer with its reservoir and seven crossings, roads, the
-rail line, the HQs, a landmark at each of the 12 Capture Points, the twin town, woods, fields and hedges.
+rail line, the HQs, a landmark at each of the 12 Capture Points, the twin town, woods, fields and hedges, and what the
+war has left on them: shell holes, tank ruts, wrecks and burnt farms.
 Headless Blender script; it is the map's source of truth (ADR 0001, ADR 0002) and its outputs are committed.
 
 A 2.5 km valley from the layout session of 2026-11-10: NATO HQ west and Warsaw Pact HQ east, 12 Capture Points in three
@@ -351,6 +352,21 @@ def build_extras():
     mb.box(0, 0, 0.9, 12.5, 2.9, 2.6, "wagon", top_m="roof_metal")
     mb.box(0, 0, 0.3, 13.6, 2.2, 0.6, "dark")
     P["wagon"] = proto("wagon", mb, "prop")
+    for name, colour in (("scorch", (0.03, 0.028, 0.026)), ("ejecta", (0.24, 0.19, 0.13)), ("bowl", (0.06, 0.045, 0.03)), ("rut", (0.065, 0.05, 0.035))):
+        plain(name, colour, 0.95)
+    mb = MB()  # a burnt-out tank, its turret slewed, along local x
+    mb.box(0, 0, 0.3, 6.6, 3.4, 1.2, "burnt")
+    for sy in (-1.45, 1.45):
+        mb.box(0, sy, 0.0, 6.9, 0.6, 1.0, "dark")
+    mb.box(-0.3, 0, 1.5, 2.7, 2.4, 0.8, "burnt", a=0.5)
+    mb.box(1.9, 1.1, 1.75, 4.2, 0.26, 0.26, "burnt", a=0.5)
+    P["wreck_tank"] = proto("wreck_tank", mb, "prop")
+    mb = MB()  # a burnt-out truck: the cab, the bed and the bare hoops of its canvas
+    mb.box(2.6, 0, 0.5, 2.0, 2.5, 2.1, "burnt")
+    mb.box(-1.0, 0, 0.6, 6.0, 2.5, 0.5, "burnt")
+    for k in range(4):
+        mb.box(-3.4 + k * 1.6, 0, 1.1, 0.12, 2.5, 1.7, "dark")
+    P["wreck_truck"] = proto("wreck_truck", mb, "prop")
     return P
 
 
@@ -724,7 +740,7 @@ def build_farmsteads():
     """Lone farms through the farmland, and hamlets out in the surroundings."""
     for k, (x, y, a) in enumerate(FARMS):
         if free(x, y, 24, 1.0) and woods_val(x, y) < 0.4:
-            farmstead(f"f{k}", x, y, a)
+            (burnt_farm if k in BURNT else farmstead)(f"f{k}", x, y, a)
     if not OUTER:
         return
     for k, (hx, hy, ha) in enumerate([(-2400, 1100, 0.3), (2100, -2500, -0.2), (-2000, -1500, 0.9), (2500, 1700, 0.1),
@@ -737,6 +753,116 @@ def build_farmsteads():
             if free(x, y, 7):
                 house(f"oh{k}_{j}", x, y, ha + rng.choice((0, math.pi / 2)), rng.uniform(9, 11), rng.uniform(11, 14))
                 FOOT.append((x, y, 7))
+
+
+BURNT = (1, 7, 14, 15)  # the lone farms (indices into FARMS) that burned: a pair on each bank
+
+
+def burnt_farm(tag, cx, cy, a):
+    """A farm that burned: roofless walls round the yard, breached, a few charred rafters, rubble, scorched ground."""
+    W = frame(cx, cy, a)
+    pit(f"scorch_{tag}", cx, cy, 30, "scorch", 0.075, cx)
+    for i, ((x, y), w, d, da) in enumerate((((-16.5, 0), 11, 16, 0.0), ((17.5, 0), 13, 34, 0.0), ((0, 19), 12, 22, math.pi / 2))):
+        mb = MB()
+        wall_run(mb, [(-w / 2, -d / 2 + 4), (-w / 2, d / 2), (w / 2, d / 2), (w / 2, -d / 2), (-w / 2 + 3, -d / 2)],
+                 rng.uniform(3.0, 5.5), "burnt", 0.4)
+        for k in range(int(d / 3)):
+            if rng.random() < 0.45:
+                mb.box(0, -d / 2 + 2 + k * 3, rng.uniform(2.5, 4.5), w, 0.25, 0.25, "burnt", a=rng.uniform(-0.3, 0.3))
+        stand(mb, f"ruin_{tag}_{i}", *W(x, y), a + da, "wall")
+    for _ in range(14):
+        put("grave", *W(rng.uniform(-24, 26), rng.uniform(-12, 26)), rng.uniform(0.8, 1.8))
+    FOOT.append((cx, cy, 26))
+
+
+def crater(x, y, r):
+    """A shell hole: thrown earth round a scorched bowl, standing water in some. Painted on the ground: no cover."""
+    pit("ejecta", x, y, 1.7 * r, "ejecta", 0.09, x)
+    pit("crater", x, y, r, "bowl", 0.11, y)
+    if rng.random() < 0.25:
+        pit("crater_water", x, y, 0.55 * r, "water", 0.13, x + y)
+
+
+def ruts(name, pts):
+    """A tracked vehicle's two ruts along a spline, pressed into fields and meadows wherever it left the road: no cover."""
+    line = catmull(pts, 3.0)
+    verts, faces = [], []
+    for side in (-1.35, 1.35):
+        b = len(verts)
+        for i, (x, y) in enumerate(line):
+            (ax, ay), (bx, by) = line[max(0, i - 1)], line[min(len(line) - 1, i + 1)]
+            t = Vector((bx - ax, by - ay)).normalized()
+            for w in (side - 0.35, side + 0.35):
+                px, py = x - t.y * w, y + t.x * w
+                verts.append((px, py, height(px, py) + 0.1))
+        open_ = [zone(x, y) in ("farm", "clear", "bank", "road") for x, y in line]  # not through water, woods or the town
+        faces += [(b + 2 * i, b + 2 * i + 2, b + 2 * i + 3, b + 2 * i + 1) for i in range(len(line) - 1) if open_[i] and open_[i + 1]]
+    make_obj(name, verts, faces, ["rut"])
+
+
+def build_war():
+    """What the fighting has left outside the town: shell holes thick toward the crossings and the armour points, the ruts
+    of tank columns from each HQ to its fords, burnt-out tanks and a shot-up convoy, cars abandoned on the road out of town,
+    a crashed helicopter and wagons off the rails at the halt. Each bank gets its twin's share, never its twin's copy."""
+    if OUTER:
+        return
+    hot = [(x, y) for _, _, x, y, _ in CROSSINGS] + [PT[i] for i in "CDIJ"]
+    n = 0
+    for _ in range(4000):  # shell holes, in clusters
+        cx, cy = rng.uniform(-HALF, HALF), rng.uniform(-HALF, HALF)
+        near = min(math.hypot(cx - hx, cy - hy) for hx, hy in hot)
+        if rng.random() > 0.04 + 0.5 * math.exp(-near / 160) or near < 40:
+            continue
+        for _ in range(rng.randint(2, 7)):
+            x, y, r = cx + rng.gauss(0, 16), cy + rng.gauss(0, 16), rng.uniform(1.4, 4.2)
+            if zone(x, y) in ("farm", "clear", "road") and not clearing(x, y) and not near_crossing(x, y, 35) and free(x, y, r):
+                crater(x, y, r)
+                n += 1
+    log(f"  craters: {n}")
+    # tank columns: NATO's routes, fixed where they take a ford; the Warsaw Pact's are their half turns, wandering their own way
+    routes = [
+        [(-1050, -10), (-860, 140), (-640, 420), (-470, 600), (-330, 690), (-215, 722, 1), (-165, 718, 1), (-40, 690), (190, 620), (400, 530)],
+        [(-1050, -70), (-830, -260), (-600, -420), (-450, -505), (-300, -600), (-60, -690), (165, -722, 1), (215, -718, 1), (330, -690), (500, -580)],
+        [(-430, -480), (-520, -380), (-610, -250), (-520, -140), (-380, -200), (-330, -330), (-400, -450)],
+        [(-900, 440), (-760, 330), (-560, 300), (-420, 250), (-330, 120)],
+    ]
+    for k, route in enumerate(routes + [[(-x, -y, *f) for x, y, *f in r] for r in routes]):
+        for lane in range(3 if k % 4 < 2 else 1):
+            j = lambda f: rng.uniform(-3, 3) if f else rng.uniform(-16, 16)  # noqa: E731
+            ruts(f"ruts_{k}_{lane}", [(x + j(f), y + j(f)) for x, y, *f in route])
+
+    def wreck(kind, x, y, a):
+        pit("wreck_scorch", x, y, 5.5, "scorch", 0.1, x)
+        put(kind, x, y, 1.0, a)
+
+    for x, y in ((-245, 706), (-560, -455), (-310, 68), (-700, 60), (-120, -690), (-470, 380)):  # tanks, and their twins
+        wreck("wreck_tank", x + rng.uniform(-6, 6), y + rng.uniform(-6, 6), rng.uniform(0, 6.3))
+        wreck("wreck_tank", -x + rng.uniform(-6, 6), -y + rng.uniform(-6, 6), rng.uniform(0, 6.3))
+    for road in (1, 2):  # a convoy caught on each valley road, between the HQ and the rear point
+        pts = ROAD_PTS[road][1]
+        for k in range(5):
+            (x, y), (bx, by) = pts[70 + k * 6], pts[71 + k * 6]
+            t = Vector((bx - x, by - y)).normalized()
+            if rng.random() < 0.85:
+                wreck("wreck_truck", x - t.y * 4.6, y + t.x * 4.6, math.atan2(t.y, t.x) + rng.uniform(-0.5, 0.5))
+    pts = ROAD_PTS[0][1]  # cars left on the verge of the main road, pointing away from the town
+    for i in range(0, len(pts) - 1, 9):
+        (x, y), (bx, by) = pts[i], pts[i + 1]
+        if 240 < abs(x) < 720 and rng.random() < 0.45:
+            t = Vector((bx - x, by - y)).normalized() * (1 if x > 0 else -1)
+            put("car", x - t.y * 4.9, y + t.x * 4.9, 1.0, math.atan2(t.y, t.x) + rng.uniform(-0.4, 0.4))
+    hx, hy, ha = 215.0, 330.0, 0.9  # the crashed helicopter
+    pit("heli_scorch", hx, hy, 11, "scorch", 0.1, 7.7)
+    mb = MB()
+    mb.box(0, 0, 0.2, 8.5, 2.3, 2.0, "burnt")
+    mb.box(-7.5, 0.6, 0.8, 7.5, 0.6, 0.6, "burnt", a=-0.15)
+    for a in (0.4, 2.3):
+        mb.box(3 * math.cos(a), 3 * math.sin(a), 2.3, 9, 0.5, 0.1, "dark", a=a)
+    stand(mb, "heli_wreck", hx, hy, ha, "prop")
+    _, (rx, ry), ra = rail_at(-612, -556)  # wagons off the rails below the halt
+    H = frame(rx, ry, ra)
+    for lx, ly, da in ((-34, -1.0, 0.2), (-47, -4.5, 0.55), (-61, -3.0, -0.3)):
+        put("wagon", *H(lx, ly), 1.0, ra + da, 0.2)
 
 
 def build_avenue():
@@ -921,6 +1047,8 @@ def main():
     build_banks()
     build_poles()
     build_woods()
+    log("war")
+    build_war()
     finish(P, meta())
 
 
