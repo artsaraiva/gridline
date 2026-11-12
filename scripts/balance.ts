@@ -1,5 +1,5 @@
 // Headless AI-vs-AI balance runner: plays whole matches over many seeds and summarises them. Run with `pnpm balance`.
-import { KALTENBACH } from './kaltenbach';
+import { bake, KALTENBACH } from './bakes';
 import { RIVER_FIELD } from '../src/maps/river-field';
 import { TEST_FIELD } from '../src/maps/test-field';
 import { commanderView, createMatch, step, SIDES, type MapData, type MatchResult, type SideId, type Tune } from '../src/sim';
@@ -8,7 +8,8 @@ import { JOBS, type Job } from '../src/sim/heli-jobs';
 import { live, PILOT_SEAT } from '../src/sim/vehicles';
 import { inJet } from '../src/sim/state';
 
-export const MAPS: Record<string, MapData> = { kaltenbach: KALTENBACH, river: RIVER_FIELD, test: TEST_FIELD };
+/** Built on first use: Auental's terrain takes a moment to resample. */
+export const MAPS: Record<string, () => MapData> = { kaltenbach: () => KALTENBACH, auental: () => bake('auental'), river: () => RIVER_FIELD, test: () => TEST_FIELD };
 
 export interface MatchSummary {
   seed: number;

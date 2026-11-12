@@ -5,17 +5,18 @@ const args = Object.fromEntries(process.argv.slice(2).reduce((a, v, i, all) => (
 const server = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' });
 try {
   const { benchTicks, reportTicks, benchFlows, reportFlows } = await server.ssrLoadModule('/scripts/bench-tick.ts');
-  const { KALTENBACH } = await server.ssrLoadModule('/scripts/kaltenbach.ts');
-  const { AUENTAL_FIELD } = await server.ssrLoadModule('/src/maps/auental-field.ts');
+  const { bake, KALTENBACH } = await server.ssrLoadModule('/scripts/bakes.ts');
+  const AUENTAL = bake('auental');
   console.log(reportFlows([
     benchFlows({ label: 'Kaltenbach', map: KALTENBACH, warmBudgetMs: 680 }), // #151: as fast as before it (measured 680 ms)
-    benchFlows({ label: 'Auental field', map: AUENTAL_FIELD, warmBudgetMs: 6000, mbBudget: 160 }), // #151; the greybox bake replaces the field once it exists (#150)
+    benchFlows({ label: 'Auental', map: AUENTAL, warmBudgetMs: 6000, mbBudget: 160 }), // #151
   ]));
   const seconds = Number(args.seconds ?? 900);
   if (!args.flows)
     console.log(reportTicks([
-      benchTicks({ label: '12v12', squads: 3, budgetMs: 5, seconds }),
-      benchTicks({ label: '32v32', squads: 8, budgetMs: 15, seconds }),
+      benchTicks({ label: 'Kaltenbach 12v12', map: KALTENBACH, squads: 3, budgetMs: 5, seconds }),
+      benchTicks({ label: 'Kaltenbach 32v32', map: KALTENBACH, squads: 8, budgetMs: 15, seconds }),
+      benchTicks({ label: 'Auental 32v32', map: AUENTAL, squads: 8, budgetMs: 15, seconds }), // #150: as many Soldiers as Kaltenbach's, so the same budget
     ]));
 } finally {
   await server.close();
