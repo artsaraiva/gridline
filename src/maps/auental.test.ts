@@ -1,6 +1,10 @@
 import { existsSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { buildGrid, driveGrid } from '../sim/grid';
+import { DEFAULT_TUNE } from '../sim/tune';
+import type { SideId, Vec2 } from '../sim/types';
 import { enemy, inside, near, readBake, rotated } from './bake-check';
+import { terrainOf } from './load';
 
 // Checks the committed Auental bake against the #150 layout. MAP_DIR points it at a preview bake instead (assets/maps/auental/work/).
 const { dir, map, n, cover, ids, floats, cell, point, twinOf, riverCrossings, coverShare } = readBake('auental');
@@ -176,5 +180,60 @@ describe('Auental data grids', () => {
     }
     // a straight walk from NATO HQ stays on its bank to A-F and wades the river once to G-L
     expect(map.points.map((p) => riverCrossings(map.hqs.nato, p))).toEqual([0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1]);
+  });
+});
+
+describe('Auental vehicles (#154)', () => {
+  const sides = ['nato', 'pact'] as const;
+  const t = DEFAULT_TUNE;
+  const played = { ...map, terrain: terrainOf(map, cover, t.cellM) };
+  const grid = buildGrid(played, t.cellM);
+  const drive = { nato: driveGrid(played, grid, 'nato', t), pact: driveGrid(played, grid, 'pact', t) };
+  /** On the Side's ground-vehicle grid, the one the Simulation drives it on. */
+  const drivable = (side: SideId, p: Vec2) => drive[side].cost[Math.floor((p.y - grid.y0) / t.cellM) * grid.cols + Math.floor((p.x - grid.x0) / t.cellM)]! > 0;
+  const inHq = (side: SideId, p: Vec2) => Math.hypot(p.x - map.hqs[side].x, p.y - map.hqs[side].y) < map.hqs[side].radius;
+  const closest = (ps: Vec2[]) => Math.min(...ps.flatMap((a, i) => ps.slice(i + 1).map((b) => Math.hypot(a.x - b.x, a.y - b.y))));
+  const slots = (side: SideId) => map.vehicleSlots?.[side] ?? [];
+  const pads = (side: SideId) => map.helipad?.[side] ?? [];
+
+  it('gives each Side 4 tank, 6 jeep and 2 AA slots at its HQ, 3 helipads and 3 jets', () => {
+    for (const side of sides) {
+      expect(['tank', 'jeep', 'aa'].map((k) => slots(side).filter((s) => s.kind === k).length), side).toEqual([4, 6, 2]);
+      expect(pads(side), side).toHaveLength(3);
+      expect(map.jets?.[side], side).toBe(3);
+    }
+  });
+
+  it('parks every HQ vehicle on drivable ground inside its own HQ, at least 8 m from the next, and the helipads 25 m apart', () => {
+    for (const side of sides) {
+      for (const s of slots(side)) {
+        expect(drivable(side, s), `${side} ${s.kind} ${s.x},${s.y}`).toBe(true);
+        expect(inHq(side, s), `${side} ${s.kind} ${s.x},${s.y}`).toBe(true);
+      }
+      expect(closest(slots(side)), side).toBeGreaterThanOrEqual(8);
+      for (const p of pads(side)) expect(inHq(side, p), `${side} pad ${p.x},${p.y}`).toBe(true);
+      expect(closest(pads(side)), side).toBeGreaterThanOrEqual(25);
+    }
+  });
+
+  it('waits a jeep at every point but the twin town, and a tank too at the armour points D and I', () => {
+    expect(Object.fromEntries(map.points.map((p) => [p.id, (p.vehicles ?? []).map((v) => v.kind).sort().join(' ')]))).toEqual({
+      A: 'jeep', B: 'jeep', C: 'jeep', D: 'jeep tank', E: '', F: 'jeep', G: 'jeep', H: '', I: 'jeep tank', J: 'jeep', K: 'jeep', L: 'jeep',
+    });
+    for (const p of map.points)
+      for (const v of p.vehicles ?? []) {
+        for (const side of sides) expect(drivable(side, v), `${p.id} ${v.kind} for ${side}`).toBe(true);
+        expect(Math.hypot(v.x - p.x, v.y - p.y), `${p.id} ${v.kind}`).toBeLessThan(p.radius);
+      }
+  });
+
+  it('matches every slot, helipad and point vehicle to its twin under a half turn', () => {
+    const twin = (a: (Vec2 & { kind?: string })[], b: (Vec2 & { kind?: string })[]) => {
+      expect(b).toHaveLength(a.length);
+      a.forEach((v, k) => expect(near(b[k]!, rotated(v)) && b[k]!.kind === v.kind, `${v.kind ?? 'pad'} ${v.x},${v.y}`).toBe(true));
+    };
+    twin(slots('nato'), slots('pact'));
+    twin(pads('nato'), pads('pact'));
+    for (const p of map.points) twin(p.vehicles ?? [], twinOf(p).vehicles ?? []);
   });
 });
