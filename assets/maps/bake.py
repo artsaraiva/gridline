@@ -5,6 +5,9 @@ A map's assets/maps/<map>/build.py holds its layout and landmarks, imports this 
 Blender runs the map's build.py as __main__, and this module reads the map from it as MAP. The output paths
 come from MAP.__file__ on import; the rest is read at call time, and build_materials() checks it is all there:
   HALF, EXT       half the map's side in metres, and half the side of what this mode renders
+  RIVER_W         the river's width at the water line, in metres
+  TERRAIN_N       vertices along each side of the terrain mesh
+  HEIGHT_CELL_M   cell size of the written height grids; the cover grid is always 1 m
   CROSSINGS       [(id, kind, x, y, half width)], kind bridge | footbridge | ford
   height(x, y)    ground height with the river cut in
   rdist(x, y)     distance from the river's centre line
@@ -29,7 +32,7 @@ import numpy as np
 from mathutils import Euler, Vector, kdtree, noise
 
 MAP = sys.modules["__main__"]
-NEEDS = ("HALF", "EXT", "CROSSINGS", "height", "rdist", "river_dxdy", "zone", "clearing", "woods_val", "meadow")
+NEEDS = ("HALF", "EXT", "RIVER_W", "TERRAIN_N", "HEIGHT_CELL_M", "CROSSINGS", "height", "rdist", "river_dxdy", "zone", "clearing", "woods_val", "meadow")
 argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 MODE = argv[0] if argv else "preview"
 # play and outer sizes are fixed: map.json lists those files and the mip chain needs a power of two
@@ -72,9 +75,14 @@ def bump(x, y, bx, by, r, h):
     return h * (1 - r2) ** 2 if r2 < 1 else 0.0
 
 
+def bank(d=0.0):
+    """Distance from the river's centre line to d metres past its water line."""
+    return MAP.RIVER_W / 2 + d
+
+
 # ---------------------------------------------------------------------- roads
-HALFW = {"main": 3.4, "minor": 2.7, "track": 1.7, "kolonne": 1.7, "path": 1.0}
-ZOFF = {"main": 0.24, "minor": 0.22, "track": 0.2, "kolonne": 0.2, "path": 0.18}
+HALFW = {"main": 3.4, "minor": 2.7, "track": 1.7, "kolonne": 1.7, "path": 1.0, "rail": 2.4}
+ZOFF = {"main": 0.24, "minor": 0.22, "track": 0.2, "kolonne": 0.2, "path": 0.18, "rail": 0.16}  # a road crosses over the rails
 ROAD_PTS = []  # (kind, [(x, y)]) every 2 m along each road, filled by index_roads(); the first road is the main road
 RS = []  # every road point: (x, y, half width, kind)
 KD = None
@@ -108,7 +116,7 @@ def index_roads(roads):
     # the river is crossable only at the crossings: no road may touch the water anywhere else on the map
     for kind, pts in ROAD_PTS:
         for x, y in pts:
-            if max(abs(x), abs(y)) < MAP.HALF + 20 and MAP.rdist(x, y) < 9 and not near_crossing(x, y, 16):
+            if max(abs(x), abs(y)) < MAP.HALF + 20 and MAP.rdist(x, y) < bank(3) and not near_crossing(x, y, bank(10)):
                 raise SystemExit(f"{kind} road touches the river at ({x:.0f}, {y:.0f}) away from a crossing")
 
 
@@ -133,8 +141,13 @@ def road_tangent(i):
     return t.normalized() if t.length > 0 else Vector((1, 0))
 
 
-def near_crossing(x, y, pad):
-    return any(math.hypot(x - cx, y - cy) < hw + pad for _, _, cx, cy, hw in MAP.CROSSINGS)
+def near_crossing(x, y, pad, kind=None):
+    return any(math.hypot(x - cx, y - cy) < hw + pad for _, k, cx, cy, hw in MAP.CROSSINGS if kind in (None, k))
+
+
+def near_bridge(x, y):
+    """Within reach of a road bridge's deck, even where the road meets the river at a slant."""
+    return near_crossing(x, y, 2 * bank(22), "bridge")
 
 
 # ------------------------------------------------------------------ materials
@@ -320,6 +333,12 @@ def build_materials():
             mid = M.math("MULTIPLY", M.mr(au, 0.22, 0.08), M.mr(M.noise(w, 0.8, 3), 0.35, 0.5))
             c = M.mix(mid, c, (0.17, 0.20, 0.09))
             c = M.mix(M.mr(au, 0.75, 1.0), c, (0.18, 0.20, 0.10))
+        elif kind == "rail":  # ballast bed, sleepers every 0.6 m, two rails at standard gauge
+            c = M.mix(M.mr(M.noise(w, 1.5, 4), 0.3, 0.7), (0.20, 0.19, 0.17), (0.28, 0.27, 0.24))
+            sleeper = M.math("MULTIPLY", M.mr(au, 0.58, 0.52), M.stripes(uv[1], 0.6, 0.4))
+            c = M.mix(M.math("MULTIPLY", sleeper, 0.85), c, (0.16, 0.12, 0.09))
+            c = M.mix(M.band(au, 0.27, 0.33, 0.01), c, (0.32, 0.32, 0.33))
+            c = M.mix(M.mr(au, 0.8, 1.0), c, (0.17, 0.18, 0.10))
         else:  # kolonnenweg: two perforated concrete strips
             slab = M.band(au, 0.18, 0.88, 0.02)
             hole = M.math("MULTIPLY", M.stripes(uv[1], 0.5, 0.45), M.stripes(M.math("ADD", au, 0.0), 0.12, 0.45))
@@ -333,6 +352,7 @@ def build_materials():
     road("r_minor", "asphalt")
     road("r_track", "track")
     road("r_kolonne", "kolonne")
+    road("r_rail", "rail")
 
     # roofs: per-object palette; weathering, patchy tiles, streaks running downslope (local x), dirtier eaves
     def roof(name, palette, period, bumpstr=0.3, moss=0.25):
@@ -590,11 +610,12 @@ def ground_z(cx, cy, w, d, a):
 FOOT = []  # (x, y, r) occupied footprints
 
 
-def free(x, y, r, road_margin=1.5, river=12):
+def free(x, y, r, road_margin=1.5, river=None):
+    """No footprint, road or river within r; river is the clearance from the river's centre line (6 m past the water)."""
     for fx, fy, fr in FOOT:
         if (x - fx) ** 2 + (y - fy) ** 2 < (r + fr) ** 2:
             return False
-    return not on_road(x, y, r * 0.65 + road_margin) and MAP.rdist(x, y) > r + river
+    return not on_road(x, y, r * 0.65 + road_margin) and MAP.rdist(x, y) > r + (bank(6) if river is None else river)
 
 
 def rot_from_dir(dx, dy):
@@ -851,16 +872,16 @@ def build_banks():
         for y in np.arange(-lim, lim, sp):
             px, py = x + rng.uniform(-1.2, 1.2), y + rng.uniform(-1.2, 1.2)
             d = MAP.rdist(px, py)
-            if d > 14 or d < 7.5:
+            if d > bank(8) or d < bank(1.5):
                 continue
             z = MAP.zone(px, py)
-            if z != "bank" and not (z == "clear" and d > 11 and not MAP.clearing(px, py) and not near_crossing(px, py, 10)):
+            if z != "bank" and not (z == "clear" and d > bank(5) and not MAP.clearing(px, py) and not near_crossing(px, py, 10)):
                 continue
-            if d < 9.5 and rng.random() < 0.35:
+            if d < bank(3.5) and rng.random() < 0.35:
                 put("reed", px, py, rng.uniform(0.9, 1.3))
-            elif d >= 9.5 and rng.random() < 0.4:
+            elif d >= bank(3.5) and rng.random() < 0.4:
                 put("bush" + str(rng.randint(0, 2)), px, py, rng.uniform(1.2, 1.9))
-            elif d >= 11.5 and rng.random() < 0.3:
+            elif d >= bank(5.5) and rng.random() < 0.3:
                 tree_at(px, py, rng.choice(["decid0", "decid2", "bare0"]), rng.uniform(0.7, 1.0))
 
 
@@ -1074,7 +1095,7 @@ def farmstead(tag, cx, cy, a, big=False):
 
 # ----------------------------------------------------------------- the world
 def build_terrain():
-    n = 513
+    n = MAP.TERRAIN_N
     xs = np.linspace(-MAP.EXT - 4, MAP.EXT + 4, n)
     verts, cols = [], []
     col = {"water": (0.10, 0.09, 0.07), "bank": (0.12, 0.13, 0.07), "woods": (0.08, 0.06, 0.04),
@@ -1114,7 +1135,9 @@ def build_roads():
             if i:
                 dist += math.hypot(x - pts[i - 1][0], y - pts[i - 1][1])
             far = max(abs(x), abs(y)) > MAP.HALF + 20  # beyond the map a road bridges the river without parapets
-            deck = 2.0 * (1 - sstep(11, 28, MAP.rdist(x, y))) if kind == "main" or far else -9
+            # a road bridge's deck stands 2 m over the water; rails cross lower, under the walkway the crossing builds
+            lift = 2.0 if far or near_bridge(x, y) else 0.9 if kind == "rail" and near_crossing(x, y, 2 * bank(22)) else 0
+            deck = lift * (1 - sstep(bank(5), bank(22), MAP.rdist(x, y))) if lift else -9
             for side in (-1, 1):
                 px, py = x + nrm.x * hw * side, y + nrm.y * hw * side
                 verts.append((px, py, max(MAP.height(px, py) + ZOFF[kind], deck + ZOFF[kind])))
@@ -1122,27 +1145,29 @@ def build_roads():
         for i in range(len(pts) - 1):
             k = 2 * i
             faces.append((k, k + 2, k + 3, k + 1))
-        mname = {"main": "r_main", "minor": "r_minor", "track": "r_track", "path": "r_track", "kolonne": "r_kolonne"}[kind]
-        ob = make_obj(f"road_{idx}_{kind}", verts, faces, [mname], cover="road")
+        mname = {"main": "r_main", "minor": "r_minor", "track": "r_track", "path": "r_track", "kolonne": "r_kolonne",
+                 "rail": "r_rail"}[kind]
+        ob = make_obj(f"road_{idx}_{kind}", verts, faces, [mname], cover="open" if kind == "rail" else "road")
         uv = ob.data.uv_layers.new(name="UVMap")
         for poly in ob.data.polygons:
             for li in poly.loop_indices:
                 uv.data[li].uv = uvs[ob.data.loops[li].vertex_index]
-    # centre bridge: parapets and piers where the main road crosses the river
+    # bridges: parapets and piers where a road crosses the river on a bridge
     mb = MB()
-    pts = ROAD_PTS[0][1]
-    for i in range(len(pts) - 1):
-        (x0, y0), (x1, y1) = pts[i], pts[i + 1]
-        if MAP.rdist(x0, y0) < 15 and max(abs(x0), abs(y0)) < MAP.HALF:
-            t = Vector((x1 - x0, y1 - y0))
-            L = t.length
-            t.normalize()
-            nrm = Vector((-t.y, t.x))
-            a = math.atan2(t.y, t.x)
-            for side in (-1, 1):
-                cx, cy = (x0 + x1) / 2 + nrm.x * 4.2 * side, (y0 + y1) / 2 + nrm.y * 4.2 * side
-                mb.box(cx, cy, 2.0, L + 0.05, 0.45, 1.0, "stone", a=a)
-            mb.box((x0 + x1) / 2, (y0 + y1) / 2, 0.8, L + 0.05, 8.8, 1.4, "stone", a=a)
+    for kind, pts in ROAD_PTS:
+        hw = HALFW[kind]
+        for i in range(len(pts) - 1):
+            (x0, y0), (x1, y1) = pts[i], pts[i + 1]
+            if MAP.rdist(x0, y0) < bank(9) and max(abs(x0), abs(y0)) < MAP.HALF and near_bridge(x0, y0):
+                t = Vector((x1 - x0, y1 - y0))
+                L = t.length
+                t.normalize()
+                nrm = Vector((-t.y, t.x))
+                a = math.atan2(t.y, t.x)
+                for side in (-1, 1):
+                    cx, cy = (x0 + x1) / 2 + nrm.x * (hw + 0.8) * side, (y0 + y1) / 2 + nrm.y * (hw + 0.8) * side
+                    mb.box(cx, cy, 2.0, L + 0.05, 0.45, 1.0, "stone", a=a)
+                mb.box((x0 + x1) / 2, (y0 + y1) / 2, 0.8, L + 0.05, 2 * hw + 2, 1.4, "stone", a=a)
     mb.obj("bridge", cover="road")
 
 
@@ -1154,7 +1179,7 @@ def build_crossings():
         a = math.atan(MAP.river_dxdy(cy))  # across the river: local x runs across, tilted with the channel
         if kind == "footbridge":
             mb = MB()
-            L = 25.0
+            L = MAP.RIVER_W + 13
             mb.box(0, 0, 1.0, L, 2.2, 0.3, "timber")
             for side in (-1, 1):
                 mb.box(0, side * 1.05, 1.3, L, 0.12, 0.1, "timber")
@@ -1162,31 +1187,34 @@ def build_crossings():
                     mb.box(-L / 2 + 0.2 + k * (L - 0.4) / 6, side * 1.05, 1.3, 0.14, 0.14, 1.0, "timber")
                     mb.box(-L / 2 + 0.2 + k * (L - 0.4) / 6, side * 1.05, 2.25, 0.14, 0.14, 0.1, "timber")
             for px in (-5.5, 0, 5.5):
-                mb.box(px, 0, -2.0, 0.5, 1.8, 3.0, "concrete")
+                mb.box(px * L / 25, 0, -2.0, 0.5, 1.8, 3.0, "concrete")
             mb.obj(f"footbridge_{cy:+.0f}", (cx, cy, 0.0), -a, "road")
         else:
-            make_obj(f"ford_{cy:+.0f}", [(-10, -hw, 0.04), (10, -hw, 0.04), (10, hw, 0.04), (-10, hw, 0.04)],
+            e = bank(4)
+            make_obj(f"ford_{cy:+.0f}", [(-e, -hw, 0.04), (e, -hw, 0.04), (e, hw, 0.04), (-e, hw, 0.04)],
                      [(0, 1, 2, 3)], ["ford"], loc=(cx, cy, 0), rot=-a, cover="ford")
             for side in (-1, 1):  # marker posts on both banks
                 for s in (-1, 1):
-                    put("post", cx + side * 9.5 * math.cos(a), cy + s * (hw + 0.6), 1.3)
+                    put("post", cx + side * bank(3.5) * math.cos(a), cy + s * (hw + 0.6), 1.3)
 
 
 VEHICLE_SLOTS = {}  # #107: per side, where its tanks wait: one under each vehicle-park camo net (build_hq)
 HELIPADS = {}  # #109: per side, where its transport helicopter waits: open sand between the camo nets (build_hq); no pad drawn yet
 
 
-def build_hq(tag, cx, cy, a):
-    """Requisitioned motor pool: a ~70 m sandbagged compound with tents, containers, trucks under camo nets."""
+def build_hq(tag, cx, cy, a, s=1.0):
+    """Requisitioned motor pool: a ~70 m sandbagged compound with tents, containers, trucks under camo nets, sized for a
+    35 m HQ radius; s spreads the compound for a bigger HQ, its tents and vehicles keep their size."""
     ca, sa = math.cos(a), math.sin(a)
 
     def W(x, y):
-        return cx + x * ca - y * sa, cy + x * sa + y * ca
+        return cx + x * s * ca - y * s * sa, cy + x * s * sa + y * s * ca
 
-    flat_patch(f"hq_{tag}_ground", cx, cy, 70, 64, a, "sand", 0.11, cover="open")
+    flat_patch(f"hq_{tag}_ground", cx, cy, 70 * s, 64 * s, a, "sand", 0.11, cover="open")
     mb = MB()
     for (x0, y0), (x1, y1) in [((-35, -32), (35, -32)), ((-35, 32), (35, 32)), ((-35, -32), (-35, -7)), ((-35, 7), (-35, 32)),
                                ((35, -32), (35, -7)), ((35, 7), (35, 32))]:
+        x0, y0, x1, y1 = x0 * s, y0 * s, x1 * s, y1 * s
         L = math.hypot(x1 - x0, y1 - y0)
         mb.box((x0 + x1) / 2, (y0 + y1) / 2, -1, L if y0 == y1 else 1.0, 1.0 if y0 == y1 else L, 2.2, "sand")
     mb.obj(f"hq_{tag}_berm", (cx, cy, MAP.height(cx, cy) - 0.5), a, "wall")
@@ -1228,7 +1256,7 @@ def build_hq(tag, cx, cy, a):
         make_obj(f"hq_{tag}_net{net}", verts, faces, ["camonet"], loc=(wx, wy, MAP.height(wx, wy)), rot=a, cover="prop")
         VEHICLE_SLOTS.setdefault(tag, []).append((wx, wy))
     HELIPADS[tag] = W(6, 0)
-    FOOT.append((cx, cy, 46))
+    FOOT.append((cx, cy, 46 * s))
 
 
 def lighting(scene, res, ortho, cam_z=400.0):
@@ -1295,7 +1323,8 @@ def save_png(path, rgba):
 
 def export_data():
     """Top-down data render of the same scene at 1 px per metre: an emission override writes the
-    object's cover id (pass index) and the hit height. Written row 0 = north, column 0 = west."""
+    object's cover id (pass index) and the hit height. Written row 0 = north, column 0 = west; the cover
+    grid at 1 m, the height grids at the map's HEIGHT_CELL_M."""
     log("data: top-down data renders at 1 px per metre")
     N = int(2 * MAP.HALF)
     for ob in bpy.data.objects:
@@ -1357,8 +1386,14 @@ def export_data():
     cover[river] = COVER_IDS["water"]
     # Blender's rows run south to north; the data files run north to south like the grid
     np.flipud(cover).tofile(os.path.join(OUT, "cover_u8.bin"))
-    np.flipud(grd).tofile(os.path.join(OUT, "ground_f32.bin"))
-    np.flipud(top).tofile(os.path.join(OUT, "top_f32.bin"))
+    k = MAP.HEIGHT_CELL_M
+    if k == 1:
+        np.flipud(grd).tofile(os.path.join(OUT, "ground_f32.bin"))
+        np.flipud(top).tofile(os.path.join(OUT, "top_f32.bin"))
+    else:  # each k x k block: the mean ground and the highest top
+        blocks = (N // k, k, N // k, k)
+        np.flipud(grd.reshape(blocks).mean(axis=(1, 3))).astype(np.float32).tofile(os.path.join(OUT, "ground_f32.bin"))
+        np.flipud(top.reshape(blocks).max(axis=(1, 3))).astype(np.float32).tofile(os.path.join(OUT, "top_f32.bin"))
     log("data: cover counts", {k: int((cover == v).sum()) for k, v in COVER_IDS.items()}, "gaps", int((cover == GAP).sum()))
     g = (grd - grd.min()) / max(1e-6, grd.max() - grd.min())
     gy, gx = np.gradient(grd)
