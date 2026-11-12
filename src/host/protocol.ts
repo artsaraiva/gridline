@@ -3,6 +3,9 @@ import type { Command, CommanderView, MapData, SideId, SimEvent } from '../sim/t
 /** A Command before the Sim host stamps it with the tick it applies on. */
 export type UnstampedCommand = Command extends infer C ? (C extends Command ? Omit<C, 'tick'> : never) : never;
 
+/** #150: the bakes in `public/maps/<id>/` a match can be played on. */
+export type MapId = 'kaltenbach' | 'auental';
+
 export type MatchSetup = { seed: number; squadsPerSide: number; commanderSide: SideId };
 
 /** Everything needed to replay a match: its setup, the map it ran on and every stamped Command. */
@@ -10,7 +13,7 @@ export type MatchRecord = MatchSetup & { map: string; log: Command[] };
 
 export type ToHost =
   /** `map`: 'test' for the small hand-written field, else the bake in `public/maps/<map>/` (#150; Kaltenbach when unset). */
-  | ({ kind: 'start'; map?: 'test' | 'kaltenbach' | 'auental'; dev?: { freeAssets?: boolean; tanks?: number } } & MatchSetup)
+  | ({ kind: 'start'; map?: 'test' | MapId; dev?: { freeAssets?: boolean; tanks?: number } } & MatchSetup)
   | { kind: 'command'; command: UnstampedCommand };
 
 export type FromHost =

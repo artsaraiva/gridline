@@ -1,6 +1,6 @@
 // Match flow: the setup screen starts a match, the end screen shows how it went and leads back to setup.
 import { startSimHost } from '../host/host';
-import type { MatchSetup } from '../host/protocol';
+import type { MapId, MatchSetup } from '../host/protocol';
 import { enemyOf, type CommanderView } from '../sim/types';
 import { silence } from './audio';
 import { drawMap } from './layers/map';
@@ -29,15 +29,15 @@ const squadSelect = setupForm.elements.namedItem('squads') as HTMLSelectElement;
 const mapSelect = setupForm.elements.namedItem('map') as HTMLSelectElement;
 for (let n = MIN_SQUADS; n <= MAX_SQUADS; n++) squadSelect.add(new Option(String(n), String(n)));
 
-// URL params preset the setup screen; `seed` fixes the first match's seed (seed 4 shows a decisive capture on the test field),
-// `map=test` plays the hand-written test field instead of the map picked.
+// URL params preset the setup screen; `seed` fixes the first match's seed (seed 4 shows a decisive capture on the test field).
+// `map=auental` presets the Map select; `map=test` plays the hand-written test field whatever the select says.
 const params = new URLSearchParams(location.search);
 let urlSeed = params.get('seed');
 (setupForm.elements.namedItem('side') as RadioNodeList).value = params.get('side') === 'pact' ? 'pact' : 'nato';
 squadSelect.value = String(Math.min(MAX_SQUADS, Math.max(MIN_SQUADS, Number(params.get('squads')) || DEFAULT_SQUADS)));
 if (params.get('map') === 'auental') mapSelect.value = 'auental';
 
-async function startMatch(setup: MatchSetup, map: 'kaltenbach' | 'auental') {
+async function startMatch(setup: MatchSetup, map: MapId) {
   session.host?.stop();
   session.host = null;
   layer.clear();
