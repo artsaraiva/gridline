@@ -1,4 +1,4 @@
-// Per-tick cost of the Simulation on a baked map, in Node. Run with `pnpm bench`. Budgets: 5 ms at 12v12, 15 ms at 32v32.
+// Per-tick cost of the Simulation on a baked map, in Node. Run with `pnpm bench`. Budgets: 5 ms at 12v12, 15 ms at 32v32, 25 ms at 128v128.
 // #151: and the flow fields' warm-up, memory and one crate's build, on Kaltenbach and on the 2.5 km Auental (#150).
 import { commanderView, commanderEvents, createMatch, step, warmFlows } from '../src/sim';
 import { crateFlow, flowBytes } from '../src/sim/ai/flow';

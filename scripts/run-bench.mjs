@@ -17,6 +17,7 @@ try {
       benchTicks({ label: 'Kaltenbach 12v12', map: KALTENBACH, squads: 3, budgetMs: 5, seconds }),
       benchTicks({ label: 'Kaltenbach 32v32', map: KALTENBACH, squads: 8, budgetMs: 15, seconds }),
       benchTicks({ label: 'Auental 32v32', map: AUENTAL, squads: 8, budgetMs: 15, seconds }), // #150: as many Soldiers as Kaltenbach's, so the same budget
+      benchTicks({ label: 'Auental 128v128', map: AUENTAL, squads: 32, budgetMs: 25, seconds }), // #150 step 6: half the 50 ms tick
     ]));
 } finally {
   await server.close();
