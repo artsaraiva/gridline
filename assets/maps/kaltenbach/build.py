@@ -25,11 +25,11 @@ from mathutils import Vector
 
 sys.dont_write_bytecode = True  # no __pycache__ beside the shared module
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from bake import (COVER_IDS, FOOT, HALFW, HELIPADS, MATS, MB, OUTER, ROAD_PTS, RS, SC, VEHICLE_SLOTS, Mat,  # noqa: E402
-                  build_banks, build_crossings, build_hq, build_materials, build_poles, build_protos, build_roads,
-                  build_terrain, build_woods, bump, disc_patch, farmstead, finish, flat_patch, free, gable, ground_z,
-                  hedge_line, house, index_roads, log, make_obj, near_crossing, nz, on_road, plot_extras, put, r2,
-                  rng, road_near, road_tangent, rot_from_dir, sstep, tree_at)
+from bake import (COVER_IDS, FOOT, HELIPADS, MB, OUTER, RS, VEHICLE_SLOTS, build_banks, build_crossings,  # noqa: E402
+                  build_hq, build_houses, build_materials, build_poles, build_protos, build_roads, build_terrain,
+                  build_woods, bump, church, disc_patch, farmstead, finish, flat_patch, free, gable, ground_z, hedge_line,
+                  house, index_roads, log, log_stack, make_obj, near_crossing, nz, on_road, put, r2, rng, road_near,
+                  road_tangent, rot_from_dir, sstep, strip, tree_at)
 
 HALF = 480.0
 EXT = 1440.0 if OUTER else HALF
@@ -165,21 +165,12 @@ def in_village(x, y, s=1.0):
     return ((x - cx) / (rx * s)) ** 2 + ((y - cy) / (ry * s)) ** 2 < 1 + 0.12 * nz(x, y, 40, 6.6)
 
 
-def _strip(pts, r, step=22.0):
-    """Blobs along a polyline: a wood strip."""
-    out = []
-    for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
-        n = max(1, int(math.hypot(x1 - x0, y1 - y0) / step))
-        out += [(x0 + (x1 - x0) * k / n, y0 + (y1 - y0) * k / n, r) for k in range(n)]
-    return out + [(*pts[-1], r)]
-
-
 WOOD_BLOBS = [
     (-190, 345, 125), (-55, 405, 85), (-300, 235, 75), (-265, 400, 70),  # the north woodland Lane
     (38, 238, 45), (165, 190, 68), (245, 125, 52), (330, 95, 32),  # cover on both banks of the north footbridge
     (-400, 340, 55), (380, 160, 42), (-325, -55, 40), (170, -215, 48), (330, -335, 72), (-345, -425, 58),
     (-205, 95, 34), (290, -460, 45), (-440, -300, 40),
-] + _strip([(-365, -168), (-290, -188), (-220, -200), (-150, -207), (-112, -211)], 23)  # NATO's to the south footbridge
+] + strip([(-365, -168), (-290, -188), (-220, -200), (-150, -207), (-112, -211)], 23)  # NATO's to the south footbridge
 if OUTER:
     WOOD_BLOBS += [(-1050, 450, 285), (-675, -1170, 315), (375, 1140, 300), (-1320, -675, 225), (1230, 1230, 225),
                    (1080, -480, 195), (90, -1080, 180), (-450, 975, 180), (1350, 375, 180), (-840, 780, 165)]
@@ -249,33 +240,7 @@ def build_village():
         for _ in range(6):
             put("grave", rng.uniform(-3, 3), y + rng.uniform(-2.5, 2.5), rng.uniform(0.8, 1.6))
     FOOT.extend([(0, y, 1.5) for y in np.arange(-100, 101, 3.0)])
-    # church with churchyard on the west bank, look-dev size
-    ccx, ccy, ang = -58.0, 42.0, 0.35
-    mb = MB()
-    gable(mb, 13, 30, 11, 52, "roof_slate")
-    mb.box(0, -15 - 3.5, -2, 7.5, 7.5, 26, "stone")
-    for (x0, y0), (x1, y1) in (((-4, -22.5), (4, -22.5)), ((4, -22.5), (4, -14.5)), ((4, -14.5), (-4, -14.5)),
-                               ((-4, -14.5), (-4, -22.5))):
-        mb.poly([(x0, y0, 24), (x1, y1, 24), (0, -18.5, 42)], "roof_slate")
-    mb.cyl(0, 15, -2, 6.5, 12.5, "wall", 10, top_m="roof_slate")
-    zmin, _ = ground_z(ccx, ccy, 13, 30, ang)
-    mb.obj("church", (ccx, ccy, zmin), ang, "building")
-    FOOT.append((ccx, ccy, 25))
-    ca, sa = math.cos(ang), math.sin(ang)
-    mb = MB()
-    for (x0, y0), (x1, y1) in [((-20, -28), (20, -28)), ((20, -28), (20, 30)), ((20, 30), (-20, 30)), ((-20, 30), (-20, -28))]:
-        L = math.hypot(x1 - x0, y1 - y0)
-        mb.box((x0 + x1) / 2, (y0 + y1) / 2, -1.5, L if y0 == y1 else 0.5, 0.5 if y0 == y1 else L, 3.0, "stone")
-    mb.obj("churchyard", (ccx, ccy, zmin), ang, "wall")
-    for i in range(-6, 7):
-        for j in range(-11, 12):
-            lx, ly = i * 2.6, j * 2.4
-            if abs(lx) < 9 and abs(ly) < 23 or rng.random() > 0.7:
-                continue
-            x, y = ccx + lx * ca - ly * sa, ccy + lx * sa + ly * ca
-            SC["grave"].append((x, y, height(x, y), 1.0, ang))
-    for lx, ly in [(-16, -24), (16, 26), (-16, 26), (16, -24)]:
-        tree_at(ccx + lx * ca - ly * sa, ccy + lx * sa + ly * ca, "decid1", 1.1)
+    church(-58.0, 42.0, 0.35)  # on the west bank, look-dev size
     put("decid0", -24, 16, 1.3)  # linden on the square
     # community hall on the east bank: a flat-roofed GDR Kulturhaus with a forecourt
     hx, hy, ang = 62.0, -48.0, 0.45
@@ -302,61 +267,7 @@ def build_village():
         x, y = rx + nr.x * off * sgn, ry + nr.y * off * sgn
         if free(x, y, 18, 0.5, 8):
             farmstead(f"v{k}", x, y, rot_from_dir(t.x, t.y))
-    n = 0
-
-    def place(cx, cy, a, w, d, kind):
-        nonlocal n
-        r = 0.5 * math.hypot(w, d) * 0.62 + 0.5  # a Hessian village packs houses close
-        if not in_village(cx, cy, 1.05) or not free(cx, cy, r, 0.6, 4):
-            return
-        house(f"house_{n}", cx, cy, a, w, d, kind)
-        FOOT.append((cx, cy, r))
-        plot_extras(cx, cy, a, w, d)
-        n += 1
-
-    for kind, pts in ROAD_PTS:  # rows along the streets, gable or eaves to the street
-        if kind not in ("main", "minor"):
-            continue
-        i = 0
-        while i < len(pts):
-            x, y = pts[i]
-            if in_village(x, y, 1.05):
-                a_, b_ = pts[max(0, i - 1)], pts[min(len(pts) - 1, i + 1)]
-                t = Vector((b_[0] - a_[0], b_[1] - a_[1])).normalized()
-                nr = Vector((-t.y, t.x))
-                for side in (-1, 1):
-                    for row in (0, 1, 2):
-                        if rng.random() > (0.92, 0.65, 0.3)[row]:
-                            continue
-                        w, d = rng.uniform(8.5, 11.5), rng.uniform(10.5, 15)
-                        to_street = rng.random() < 0.6
-                        off = HALFW[kind] + rng.uniform(2.5, 5) + (d if to_street else w) / 2 + row * 21
-                        a = rot_from_dir(nr.x, nr.y) if to_street else rot_from_dir(t.x, t.y)
-                        place(x + nr.x * off * side, y + nr.y * off * side, a, w, d, "modern" if rng.random() < 0.15 else "house")
-            i += rng.randint(5, 7)
-    cx0, cy0, rx, ry = VILLAGE
-    for _ in range(3000):  # infill: barns and back houses facing the nearest street
-        cx, cy = rng.uniform(cx0 - rx, cx0 + rx), rng.uniform(cy0 - ry, cy0 + ry)
-        if not in_village(cx, cy):
-            continue
-        i, d = road_near(cx, cy)
-        if d > 60 or RS[i][3] not in ("main", "minor"):
-            continue
-        w, dd = rng.uniform(8.5, 12), rng.uniform(10, 15)
-        place(cx, cy, rot_from_dir(*road_tangent(i)) + rng.choice((0, math.pi / 2)), w, dd,
-              rng.choice(["house"] * 5 + ["modern", "barn"]))
-    log(f"  village houses: {n}")
-    for kind, pts in ROAD_PTS:  # street-parked cars
-        if kind not in ("main", "minor"):
-            continue
-        for i in range(0, len(pts) - 1, 3):
-            x, y = pts[i]
-            if in_village(x, y) and rng.random() < 0.18 and rdist(x, y) > 14:
-                t = Vector((pts[i + 1][0] - x, pts[i + 1][1] - y)).normalized()
-                nr = Vector((-t.y, t.x))
-                side = rng.choice((-1, 1))
-                off = HALFW[kind] + 1.3
-                put("car", x + nr.x * off * side, y + nr.y * off * side, 1.0, math.atan2(t.y, t.x))
+    build_houses(in_village, VILLAGE, 4, 14)
 
 
 def build_mill():
@@ -372,9 +283,6 @@ def build_mill():
     mb = MB()
     mb.box(river_x(wy), wy, -1.5, 22, 1.4, 1.75, "concrete", a=math.atan(river_dxdy(wy)))
     mb.obj("weir", cover="water")
-    foam = Mat("foam")
-    foam.base(foam.mix(foam.mr(foam.noise(foam.coord("Object"), 1.5, 4), 0.4, 0.7), (0.25, 0.27, 0.27), (0.6, 0.62, 0.6)))
-    MATS["foam"] = foam
     fa = math.atan(river_dxdy(wy))
     make_obj("foam", [(-8, -2.5, 0.03), (8, -2.5, 0.03), (8, 2.5, 0.03), (-8, 2.5, 0.03)], [(0, 1, 2, 3)], ["foam"],
              loc=(river_x(wy - 4), wy - 4, 0), rot=-fa, cover="water")
@@ -396,15 +304,9 @@ def build_sawmill():
     FOOT.extend([(cx - 18, cy + 11, 13), (cx + 19, cy - 15, 7), (cx - 26, cy - 14, 7), (cx + 8, cy - 2, 16)])
     for x0, y0, x1, y1 in [(-12, -12, -3, -10), (27, 6, 29, 17), (-34, 0, -32, 9), (-4, 22, 7, 24), (10, 20, 20, 22),
                            (-2, -26, 7, -24), (-8, 2, -6, 11), (-36, 14, -34, 22), (22, -30, 31, -28)]:
-        mb = MB()
         along_x = x1 - x0 > y1 - y0
         L, Wd = (x1 - x0, y1 - y0) if along_x else (y1 - y0, x1 - x0)
-        for layer in range(3):
-            for k in range(int(Wd / 0.45) - layer):
-                off = -Wd / 2 + 0.225 + (k + layer * 0.5) * 0.45
-                mb.box(0, off, -0.3 + layer * 0.42, L * rng.uniform(0.92, 1.0), 0.42, 0.42, "logs")
-        lx, ly = cx + (x0 + x1) / 2, cy + (y0 + y1) / 2
-        mb.obj("logs", (lx, ly, height(lx, ly)), 0.0 if along_x else math.pi / 2, "wall")
+        log_stack(cx + (x0 + x1) / 2, cy + (y0 + y1) / 2, L, Wd, 0.0 if along_x else math.pi / 2)
     for _ in range(3):
         put("car", cx + rng.uniform(-8, 12), cy + rng.uniform(-8, 0), 1.0)
     for _ in range(14):

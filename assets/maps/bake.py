@@ -75,6 +75,15 @@ def bump(x, y, bx, by, r, h):
     return h * (1 - r2) ** 2 if r2 < 1 else 0.0
 
 
+def strip(pts, r, step=22.0):
+    """Blobs (x, y, r) along a polyline: a wood strip."""
+    out = []
+    for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
+        n = max(1, int(math.hypot(x1 - x0, y1 - y0) / step))
+        out += [(x0 + (x1 - x0) * k / n, y0 + (y1 - y0) * k / n, r) for k in range(n)]
+    return out + [(*pts[-1], r)]
+
+
 def bank(d=0.0):
     """Distance from the river's centre line to d metres past its water line."""
     return MAP.RIVER_W / 2 + d
@@ -508,6 +517,9 @@ def build_materials():
     M.base(c)
     M.bsdf.inputs["Roughness"].default_value = 0.25
     MATS["ford"] = M
+    M = Mat("foam")  # white water below a weir or a spillway
+    M.base(M.mix(M.mr(M.noise(M.coord("Object"), 1.5, 4), 0.4, 0.7), (0.25, 0.27, 0.27), (0.6, 0.62, 0.6)))
+    MATS["foam"] = M
 
 
 # --------------------------------------------------------------- mesh helpers
@@ -1091,6 +1103,106 @@ def farmstead(tag, cx, cy, a, big=False):
             mb = MB()
             mb.cyl(0, 0, -1, 2.8, 14, "metal", 16)
             mb.obj(f"silo_{tag}_{k}", (x, y, MAP.height(x, y)), 0, "building")
+
+
+def church(ccx, ccy, ang):
+    """A stone church with a west tower and an apse, in a walled churchyard of graves with a tree at each corner."""
+    mb = MB()
+    gable(mb, 13, 30, 11, 52, "roof_slate")
+    mb.box(0, -15 - 3.5, -2, 7.5, 7.5, 26, "stone")
+    for (x0, y0), (x1, y1) in (((-4, -22.5), (4, -22.5)), ((4, -22.5), (4, -14.5)), ((4, -14.5), (-4, -14.5)),
+                               ((-4, -14.5), (-4, -22.5))):
+        mb.poly([(x0, y0, 24), (x1, y1, 24), (0, -18.5, 42)], "roof_slate")
+    mb.cyl(0, 15, -2, 6.5, 12.5, "wall", 10, top_m="roof_slate")
+    zmin, _ = ground_z(ccx, ccy, 13, 30, ang)
+    mb.obj("church", (ccx, ccy, zmin), ang, "building")
+    FOOT.append((ccx, ccy, 25))
+    ca, sa = math.cos(ang), math.sin(ang)
+    mb = MB()
+    for (x0, y0), (x1, y1) in [((-20, -28), (20, -28)), ((20, -28), (20, 30)), ((20, 30), (-20, 30)), ((-20, 30), (-20, -28))]:
+        L = math.hypot(x1 - x0, y1 - y0)
+        mb.box((x0 + x1) / 2, (y0 + y1) / 2, -1.5, L if y0 == y1 else 0.5, 0.5 if y0 == y1 else L, 3.0, "stone")
+    mb.obj("churchyard", (ccx, ccy, zmin), ang, "wall")
+    for i in range(-6, 7):
+        for j in range(-11, 12):
+            lx, ly = i * 2.6, j * 2.4
+            if abs(lx) < 9 and abs(ly) < 23 or rng.random() > 0.7:
+                continue
+            x, y = ccx + lx * ca - ly * sa, ccy + lx * sa + ly * ca
+            SC["grave"].append((x, y, MAP.height(x, y), 1.0, ang))
+    for lx, ly in [(-16, -24), (16, 26), (-16, 26), (16, -24)]:
+        tree_at(ccx + lx * ca - ly * sa, ccy + lx * sa + ly * ca, "decid1", 1.1)
+
+
+def build_houses(inside, box, river, quay):
+    """A village's houses: rows along the streets where inside(x, y, s) holds (s scales the village's outline), barns and back
+    houses filled in behind them over box (centre x, y, half width, half height), and cars parked on the streets. Houses keep
+    river metres from the river's centre line, parked cars quay metres."""
+    n = 0
+
+    def place(cx, cy, a, w, d, kind):
+        nonlocal n
+        r = 0.5 * math.hypot(w, d) * 0.62 + 0.5  # a Hessian village packs houses close
+        if not inside(cx, cy, 1.05) or not free(cx, cy, r, 0.6, river):
+            return
+        house(f"house_{n}", cx, cy, a, w, d, kind)
+        FOOT.append((cx, cy, r))
+        plot_extras(cx, cy, a, w, d)
+        n += 1
+
+    for kind, pts in ROAD_PTS:  # rows along the streets, gable or eaves to the street
+        if kind not in ("main", "minor"):
+            continue
+        i = 0
+        while i < len(pts):
+            x, y = pts[i]
+            if inside(x, y, 1.05):
+                a_, b_ = pts[max(0, i - 1)], pts[min(len(pts) - 1, i + 1)]
+                t = Vector((b_[0] - a_[0], b_[1] - a_[1])).normalized()
+                nr = Vector((-t.y, t.x))
+                for side in (-1, 1):
+                    for row in (0, 1, 2):
+                        if rng.random() > (0.92, 0.65, 0.3)[row]:
+                            continue
+                        w, d = rng.uniform(8.5, 11.5), rng.uniform(10.5, 15)
+                        to_street = rng.random() < 0.6
+                        off = HALFW[kind] + rng.uniform(2.5, 5) + (d if to_street else w) / 2 + row * 21
+                        a = rot_from_dir(nr.x, nr.y) if to_street else rot_from_dir(t.x, t.y)
+                        place(x + nr.x * off * side, y + nr.y * off * side, a, w, d, "modern" if rng.random() < 0.15 else "house")
+            i += rng.randint(5, 7)
+    cx0, cy0, rx, ry = box
+    for _ in range(3000):  # infill: barns and back houses facing the nearest street
+        cx, cy = rng.uniform(cx0 - rx, cx0 + rx), rng.uniform(cy0 - ry, cy0 + ry)
+        if not inside(cx, cy, 1.0):
+            continue
+        i, d = road_near(cx, cy)
+        if d > 60 or RS[i][3] not in ("main", "minor"):
+            continue
+        w, dd = rng.uniform(8.5, 12), rng.uniform(10, 15)
+        place(cx, cy, rot_from_dir(*road_tangent(i)) + rng.choice((0, math.pi / 2)), w, dd,
+              rng.choice(["house"] * 5 + ["modern", "barn"]))
+    log(f"  village houses: {n}")
+    for kind, pts in ROAD_PTS:  # street-parked cars
+        if kind not in ("main", "minor"):
+            continue
+        for i in range(0, len(pts) - 1, 3):
+            x, y = pts[i]
+            if inside(x, y, 1.0) and rng.random() < 0.18 and MAP.rdist(x, y) > quay:
+                t = Vector((pts[i + 1][0] - x, pts[i + 1][1] - y)).normalized()
+                nr = Vector((-t.y, t.x))
+                side = rng.choice((-1, 1))
+                off = HALFW[kind] + 1.3
+                put("car", x + nr.x * off * side, y + nr.y * off * side, 1.0, math.atan2(t.y, t.x))
+
+
+def log_stack(x, y, L, wd, a):
+    """Three layers of logs L long in a stack wd wide, turned by a: hard cover."""
+    mb = MB()
+    for layer in range(3):
+        for k in range(int(wd / 0.45) - layer):
+            off = -wd / 2 + 0.225 + (k + layer * 0.5) * 0.45
+            mb.box(0, off, -0.3 + layer * 0.42, L * rng.uniform(0.92, 1.0), 0.42, 0.42, "logs")
+    mb.obj("logs", (x, y, MAP.height(x, y)), a, "wall")
 
 
 # ----------------------------------------------------------------- the world
