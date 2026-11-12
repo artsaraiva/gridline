@@ -5,7 +5,9 @@ import { DEFAULT_TUNE } from './tune';
 import type { Command, CommanderView, MapData, SimEvent, Tune, Vec2 } from './types';
 
 const HZ = DEFAULT_TUNE.hz;
-const R = DEFAULT_TUNE.gunshipOrbitM;
+const R = DEFAULT_TUNE.gunshipRangeM;
+const MPS = DEFAULT_TUNE.gunshipSpeedMps;
+const STATION = DEFAULT_TUNE.gunshipStationSeconds * HZ;
 
 /** Kaltenbach's shape in the open: HQs 415 m out on the flanks, the Play Area edge 456 m out, the middle point C (nato's) at the centre. */
 const field: MapData = {
@@ -61,9 +63,9 @@ function play(m: Match, ticks: number, { at, call = true, run = { events: [], vi
   return run;
 }
 
-/** Calls the gunship and steps until its "on station" radio line (a minute at most), then `extra` ticks more. */
-const toStation = (m: Match, extra = 0) => {
-  const run = play(m, 1);
+/** Calls the gunship (on `at`) and steps until its "on station" radio line (a minute at most), then `extra` ticks more. */
+const toStation = (m: Match, extra = 0, at?: Vec2) => {
+  const run = play(m, 1, { at });
   while (said(run, 'Gunship on station') < 0 && run.views.length < 60 * HZ) play(m, 1, { call: false, run });
   expect(said(run, 'Gunship on station')).toBeGreaterThan(0);
   return play(m, extra, { call: false, run });
@@ -71,6 +73,9 @@ const toStation = (m: Match, extra = 0) => {
 
 const said = (r: Run, text: string) => r.events.find((e) => e.kind === 'radio' && e.type === 'asset' && e.text === text)?.tick ?? -1;
 const impacts = (r: Run) => r.events.filter((e): e is Extract<Stamped, { kind: 'impact' }> => e.kind === 'impact');
+/** The aircraft in the view of tick `i`. */
+const craft = (r: Run, i: number) => effect(r.views[i]!)!.craft!;
+const gap = (a: Vec2, b: Vec2) => Math.hypot(a.x - b.x, a.y - b.y);
 const effect = (v: CommanderView) => v.effects!.find((e) => e.asset === 'gunship');
 const row = (v: CommanderView) => v.assets!.find((a) => a.asset === 'gunship')!;
 const rejections = (events: SimEvent[]) => events.flatMap((e) => (e.kind === 'rejected' ? [e.reason] : []));
@@ -79,9 +84,9 @@ const rejections = (events: SimEvent[]) => events.flatMap((e) => (e.kind === 're
 const comeBack = (m: Match, id: number) => Object.assign(m.soldiers[id]!, { state: 'dead', deadAt: m.tick - DEFAULT_TUNE.respawnSeconds * HZ });
 
 describe('Gunship: the call', () => {
-  it('starts on cooldown: first ready at 5:00, its route fixed: a 200 m circle round the middle point', () => {
+  it('starts on cooldown: first ready at 5:00; its ring is its reach, round the focus the Commander picks', () => {
     const m = scene({}, { gunshipCooldownSeconds: 300 });
-    expect(row(commanderView(m, 'nato'))).toMatchObject({ readyIn: 300, cooldown: 300, radius: R, at: { x: 0, y: 0 } });
+    expect(row(commanderView(m, 'nato'))).toEqual({ asset: 'gunship', readyIn: 300, cooldown: 300, radius: R });
     expect(rejections(step(m, [gunship(m)]))).toEqual(['cooling down']);
   });
 
@@ -95,48 +100,64 @@ describe('Gunship: the call', () => {
     expect(rejections(step(m, [gunship(m)]))).toEqual([]);
   });
 
-  it('#150: on a map that names its keystone, needs every keystone point, and the route circles the middle of them', () => {
+  it('#150: on a map that names its keystone, needs every keystone point', () => {
     const m = createMatch({ seed: 1, map: { ...field, keystone: ['B', 'C'] }, tune: { ...DEFAULT_TUNE, gunshipCooldownSeconds: 0 }, squadsPerSide: 1, commanderSide: 'nato' });
-    expect(row(commanderView(m, 'nato'))).toMatchObject({ off: 'needs B', at: { x: 0, y: 150 } });
+    expect(row(commanderView(m, 'nato')).off).toBe('needs B');
     m.points.find((p) => p.id === 'B')!.owner = 'nato';
     expect(row(commanderView(m, 'nato')).off).toBeUndefined();
-    const run = toStation(m);
-    expect(Math.hypot(body(m).x, body(m).y - 150)).toBeCloseTo(R, 3);
-    expect(effect(run.views.at(-1)!)).toMatchObject({ x: 0, y: 150 });
   });
 
-  it('one aircraft a Side: while it is up the row is off and a second call is refused', () => {
-    const m = scene();
-    step(m, [gunship(m)]);
-    expect(row(commanderView(m, 'nato')).off).toBe('up');
-    expect(rejections(step(m, [gunship(m)]))).toEqual(['up']);
-    expect(row(commanderView(m, 'pact')).off).not.toBe('up'); // pact's own is still asleep
+  it('one aircraft a Side: while it flies in or is on station another call moves its focus (no new cooldown, whatever the gate says) and it flies over the new one; once it has left, the call is refused', () => {
+    const m = scene({}, { gunshipCooldownSeconds: 300 });
+    m.assets.readyAt.nato.gunship = 0;
+    const run = toStation(m, 10 * HZ);
+    const ready = m.assets.readyAt.nato.gunship;
+    m.points.find((p) => p.id === 'C')!.owner = 'pact'; // the gate is for the call that brings it
+    expect(row(commanderView(m, 'nato'))).toMatchObject({ retask: true });
+    expect(row(commanderView(m, 'nato')).off).toBeUndefined();
+    expect(row(commanderView(m, 'pact')).retask).toBeUndefined(); // pact's own is still asleep
+    const focus = { x: 150, y: -300 };
+    const moved = step(m, [gunship(m, focus)]);
+    expect(rejections(moved)).toEqual([]);
+    expect(moved).toContainEqual(expect.objectContaining({ kind: 'radio', type: 'asset', text: 'Gunship retasked' }));
+    expect(m.assets.effects.filter((e) => e.asset === 'gunship')).toHaveLength(1);
+    expect(m.assets.readyAt.nato.gunship).toBe(ready);
+    expect(effect(commanderView(m, 'nato'))).toMatchObject({ x: 150, y: -300, phase: 'station' });
+    const from = run.views.length;
+    while (said(run, 'Gunship leaving') < 0) play(m, 1, { call: false, run });
+    expect(said(run, 'Gunship leaving') - said(run, 'Gunship on station')).toBe(STATION); // the move starts no new station
+    expect(Math.min(...run.views.slice(from).flatMap((_, k) => (effect(run.views[from + k]!)?.craft ? [gap(craft(run, from + k), focus)] : [])))).toBeLessThan(30);
+    expect(row(commanderView(m, 'nato')).retask).toBeUndefined();
+    expect(rejections(step(m, [gunship(m)]))).toEqual(['cooling down']);
   });
 });
 
 describe('Gunship: the sortie', () => {
-  it('whatever spot the call names, flies in at 60 m/s, circles its route counter-clockwise for 45 s, then flies home; both Sides see it all the way', () => {
+  it('flies in at 45 m/s straight at the focus, is on station from 200 m of it for 75 s, passing over it in loops no tighter than 12 degrees a second, then flies home; both Sides see it all the way', () => {
     const m = scene();
-    const run = play(m, 120 * HZ, { at: { x: -200, y: 150 } });
+    const focus = { x: -200, y: 150 };
+    const run = play(m, 200 * HZ, { at: focus });
     expect(said(run, 'Gunship inbound')).toBe(0);
     const station = said(run, 'Gunship on station');
     const leaving = said(run, 'Gunship leaving');
-    expect(effect(run.views[0]!)).toMatchObject({ side: 'nato', phase: 'inbound', from: { x: -1556, y: 0 }, x: 0, y: 0, radius: R });
-    expect(station / HZ).toBeCloseTo(Math.sqrt(1556 ** 2 - R ** 2) / 60, 0); // straight to where the line in touches the circle
-    expect(leaving - station).toBe(45 * HZ);
-    let turn = 0;
-    for (let i = station; i < leaving; i++) {
-      const c = effect(run.views[i]!)!.craft!;
-      expect(Math.hypot(c.x, c.y)).toBeCloseTo(R, 3);
-      const prev = effect(run.views[i - 1]!)!.craft!;
-      turn += prev.x * c.y - prev.y * c.x; // > 0: counter-clockwise
-      expect(c.fx * c.x + c.fy * c.y).toBeCloseTo(0, 6); // along the circle
-    }
-    expect(turn).toBeGreaterThan(0);
+    expect(effect(run.views[0]!)).toMatchObject({ side: 'nato', phase: 'inbound', from: { x: -1556, y: 0 }, ...focus, radius: R });
+    expect(station / HZ).toBeCloseTo((gap({ x: -1556, y: 0 }, focus) - R) / MPS, 0);
+    for (let i = 1; i < station; i++) expect(craft(run, i).fx * 150 - craft(run, i).fy * 1356).toBeCloseTo(0, 6); // straight in
+    expect(leaving - station).toBe(STATION);
     const home = run.views.findIndex((v, i) => i > leaving && !effect(v));
     expect(home).toBeGreaterThan(leaving + 20 * HZ); // all the way back beyond the map edge
-    const last = effect(run.views[home - 1]!)!;
-    expect(Math.hypot(last.craft!.x + 1556, last.craft!.y)).toBeLessThan(60 / HZ + 1e-9);
+    const tightest = Math.cos((DEFAULT_TUNE.gunshipTurnDegPerS * Math.PI) / 180 / HZ);
+    for (let i = 1; i < home; i++) {
+      const [a, c] = [craft(run, i - 1), craft(run, i)];
+      expect(gap(a, c)).toBeCloseTo(MPS / HZ, 6);
+      expect(a.fx * c.fx + a.fy * c.fy).toBeGreaterThan(tightest - 1e-9);
+      expect([0, Math.sign(a.fx * c.fy - a.fy * c.fx)]).toContain(c.turn); // banked only into its turn
+      if (a.fx * c.fx + a.fy * c.fy < tightest + 1e-9) expect(c.turn).not.toBe(0); // a full step round: banked
+    }
+    const over = run.views.slice(station, leaving).map((_, k) => gap(craft(run, station + k), focus) < 30);
+    expect(over.filter((o, k) => o && !over[k - 1]).length).toBeGreaterThanOrEqual(2); // over the focus, round in a loop, over it again
+    expect(Math.max(...run.views.slice(station, leaving).map((_, k) => gap(craft(run, station + k), focus)))).toBeLessThan(500); // out and back round, never far
+    expect(gap(craft(run, home - 1), { x: -1556, y: 0 })).toBeLessThan(MPS / HZ + 1e-9);
     for (let i = 0; i < home; i++) {
       expect(effect(run.pact[i]!)).toEqual(effect(run.views[i]!)); // the sky rule
       expect(run.pact[i]!.vehicles).toContainEqual(expect.objectContaining({ kind: 'gunship', side: 'nato', airborne: true }));
@@ -145,49 +166,63 @@ describe('Gunship: the sortie', () => {
     expect(row(run.views.at(-1)!).off).toBeUndefined();
   });
 
+  it('flies over the enemies its Side knows: one round the focus before one farther out, however near the aircraft that one is', () => {
+    const spots: Record<number, Vec2> = { 6: { x: 120, y: 100 }, 7: { x: -180, y: -330 } }; // 156 m and 376 m from the focus
+    const m = scene(spots, { gunshipShotSeconds: 1e6 }); // its cannon silent: they live
+    const seen = () => void (m.sightings.nato = [6, 7].map((id) => ({ id, ...spots[id]!, tick: m.tick, source: 'seen' as const }))); // its Soldiers see nobody here
+    const run = play(m, 106 * HZ, { each: seen });
+    const station = said(run, 'Gunship on station');
+    const leaving = said(run, 'Gunship leaving');
+    const over = (p: Vec2) => run.views.slice(station, leaving).map((_, k) => station + k).filter((i) => gap(craft(run, i), p) < 30);
+    expect(over(spots[6]!).length).toBeGreaterThan(0);
+    expect(over({ x: 0, y: 0 })).toEqual([]); // not the focus itself while an enemy is known round it
+    expect(over(spots[7]!)).toEqual([]);
+  });
+
   it('with no enemy in reach, it fires nothing', () => {
-    const run = play(scene(), 120 * HZ);
+    const run = play(scene(), 130 * HZ);
     expect(said(run, 'Gunship leaving')).toBeGreaterThan(0);
     expect(impacts(run)).toEqual([]);
   });
 
-  it('the first shell lands no earlier than 3 s after the orbit begins, at an enemy in reach, one every 4 s while there is one', () => {
+  it('the first shell lands 3 s after it comes on station, at an enemy in reach, one every 4 s while there is one', () => {
     const targets = [{ x: 0, y: -150 }, { x: -60, y: -100 }, { x: 40, y: -60 }];
     const run = play(scene({ 6: targets[0]!, 7: targets[1]!, 8: targets[2]! }), 80 * HZ);
     const station = said(run, 'Gunship on station');
     const shells = impacts(run);
     expect(shells.length).toBeGreaterThan(0);
-    expect(shells[0]!.tick - station).toBe(3 * HZ + 1); // it fires on the orbit's first step round, and the shell flies 3 s
+    expect(shells[0]!.tick - station).toBe(3 * HZ); // it fires as it comes on station, and the shell flies 3 s
     expect(shells.every((s) => s.asset === 'gunship' && s.side === 'nato')).toBe(true);
     for (let k = 1; k < shells.length; k++) expect(shells[k]!.tick - shells[k - 1]!.tick).toBeGreaterThanOrEqual(4 * HZ);
     expect(said(run, 'Splash')).toBe(shells[0]!.tick);
     for (const s of shells) expect(targets.some((p) => Math.hypot(s.x - p.x, s.y - p.y) <= 8)).toBe(true);
   });
 
-  it('an enemy standing still within 200 m of the aircraft is a Contact from the orbit on (not before, nor out of reach), and a shell hits it within 20 s', () => {
-    const m = scene({ 6: { x: 0, y: -150 }, 7: { x: 0, y: 330 } });
-    const run = play(m, 60 * HZ);
+  it('an enemy within 200 m of the aircraft on station is a Contact (not before, nor out of reach), and a shell hits one within 20 s', () => {
+    const spots: Record<number, Vec2> = { 6: { x: 0, y: -150 }, 7: { x: 0, y: 330 } };
+    const m = scene(spots);
+    const run = play(m, 90 * HZ);
     const station = said(run, 'Gunship on station');
-    const contact = (i: number, id = 6) => run.views[i]!.contacts.some((c) => c.id === id);
-    expect(contact(station - 1)).toBe(false);
-    const hit = run.events.find((e) => (e.kind === 'wounded' || e.kind === 'death') && e.id === 6)!.tick;
-    expect(hit - station).toBeLessThanOrEqual(20 * HZ);
-    for (let i = station; i < hit; i++) expect(contact(i)).toBe(true);
-    const reach = (i: number) => Math.hypot(effect(run.views[i]!)!.craft!.x, effect(run.views[i]!)!.craft!.y - 330) <= 200;
-    const hit7 = run.events.find((e) => (e.kind === 'wounded' || e.kind === 'death') && e.id === 7)?.tick ?? Infinity;
-    const passes = run.views.slice(station, Math.min(hit7, run.views.length)).map((_, k) => station + k); // on station all the minute
-    expect(passes.some(reach)).toBe(true);
-    for (const i of passes) expect(contact(i, 7)).toBe(reach(i)); // 130 m beyond the route: only as it passes
+    const contact = (i: number, id: number) => run.views[i]!.contacts.some((c) => c.id === id);
+    const hit = (id: number) => run.events.find((e) => (e.kind === 'wounded' || e.kind === 'death') && e.id === id)?.tick ?? run.views.length;
+    expect(contact(station - 1, 6) || contact(station - 1, 7)).toBe(false);
+    expect(hit(6) - station).toBeLessThanOrEqual(20 * HZ);
+    for (const id of [6, 7]) {
+      const reach = (i: number) => gap(craft(run, i), spots[id]!) <= R;
+      const ticks = run.views.slice(station, hit(id)).map((_, k) => station + k);
+      expect(ticks.some(reach)).toBe(true);
+      for (const i of ticks) expect(contact(i, id)).toBe(reach(i)); // only while it is in reach
+    }
   });
 
   it('a kill scores the caller in artillery at the shell tariff', () => {
-    const run = play(scene({ 6: { x: 0, y: -150 } }, { gunshipScatterM: 0 }), 60 * HZ);
+    const run = play(scene({ 6: { x: 0, y: -150 } }, { gunshipScatterM: 0 }), 90 * HZ);
     expect(run.events).toContainEqual(expect.objectContaining({ kind: 'award', side: 'nato', category: 'artillery', points: DEFAULT_TUNE.scoreArtilleryKill, reason: 'Gunship kill' }));
   });
 
   it('its sortie, its aircraft, its shells and what they did to a Soldier are part of the state hash', () => {
     const m = scene({ 6: { x: 0, y: -150 } }, { gunshipScatterM: 0 });
-    const run = play(m, 30 * HZ);
+    const run = play(m, 50 * HZ);
     const e = m.assets.effects[0]!;
     expect(e.shells!.length).toBeGreaterThan(0);
     const moves = (nudge: () => void, undo: () => void, what: string) => {
@@ -197,7 +232,7 @@ describe('Gunship: the sortie', () => {
       undo();
       expect(stateHash(m), what).toBe(h);
     };
-    for (const k of ['phaseAt', 'nextShot', 'vehicle'] as const) moves(() => (e[k]! += 1), () => (e[k]! -= 1), k);
+    for (const k of ['phaseAt', 'nextShot', 'vehicle', 'prey', 'turn', 'x', 'y'] as const) moves(() => (e[k]! += 1), () => (e[k]! -= 1), k);
     const v = body(m);
     for (const k of ['x', 'y', 'fx', 'fy', 'hp'] as const) moves(() => (v[k] += 0.01), () => (v[k] -= 0.01), `vehicle.${k}`);
     moves(() => (v.seats[2] = 3), () => (v.seats[2] = -1), 'seat');
@@ -221,7 +256,7 @@ describe('Gunship: the sortie', () => {
         const s = m.soldiers.find((o) => o.side === 'nato' && o.id !== sq.members[0] && o.vehicle < 0 && !o.chute && o.state === 'alive' && o.id === 1 + ((i / (3 * HZ)) % 5));
         if (s && i % (3 * HZ) === 0) comeBack(m, s.id);
       };
-      const run = play(m, 80 * HZ, { each: back });
+      const run = play(m, 120 * HZ, { each: back });
       return { hash: stateHash(m), events: run.events.filter((e) => e.kind === 'impact' || e.kind === 'wounded' || e.kind === 'death' || e.kind === 'shot') };
     };
     const [a, b] = [once(), once()];
@@ -253,37 +288,38 @@ describe('Gunship: aboard', () => {
     expect(commanderEvents(m, 'pact', shots)).toEqual(shots); // the sky rule: the enemy sees the gun fire
   });
 
-  it('a Soldier coming back takes a passenger seat when the route passes nearer its goal than where it came back, and jumps where it passes nearest', () => {
+  it('a Soldier coming back takes a passenger seat when the aircraft is nearer its goal than where it came back, and jumps as it passes the goal', () => {
     const m = scene({ 0: { x: 0, y: 285 } }, { paradropChance: 1 });
     const sq = m.squads.find((q) => q.side === 'nato')!;
-    Object.assign(sq, { task: 'point', goal: m.points.findIndex((p) => p.id === 'B'), nextThink: Infinity }); // B, 100 m beyond the route
-    toStation(m, HZ);
+    const B = { x: 0, y: 300 };
+    Object.assign(sq, { task: 'point', goal: m.points.findIndex((p) => p.id === 'B'), nextThink: Infinity });
+    toStation(m, HZ, { x: 0, y: 150 }); // its focus between C and B
     const v = body(m);
     comeBack(m, 3);
     play(m, 1, { call: false });
-    expect(m.soldiers[3]!.vehicle).toBe(-1); // back beside its leader at B: nearer than the route ever comes
-    m.soldiers[0]!.x = -415; // its leader back at the HQ: B is 515 m from where it comes back
+    expect(m.soldiers[3]!.vehicle).toBe(-1); // back beside its leader at B: nearer than the aircraft is
+    m.soldiers[0]!.x = -415; // its leader back at the HQ: B is 500 m from where it comes back
     comeBack(m, 3);
     play(m, 1, { call: false });
     expect(m.soldiers[3]!.vehicle).toBe(v.id);
     expect(v.seats.indexOf(3)).toBeGreaterThanOrEqual(2);
-    let jumped: Vec2 | null = null;
-    play(m, 30 * HZ, { call: false, each: () => void (!jumped && m.soldiers[3]!.chute && (jumped = { x: m.soldiers[3]!.chute.x0, y: m.soldiers[3]!.chute.y0 })) });
+    let jumped: (Vec2 & { away: boolean }) | null = null;
+    play(m, 40 * HZ, { call: false, each: () => void (!jumped && m.soldiers[3]!.chute && (jumped = { x: m.soldiers[3]!.chute.x0, y: m.soldiers[3]!.chute.y0, away: (B.x - v.x) * v.fx + (B.y - v.y) * v.fy <= 0 })) });
     expect(jumped).not.toBeNull();
-    expect(Math.hypot(jumped!.x - 0, jumped!.y - R)).toBeLessThan(10); // where the circle comes nearest B
+    expect(gap(jumped!, B)).toBeLessThanOrEqual(R); // in reach of B ...
+    expect(jumped!.away).toBe(true); // ... as it starts away from it
     expect(m.soldiers[3]).toMatchObject({ vehicle: -1, chute: null, state: 'alive' }); // down, on foot
     expect(Math.hypot(m.soldiers[3]!.x - jumped!.x, m.soldiers[3]!.y - jumped!.y)).toBeLessThanOrEqual(DEFAULT_TUNE.chuteScatterM + 1e-9);
   });
 
   it('everyone still aboard bails out as it turns for home', () => {
-    const m = scene({}, { crewSpawnChance: 1, paradropChance: 1 });
+    const m = scene({ 0: { x: -415, y: -300 } }, { crewSpawnChance: 1, paradropChance: 1 });
     const sq = m.squads.find((q) => q.side === 'nato')!;
     Object.assign(sq, { task: 'point', goal: m.points.findIndex((p) => p.id === 'B'), nextThink: Infinity });
-    const run = toStation(m, HZ);
+    const run = toStation(m, HZ, { x: 0, y: -300 }); // its focus on D: it never comes within reach of B
     const v = body(m);
     comeBack(m, 1); // the gunner
     play(m, 1, { call: false, run });
-    play(m, 33 * HZ, { call: false, run }); // its second pass by B is behind it, and it leaves before the third
     comeBack(m, 3); // a passenger for B
     play(m, 1, { call: false, run });
     expect(v.seats[1]).toBe(1);

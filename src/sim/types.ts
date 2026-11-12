@@ -426,15 +426,15 @@ export interface Tune {
 
   // #101 Gunship
   gunshipCooldownSeconds: number; // from the call; it also starts the match on this cooldown
-  gunshipOrbitM: number; // its fixed route: a counter-clockwise circle this far round the keystone Capture Points, whatever spot the call names
-  gunshipRangeM: number; // its cannon and its gunner reach this far from the ground spot under it; the enemies on foot in it are Contacts
-  gunshipSpeedMps: number; // in from the launch point beyond the own map edge, round the route and home again, level
-  gunshipStationSeconds: number; // on station this long from the orbit's first tick
+  gunshipRangeM: number; // its cannon and its gunner reach this far from the ground spot under it; the enemies on foot in it are Contacts; the focus ring is this wide
+  gunshipSpeedMps: number; // slow: in from the launch point beyond the own map edge, over the enemies its Side knows and home again, level ...
+  gunshipTurnDegPerS: number; // ... turning no faster than this: wide arcs
+  gunshipStationSeconds: number; // on station this long from the first tick the focus is in reach
   gunshipShotSeconds: number; // one shell this often at the nearest enemy in its range (none: no shot) ...
   gunshipShellFlightSeconds: number; // ... flying this long from the aircraft ...
   gunshipScatterM: number; // ... to within this of where the enemy was; the blast is a Barrage shell's
   gunshipHp: number; // the enemy AA fires on it as on a helicopter; under a third it leaves early, at 0 it falls as a Wreck
-  paradropChance: number; // a Soldier coming back takes a passenger seat of its Side's Gunship on station with this chance, when the route passes nearer its goal than where it came back
+  paradropChance: number; // a Soldier coming back takes a passenger seat of its Side's Gunship on station with this chance, when the aircraft is nearer its goal than where it came back
 }
 
 /** #55: what a Commander Score award is for. */
@@ -604,8 +604,8 @@ export interface AssetView {
   radius: number;
   /** #99: why the row is off (e.g. `needs C` for a point-gated Asset); the cooldown runs regardless. Absent when it can be called. */
   off?: string;
-  /** #101: the centre of a fixed route (the Gunship's): there is no spot to pick, the call goes there. Absent for the others. */
-  at?: Vec2;
+  /** #101: it is at work and a call now moves its spot (the Gunship's focus) whatever `readyIn` says. Absent otherwise. */
+  retask?: true;
 }
 
 export interface EffectView {
@@ -633,11 +633,11 @@ export interface EffectView {
   from?: Vec2;
   /** How far along its flight it is (0..1); 1 once it has hit. Only on a missile. */
   flight?: number;
-  // #101 Gunship: in the sky, so in both Sides' views (with `side`, and `from` its launch point); `x`, `y` and `radius` are its route's circle
-  /** Where it is in its sortie: flying in, circling its route (revealing and shelling), or flying home. Absent once shot down. */
+  // #101 Gunship: in the sky, so in both Sides' views (with `side`, and `from` its launch point); `x`, `y` and `radius` are its focus
+  /** Where it is in its sortie: flying in, on station (hunting, revealing and shelling), or flying home. Absent once shot down. */
   phase?: 'inbound' | 'station' | 'leaving';
-  /** The aircraft: the ground spot under it and its unit heading. Absent once shot down. */
-  craft?: { x: number; y: number; fx: number; fy: number };
+  /** The aircraft: the ground spot under it, its unit heading and the way it is turning (1 left, -1 right, 0 straight on). Absent once shot down. */
+  craft?: { x: number; y: number; fx: number; fy: number; turn: number };
 }
 
 /** Things that happened this tick, on every Side; `commanderEvents` keeps the ones a Side's Console may show. */

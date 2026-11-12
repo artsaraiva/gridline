@@ -1,8 +1,8 @@
 // Gunships on the map (#101): own ones and the enemy's (the sky rule), and Wrecks. In the air the baked body at the nearest
-// heading, lifted north-east of its ground shadow to the Cruise Missile's altitude and banked while it circles its route; its
+// heading, lifted north-east of its ground shadow to the Cruise Missile's altitude and banked into its turns; its
 // bracketed tactical icon in the caller's colour over it at constant screen size, glued to the screen edge toward it while it
 // is off screen, with an arrow out to it (#99); its shells arcing down from the aircraft, each the Barrage's round and streak,
-// the shared impact taking over where they land. A Wreck lies flat where it fell. The route ring is layers/effects.ts'.
+// the shared impact taking over where they land. A Wreck lies flat where it fell. The focus ring is layers/effects.ts'.
 // sprites/gunship.ts says where everything is.
 import * as THREE from 'three/webgpu';
 import type { CommanderView } from '../../sim/types';
@@ -35,7 +35,11 @@ const WHITE = new THREE.Color(0xffffff);
 const iconColor = new THREE.Color();
 
 const shadows = pool(() => spriteMesh(GUNSHIP_SHEET, { shadow: true, opacity: SHADOW_OPACITY }));
-const bodies = pool(() => spriteMesh(GUNSHIP_SHEET));
+const bodies = pool(() => {
+  const b = spriteMesh(GUNSHIP_SHEET);
+  b.material.side = THREE.DoubleSide; // a right turn is drawn flipped (sprites/gunship.ts)
+  return b;
+});
 const shells = pool(() => spriteMesh(SHELL_SHEET));
 const streaks = pool(() => new THREE.Mesh(quad, streak()));
 const icons = pool(() => {
@@ -57,7 +61,7 @@ export function drawGunships(view: CommanderView, scale: number) {
     const b = bodies.next();
     b.position.set(p.x, p.y, Z.wreck);
     b.rotation.z = p.body.rotation;
-    b.scale.setScalar(p.size);
+    b.scale.set(p.size, p.size, 1);
     b.frame.value = p.body.frame;
   }
   for (const e of view.effects ?? []) {
@@ -86,10 +90,10 @@ export function drawGunships(view: CommanderView, scale: number) {
     const b = bodies.next();
     b.position.set(p.x, p.y, Z.body);
     b.rotation.z = p.body.rotation;
-    b.scale.setScalar(p.size);
+    b.scale.set(p.body.mirror ? -p.size : p.size, p.size, 1);
     b.frame.value = p.body.frame;
 
-    // The icon sits on the aircraft on screen; off screen it is glued to the edge where the line from its route's centre leaves the screen
+    // The icon sits on the aircraft on screen; off screen it is glued to the edge where the line from its focus leaves the screen
     iconColor.setHex(sideColor(g.side)).lerp(WHITE, ICON_WHITEN);
     const at = edgeClamp(toScreen(p), toScreen(g.e), box);
     const w = at.clamped ? toWorld(at.x, at.y) : p;

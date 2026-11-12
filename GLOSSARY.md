@@ -63,7 +63,7 @@ One of the three corridors running from HQ to HQ across the front, each passing 
 _Avoid_: Flank, sector, route
 
 **Keystone**:
-The Capture Points at the heart of the spine: those the map names (both halves of Auental's twin town), else the one nearest the map centre. The Cruise Missile and the Gunship need every one of them held; the Gunship circles the middle of them.
+The Capture Points at the heart of the spine: those the map names (both halves of Auental's twin town), else the one nearest the map centre. The Cruise Missile and the Gunship need every one of them held.
 _Avoid_: Middle point, centre flag
 
 **Ticket**:
@@ -181,7 +181,7 @@ The Strike in which an aircraft flies in along a line the Commander chose, fires
 _Avoid_: Airstrike, gun run, CAS
 
 **Gunship**:
-The Strike that flies a fixed route over the battlefield for a while, reveals the enemies under it as Contacts and shells them from the air. Soldiers coming back may spawn aboard it: as its gunner, or to parachute down where its route passes nearest their goal.
+The Strike that flies slowly over the battlefield for a while in wide turns, over the enemies its Side knows, reveals the ones under it as Contacts and shells them from the air. The Commander gives it a focus, the spot it works round, and may move that while it flies. Soldiers coming back may spawn aboard it: as its gunner, or to parachute down as it passes their goal.
 _Avoid_: AC-130, Spooky, air support
 
 **Scan UAV**:

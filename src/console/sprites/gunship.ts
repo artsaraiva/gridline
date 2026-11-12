@@ -1,5 +1,5 @@
 // The Gunship (#101): its baked sheet (level and banked bodies per Faction, then a Wreck row), the pose that lifts it to the
-// Cruise Missile's altitude over its ground shadow, banked into its orbit while on station (a Wreck lies flat), and its
+// Cruise Missile's altitude over its ground shadow, banked into its turn, left or right (a Wreck lies flat), and its
 // shells: each arcs from where the aircraft was when it fired down to where it lands, drawn as the Barrage's round and
 // streak. layers/gunship.ts draws it.
 import type { EffectView, SideId, Vec2 } from '../../sim/types';
@@ -11,7 +11,7 @@ import { SHELL_EXAGGERATION, SHELL_HEADINGS, SHELL_WORLD_M } from './shell';
 export const GUNSHIP_HEADINGS = 16;
 /** Rows of the sheet: nato level, pact level, nato banked, pact banked, the Wreck (the FactionPaint material role). */
 export const GUNSHIP_ROWS = 5;
-/** How far the banked rows roll, the left wing down into its counter-clockwise orbit (BANK_DEG in build.py). */
+/** How far the banked rows roll, the left wing down into a left turn (BANK_DEG in build.py). */
 export const GUNSHIP_BANK_DEG = 22;
 /** True world size in metres of one frame (ORTHO_M in assets/objects/gunship/build.py; a 40 m span). */
 export const GUNSHIP_WORLD_M = 44;
@@ -38,13 +38,14 @@ export const GUNSHIP_OUTLINE: [number, number][] = [...HALF, ...HALF.slice(1, -1
 /** A Gunship to draw: in the air (its EffectView's aircraft) or lying as a Wreck. */
 export interface GunshipBody {
   side: SideId;
-  craft: { x: number; y: number; fx: number; fy: number };
-  phase?: EffectView['phase'];
+  craft: { x: number; y: number; fx: number; fy: number; turn?: number };
   wreck?: boolean;
 }
 
 interface Part {
   frame: number;
+  /** Drawn flipped left to right: the banked rows roll the left wing down, so a right turn is a left one mirrored. */
+  mirror?: boolean;
   /** Turn applied to the frame: the remainder past the nearest baked heading (for the shadow, the whole of it). */
   rotation: number;
 }
@@ -64,16 +65,19 @@ const lift = (p: Vec2, altitude: number): Vec2 => ({ x: p.x - SHADOW_DIR.x * alt
 
 export function gunshipPose(g: GunshipBody): GunshipPose {
   const faction = g.side === 'nato' ? 0 : 1;
-  const row = g.wreck ? 4 : g.phase === 'station' ? 2 + faction : faction;
+  const turn = g.wreck ? 0 : (g.craft.turn ?? 0);
+  const row = g.wreck ? 4 : turn ? 2 + faction : faction;
   const heading = Math.atan2(g.craft.fy, g.craft.fx);
-  const k = Math.round(heading / STEP);
+  const mirror = turn < 0;
+  const baked = mirror ? Math.PI - heading : heading; // flipped left to right, the frame baked at this heading points along `heading`
+  const k = Math.round(baked / STEP);
   const { x, y } = g.wreck ? g.craft : lift(g.craft, CRUISE_ALTITUDE_M);
   return {
     x,
     y,
     size: GUNSHIP_WORLD_M,
     heading,
-    body: { frame: row * GUNSHIP_HEADINGS + (((k % GUNSHIP_HEADINGS) + GUNSHIP_HEADINGS) % GUNSHIP_HEADINGS), rotation: heading - k * STEP },
+    body: { frame: row * GUNSHIP_HEADINGS + (((k % GUNSHIP_HEADINGS) + GUNSHIP_HEADINGS) % GUNSHIP_HEADINGS), rotation: mirror ? heading - Math.PI + k * STEP : heading - k * STEP, ...(mirror && { mirror }) },
     shadow: { x: g.craft.x, y: g.craft.y, frame: SHADOW, rotation: heading },
   };
 }
@@ -122,4 +126,4 @@ export function gunshipShell(from: Vec2, to: Vec2, flight: number): GunshipShell
 
 /** The Gunships in the air in `view`'s effects, the enemy's included (the sky rule). */
 export const gunshipsInAir = (effects: EffectView[] | undefined) =>
-  (effects ?? []).flatMap((e): (GunshipBody & { e: EffectView })[] => (e.asset === 'gunship' && e.craft && e.side ? [{ side: e.side, craft: e.craft, phase: e.phase, e }] : []));
+  (effects ?? []).flatMap((e): (GunshipBody & { e: EffectView })[] => (e.asset === 'gunship' && e.craft && e.side ? [{ side: e.side, craft: e.craft, e }] : []));

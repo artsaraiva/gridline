@@ -323,7 +323,7 @@ function crewOnReturn(m: Match, sq: Squad, s: Soldier): boolean {
 /**
  * #101: a Soldier coming back takes a seat in its Side's Gunship on station: by `crewSpawnChance` its empty gun seat (as a
  * helicopter's crew: never the Squad Leader, none while a member of its Squad crews), else by `paradropChance` a free passenger
- * seat when the route passes nearer the Soldier's goal than where it came back (it jumps there: assets/gunship.ts). True when it did.
+ * seat when the aircraft is nearer the Soldier's goal than where it came back (it jumps as it passes the goal: assets/gunship.ts). True when it did.
  */
 function gunshipOnReturn(m: Match, sq: Squad, s: Soldier): boolean {
   const e = m.assets.effects.find((o) => o.asset === 'gunship' && o.side === s.side && o.phase === 'station');
@@ -335,13 +335,11 @@ function gunshipOnReturn(m: Match, sq: Squad, s: Soldier): boolean {
     return true;
   }
   const p = m.points[goalOf(m, sq, s)];
-  if (!p || !v.seats.includes(-1, GUNSHIP_GUN + 1) || routeGap(m, e, p) >= Math.sqrt(dist2(s, p)) || rnd(m) >= m.tune.paradropChance) return false;
+  if (!p || !v.seats.includes(-1, GUNSHIP_GUN + 1) || dist2(v, p) >= dist2(s, p) || rnd(m) >= m.tune.paradropChance) return false;
   mount(m, v, s, sq);
   return true;
 }
 
-/** #101: the nearest the Gunship's route (the circle round `centre`) comes to `p`. */
-export const routeGap = (m: Match, centre: Vec2, p: Vec2) => Math.abs(Math.sqrt(dist2(p, centre)) - m.tune.gunshipOrbitM);
 
 /**
  * Whether `v` fits a ride for `sq`'s `body` (foot leader `L`) to `p`: see `decideRide`. `fetched`: a helicopter that is fetching the

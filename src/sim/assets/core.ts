@@ -1,6 +1,6 @@
 // Assets: each Side's cooldowns and the effects at work on the map. A Command calls one; the effect then works every
 // tick until its time runs out. Each kind lives in its own module and joins KINDS (Supply Drop #39, Barrage #40).
-// #101: a kind with a fixed route (the Gunship) goes there whatever spot the call names (`route`).
+// #101: a kind may take a second call while it works as a new spot for the same effect (`retask`: the Gunship's focus).
 import type { Match } from '../index';
 import { inHq, insidePolygon } from '../geometry';
 import { gridRef } from '../grid-ref';
@@ -30,7 +30,10 @@ export interface Effect {
   vehicle?: number; // #101 Gunship: the id of the vehicle it flies ...
   phase?: 'inbound' | 'station' | 'leaving' | 'down'; // ... where it is in its sortie ...
   phaseAt?: number; // ... since this tick ...
-  nextShot?: number; // ... and the first tick its cannon may fire again
+  nextShot?: number; // ... the first tick its cannon may fire again ...
+  prey?: number; // ... the id of the enemy it flies at (-1: at its focus, `x` and `y`) ...
+  turn?: number; // ... which way it turned this tick: 1 left, -1 right, 0 straight on ...
+  out?: boolean; // ... and whether it is flying out from a spot too close inside its turn, to come back round onto it
 }
 
 export interface Assets {
@@ -63,8 +66,8 @@ export interface Kind {
   // #39: a kind that falls before it works says how long the fall has left and takes in all
   landsIn?(m: Match, e: Effect): number;
   fall?(t: Tune): number;
-  /** #101: the centre of its fixed route: the effect works there whatever spot the call names, and the Console has none to pick. */
-  route?(m: Match): Vec2;
+  /** #101: `side`'s effect of this kind that a call now moves rather than starting another (no cooldown, no gate), if there is one; with `at`, moves it there. */
+  retask?(m: Match, side: SideId, at?: Vec2): Effect | undefined;
 }
 
 const KINDS: Partial<Record<AssetKind, Kind>> = { scan, supply, barrage, missile, gunship };
@@ -85,9 +88,11 @@ export function assetRadio(m: Match, e: Effect, text: string, events: SimEvent[]
 /** Why the Asset can't be called, or null. */
 export function checkCall(m: Match, c: Extract<Command, { kind: 'asset' }>): string | null {
   if (!KINDS[c.asset]) return 'not available';
-  if (m.tick < m.assets.readyAt[c.side][c.asset]!) return 'cooling down';
-  const off = KINDS[c.asset]!.gate?.(m, c.side);
-  if (off) return off;
+  if (!KINDS[c.asset]!.retask?.(m, c.side)) {
+    if (m.tick < m.assets.readyAt[c.side][c.asset]!) return 'cooling down';
+    const off = KINDS[c.asset]!.gate?.(m, c.side);
+    if (off) return off;
+  }
   if (!insidePolygon(m.map.playArea, c.at.x, c.at.y)) return 'outside the Play Area';
   if (inHq(m, enemyOf(c.side), c.at)) return 'on the enemy HQ';
   return null;
@@ -97,9 +102,10 @@ export function checkCall(m: Match, c: Extract<Command, { kind: 'asset' }>): str
 export function call(m: Match, c: Extract<Command, { kind: 'asset' }>, events: SimEvent[]) {
   const kind = KINDS[c.asset]!;
   const t = m.tune;
+  const up = kind.retask?.(m, c.side, c.at);
+  if (up) return assetRadio(m, up, `${kind.name} retasked`, events);
   m.assets.readyAt[c.side][c.asset] = m.tick + Math.round(kind.cooldownSeconds(t) * t.hz);
-  const at = kind.route?.(m) ?? c.at;
-  const e: Effect = { side: c.side, asset: c.asset, x: at.x, y: at.y, until: m.tick + Math.round(kind.seconds(t) * t.hz), told: false };
+  const e: Effect = { side: c.side, asset: c.asset, x: c.at.x, y: c.at.y, until: m.tick + Math.round(kind.seconds(t) * t.hz), told: false };
   kind.start?.(m, e);
   m.assets.effects.push(e);
   assetRadio(m, e, kind.called ?? `${kind.name} inbound`, events);
@@ -119,15 +125,15 @@ export function assetContacts(m: Match, side: SideId): Soldier[] {
 export function assetViews(m: Match, side: SideId): AssetView[] {
   const t = m.tune;
   return kinds().map((k) => {
-    const off = KINDS[k]!.gate?.(m, side);
-    const at = KINDS[k]!.route?.(m);
+    const retask = !!KINDS[k]!.retask?.(m, side);
+    const off = !retask && KINDS[k]!.gate?.(m, side);
     return {
       asset: k,
       readyIn: Math.max(0, m.assets.readyAt[side][k]! - m.tick) / t.hz,
       cooldown: KINDS[k]!.cooldownSeconds(t),
       radius: KINDS[k]!.radius(t),
       ...(off && { off }),
-      ...(at && { at }),
+      ...(retask && { retask }),
     };
   });
 }

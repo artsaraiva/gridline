@@ -1,26 +1,29 @@
-// Gunship (#101): a heavy Strike that works its route for a while. Usable only while the caller holds every keystone Capture Point
-// (the Cruise Missile's gate) and its Side's Gunship is not already up; the cooldown runs regardless, and losing the point
-// mid-sortie changes nothing. Its route is fixed, so the call names no spot: a counter-clockwise circle (the Scan UAV's way
-// round) `gunshipOrbitM` round the keystone Capture Points (#150: the middle of them, where a map names more than one).
-// ponytail: the route is that circle until maps carry their own; `route`, the tangent in `start` and `routeGap` change with it.
+// Gunship (#101): a heavy Strike that hunts for a while. Usable only while the caller holds every keystone Capture Point
+// (the Cruise Missile's gate); the cooldown runs regardless, and losing one mid-sortie changes nothing. The call names its
+// focus: the spot it works over. While it is flying in or on station another call moves the focus (no new cooldown, whatever
+// the gate says), and it turns for the new one.
 // At the call its Side's Gunship vehicle (vehicles.ts) wakes at the missile's launch point, beyond the Play Area behind the
-// caller's HQ, and flies level at `gunshipSpeedMps` straight to where that line touches the circle; there it circles for
-// `gunshipStationSeconds`, then turns for home and flies back to the launch point, where it sleeps until the next call. On
-// station the enemies on foot within `gunshipRangeM` of the ground under it are Contacts, and its cannon fires one shell every
-// `gunshipShotSeconds` at the one nearest (none in range: no shot): it leaves the aircraft, flies `gunshipShellFlightSeconds`
-// and lands a Barrage shell's blast within `gunshipScatterM` of where that enemy was. Soldiers coming back may take its gun seat
-// or a passenger seat (vehicles.ts `gunshipOnReturn`); each passenger jumps where the route passes nearest its goal, and
-// everyone aboard bails out as it turns for home. It is in the sky, so both Sides' views carry it; the enemy AA fires on it as
-// on a helicopter: under a third of its hit points it leaves early, at 0 it falls as a Wreck where it was and fires no more
-// (shells already in the air still land). Its path is stepped a tick at a time; the orbit turns by `turnToward`'s polynomial
-// step (no trig).
-import { dist2, inHq, keystone } from '../geometry';
+// caller's HQ, and flies level at `gunshipSpeedMps`, turning no faster than `gunshipTurnDegPerS`: wide arcs, never a sudden
+// about-face. It flies in at the focus and is on station once that is within `gunshipRangeM`, for `gunshipStationSeconds`.
+// There it flies as a jet's pilot would, slowly: at a mark drawn among the enemies on foot its Side knows (those round the
+// focus first, the more of them close together the likelier), over it, then at the next; with none known, over the focus.
+// A mark too close inside its turn to reach is flown away from first, so it comes back round in a loop. Then it turns for home
+// and flies back to the launch point, where it sleeps until the next call. On station the enemies on foot within
+// `gunshipRangeM` of the ground under it are Contacts, and its cannon fires one shell every `gunshipShotSeconds` at the one
+// nearest (none in range: no shot): it leaves the aircraft, flies `gunshipShellFlightSeconds` and lands a Barrage shell's blast
+// within `gunshipScatterM` of where that enemy was. Soldiers coming back may take its gun seat or a passenger seat
+// (vehicles.ts `gunshipOnReturn`); each passenger jumps as it passes its goal, and everyone aboard bails out as it turns for
+// home. It is in the sky, so both Sides' views carry it; the enemy AA fires on it as on a helicopter: under a third of its hit
+// points it leaves early, at 0 it falls as a Wreck where it was and fires no more (shells already in the air still land).
+// Its path is stepped a tick at a time, turning by `turnToward`'s polynomial step (no trig).
+import { dist2, inHq } from '../geometry';
+import { known, markable } from '../jet';
 import { turnToward } from '../momentum';
-import { rnd } from '../rng';
+import { pickWeighted, rnd } from '../rng';
 import { ticksOf, vehicleOf, type Mix } from '../state';
 import type { Match } from '../index';
-import type { SideId, SimEvent, Tune } from '../types';
-import { bail, crippled, goalOf, jump, live, riders, routeGap, sleep, wake, type Vehicle } from '../vehicles';
+import { enemyOf, type SideId, type SimEvent, type Tune, type Vec2 } from '../types';
+import { bail, crippled, goalOf, jump, live, riders, sleep, wake, type Vehicle } from '../vehicles';
 import { shellBlast } from './barrage';
 import { assetRadio, type Effect, type Kind } from './core';
 import { heavyGate, launchPoint } from './missile';
@@ -28,8 +31,12 @@ import { blast } from './strike';
 
 const PHASES = ['inbound', 'station', 'leaving', 'down'] as const;
 
-/** Degrees a second it turns: its orbit's rate at its speed (the Scan UAV's way round, not its Console-drawn pace), and the same turning for home. */
-const turnRate = (t: Tune) => ((t.gunshipSpeedMps / t.gunshipOrbitM) * 180) / Math.PI;
+/** The radius of its tightest turn. */
+const turnM = (t: Tune) => (t.gunshipSpeedMps * 180) / (Math.PI * t.gunshipTurnDegPerS);
+/** A spot it flew out from is clear of its turn this many turn radii from the turn's centre: on the rim itself it would circle the spot and never reach it. */
+const CLEAR = 1.25;
+/** Within this of a mark it is over it: the pass is flown, the next mark is drawn. */
+const OVER_M = 25;
 
 /** `side`'s Gunship vehicle. */
 const body = (m: Match, side: SideId) => m.vehicles.find((v) => v.kind === 'gunship' && v.side === side)!;
@@ -79,17 +86,57 @@ function shoot(m: Match, e: Effect, v: Vehicle) {
   e.nextShot = m.tick + ticksOf(t, t.gunshipShotSeconds);
 }
 
-/**
- * Each passenger jumps where the route takes it nearest its goal: heading away from the goal again, and as near it as the circle
- * ever comes (a tick's flight of slack, so one who boarded heading away waits for the next pass); with no goal, at once.
- */
-function drop(m: Match, e: Effect, v: Vehicle) {
-  const slack = m.tune.gunshipSpeedMps / m.tune.hz;
+/** Each passenger jumps as the aircraft passes its goal: within reach of it and heading away again; with no goal, at once. */
+function drop(m: Match, v: Vehicle) {
+  const r = m.tune.gunshipRangeM;
   for (const s of riders(m, v)) {
     if (s.crew) continue;
     const p = m.points[goalOf(m, m.squads[s.squad]!, s)];
-    if (!p || ((p.x - v.x) * v.fx + (p.y - v.y) * v.fy <= 0 && Math.sqrt(dist2(p, v)) <= routeGap(m, e, p) + slack)) jump(m, s);
+    if (!p || ((p.x - v.x) * v.fx + (p.y - v.y) * v.fy <= 0 && dist2(p, v) <= r * r)) jump(m, s);
   }
+}
+
+/**
+ * Where it flies now: its mark's last known spot, or the focus (`prey` -1). A mark it is over, or one its Side has lost, is
+ * done, and so is a pass at the focus once it is over it or an enemy is known within `gunshipRangeM` of the focus. The next is
+ * drawn among the known enemies on foot outside their HQ and not under it, each weighing as many as the known enemies within
+ * `gunshipRangeM` of it: those round the focus when there are any; else all of them, the farther from the focus the less
+ * likely, and the focus itself (as one enemy there).
+ */
+function aim(m: Match, e: Effect, v: Vehicle): Vec2 {
+  const spots = known(m, e.side);
+  const over = (p: Vec2) => dist2(p, v) <= OVER_M * OVER_M;
+  const r2 = m.tune.gunshipRangeM * m.tune.gunshipRangeM;
+  const foes = [...spots].filter(([id, p]) => m.soldiers[id] && markable(m, id) && !inHq(m, enemyOf(e.side), p));
+  const ahead = foes.filter(([, p]) => !over(p));
+  const focused = ahead.filter(([, p]) => dist2(p, e) <= r2);
+  const at = e.prey! < 0 ? (focused.length ? undefined : e) : markable(m, e.prey!) ? spots.get(e.prey!) : undefined;
+  if (at && !over(at)) return at;
+  const marks: [number, Vec2][] = focused.length ? focused : over(e) ? ahead : [...ahead, [-1, e]];
+  // ponytail: every known enemy against every other, once a pass; a grid of counts if a 128 v 128 match ever shows it in `pnpm bench`
+  const pick = marks.length > 1 ? Math.max(0, pickWeighted(m, marks.map(([id, p]) => (id < 0 ? 1 : foes.filter(([, q]) => dist2(p, q) <= r2).length) / (1 + dist2(p, e) / r2)))) : 0;
+  e.prey = marks[pick]?.[0] ?? -1;
+  return marks[pick]?.[1] ?? e;
+}
+
+/**
+ * One tick ahead, turning toward `to` at `gunshipTurnDegPerS`. A spot inside the turn on its side is out of reach: it flies
+ * straight on (`out`) until the spot is CLEAR of that turn, then comes round onto it.
+ */
+function fly(m: Match, e: Effect, v: Vehicle, to: Vec2) {
+  const t = m.tune;
+  const R = turnM(t);
+  const [dx, dy] = [to.x - v.x, to.y - v.y];
+  const d = Math.sqrt(dx * dx + dy * dy);
+  const left = v.fx * dy - v.fy * dx >= 0 ? 1 : -1;
+  const [cx, cy] = [-v.fy * left * R, v.fx * left * R]; // the centre of its tightest turn that way
+  const gap = Math.sqrt((dx - cx) * (dx - cx) + (dy - cy) * (dy - cy)) / R; // from the turn's centre, in turn radii: under 1 is inside it
+  e.out = gap < 1 || (e.out! && gap < CLEAR);
+  const f = d === 0 || e.out ? { fx: v.fx, fy: v.fy } : turnToward(v.fx, v.fy, dx / d, dy / d, t.gunshipTurnDegPerS, t.hz);
+  const cross = v.fx * f.fy - v.fy * f.fx;
+  e.turn = Math.abs(cross) < t.gunshipTurnDegPerS / t.hz / 115 ? 0 : Math.sign(cross); // half a tick's turn (in radians) or more: banked that way
+  const step = t.gunshipSpeedMps / t.hz;
+  Object.assign(v, { x: v.x + f.fx * step, y: v.y + f.fy * step, ...f, movedAt: m.tick });
 }
 
 export const gunship: Kind = {
@@ -98,27 +145,23 @@ export const gunship: Kind = {
   cooldownSeconds: (t) => t.gunshipCooldownSeconds,
   firstReadySeconds: (t) => t.gunshipCooldownSeconds, // starts on cooldown, as the Cruise Missile does
   seconds: (t) => t.gunshipStationSeconds, // `until` is set at the call, and again as it ends
-  radius: (t) => t.gunshipOrbitM,
-  // One aircraft a Side: not while the last is still flying (only once the cooldown is over, so in play, with a cooldown longer than any sortie, never: the row keeps its timers)
-  gate: (m, side) => heavyGate(m, side) ?? (m.tick >= m.assets.readyAt[side].gunship! && live(body(m, side)) ? 'up' : null),
-  route: (m) => {
-    const keys = keystone(m); // #150: Auental's twin town has two; the circle goes round the middle of them
-    return { x: keys.reduce((a, p) => a + p.x, 0) / (keys.length || 1), y: keys.reduce((a, p) => a + p.y, 0) / (keys.length || 1) };
+  radius: (t) => t.gunshipRangeM, // round the focus
+  gate: heavyGate,
+  retask(m, side, at) {
+    const e = m.assets.effects.find((o) => o.asset === 'gunship' && o.side === side && (o.phase === 'inbound' || o.phase === 'station'));
+    if (e && at) Object.assign(e, { x: at.x, y: at.y, prey: -1 }); // it turns for the new focus at once
+    return e;
   },
 
   start(m, e) {
     const t = m.tune;
-    const R = t.gunshipOrbitM;
     const from = launchPoint(m, e.side);
-    const [ox, oy] = [from.x - e.x, from.y - e.y];
-    const d2 = ox * ox + oy * oy;
-    const l = Math.sqrt(d2 - R * R); // the launch point is always far outside the circle
-    // Where the line in touches the circle running on counter-clockwise: R²/d² of the way out to the launch point, R·l/d² to its left
-    const to = { x: e.x + (R * R * ox - R * l * oy) / d2, y: e.y + (R * R * oy + R * l * ox) / d2 };
-    const v = wake(m, body(m, e.side), (to.x - from.x) / l, (to.y - from.y) / l);
-    Object.assign(e, { from, vehicle: v.id, phase: 'inbound', phaseAt: m.tick, nextShot: m.tick, shells: [] });
-    // ponytail: a bound, not the exact end (the way in, the station, home from the circle's far side with a full turn); reaching home ends it sooner
-    e.until = m.tick + ticksOf(t, (l + Math.sqrt(d2) + R + 2 * Math.PI * R) / t.gunshipSpeedMps + t.gunshipStationSeconds);
+    const d = Math.sqrt(dist2(from, e));
+    const v = wake(m, body(m, e.side), (e.x - from.x) / d, (e.y - from.y) / d);
+    Object.assign(e, { from, vehicle: v.id, phase: 'inbound', phaseAt: m.tick, nextShot: m.tick, shells: [], prey: -1, turn: 0, out: false });
+    // ponytail: a bound, not the exact end (in to the far side of the Play Area and home from there, a full turn each way and one to spare); reaching home ends it sooner
+    const far = Math.sqrt(Math.max(...m.map.playArea.map((p) => dist2(p, from))));
+    e.until = m.tick + ticksOf(t, (2 * far) / t.gunshipSpeedMps + 3 * (360 / t.gunshipTurnDegPerS) + t.gunshipStationSeconds);
   },
 
   work(m, e, events) {
@@ -132,55 +175,39 @@ export const gunship: Kind = {
     }
     if (m.tick + 1 >= e.until) return void sleep(v); // the bound in `start` ran out before home: gone all the same, never left flying
     if (e.phase !== 'leaving' && crippled(m, v)) leave(m, e, v, events); // breaks off early
-    const step = t.gunshipSpeedMps / t.hz;
-    v.movedAt = m.tick;
-    if (e.phase === 'inbound') {
-      const ahead = (e.x - v.x) * v.fx + (e.y - v.y) * v.fy; // to the touching point: the line's nearest to the centre
-      Object.assign(v, { x: v.x + v.fx * Math.min(step, ahead), y: v.y + v.fy * Math.min(step, ahead) });
-      if (ahead <= step) {
-        Object.assign(e, { phase: 'station', phaseAt: m.tick, nextShot: m.tick });
-        assetRadio(m, e, 'Gunship on station', events);
-      }
-    } else if (e.phase === 'station') {
-      const R = t.gunshipOrbitM;
-      const u = turnToward((v.x - e.x) / R, (v.y - e.y) / R, (e.y - v.y) / R, (v.x - e.x) / R, turnRate(t), t.hz); // a step round, the centre on its left
-      Object.assign(v, { x: e.x + u.fx * R, y: e.y + u.fy * R, fx: -u.fy, fy: u.fx });
-      drop(m, e, v);
-      if (m.tick >= e.phaseAt! + ticksOf(t, t.gunshipStationSeconds)) leave(m, e, v, events);
-      else if (m.tick >= e.nextShot!) shoot(m, e, v);
-    } else {
+    if (e.phase === 'leaving') {
       const home = e.from!;
-      const d = Math.sqrt(dist2(v, home));
-      if (d <= step) {
+      if (dist2(v, home) <= (t.gunshipSpeedMps / t.hz) ** 2) {
         sleep(v); // off the map: gone
         e.until = m.tick + 1;
         return;
       }
-      const f = turnToward(v.fx, v.fy, (home.x - v.x) / d, (home.y - v.y) / d, turnRate(t), t.hz);
-      Object.assign(v, { x: v.x + f.fx * step, y: v.y + f.fy * step, ...f });
+      return fly(m, e, v, home);
     }
+    fly(m, e, v, e.phase === 'inbound' ? e : aim(m, e, v));
+    if (e.phase === 'inbound') {
+      if (dist2(v, e) > t.gunshipRangeM * t.gunshipRangeM) return;
+      Object.assign(e, { phase: 'station', phaseAt: m.tick, nextShot: m.tick });
+      assetRadio(m, e, 'Gunship on station', events);
+    }
+    drop(m, v);
+    if (m.tick >= e.phaseAt! + ticksOf(t, t.gunshipStationSeconds)) leave(m, e, v, events);
+    else if (m.tick >= e.nextShot!) shoot(m, e, v);
   },
 
   contacts: (m, e) => (e.phase === 'station' ? inRange(m, e, vehicleOf(m, e.vehicle!)!) : []),
 
   view(m, e) {
     const t = m.tune;
-    const sp = t.gunshipSpeedMps;
     const v = vehicleOf(m, e.vehicle!)!;
-    const inbound = Math.sqrt(dist2(e.from!, e) - t.gunshipOrbitM * t.gunshipOrbitM) / sp;
-    const left =
-      e.phase === 'inbound'
-        ? ((e.x - v.x) * v.fx + (e.y - v.y) * v.fy) / sp + t.gunshipStationSeconds
-        : e.phase === 'station'
-          ? (e.phaseAt! + ticksOf(t, t.gunshipStationSeconds) - m.tick) / t.hz
-          : 0;
+    const left = e.phase === 'inbound' ? t.gunshipStationSeconds : e.phase === 'station' ? (e.phaseAt! + ticksOf(t, t.gunshipStationSeconds) - m.tick) / t.hz : 0;
     const shells = e.shells!.filter((s) => !s.done && s.launch <= m.tick).map((s) => ({ x: s.x, y: s.y, from: s.from!, flight: (m.tick - s.launch) / (s.land - s.launch) }));
-    return { side: e.side, from: e.from!, left: Math.max(0, left), total: inbound + t.gunshipStationSeconds, shells, ...(e.phase !== 'down' && live(v) && { phase: e.phase, craft: { x: v.x, y: v.y, fx: v.fx, fy: v.fy } }) }; // shot down this tick: its Asset learns next tick
+    return { side: e.side, from: e.from!, left: Math.max(0, left), total: t.gunshipStationSeconds, shells, ...(e.phase !== 'down' && live(v) && { phase: e.phase, craft: { x: v.x, y: v.y, fx: v.fx, fy: v.fy, turn: e.turn! } }) }; // shot down this tick: its Asset learns next tick
   },
 
   hash(e, mix: Mix) {
     for (const n of [e.from!.x, e.from!.y]) mix(Math.round(n * 1000));
-    for (const n of [e.vehicle!, PHASES.indexOf(e.phase!), e.phaseAt!, e.nextShot!, e.shells!.length]) mix(n);
+    for (const n of [e.vehicle!, PHASES.indexOf(e.phase!), e.phaseAt!, e.nextShot!, e.prey!, e.turn!, +e.out!, e.shells!.length]) mix(n);
     for (const s of e.shells!) for (const n of [Math.round(s.x * 1000), Math.round(s.y * 1000), Math.round(s.from!.x * 1000), Math.round(s.from!.y * 1000), s.launch, s.land, +s.done]) mix(n);
   },
 };

@@ -6,13 +6,22 @@ import { SHELL_HEADINGS } from './shell';
 const craft = { x: 150, y: 0, fx: 0, fy: 1 };
 
 describe('gunship pose', () => {
-  it('flies level from its Faction row lifted to cruise altitude over its shadow, banks only on station, and lies flat as a Wreck', () => {
-    const inbound = gunshipPose({ side: 'nato', craft, phase: 'inbound' });
-    expect(inbound).toMatchObject({ ...aloft(craft), body: { frame: 4, rotation: 0 }, shadow: { x: 150, y: 0, frame: GUNSHIP_SHEET.frames - 1 } });
-    expect(gunshipPose({ side: 'pact', craft, phase: 'leaving' }).body.frame).toBe(GUNSHIP_HEADINGS + 4);
-    expect(gunshipPose({ side: 'nato', craft, phase: 'station' }).body.frame).toBe(2 * GUNSHIP_HEADINGS + 4);
-    expect(gunshipPose({ side: 'pact', craft, phase: 'station' }).body.frame).toBe(3 * GUNSHIP_HEADINGS + 4);
-    expect(gunshipPose({ side: 'pact', craft, wreck: true })).toMatchObject({ x: 150, y: 0, body: { frame: 4 * GUNSHIP_HEADINGS + 4 } });
+  it('flies level from its Faction row lifted to cruise altitude over its shadow, banks only into a turn, and lies flat as a Wreck', () => {
+    const level = gunshipPose({ side: 'nato', craft: { ...craft, turn: 0 } });
+    expect(level).toMatchObject({ ...aloft(craft), body: { frame: 4, rotation: 0 }, shadow: { x: 150, y: 0, frame: GUNSHIP_SHEET.frames - 1 } });
+    expect(gunshipPose({ side: 'pact', craft }).body.frame).toBe(GUNSHIP_HEADINGS + 4);
+    expect(gunshipPose({ side: 'nato', craft: { ...craft, turn: 1 } }).body).toEqual({ frame: 2 * GUNSHIP_HEADINGS + 4, rotation: 0 });
+    expect(gunshipPose({ side: 'pact', craft: { ...craft, turn: 1 } }).body.frame).toBe(3 * GUNSHIP_HEADINGS + 4);
+    expect(gunshipPose({ side: 'pact', craft: { ...craft, turn: 1 }, wreck: true })).toMatchObject({ x: 150, y: 0, body: { frame: 4 * GUNSHIP_HEADINGS + 4 } });
+  });
+
+  it('a right turn is the left bank flipped: the frame baked at the mirrored heading, turned so the nose still points along its heading', () => {
+    expect(gunshipPose({ side: 'nato', craft: { ...craft, turn: -1 } }).body).toEqual({ frame: 2 * GUNSHIP_HEADINGS + 4, rotation: expect.closeTo(0), mirror: true });
+    const a = 0.3;
+    const step = (2 * Math.PI) / GUNSHIP_HEADINGS;
+    const { body } = gunshipPose({ side: 'nato', craft: { x: 0, y: 0, fx: Math.cos(a), fy: Math.sin(a), turn: -1 } });
+    expect(body).toEqual({ frame: 2 * GUNSHIP_HEADINGS + 7, rotation: expect.closeTo(a - step), mirror: true });
+    expect(Math.PI - 7 * step + body.rotation).toBeCloseTo(a); // the frame's nose once flipped, then turned
   });
 
   it('keeps the baked sun north-east: only the remainder of the heading turns the body, the shadow turns by the whole of it', () => {
@@ -40,7 +49,7 @@ describe('gunship shell', () => {
 describe('gunships in the air', () => {
   it('lists every Gunship effect with its aircraft, the enemy\'s too, and none once shot down', () => {
     const base = { asset: 'gunship' as const, x: 0, y: 0, radius: 150, left: 10, total: 70 };
-    const list = gunshipsInAir([{ ...base, side: 'nato', phase: 'station', craft }, { ...base, side: 'pact', phase: 'inbound', craft }, { ...base, side: 'nato' }]);
-    expect(list.map((g) => [g.side, g.phase])).toEqual([['nato', 'station'], ['pact', 'inbound']]);
+    const list = gunshipsInAir([{ ...base, side: 'nato', craft: { ...craft, turn: 1 } }, { ...base, side: 'pact', craft: { ...craft, turn: 0 } }, { ...base, side: 'nato' }]);
+    expect(list.map((g) => [g.side, g.craft.turn])).toEqual([['nato', 1], ['pact', 0]]);
   });
 });

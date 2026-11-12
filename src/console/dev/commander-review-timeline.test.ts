@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { insidePolygon } from '../../sim/geometry';
 import { DEFAULT_TUNE } from '../../sim/tune';
 import type { SimEvent } from '../../sim/types';
-import { CHAPTERS, eventsBetween, LENGTH, viewAt } from './commander-review-timeline';
+import { CHAPTERS, eventsBetween, GUNSHIP_LOOP_M, GUNSHIP_STATION_S, LENGTH, viewAt } from './commander-review-timeline';
 
 const chapter = (title: string) => CHAPTERS.find((c) => c.title === title)!.at + 1;
 const OLD = chapter('Ferry') - 1; // #131: the chapters before it end here (the Parachute chapter's end was the timeline's)
@@ -352,11 +352,11 @@ describe('commander review timeline (#69)', () => {
     const phases = [...new Set(frames.map((v) => gunship(v, 'nato')?.phase).filter(Boolean))];
     expect(phases).toEqual(['inbound', 'station', 'leaving']);
     const station = frames.filter((v) => gunship(v, 'nato')?.phase === 'station');
-    expect(station.length / 4).toBeCloseTo(DEFAULT_TUNE.gunshipStationSeconds, 0);
+    expect(station.length / 4).toBeCloseTo(GUNSHIP_STATION_S, 0);
     for (const v of station) {
       const e = gunship(v, 'nato')!;
-      expect(e).toMatchObject({ x: 0, y: 0, radius: DEFAULT_TUNE.gunshipOrbitM }); // C
-      expect(Math.hypot(e.craft!.x - e.x, e.craft!.y - e.y)).toBeCloseTo(DEFAULT_TUNE.gunshipOrbitM, 3);
+      expect(e).toMatchObject({ x: 0, y: 0, radius: DEFAULT_TUNE.gunshipRangeM }); // C
+      expect(Math.hypot(e.craft!.x - e.x, e.craft!.y - e.y)).toBeCloseTo(GUNSHIP_LOOP_M, 3);
       expect((e.craft!.x - e.x) * e.craft!.fy - (e.craft!.y - e.y) * e.craft!.fx).toBeGreaterThan(0); // the centre on its left
       expect(e.left).toBeGreaterThan(0);
       expect(v.vehicles).toContainEqual(expect.objectContaining({ kind: 'gunship', side: 'nato', x: e.craft!.x, y: e.craft!.y, airborne: true }));
@@ -366,7 +366,6 @@ describe('commander review timeline (#69)', () => {
     const shells = events.filter((e) => e.kind === 'impact' && e.asset === 'gunship');
     expect(shells.length).toBeGreaterThanOrEqual(10); // about 11 over 45 s
     for (const text of ['Gunship on station', 'Splash', 'Gunship leaving']) expect(events).toContainEqual(expect.objectContaining({ kind: 'radio', text }));
-    expect(viewAt(chapter('Gunship') + 10).assets!.find((a) => a.asset === 'gunship')).toMatchObject({ at: { x: 0, y: 0 } });
     expect(viewAt(chapter('Gunship') + 10).assets!.find((a) => a.asset === 'gunship')!.readyIn).toBeGreaterThan(0);
   });
 
@@ -379,7 +378,7 @@ describe('commander review timeline (#69)', () => {
     expect(aboard(7).length).toBeGreaterThan(0);
     expect(aboard(7).length).toBeLessThan(aboard(6).length);
     const chute7 = frames.find((v) => man(v, 7).chute !== undefined)!;
-    expect(Math.hypot(man(chute7, 7).x - 0, man(chute7, 7).y - 300)).toBeLessThan(300 - DEFAULT_TUNE.gunshipOrbitM + 20); // near the circle's nearest to B, 100 m short of it
+    expect(Math.hypot(man(chute7, 7).x - 0, man(chute7, 7).y - 300)).toBeLessThan(300 - GUNSHIP_LOOP_M + 20); // near the circle's nearest to B, 100 m short of it
     const leave = frames.findIndex((v) => gunship(v, 'nato')?.phase === 'leaving');
     expect(man(frames[leave]!, 6).chute).toBeDefined();
     const shots = eventsBetween(from, chapter('Gunship down')).filter((e) => e.kind === 'shot' && e.from === 6);

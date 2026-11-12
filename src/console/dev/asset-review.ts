@@ -28,7 +28,7 @@ function setClose() {
   camera.updateProjectionMatrix();
 }
 
-/** Close tactical zoom centred on one Asset's call spot (#101: the Gunship's whole route). */
+/** Close tactical zoom centred on one Asset's call spot (#101: wider for the Gunship's loops). */
 function setFocus(asset: AssetKind) {
   const { at } = ASSETS.find((a) => a.asset === asset)!;
   camera.zoom = asset === 'gunship' ? 1.6 : 8;

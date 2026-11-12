@@ -38,7 +38,7 @@ mapConfirm.onclick = confirm;
 let last: CommanderView | null = null;
 const usable = (asset: AssetKind) => {
   const a = last?.assets?.find((a) => a.asset === asset);
-  return !!last && !last.result && !!a && a.readyIn === 0 && !a.off;
+  return !!last && !last.result && !!a && (a.readyIn === 0 || !!a.retask) && !a.off; // #101: an Asset at work that takes a new spot arms on its cooldown
 };
 
 document.addEventListener('keydown', (e) => {

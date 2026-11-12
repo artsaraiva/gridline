@@ -335,10 +335,10 @@ export const DEFAULT_TUNE: Tune = {
 
   // #101 Gunship
   gunshipCooldownSeconds: 300,
-  gunshipOrbitM: 200,
   gunshipRangeM: 200,
-  gunshipSpeedMps: 60,
-  gunshipStationSeconds: 45,
+  gunshipSpeedMps: 45, // a jet's is 120
+  gunshipTurnDegPerS: 12, // a 215 m turn at that speed
+  gunshipStationSeconds: 75,
   gunshipShotSeconds: 4,
   gunshipShellFlightSeconds: 3,
   gunshipScatterM: 8,

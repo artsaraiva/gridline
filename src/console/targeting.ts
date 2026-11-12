@@ -1,8 +1,7 @@
 // Targeting: the Console's arm / preview / confirm state machine for Assets. No DOM here: input.ts feeds it pointer
 // moves and taps, chrome/assets.ts arms and confirms, layers/effects.ts draws the preview from it.
 // Arm an Asset, and its preview ring follows the pointer; a tap pins the ring, a second tap on the same spot (or Confirm)
-// calls the Asset there; arming it again, Cancel or Esc disarms. #101: an Asset with a fixed route (the Gunship) arms with its
-// ring pinned on the route, which a tap never moves: Confirm, or a tap on the pinned spot, calls it.
+// calls the Asset there; arming it again, Cancel or Esc disarms. #101: while the Gunship is up its row arms again, and the call moves its focus.
 // Orders (#36): select a Squad (its tile, or its chevrons on the map), then tap a Capture Point: the Order goes out as a
 // Command and the Squad stays selected; Clear sends a null Order. Only the Simulation decides what an Order does.
 import { insidePolygon } from '../sim/geometry';
@@ -26,14 +25,11 @@ export function disarm() {
   targeting.spot = null;
 }
 
-/** #101: the centre of `asset`'s fixed route, or undefined when the Commander picks its spot. */
-const routeOf = (asset: AssetKind) => session.view?.assets?.find((a) => a.asset === asset)?.at;
-
 /** Arms `asset`, or disarms when it is the one already armed. */
 export function arm(asset: AssetKind) {
   if (targeting.armed === asset) return disarm();
   targeting.armed = asset;
-  targeting.spot = routeOf(asset) ?? null;
+  targeting.spot = null;
 }
 
 export const hover = (p: Vec2 | null) => (targeting.pointer = p);
@@ -96,7 +92,7 @@ export function tap(p: Vec2, sameM: number, pickM = sameM) {
   if (armed) {
     if (!validSpot(p)) return;
     if (spot && (p.x - spot.x) ** 2 + (p.y - spot.y) ** 2 <= sameM * sameM) return confirm();
-    if (!routeOf(armed)) targeting.spot = p;
+    targeting.spot = p;
     return;
   }
   const near = (q: Vec2, r: number) => (p.x - q.x) ** 2 + (p.y - q.y) ** 2 <= r * r;

@@ -482,7 +482,7 @@ function airFire(): [number, SimEvent][] {
 }
 
 // #101 GUNSHIP: nato's Gunship is called on the Contacts 18 s before the chapter, so it opens on the edge-glued icon. It flies in
-// from the missile's launch point at `gunshipSpeedMps` to where its line touches its route (the circle `gunshipOrbitM` round C),
+// from the missile's launch point at `gunshipSpeedMps` to where its line touches a loop round its focus (the circle `GUNSHIP_LOOP_M` round C),
 // circles it counter-clockwise for `gunshipStationSeconds` while a shell leaves it every `gunshipShotSeconds` for a Contact (each
 // flies `gunshipShellFlightSeconds` and lands within `gunshipScatterM`), then carries on round to where the line home leaves the
 // circle and flies home (the Simulation's turn at the orbit's rate traces the same circle). Bravo's 6 comes back into its gun
@@ -491,8 +491,13 @@ function airFire(): [number, SimEvent][] {
 // AA (Alpha's 2) fires bursts at it once it is within `aaRangeM`; under a third of `gunshipHp` it leaves, at 0 it falls where
 // it is: a Wreck. Its shells already in the air still land.
 const G = DEFAULT_TUNE;
-const W = G.gunshipSpeedMps / G.gunshipOrbitM; // round the orbit, radians a second
-const ROUTE = { x: 0, y: 0 }; // C, the middle point
+// ponytail: scripted as one wide left turn round its focus, not the Simulation's hunt over the enemies it knows (`/dev-asset-review.html` flies that); script marks and loops if this chapter has to show them
+export const GUNSHIP_LOOP_M = 200;
+// The chapters are timed for this speed and time on station, not the tune's
+const GUNSHIP_MPS = 60;
+export const GUNSHIP_STATION_S = 45;
+const W = GUNSHIP_MPS / GUNSHIP_LOOP_M; // round the loop, radians a second
+const ROUTE = { x: 0, y: 0 }; // its focus: C, the middle point
 const [OWN_ID, DOWN_ID] = [44, 45];
 interface Sortie {
   side: SideId;
@@ -509,29 +514,29 @@ const OWN: Sortie = { side: 'nato', id: OWN_ID, call: GUNSHIP_AT - 18, from: { x
 
 /** Where the sortie flies: in to `entry`, round from `arrive` to `leave`, on round to `exit` at `out`, home by `gone`. */
 function plan(s: Sortie) {
-  const R = G.gunshipOrbitM;
+  const R = GUNSHIP_LOOP_M;
   const [ox, oy] = [s.from.x - ROUTE.x, s.from.y - ROUTE.y];
   const d2 = ox * ox + oy * oy;
   const l = Math.sqrt(d2 - R * R);
   const touch = (k: number) => ({ x: ROUTE.x + (R * R * ox - k * R * l * oy) / d2, y: ROUTE.y + (R * R * oy + k * R * l * ox) / d2 }); // as the Simulation's
   const [entry, exit] = [touch(1), touch(-1)];
-  const arrive = s.call + l / G.gunshipSpeedMps;
-  const leave = s.leave ?? arrive + G.gunshipStationSeconds;
+  const arrive = s.call + l / GUNSHIP_MPS;
+  const leave = s.leave ?? arrive + GUNSHIP_STATION_S;
   const a0 = Math.atan2(entry.y - ROUTE.y, entry.x - ROUTE.x);
   const aLeave = a0 + W * (leave - arrive);
   let aExit = Math.atan2(exit.y - ROUTE.y, exit.x - ROUTE.x);
   while (aExit < aLeave) aExit += 2 * Math.PI;
   const out = leave + (aExit - aLeave) / W;
-  return { entry, exit, arrive, leave, a0, out, gone: out + l / G.gunshipSpeedMps, l };
+  return { entry, exit, arrive, leave, a0, out, gone: out + l / GUNSHIP_MPS, l };
 }
 
 /** The aircraft at `t`: its phase, the ground spot under it and its heading; null before the call, once home, or once down. */
-function sortieAt(s: Sortie, t: number): { phase: 'inbound' | 'station' | 'leaving'; craft: { x: number; y: number; fx: number; fy: number } } | null {
+function sortieAt(s: Sortie, t: number): { phase: 'inbound' | 'station' | 'leaving'; craft: { x: number; y: number; fx: number; fy: number; turn: number } } | null {
   const p = plan(s);
   if (t < s.call || t >= p.gone || t >= (s.down ?? Infinity)) return null;
-  const R = G.gunshipOrbitM;
-  const line = (a: Vec2, b: Vec2, k: number) => ({ x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, fx: (b.x - a.x) / p.l, fy: (b.y - a.y) / p.l });
-  const round = (a: number) => ({ x: ROUTE.x + R * Math.cos(a), y: ROUTE.y + R * Math.sin(a), fx: -Math.sin(a), fy: Math.cos(a) });
+  const R = GUNSHIP_LOOP_M;
+  const line = (a: Vec2, b: Vec2, k: number) => ({ x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, fx: (b.x - a.x) / p.l, fy: (b.y - a.y) / p.l, turn: 0 });
+  const round = (a: number) => ({ x: ROUTE.x + R * Math.cos(a), y: ROUTE.y + R * Math.sin(a), fx: -Math.sin(a), fy: Math.cos(a), turn: 1 });
   if (t < p.arrive) return { phase: 'inbound', craft: line(s.from, p.entry, (t - s.call) / (p.arrive - s.call)) };
   const craft = t < p.out ? round(p.a0 + W * (t - p.arrive)) : line(p.exit, s.from, (t - p.out) / (p.gone - p.out));
   return { phase: t < p.leave ? 'station' : 'leaving', craft };
@@ -568,9 +573,9 @@ function sortieView(s: Sortie, shells: typeof OWN_SHELLS, t: number): EffectView
   const flying = shells.filter((h) => t >= h.at && t < h.at + G.gunshipShellFlightSeconds);
   const a = sortieAt(s, t);
   if (!a && !flying.length) return [];
-  const left = !a ? 0 : a.phase === 'inbound' ? p.arrive - t + G.gunshipStationSeconds : a.phase === 'station' ? p.leave - t : 0;
-  const total = p.arrive - s.call + G.gunshipStationSeconds;
-  return [{ asset: 'gunship', ...ROUTE, radius: G.gunshipOrbitM, left, total, side: s.side, from: s.from, shells: flying.map((h) => ({ ...h.to, from: h.from, flight: (t - h.at) / G.gunshipShellFlightSeconds })), ...a }];
+  const left = !a ? 0 : a.phase === 'inbound' ? p.arrive - t + GUNSHIP_STATION_S : a.phase === 'station' ? p.leave - t : 0;
+  const total = p.arrive - s.call + GUNSHIP_STATION_S;
+  return [{ asset: 'gunship', ...ROUTE, radius: G.gunshipRangeM, left, total, side: s.side, from: s.from, shells: flying.map((h) => ({ ...h.to, from: h.from, flight: (t - h.at) / G.gunshipShellFlightSeconds })), ...a }];
 }
 
 // Who rides nato's: Bravo's 6 in the gun seat until it turns for home, Bravo's 7 as a passenger until the route passes nearest B
@@ -615,7 +620,7 @@ function gunshipBodies(t: number): VehicleView[] {
   if (t >= DOWN.down!) out.push(DOWN_WRECK);
   return out;
 }
-const gunshipRow = (t: number): AssetView => ({ asset: 'gunship', readyIn: t < OWN.call ? 0 : Math.max(0, OWN.call + G.gunshipCooldownSeconds - t), cooldown: G.gunshipCooldownSeconds, radius: G.gunshipOrbitM, at: ROUTE });
+const gunshipRow = (t: number): AssetView => ({ asset: 'gunship', readyIn: t < OWN.call ? 0 : Math.max(0, OWN.call + G.gunshipCooldownSeconds - t), cooldown: G.gunshipCooldownSeconds, radius: G.gunshipRangeM });
 
 /** #101: nato's radio lines, both sorties' impacts, its gunner's bursts on the Contacts in reach on its left, and the AA's bursts at pact's. */
 function gunshipEvents(): [number, SimEvent][] {
