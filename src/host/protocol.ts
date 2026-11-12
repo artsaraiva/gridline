@@ -9,8 +9,8 @@ export type MatchSetup = { seed: number; squadsPerSide: number; commanderSide: S
 export type MatchRecord = MatchSetup & { map: string; log: Command[] };
 
 export type ToHost =
-  /** `map`: 'test' for the small hand-written field, the baked Kaltenbach otherwise. */
-  | ({ kind: 'start'; map?: 'test' | 'kaltenbach'; dev?: { freeAssets?: boolean; tanks?: number } } & MatchSetup)
+  /** `map`: 'test' for the small hand-written field, else the bake in `public/maps/<map>/` (#150; Kaltenbach when unset). */
+  | ({ kind: 'start'; map?: 'test' | 'kaltenbach' | 'auental'; dev?: { freeAssets?: boolean; tanks?: number } } & MatchSetup)
   | { kind: 'command'; command: UnstampedCommand };
 
 export type FromHost =

@@ -7,6 +7,7 @@ import { COVER, WALL, WATER, walkCost, cellAt, cellIndex, nearestWalkable } from
 import { DEFAULT_TUNE } from '../sim/tune';
 import { insidePolygon } from '../sim/geometry';
 import type { BakedMap } from './baked';
+import { readBake } from './bake-check';
 import { terrainOf } from './load';
 
 const DIR = new URL('../../public/maps/kaltenbach/', import.meta.url);
@@ -140,4 +141,17 @@ describe('map loader: 1 m bake data to the Simulation\'s 2 m cells', () => {
     });
     expect(checked).toBeGreaterThan(1000);
   });
+});
+
+describe('#150: map loader on Auental', () => {
+  const a = readBake('auental');
+  const auental = { ...a.map, terrain: terrainOf(a.map, a.cover, DEFAULT_TUNE.cellM) };
+  const m = createMatch({ seed: 1, map: auental, tune: DEFAULT_TUNE, squadsPerSide: 4, commanderSide: 'nato' });
+
+  it('opens the 20 m Auer only at the seven crossings, each one on its own', () => {
+    const { nato, pact } = m.map.hqs;
+    const over = (c: number) => build(m, m.grid, pact, 30, (k) => m.grid.crossing[k]! >= 0 && m.grid.crossing[k] !== c); // every crossing but `c` closed
+    expect(flowDist(m, over(-1), nato), 'all crossings closed').toBe(Infinity);
+    a.map.crossings.forEach((c, i) => expect(flowDist(m, over(i), nato), c.id).toBeLessThan(Infinity));
+  }, 60_000);
 });

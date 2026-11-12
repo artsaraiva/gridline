@@ -1,9 +1,9 @@
-// Cruise Missile (#99): one heavy precise blast. Usable only while the caller holds the middle Capture Point (the one
-// nearest the map centre); the cooldown runs regardless, and losing the point mid-flight changes nothing. At the call
+// Cruise Missile (#99): one heavy precise blast. Usable only while the caller holds every keystone Capture Point (#150: the
+// map's `keystone`, else the one nearest the map centre); the cooldown runs regardless, and losing one mid-flight changes nothing. At the call
 // it leaves at once from beyond the Play Area behind the caller's HQ and flies level and straight at the spot; the
 // flight is its warning, and it is in the sky, so both Sides' views carry it.
 import type { Match } from '../index';
-import { dist2, middlePoint } from '../geometry';
+import { dist2, keystone } from '../geometry';
 import type { Mix } from '../state';
 import type { Vec2 } from '../types';
 import { assetRadio, type Effect, type Kind } from './core';
@@ -45,8 +45,9 @@ export const missile: Kind = {
   radius: (t) => t.missileSuppressM,
   gate(m, side) {
     if (!m.tune.missileGated) return null;
-    const p = middlePoint(m);
-    return !p ? 'no Capture Point' : p.owner === side ? null : `needs ${p.name}`;
+    const keys = keystone(m);
+    const missing = keys.filter((p) => p.owner !== side).map((p) => p.name);
+    return !keys.length ? 'no Capture Point' : missing.length ? `needs ${missing.join(', ')}` : null;
   },
 
   start(m, e) {

@@ -30,6 +30,22 @@ test('Console loads, renders the map and Rails chrome, and confirming an armed A
   await expect(scanRow).toHaveClass(/active/);
 });
 
+test('#150: Auental picked on the setup screen shows a waiting screen, then its 12 points on the Rails', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await page.goto('/?seed=4&squads=8');
+  await page.getByLabel('Map').selectOption('auental');
+  await page.getByRole('button', { name: 'Start match' }).click();
+  await expect(page.locator('#loading')).toBeVisible();
+
+  await expect(page.locator('#rail')).toBeVisible({ timeout: 30000 });
+  await expect(page.locator('#loading')).toBeHidden();
+  await expect(page.locator('#score .pts svg')).toHaveCount(12);
+  await expect(page.locator('#faction-sub')).toContainText('Auental');
+  expect(errors).toEqual([]);
+});
+
 test('the mixer (#85): the speaker button opens the panel, M toggles mute, the levels survive a reload, nothing errors', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));

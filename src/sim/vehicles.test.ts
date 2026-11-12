@@ -759,6 +759,19 @@ describe('#154 two AAs', () => {
     play(m, 3 * HZ);
     expect(aas.map((v) => m.points[v.goal]?.id).sort()).toEqual(['A', 'B']);
   });
+
+  it('#150: never lay back on a keystone point the map names, however good its flank', () => {
+    // as above, but the map names A and C its keystone: the one AA leaves the better flank and takes B
+    const m = scene({
+      map: { points: [{ id: 'A', name: 'A', x: -300, y: 320, owner: 'nato' }, { id: 'B', name: 'B', x: -300, y: -280, owner: 'nato' }, { id: 'C', name: 'C', x: 0, y: 0 }], keystone: ['A', 'C'] },
+      tune: { tanksPerSide: 0, aasPerSide: 1, tankGoalBias: 0, visionM: 0 },
+    });
+    const aa = m.vehicles.find((v) => v.side === 'nato' && v.kind === 'aa')!;
+    aa.seats[0] = 0;
+    Object.assign(m.soldiers[0]!, { x: aa.x, y: aa.y, vehicle: aa.id });
+    play(m, 3 * HZ);
+    expect(m.points[aa.goal]?.id).toBe('B');
+  });
 });
 
 describe('#123 ground-vehicle momentum', () => {

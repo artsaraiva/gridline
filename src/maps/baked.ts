@@ -13,8 +13,6 @@ export interface BakedMap extends MapData {
   /** `radius` is the per-point override (25 m by default); `owner` is the Side holding the point at the start. */
   points: (MapData['points'][number] & { radius: number; owner: SideId | null })[];
   crossings: { id: string; kind: 'bridge' | 'footbridge' | 'ford'; x: number; y: number; halfWidth: number }[];
-  /** #150: the points that make the keystone, e.g. both halves of Auental's twin town. */
-  keystone?: string[];
   grid: MapGrid;
   /**
    * 1 m top-down data render, row-major, row 0 at the north edge, column 0 at the west edge.
