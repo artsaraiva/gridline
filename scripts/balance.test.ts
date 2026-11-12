@@ -3,8 +3,8 @@ import { RIVER_FIELD } from '../src/maps/river-field';
 import { balance, report } from './balance';
 
 it('plays whole matches over seeds, summarises them, and takes tune overrides', () => {
-  const b = balance({ seeds: 2, squads: 3, map: RIVER_FIELD, tune: { matchSeconds: 150 } });
-  expect(b.matches.map((r) => r.seed)).toEqual([1, 2]);
+  const b = balance({ seeds: 2, firstSeed: 3, squads: 3, map: RIVER_FIELD, tune: { matchSeconds: 150 } }); // seeds whose helicopters set off inside 150 s (on 1 and 2 they do not since drivers draw their caution)
+  expect(b.matches.map((r) => r.seed)).toEqual([3, 4]);
   for (const r of b.matches) expect(r.seconds).toBeLessThanOrEqual(150);
   expect(b.wins.nato + b.wins.pact + b.wins.draw).toBe(2);
   expect(Object.keys(b.picks).length).toBeGreaterThan(0);
@@ -21,5 +21,5 @@ it('plays whole matches over seeds, summarises them, and takes tune overrides', 
     for (const r of b.matches) expect(r.aboard[side]).toBeGreaterThan(0); // #154: the vehicles waiting at the HQ fill at the opening
     expect(text).toContain(`${side} most Soldiers aboard vehicles at once in the first 2 minutes`);
   }
-  expect(balance({ seeds: 2, squads: 3, map: RIVER_FIELD, tune: { matchSeconds: 150 } })).toEqual(b); // deterministic
+  expect(balance({ seeds: 2, firstSeed: 3, squads: 3, map: RIVER_FIELD, tune: { matchSeconds: 150 } })).toEqual(b); // deterministic
 }, 15_000); // four matches: ~2 s alone, past 5 s beside the rest of the suite

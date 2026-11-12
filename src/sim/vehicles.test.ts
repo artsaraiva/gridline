@@ -260,7 +260,7 @@ describe('#107 the tank fights', () => {
     moves((m) => (m.soldiers[0]!.vehicle = 4));
     moves((m) => (m.soldiers[1]!.rockets -= 1));
     moves((m) => (m.vehicles[1]!.target = 0));
-    moves((m) => m.wrecks.push({ side: 'nato', kind: 'tank', x: 1, y: 2, fx: 1, fy: 0, seen: false }));
+    moves((m) => m.wrecks.push({ side: 'nato', kind: 'tank', x: 1, y: 2, fx: 1, fy: 0, seen: false, tick: 0 }));
     // #131 helicopter jobs
     moves((m) => (m.vehicles[0]!.job = 'support'));
     moves((m) => (m.vehicles[0]!.fetch = 3));

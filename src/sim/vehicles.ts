@@ -27,6 +27,7 @@ import { hashMissiles, type AirMissile } from './air-missiles';
 import { jetPoint, SORTIE, sortie, takeOff, type Sortie } from './jet';
 import { circle, decideJob, glide, JOBS, repairOnPad, spinFor, type Job } from './heli-jobs';
 import { cellIndex, los, nearestWalkable } from './grid';
+import { alongPath, overCrossing, pickRoute, routeFlow } from './drive-route';
 import { see, sideKnown } from './memory';
 import { footLeader, membersOf, ticksOf, vehicleOf, type Mix, type Soldier, type Squad } from './state';
 import { enemyOf, SIDES, type SideId, type SimEvent, type Tune, type Vec2, type VehicleKind, type VehicleView } from './types';
@@ -73,6 +74,9 @@ export interface Vehicle {
   crashAt: number; // #131 tick a helicopter bailed out of hits the ground, -1 = not going down
   sortie: Sortie; // #110 where a jet is in its sortie (`jet.ts`); a jet's `spot` is its pass's point, `until` the tick its turn or rearm ends, `spin` its turn's way round
   passes: number; // #110 a jet's passes left in the sortie
+  route: number; // a ground vehicle's way to its goal (drive-route.ts): -1 not chosen, 0 by its road, 1 + c over crossing c first
+  planAt: number; // tick its driver may next plan a detour (drive-route.ts)
+  path: Vec2[]; // the cells still ahead of a detour round known danger (drive-route.ts), followed before the route; empty = none
   bombs: number; // #110 a jet's bombs left in the sortie
   prey: number; // #110 a jet's mark: the enemy its pass is aimed at, or the enemy jet it fights; -1 = none
   missiles: AirMissile[]; // #110 lock-on missiles it fired, in flight (they fly on if it dies)
@@ -98,6 +102,7 @@ export interface Wreck {
   fx: number;
   fy: number;
   seen: boolean;
+  tick: number; // when it was destroyed: a fresh one warns drivers off its road
 }
 
 /** #108: a point's slot before the point first has an owner. */
@@ -148,7 +153,7 @@ const fresh = (m: Match, side: SideId, kind: VehicleKind, slot: Vec2) => ({
   side, kind, ...slot, fx: side === 'nato' ? 1 : -1, fy: 0, speed: 0, hp: specOf(m.tune, kind).hp, seats: Array<number>(specOf(m.tune, kind).seats).fill(-1), slot,
   parked: true, deadAt: -1, goal: -1, departAt: 0, target: -1, coax: -1, nextFire: 0, laid: -1, bias: [] as number[], movedAt: m.tick, halt: -1,
   airborne: false, landedAt: -1, claim: -1, claimUntil: 0, lz: null as Vec2 | null, wp: null as Vec2 | null, flareUntil: -1, spoolUntil: -1,
-  job: 'wait' as Job, fetch: -1, spot: null as Vec2 | null, spin: 1, until: -1, drop: false, crashAt: -1, sortie: 'idle' as Sortie, passes: 0, bombs: 0, prey: -1,
+  job: 'wait' as Job, fetch: -1, spot: null as Vec2 | null, spin: 1, until: -1, drop: false, crashAt: -1, sortie: 'idle' as Sortie, passes: 0, bombs: 0, prey: -1, route: -1, planAt: 0, path: [] as Vec2[],
 });
 
 /**
@@ -237,7 +242,10 @@ export function mount(m: Match, v: Vehicle, s: Soldier, sq: Squad) {
     takeOff(m, v);
   } else if (seat === 0) {
     Object.assign(v, { goal: -1, bias: m.points.map(() => (rnd(m) * 2 - 1) * t.tankGoalBias), parked: true, ...(v.claim < 0 && { departAt: wait }) });
-    if (!air(v)) v.goal = drivePoint(m, sq, s, v);
+    if (!air(v)) {
+      Object.assign(v, { goal: drivePoint(m, sq, s, v), route: -1 });
+      pickRoute(m, v);
+    }
   }
   Object.assign(s, {
     vehicle: v.id, x: v.x, y: v.y, fx: v.fx, fy: v.fy, target: -1, lastTarget: -1, reviving: -1, suppression: 0, away: -1, awaySince: -1,
@@ -427,14 +435,19 @@ export function boardStep(m: Match, s: Soldier): Vehicle | null {
  * The Capture Point a driver takes its vehicle to: scored like its Squad's choice (the Order's bonus as ever) but by drive
  * distance from the vehicle, with its own seeded preference, stickiness to where it is going, and the crowd penalty for each
  * other friendly vehicle already going there; its Squad's goal pulls no harder than any point. A Detached driver keeps its own,
- * and #108 a transport's driver always drives to its own goal. #110: an AA's driver lays back (`aaPoint`).
+ * and #108 a transport's driver always drives to its own goal. #110: an AA's driver lays back (`aaPoint`). Exported for tests.
  */
-function drivePoint(m: Match, sq: Squad, s: Soldier, v: Vehicle): number {
+export function drivePoint(m: Match, sq: Squad, s: Soldier, v: Vehicle): number {
   if (v.kind === 'aa') return aaPoint(m, v);
   if (v.kind !== 'tank' || (s.detached && s.goal >= 0)) return goalOf(m, sq, s);
   const t = m.tune;
   const others = (i: number) => m.vehicles.filter((o) => o !== v && o.side === v.side && live(o) && o.seats[0]! >= 0 && o.goal === i).length;
-  const bias = v.bias.map((b, i) => b + (i === v.goal ? t.stickiness : 0) - t.crowdPenalty * others(i) - (sq.task === 'point' && sq.goal === i ? t.stickiness : 0));
+  // a tank driver thinks twice about a point where the enemy tanks its Side knows outnumber the friendly ones going, or where its Side just lost one
+  const there = (i: number, o: Vec2) => dist2(o, m.points[i]!) < squared(m.points[i]!.radius + t.threatenedM);
+  const foes = sideKnown(m, v.side).filter((s) => s.source === 'seen' && vehicleOf(m, s.id)?.kind === 'tank');
+  const lost = m.wrecks.filter((w) => w.side === v.side && w.kind === 'tank' && m.tick - w.tick < t.routeLossSeconds * t.hz);
+  const wary = (i: number) => t.tankOutgunnedPenalty * Math.max(0, foes.filter((s) => there(i, s)).length - others(i) - 1) + t.tankWreckPenalty * lost.filter((w) => there(i, w)).length;
+  const bias = v.bias.map((b, i) => b + (i === v.goal ? t.stickiness : 0) - t.crowdPenalty * others(i) - (sq.task === 'point' && sq.goal === i ? t.stickiness : 0) - wary(i));
   return bestPoint(m, sq, v, 0, { flow: (i) => driveFlow(m, v.side, i), bias });
 }
 
@@ -487,7 +500,11 @@ export function ride(m: Match, sq: Squad, s: Soldier) {
   }
   if (v.seats[0] === s.id && !air(v)) {
     const goal = drivePoint(m, sq, s, v);
-    if (goal >= 0 || v.kind === 'aa') v.goal = goal; // #110: an AA with no rear point left stops where it is
+    if (goal >= 0 || v.kind === 'aa') {
+      if (goal !== v.goal) v.route = -1; // a new goal, a new way there
+      v.goal = goal; // #110: an AA with no rear point left stops where it is
+      pickRoute(m, v);
+    }
   }
   if (!wantsOut(m, sq, s, v)) return;
   if (v.airborne) return jump(m, s);
@@ -627,8 +644,9 @@ export function drive(m: Match) {
 function step(m: Match, v: Vehicle, halt: boolean) {
   const t = m.tune;
   const g = m.drive[v.side];
-  const f = driveFlow(m, v.side, v.goal);
-  const left = flowDist(m, f, v);
+  overCrossing(m, v);
+  const f = routeFlow(m, v);
+  const left = flowDist(m, driveFlow(m, v.side, v.goal), v); // by the road's field whatever the route: they end on the same cells
   v.parked = left === 0;
   const k = cellIndex(m, v.x, v.y);
   const cost = (k >= 0 && g.cost[k]) || 20;
@@ -637,7 +655,7 @@ function step(m: Match, v: Vehicle, halt: boolean) {
   const { roadMps, openMps } = specOf(t, v.kind);
   /** The tick if the way ahead is `n` flow cells on: where the hull points, how fast it goes, where that lands. */
   const attempt = (n: number) => {
-    const to = flowLook(m, f, v, n, g);
+    const to = alongPath(m, v, n) ?? flowLook(m, f, v, n, g);
     const d = to ? Math.sqrt(dist2(v, to)) : 0;
     let { fx, fy } = v;
     let want = 0;
@@ -659,6 +677,7 @@ function step(m: Match, v: Vehicle, halt: boolean) {
   };
   let a = attempt(3);
   if (blocked(a)) a = attempt(1);
+  if (blocked(a)) v.path = []; // a detour it can't follow: back to its route
   v.speed = blocked(a) ? 0 : a.speed;
   Object.assign(v, { fx: a.fx, fy: a.fy });
   if (v.speed > 0) Object.assign(v, { x: a.x, y: a.y, movedAt: m.tick });
@@ -935,7 +954,7 @@ export function hurt(m: Match, v: Vehicle, damage: number, by: SideId, cause: So
 /** `v` is destroyed where it is: a Wreck, seen by the enemy only if they saw it in the last perception phase (#119: in the air too). */
 export function wreck(m: Match, v: Vehicle) {
   const seen = v.kind === 'gunship' || m.sightings[enemyOf(v.side)].some((o) => o.id === v.id && o.tick >= m.tick - 1);
-  m.wrecks.push({ side: v.side, kind: v.kind, x: v.x, y: v.y, fx: v.fx, fy: v.fy, seen });
+  m.wrecks.push({ side: v.side, kind: v.kind, x: v.x, y: v.y, fx: v.fx, fy: v.fy, seen, tick: m.tick });
   Object.assign(v, { hp: 0, deadAt: m.tick, target: -1, coax: -1, airborne: false });
 }
 
@@ -970,7 +989,8 @@ export function vehicleViews(m: Match, side: SideId, seen: Set<number>): Vehicle
 export function hashVehicles(m: Match, mix: Mix) {
   for (const v of m.vehicles) {
     for (const n of [v.x, v.y, v.fx, v.fy, v.speed, v.hp, v.lz?.x ?? 0, v.lz?.y ?? 0, v.wp?.x ?? 0, v.wp?.y ?? 0]) mix(Math.round(n * 1000));
-    for (const n of [+(v.side === 'nato'), ...v.seats, +v.parked, v.deadAt, v.goal, v.departAt, v.target, v.coax, v.nextFire, v.laid, v.movedAt, v.halt, +v.airborne, v.landedAt, v.claim, v.claimUntil, +!!v.lz, +!!v.wp, v.flareUntil, v.spoolUntil, JOBS.indexOf(v.job), v.fetch, +!!v.spot, v.spin, v.until, +v.drop, v.crashAt, SORTIE.indexOf(v.sortie), v.passes, v.bombs, v.prey]) mix(n);
+    for (const n of [+(v.side === 'nato'), ...v.seats, +v.parked, v.deadAt, v.goal, v.departAt, v.target, v.coax, v.nextFire, v.laid, v.movedAt, v.halt, +v.airborne, v.landedAt, v.claim, v.claimUntil, +!!v.lz, +!!v.wp, v.flareUntil, v.spoolUntil, JOBS.indexOf(v.job), v.fetch, +!!v.spot, v.spin, v.until, +v.drop, v.crashAt, SORTIE.indexOf(v.sortie), v.passes, v.bombs, v.prey, v.route, v.planAt, v.path.length]) mix(n);
+    for (const p of v.path) for (const n of [p.x, p.y]) mix(Math.round(n * 1000));
     hashMissiles(v, mix);
     for (const n of [v.spot?.x ?? 0, v.spot?.y ?? 0]) mix(Math.round(n * 1000));
     for (const b of v.bias) mix(Math.round(b * 1000));
@@ -978,5 +998,5 @@ export function hashVehicles(m: Match, mix: Mix) {
     for (const r of v.rounds) for (const n of [Math.round(r.x0 * 1000), Math.round(r.y0 * 1000), Math.round(r.x * 1000), Math.round(r.y * 1000), r.launch, r.land, +!!r.bomb]) mix(n);
   }
   mix(m.wrecks.length);
-  for (const w of m.wrecks) for (const n of [Math.round(w.x * 1000), Math.round(w.y * 1000), +w.seen]) mix(n);
+  for (const w of m.wrecks) for (const n of [Math.round(w.x * 1000), Math.round(w.y * 1000), +w.seen, w.tick]) mix(n);
 }

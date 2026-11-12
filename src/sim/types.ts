@@ -436,6 +436,17 @@ export interface Tune {
   gunshipScatterM: number; // ... to within this of where the enemy was; the blast is a Barrage shell's
   gunshipHp: number; // the enemy AA fires on it as on a helicopter; under a third it leaves early, at 0 it falls as a Wreck
   paradropChance: number; // a Soldier coming back takes a passenger seat of its Side's Gunship on station with this chance, when the aircraft is nearer its goal than where it came back
+
+  // Vehicle routes: which crossing, and detours through the fields round known danger (drive-route.ts); danger is weighed in seconds of driving
+  driveSeenS: number; // what driving past an enemy the Side saw lately is worth (`routeSeenSeconds`, within `routeSeenRadiusM`)
+  driveLossS: number; // ... past where one of its own died lately (`routeLossSeconds`, within `routeLossRadiusM`)
+  driveWreckS: number; // ... past an own ground Wreck, as lately and as near
+  driveMateS: number; // added per other friendly ground vehicle taking the same crossing to the same point
+  driveJitterS: number; // ± seeded jitter on each crossing's score
+  driveMaxDetourS: number; // crossings slower than the road's by more than this are dropped
+  driveCaution: [number, number]; // a driver planning a detour weighs the danger by a seeded factor between these
+  tankOutgunnedPenalty: number; // off a point's score for a tank driver, per enemy tank the Side knows there beyond the friendly tanks going (its own counted)
+  tankWreckPenalty: number; // off a point's score for a tank driver, per own tank Wreck there lately (`routeLossSeconds`)
 }
 
 /** #55: what a Commander Score award is for. */

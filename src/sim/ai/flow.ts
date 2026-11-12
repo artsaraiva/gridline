@@ -155,6 +155,12 @@ export const driveFlow = (m: Match, side: SideId, i: number) => {
   });
 };
 
+/** A `side` vehicle's way to the middle of crossing `c`'s deck with every other crossing closed (`crossingFlow` on its drive grid); built on first use. */
+export const crossingDriveFlow = (m: Match, side: SideId, c: number) => {
+  const g = m.drive[side];
+  return cached(g, `x${c}`, () => build(m, g, m.map.crossings![c]!, 2 * m.tune.cellM, (k) => g.crossing[k]! >= 0 && g.crossing[k] !== c));
+};
+
 /** Builds every map-derived flow field up front (Capture Points, crossings, HQs, drives) so no tick pays for one; only Supply Drop crates stay lazy. */
 export function warmFlows(m: Match) {
   for (let i = 0; i < m.points.length; i++) pointFlow(m, i);
