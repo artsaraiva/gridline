@@ -109,7 +109,7 @@ describe('Auental data grids', () => {
     for (let k = 0; k < n * n; k++) if (!known.has(cover[k]!)) bad++;
     for (let k = 0; k < hn * hn; k++) {
       const g = ground[k]!, t = top[k]!;
-      if (!Number.isFinite(g) || !Number.isFinite(t) || g < -5 || t > 120 || t < g - 0.1) bad++;
+      if (!Number.isFinite(g) || !Number.isFinite(t) || g < -5 || t > 200 || t < g - 0.1) bad++; // the wind turbines' blade tips stand 135 m over the upland
     }
     expect(bad).toBe(0);
   });
