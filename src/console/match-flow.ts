@@ -21,21 +21,29 @@ import { endSummary } from './summary';
 const MIN_SQUADS = 3;
 const DEFAULT_SQUADS = 4;
 const MAX_SQUADS = 8;
+/** #150: 128 v 128 on Auental, offered on top of 3 to 8; past 8, only the first 8 Squads are Elite (#153). */
+const AUENTAL_SQUADS = [16, 24, 32];
 
 const setupForm = document.getElementById('setup') as HTMLFormElement;
 const loading = document.getElementById('loading')!;
 const endScreen = document.getElementById('end')!;
 const squadSelect = setupForm.elements.namedItem('squads') as HTMLSelectElement;
 const mapSelect = setupForm.elements.namedItem('map') as HTMLSelectElement;
-for (let n = MIN_SQUADS; n <= MAX_SQUADS; n++) squadSelect.add(new Option(String(n), String(n)));
+/** The Squad counts the picked map offers, keeping `want` if it is one, else the nearest of 3 to 8. */
+function fillSquads(want: number) {
+  const counts = Array.from({ length: MAX_SQUADS - MIN_SQUADS + 1 }, (_, i) => MIN_SQUADS + i).concat(mapSelect.value === 'auental' ? AUENTAL_SQUADS : []);
+  squadSelect.replaceChildren(...counts.map((n) => new Option(String(n))));
+  squadSelect.value = String(counts.includes(want) ? want : Math.min(MAX_SQUADS, Math.max(MIN_SQUADS, want)));
+}
+mapSelect.addEventListener('change', () => fillSquads(Number(squadSelect.value)));
 
 // URL params preset the setup screen; `seed` fixes the first match's seed (seed 4 shows a decisive capture on the test field).
 // `map=auental` presets the Map select; `map=test` plays the hand-written test field whatever the select says.
 const params = new URLSearchParams(location.search);
 let urlSeed = params.get('seed');
 (setupForm.elements.namedItem('side') as RadioNodeList).value = params.get('side') === 'pact' ? 'pact' : 'nato';
-squadSelect.value = String(Math.min(MAX_SQUADS, Math.max(MIN_SQUADS, Number(params.get('squads')) || DEFAULT_SQUADS)));
 if (params.get('map') === 'auental') mapSelect.value = 'auental';
+fillSquads(Number(params.get('squads')) || DEFAULT_SQUADS);
 
 async function startMatch(setup: MatchSetup, map: MapId) {
   session.host?.stop();
