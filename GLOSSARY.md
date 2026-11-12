@@ -63,7 +63,7 @@ One of the three corridors running from HQ to HQ across the front, each passing 
 _Avoid_: Flank, sector, route
 
 **Keystone**:
-The Capture Points at the heart of the spine: those the map names (both halves of Auental's twin town), else the one nearest the map centre. The Cruise Missile needs every one of them held.
+The Capture Points at the heart of the spine: those the map names (both halves of Auental's twin town), else the one nearest the map centre. The Cruise Missile and the Gunship need every one of them held; the Gunship circles the middle of them.
 _Avoid_: Middle point, centre flag
 
 **Ticket**:

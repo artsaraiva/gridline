@@ -95,6 +95,16 @@ describe('Gunship: the call', () => {
     expect(rejections(step(m, [gunship(m)]))).toEqual([]);
   });
 
+  it('#150: on a map that names its keystone, needs every keystone point, and the route circles the middle of them', () => {
+    const m = createMatch({ seed: 1, map: { ...field, keystone: ['B', 'C'] }, tune: { ...DEFAULT_TUNE, gunshipCooldownSeconds: 0 }, squadsPerSide: 1, commanderSide: 'nato' });
+    expect(row(commanderView(m, 'nato'))).toMatchObject({ off: 'needs B', at: { x: 0, y: 150 } });
+    m.points.find((p) => p.id === 'B')!.owner = 'nato';
+    expect(row(commanderView(m, 'nato')).off).toBeUndefined();
+    const run = toStation(m);
+    expect(Math.hypot(body(m).x, body(m).y - 150)).toBeCloseTo(R, 3);
+    expect(effect(run.views.at(-1)!)).toMatchObject({ x: 0, y: 150 });
+  });
+
   it('one aircraft a Side: while it is up the row is off and a second call is refused', () => {
     const m = scene();
     step(m, [gunship(m)]);
