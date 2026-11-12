@@ -14,12 +14,12 @@ const HZ = DEFAULT_TUNE.hz;
  * last Soldier takes off as its jet's pilot at match start; unless `enemyJet` the pact's gets out at once (its jet stays at
  * the base: nobody dies to come back into it), and the pact's Soldiers start away from their HQ.
  */
-function scene(tune: Partial<Tune> = {}, enemyJet = false): Match {
+function scene(tune: Partial<Tune> = {}, enemyJet = false, squads = 1): Match {
   const m = thinkOnId(createMatch({
     seed: 1,
     map: { name: 'field', playArea: [{ x: -600, y: -600 }, { x: 600, y: -600 }, { x: 600, y: 600 }, { x: -600, y: 600 }], hqs: { nato: { x: -560, y: 0 }, pact: { x: 560, y: 0 } }, points: [{ id: 'A', name: 'A', x: 0, y: 0 }] },
-    tune: { ...DEFAULT_TUNE, squadSize: 2, spread: 0, speedJitter: 0, visionM: 0, tanksPerSide: 0, jeepsPerSide: 0, helisPerSide: 0, pointJeeps: false, aasPerSide: 0, drainSeconds: [1e9, 1e9, 1e9, 1e9, 1e9], ...NO_TRAITS, ...NO_TEMPO, ...tune },
-    squadsPerSide: 1,
+    tune: { ...DEFAULT_TUNE, squadSize: 2, spread: 0, speedJitter: 0, visionM: 0, tanksPerSide: 0, jeepsPerSide: 0, helisPerSide: 0, pointJeeps: false, jetsPerSide: 1, aasPerSide: 0, drainSeconds: [1e9, 1e9, 1e9, 1e9, 1e9], ...NO_TRAITS, ...NO_TEMPO, ...tune },
+    squadsPerSide: squads,
     commanderSide: 'nato',
   }));
   if (enemyJet) return m;
@@ -95,6 +95,31 @@ describe('#110 the jet', () => {
     play(m, 90 * HZ, () => (fought ||= jets.some((v) => v.sortie === 'dogfight')));
     expect(fought).toBe(true);
     expect(jets.some((v) => v.hp < DEFAULT_TUNE.jetHp || v.deadAt >= 0)).toBe(true); // nothing else in the match can hurt a jet
+  });
+});
+
+describe('#154 more than one jet a Side', () => {
+  it('three jets over three Squads have three different pilots, from three Squads, and take off on different ticks', () => {
+    const m = scene({ jetsPerSide: 3 }, true, 3);
+    const jets = m.vehicles.filter((v) => v.kind === 'jet' && v.side === 'nato');
+    const off = jets.map(() => -1);
+    play(m, 120 * HZ, () => jets.forEach((v, k) => off[k]! < 0 && v.airborne && (off[k] = m.tick)));
+    const pilots = jets.map((v) => v.seats[0]!);
+    expect(new Set(pilots).size).toBe(3);
+    expect(new Set(pilots.map((id) => m.soldiers[id]!.squad)).size).toBe(3);
+    expect(off[0]).toBe(1); // the first at match start
+    expect(off.every((t) => t > 0)).toBe(true);
+    expect(new Set(off).size).toBe(3);
+  });
+
+  it('with two enemy jets in reach, two friendly jets fight different ones', () => {
+    const m = scene({ jetsPerSide: 2 }, true, 2);
+    const jets = m.vehicles.filter((v) => v.kind === 'jet');
+    jets.forEach((v, k) => Object.assign(v, { x: v.side === 'nato' ? -100 : 100, y: k % 2 ? 50 : -50, fx: v.side === 'nato' ? 1 : -1, fy: 0, sortie: 'inbound', airborne: true, until: -1, spot: { x: 0, y: 0 } }));
+    play(m, 1);
+    const nato = jets.filter((v) => v.side === 'nato');
+    expect(nato.map((v) => v.sortie)).toEqual(['dogfight', 'dogfight']);
+    expect(new Set(nato.map((v) => v.prey)).size).toBe(2);
   });
 });
 

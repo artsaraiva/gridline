@@ -6,6 +6,7 @@ import { commanderView, createMatch, step, SIDES, type MapData, type MatchResult
 import { DEFAULT_TUNE } from '../src/sim/tune';
 import { JOBS, type Job } from '../src/sim/heli-jobs';
 import { live, PILOT_SEAT } from '../src/sim/vehicles';
+import { inJet } from '../src/sim/state';
 
 export const MAPS: Record<string, MapData> = { kaltenbach: KALTENBACH, river: RIVER_FIELD, test: TEST_FIELD };
 
@@ -22,7 +23,11 @@ export interface MatchSummary {
   jobSeconds: Record<SideId, Record<Job, number>>; // #131: seconds each Side's helicopter spent on each job (live, any pilot or none)
   carried: Record<SideId, boolean>; // #131: the Side's helicopter carried a passenger (not crew) at some time
   unpiloted: Record<SideId, number>; // seconds of its `wait` job with no pilot aboard (the rest of `wait` is piloted but idle)
+  aboard: Record<SideId, number>; // #154: the most of the Side's Soldiers aboard ground vehicles and helicopters at once in the first OPENING_S
 }
+
+/** #154: the opening the most-aboard count covers: the race out to the approach flags. */
+export const OPENING_S = 120;
 
 const noJobs = (): Record<Job, number> => Object.fromEntries(JOBS.map((j) => [j, 0])) as Record<Job, number>;
 
@@ -51,6 +56,8 @@ export interface Balance {
   jobMatches: Record<SideId, Record<Job, number>>; // #131: matches in which it spent any time on the job
   carried: Record<SideId, number>; // #131: matches in which it carried a passenger
   unpiloted: Record<SideId, number>; // mean seconds a match of `wait` with no pilot aboard; `jobSeconds.wait` minus this is piloted but idle
+  aboard: Record<SideId, number>; // #154: mean over matches of the most Soldiers aboard at once in the opening
+  soldiers: number; // #154: Soldiers a Side, for the share
 }
 
 export function balance(o: { seeds: number; squads: number; map: MapData; tune?: Partial<Tune>; firstSeed?: number }): Balance {
@@ -69,8 +76,11 @@ export function balance(o: { seeds: number; squads: number; map: MapData; tune?:
     const jobSeconds = { nato: noJobs(), pact: noJobs() };
     const carried = { nato: false, pact: false };
     const unpiloted = { nato: 0, pact: 0 };
+    const aboard = { nato: 0, pact: 0 };
     while (!m.result) {
       step(m, []);
+      if (m.tick <= OPENING_S * tune.hz)
+        for (const side of SIDES) aboard[side] = Math.max(aboard[side], m.soldiers.filter((s) => s.side === side && s.state === 'alive' && s.vehicle >= 0 && !inJet(m, s)).length);
       for (const v of m.vehicles) {
         if (v.kind === 'helicopter' && v.goal >= 0 && v.lz && v.lz !== lastZone.get(v.id)) zones.push({ side: v.side, goal: m.points[v.goal]!.id, x: v.lz.x, y: v.lz.y });
         if (v.kind === 'helicopter') lastZone.set(v.id, v.lz);
@@ -91,7 +101,7 @@ export function balance(o: { seeds: number; squads: number; map: MapData; tune?:
           if (sq.point && !first.has(sq.id)) first.set(sq.id, { side, point: sq.point });
         }
     }
-    matches.push({ seed, seconds: m.tick / tune.hz, winner: m.result.winner, reason: m.result.reason, tickets: { ...m.tickets }, picks, first: { nato: [...first.values()].filter((f) => f.side === 'nato').map((f) => f.point), pact: [...first.values()].filter((f) => f.side === 'pact').map((f) => f.point) }, heliSquads, zones, jobSeconds, carried, unpiloted });
+    matches.push({ seed, seconds: m.tick / tune.hz, winner: m.result.winner, reason: m.result.reason, tickets: { ...m.tickets }, picks, first: { nato: [...first.values()].filter((f) => f.side === 'nato').map((f) => f.point), pact: [...first.values()].filter((f) => f.side === 'pact').map((f) => f.point) }, heliSquads, zones, jobSeconds, carried, unpiloted, aboard });
   }
   const wins = { nato: 0, pact: 0, draw: 0 };
   const picks: Record<string, number> = {};
@@ -121,14 +131,17 @@ export function balance(o: { seeds: number; squads: number; map: MapData; tune?:
   const jobMatches = { nato: noJobs(), pact: noJobs() };
   const carried = { nato: 0, pact: 0 };
   const unpiloted = { nato: 0, pact: 0 };
+  const aboard = { nato: 0, pact: 0 };
   for (const r of matches)
     for (const side of SIDES) {
+      aboard[side] += r.aboard[side];
       unpiloted[side] += r.unpiloted[side];
       carried[side] += +r.carried[side];
       for (const j of JOBS) [jobSeconds[side][j], jobMatches[side][j]] = [jobSeconds[side][j] + r.jobSeconds[side][j], jobMatches[side][j] + +(r.jobSeconds[side][j] > 0)];
     }
   const n = matches.length || 1;
   for (const side of SIDES) {
+    aboard[side] /= n;
     unpiloted[side] /= n;
     for (const j of JOBS) jobSeconds[side][j] /= n;
   }
@@ -146,6 +159,8 @@ export function balance(o: { seeds: number; squads: number; map: MapData; tune?:
     jobMatches,
     carried,
     unpiloted,
+    aboard,
+    soldiers: o.squads * tune.squadSize,
   };
 }
 
@@ -167,6 +182,7 @@ export function report(b: Balance): string {
     ...SIDES.map((side) => `${side} helicopter, mean seconds a match by job (matches with any): ${JOBS.map((j) => `${j} ${b.jobSeconds[side][j].toFixed(0)} (${b.jobMatches[side][j]})`).join('  ')}`),
     ...SIDES.map((side) => `${side} helicopter wait, mean seconds a match: no pilot aboard ${b.unpiloted[side].toFixed(0)}, piloted but idle ${(b.jobSeconds[side].wait - b.unpiloted[side]).toFixed(0)}`),
     `matches in which the helicopter carried a passenger: nato ${b.carried.nato}  pact ${b.carried.pact}  of ${b.matches.length}`,
+    ...SIDES.map((side) => `${side} most Soldiers aboard vehicles at once in the first ${OPENING_S / 60} minutes (no jets), mean a match: ${b.aboard[side].toFixed(1)} of ${b.soldiers} (${((100 * b.aboard[side]) / b.soldiers).toFixed(0)}%)`),
     ...Object.entries(b.zoneSpread).map(([goal, z]) => `Landing Zones for ${goal}: ${z.zones}, ${(z.apart * 100).toFixed(0)}% of pairs more than ${ZONE_APART_M} m apart`),
     ...b.matches.flatMap((r) => r.zones.map((z) => `Landing Zone seed ${r.seed}: ${z.side} ${z.goal} at ${z.x.toFixed(0)}, ${z.y.toFixed(0)}`)),
   );

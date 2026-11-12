@@ -187,6 +187,27 @@ describe('#131 ferry pickup wait', () => {
   });
 });
 
+describe('#154 two helicopters', () => {
+  it('two calling Squads are fetched by different helicopters, even when both would rather fetch the nearer one', () => {
+    // Pilots: Soldier 1 (Squad 0) in helicopter 16, Soldier 5 (Squad 1) in 17. Squad 0 calls from just past boardM of the HQ,
+    // Squad 1 from far up the field; both stand there all along
+    const m = scene([P], { helisPerSide: 2 });
+    const [a, b] = m.vehicles.filter((v) => v.side === 'nato' && v.kind === 'helicopter') as [Vehicle, Vehicle];
+    load(m, a, [1, -1, -1, -1, -1, -1]);
+    load(m, b, [5, -1, -1, -1, -1, -1]);
+    for (const sq of m.squads.slice(0, 2)) sq.rideM = 100;
+    const callers = m.soldiers.filter((s) => s.side === 'nato' && s.id !== 1 && s.id !== 5);
+    const spots = callers.map((s, k) => (s.squad === 0 ? { x: -480 + 3 * k, y: 60 } : { x: 200 + 3 * k, y: 600 }));
+    const fetched = [-1, -1];
+    for (let i = 0; i < 10 * HZ; i++) {
+      callers.forEach((s, k) => Object.assign(s, spots[k]!));
+      step(m, []);
+      [a, b].forEach((h, k) => fetched[k]! < 0 && (fetched[k] = h.fetch));
+    }
+    expect(fetched.sort()).toEqual([0, 1]);
+  });
+});
+
 describe('#131 support', () => {
   const A: Vec2 = { x: -200, y: 0 };
   const B: Vec2 = { x: 300, y: 0 };
