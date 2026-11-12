@@ -1,0 +1,292 @@
+{
+ "name": "Auental",
+ "village": "Unterau",
+ "river": "Auer",
+ "sizeM": 2500,
+ "playArea": [
+  {
+   "x": -1250,
+   "y": 800
+  },
+  {
+   "x": -1120,
+   "y": 930
+  },
+  {
+   "x": -980,
+   "y": 1060
+  },
+  {
+   "x": -830,
+   "y": 1250
+  },
+  {
+   "x": 1250,
+   "y": 1250
+  },
+  {
+   "x": 1250,
+   "y": -800
+  },
+  {
+   "x": 1120,
+   "y": -930
+  },
+  {
+   "x": 980,
+   "y": -1060
+  },
+  {
+   "x": 830,
+   "y": -1250
+  },
+  {
+   "x": -1250,
+   "y": -1250
+  }
+ ],
+ "hqs": {
+  "nato": {
+   "x": -1120.0,
+   "y": -40.0,
+   "radius": 60.0
+  },
+  "pact": {
+   "x": 1120.0,
+   "y": 40.0,
+   "radius": 60.0
+  }
+ },
+ "points": [
+  {
+   "id": "A",
+   "name": "A",
+   "x": -900.0,
+   "y": 480.0,
+   "radius": 30.0,
+   "owner": "nato"
+  },
+  {
+   "id": "B",
+   "name": "B",
+   "x": -840.0,
+   "y": -640.0,
+   "radius": 30.0,
+   "owner": "nato"
+  },
+  {
+   "id": "C",
+   "name": "C",
+   "x": -520.0,
+   "y": 560.0,
+   "radius": 35.0,
+   "owner": null
+  },
+  {
+   "id": "D",
+   "name": "D",
+   "x": -430.0,
+   "y": -520.0,
+   "radius": 35.0,
+   "owner": null
+  },
+  {
+   "id": "E",
+   "name": "E",
+   "x": -130.0,
+   "y": 40.0,
+   "radius": 45.0,
+   "owner": null
+  },
+  {
+   "id": "F",
+   "name": "F",
+   "x": -120.0,
+   "y": -1000.0,
+   "radius": 35.0,
+   "owner": null
+  },
+  {
+   "id": "G",
+   "name": "G",
+   "x": 120.0,
+   "y": 1000.0,
+   "radius": 35.0,
+   "owner": null
+  },
+  {
+   "id": "H",
+   "name": "H",
+   "x": 130.0,
+   "y": -40.0,
+   "radius": 45.0,
+   "owner": null
+  },
+  {
+   "id": "I",
+   "name": "I",
+   "x": 430.0,
+   "y": 520.0,
+   "radius": 35.0,
+   "owner": null
+  },
+  {
+   "id": "J",
+   "name": "J",
+   "x": 520.0,
+   "y": -560.0,
+   "radius": 35.0,
+   "owner": null
+  },
+  {
+   "id": "K",
+   "name": "K",
+   "x": 840.0,
+   "y": 640.0,
+   "radius": 30.0,
+   "owner": "pact"
+  },
+  {
+   "id": "L",
+   "name": "L",
+   "x": 900.0,
+   "y": -480.0,
+   "radius": 30.0,
+   "owner": "pact"
+  }
+ ],
+ "keystone": [
+  "E",
+  "H"
+ ],
+ "crossings": [
+  {
+   "id": "OLD",
+   "kind": "bridge",
+   "x": -60.0,
+   "y": 1020.0,
+   "halfWidth": 4.0
+  },
+  {
+   "id": "NF",
+   "kind": "ford",
+   "x": -190.0,
+   "y": 720.0,
+   "halfWidth": 6.5
+  },
+  {
+   "id": "RAIL",
+   "kind": "footbridge",
+   "x": -165.0,
+   "y": 430.0,
+   "halfWidth": 1.5
+  },
+  {
+   "id": "MAIN",
+   "kind": "bridge",
+   "x": 0.0,
+   "y": 0.0,
+   "halfWidth": 4.0
+  },
+  {
+   "id": "WEIR",
+   "kind": "footbridge",
+   "x": 165.0,
+   "y": -430.0,
+   "halfWidth": 1.5
+  },
+  {
+   "id": "SF",
+   "kind": "ford",
+   "x": 190.0,
+   "y": -720.0,
+   "halfWidth": 6.5
+  },
+  {
+   "id": "DAM",
+   "kind": "bridge",
+   "x": 60.0,
+   "y": -1020.0,
+   "halfWidth": 4.0
+  }
+ ],
+ "vehicleSlots": {
+  "nato": [
+   {
+    "x": -1113.32,
+    "y": -70.56
+   },
+   {
+    "x": -1109.56,
+    "y": -8.58
+   }
+  ],
+  "pact": [
+   {
+    "x": 1121.41,
+    "y": 8.75
+   },
+   {
+    "x": 1135.61,
+    "y": 69.2
+   }
+  ]
+ },
+ "helipad": {
+  "nato": {
+   "x": -1109.73,
+   "y": -39.49
+  },
+  "pact": {
+   "x": 1130.21,
+   "y": 38.77
+  }
+ },
+ "grid": {
+  "cols": 10,
+  "rows": 10,
+  "squareM": 250.0,
+  "letters": "ABCDEFGHIJ"
+ },
+ "data": {
+  "cells": 2500,
+  "cellM": 1,
+  "cover": "cover_u8.bin",
+  "ground": "ground_f32.bin",
+  "top": "top_f32.bin",
+  "heightCellM": 2,
+  "coverIds": {
+   "open": 0,
+   "road": 1,
+   "water": 2,
+   "hedge": 3,
+   "woods": 4,
+   "building": 5,
+   "wall": 6,
+   "prop": 7,
+   "ford": 8
+  }
+ },
+ "images": {
+  "play": [
+   "map_8192.webp",
+   "map_4096.webp",
+   "map_2048.webp",
+   "map_1024.webp",
+   "map_512.webp",
+   "map_256.webp",
+   "map_128.webp",
+   "map_64.webp",
+   "map_32.webp",
+   "map_16.webp",
+   "map_8.webp",
+   "map_4.webp",
+   "map_2.webp",
+   "map_1.webp"
+  ],
+  "outer": {
+   "file": "outer_2048.webp",
+   "sizeM": 7500
+  }
+ }
+}

@@ -33,6 +33,9 @@ from bake import (COVER_IDS, FOOT, HALFW, HELIPADS, MATS, MB, OUTER, ROAD_PTS, R
 
 HALF = 480.0
 EXT = 1440.0 if OUTER else HALF
+RIVER_W = 12.0
+TERRAIN_N = 513  # 1.9 m between vertices on the play bake
+HEIGHT_CELL_M = 1
 
 # ------------------------------------------------------------------ layout (#25 revised, #30)
 # Metres, origin at map centre, x east, y north. Gameplay positions are listed for one half and turned
