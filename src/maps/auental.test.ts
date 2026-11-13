@@ -14,7 +14,7 @@ describe('Auental map metadata', () => {
     expect(map).toMatchObject({ name: 'Auental', river: 'Auer', sizeM: 3000 });
   });
 
-  it('has a closed Play Area of 6.71 km² inside the bake, its corners cut north-west and south-east, its west and east ends each an arc swung out round an HQ', () => {
+  it('has a closed Play Area of 6.71 km² inside the bake, its corners cut north-west and south-east, its west and east ends each an arc swung out past an HQ', () => {
     let area = 0;
     map.playArea.forEach((a, i) => {
       const b = map.playArea[(i + 1) % map.playArea.length]!;
@@ -30,20 +30,21 @@ describe('Auental map metadata', () => {
     expect(inside({ x: 1200, y: -1200 }, map.playArea)).toBe(false);
   });
 
-  it('has NATO HQ west and Warsaw Pact HQ east, each the crescent of 0.35 km² between the old edge and the arc, 240 m deep at its centre and 50 m into the valley there', () => {
+  it('has NATO HQ west and Warsaw Pact HQ east, each a soft lobe of 0.16 km² against the middle of its arc, 240 m deep beyond the old edge and 50 m into the valley', () => {
     expect(map.hqs.nato).toMatchObject({ x: -1350, y: -50, radius: 150 });
     expect(map.hqs.pact).toMatchObject({ x: 1350, y: 50, radius: 150 });
     for (const hq of [map.hqs.nato, map.hqs.pact]) {
       const area = hq.area!;
       const size = Math.abs(area.reduce((n, a, i) => n + a.x * area[(i + 1) % area.length]!.y - area[(i + 1) % area.length]!.x * a.y, 0)) / 2;
-      expect(size / 1e6).toBeCloseTo(0.35, 2);
+      expect(size / 1e6).toBeCloseTo(0.16, 2);
       expect(inside(hq, area)).toBe(true);
       const xs = area.map((p) => Math.abs(p.x));
       expect([Math.min(...xs), Math.max(...xs)]).toEqual([1192, 1490]);
       // its back is the Play Area's own edge, its front lies inside the Play Area
       for (const p of area) expect(map.playArea.some((q) => near(q, p)) || inside(p, map.playArea), `${p.x},${p.y}`).toBe(true);
-      expect(area.filter((p) => map.playArea.some((q) => near(q, p)))).toHaveLength(17);
-      expect([Math.min(...area.map((p) => p.y * Math.sign(hq.x))), Math.max(...area.map((p) => p.y * Math.sign(hq.x)))]).toEqual([-800, 1250]); // from cut corner to far corner
+      expect(area.filter((p) => map.playArea.some((q) => near(q, p)))).toHaveLength(6);
+      expect([Math.min(...area.map((p) => p.y * Math.sign(hq.x))), Math.max(...area.map((p) => p.y * Math.sign(hq.x)))]).toEqual([-330, 371]); // 700 m of the arc: the ground north and south of it is open to both Sides
+      expect(inside({ x: Math.sign(hq.x) * 1380, y: Math.sign(hq.x) * -500 }, area), 'the open ground along the arc').toBe(false);
     }
   });
 
@@ -234,13 +235,17 @@ describe('Auental vehicles (#154)', () => {
     }
   });
 
-  it('parks every HQ vehicle on drivable ground inside its own HQ, at least 8 m from the next, and the helipads 25 m apart', () => {
+  it('parks every HQ vehicle on drivable ground inside its own HQ, spread out so that most stand within 30 m of a spawn spot, and the helipads 25 m apart', () => {
     for (const side of sides) {
       for (const s of slots(side)) {
         expect(drivable(side, s), `${side} ${s.kind} ${s.x},${s.y}`).toBe(true);
         expect(inHq(side, s), `${side} ${s.kind} ${s.x},${s.y}`).toBe(true);
       }
       expect(closest(slots(side)), side).toBeGreaterThanOrEqual(8);
+      const riders = slots(side).filter((s) => s.kind !== 'aa');
+      const byASpot = riders.filter((s) => map.hqs[side].spawns!.some((p) => Math.hypot(p.x - s.x, p.y - s.y) <= 30));
+      expect(byASpot.length, side).toBeGreaterThanOrEqual(8); // of 10 tanks and jeeps
+      expect(closest(riders.filter((s) => s.kind === 'jeep')), side).toBeGreaterThanOrEqual(60);
       for (const p of pads(side)) expect(inHq(side, p), `${side} pad ${p.x},${p.y}`).toBe(true);
       expect(closest(pads(side)), side).toBeGreaterThanOrEqual(25);
     }

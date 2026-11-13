@@ -41,23 +41,26 @@ HEIGHT_CELL_M = 2  # nothing in the game reads the height grids yet, and at 1 m 
 
 # ------------------------------------------------------------------ layout (#150)
 # Metres, origin at map centre, x east, y north. Gameplay positions match under a half turn about the centre.
-# NATO's HQ is an area, not a spot: the whole crescent between the valley's old west edge (x = -1250) and the arc the Play
-# Area now ends on, which leaves the north-west cut corner, swings 240 m out and comes back in at the south-west corner. Its
-# back is that arc, south to north, the Play Area's own edge; its front is the old edge, stepping 50 m into the valley
-# round the command post, north to south. The Warsaw Pact's is its half turn.
-_HQ_BACK = [(round(x), round(y)) for x, y in catmull(
+# The Play Area ends on an arc at each end: NATO's leaves the north-west cut corner, swings 240 m out past the valley's old
+# west edge (x = -1250) and comes back in at the south-west corner. NATO's HQ is an area, not a spot: a lobe against the
+# middle of that arc. Its back is the arc between two of the arc's own corners, south to north; its front runs from the
+# arc's north corner round the command post, 50 m into the valley, and back to the south corner, in one soft line. The
+# ground between the arc and the valley north and south of it is open to both Sides. The Warsaw Pact's is its half turn.
+_ARC = [(round(x), round(y)) for x, y in catmull(
     [(-1250, -1250), (-1330, -1000), (-1400, -750), (-1452, -500), (-1482, -250), (-1490, -70), (-1484, 100), (-1455, 330),
      (-1400, 540), (-1325, 700), (-1250, 800)], 100.0)]
-_HQ_FRONT = [(-1250, 210), (-1226, 188), (-1202, 125), (-1192, 30), (-1204, -60), (-1196, -150), (-1214, -236), (-1250, -290)]
-_HALF_AREA = [(-1120, 930), (-980, 1060), (-830, 1250), (1250, 1250)] + [(-x, -y) for x, y in _HQ_BACK[1:]]
+_HQ_BACK = _ARC[_ARC.index((-1470, -371)):_ARC.index((-1455, 330)) + 1]
+_HQ_FRONT_LINE = [(-1455, 330), (-1405, 300), (-1335, 262), (-1270, 222), (-1228, 180), (-1203, 120), (-1192, 30), (-1202, -60),
+                  (-1196, -150), (-1212, -228), (-1255, -282), (-1330, -322), (-1410, -352), (-1470, -371)]
+_HQ_FRONT = [(round(x), round(y)) for x, y in catmull(_HQ_FRONT_LINE, 40.0)][1:-1]
+_HALF_AREA = [(-1120, 930), (-980, 1060), (-830, 1250), (1250, 1250)] + [(-x, -y) for x, y in _ARC[1:]]
 PLAY_AREA = _HALF_AREA + [(-x, -y) for x, y in _HALF_AREA]  # 6.71 km², corners cut north-west and south-east
 HQS = {"nato": (-1350.0, -50.0), "pact": (1350.0, 50.0)}  # the command post, on the main road
 HQ_RADIUS = 150.0  # the margin kept round the centre where a rule wants a circle; the HQ itself is HQ_AREA
-HQ_AREA = {"nato": _HQ_BACK + _HQ_FRONT, "pact": [(-x, -y) for x, y in _HQ_BACK + _HQ_FRONT]}  # 0.35 km² each
-# where NATO's Squads start and Redeploy: by the tent camp, the command post, the hospital, the supply dump and the gate,
-# and by the gun line, the north camp, the ammunition depot and the workshop out along the crescent
-HQ_SPAWNS = [(-1420, 86), (-1414, 144), (-1340, 6), (-1378, -30), (-1336, 150), (-1392, -132), (-1305, -200), (-1232, 40),
-             (-1350, 440), (-1330, 560), (-1372, -450), (-1350, -640)]
+HQ_AREA = {"nato": _HQ_BACK + _HQ_FRONT, "pact": [(-x, -y) for x, y in _HQ_BACK + _HQ_FRONT]}  # 0.16 km² each
+# where NATO's Squads start and Redeploy: by the tent camp, the command post, the hospital, the supply dump, the exits
+HQ_SPAWNS = [(-1420, 86), (-1396, 86), (-1414, 144), (-1340, 6), (-1378, -30), (-1336, 150), (-1270, 150), (-1392, -132),
+             (-1420, -200), (-1305, -200), (-1440, 20), (-1232, 40)]
 POINTS = [  # id, x, y, capture radius, owner at the start (every one neutral); the site each one gets when the map is dressed
     ("A", -900.0, 480.0, 30.0, None),  # Kreuzhof: farmstead on the west ridge road
     ("B", -840.0, -640.0, 30.0, None),  # Lindenhof: walled farm on the south road out of the HQ
@@ -81,10 +84,11 @@ CROSSINGS = [  # north to south, twins under the half turn; armour crosses at th
 ]
 # #154: each Side's vehicles, sized so about a third of a Side can ride out at the opening. HQ slots and helipads are metres
 # from NATO's HQ, x toward the field, and PACT's are their half turn. Odd metres put each one on a 2 m cell centre, so a slot
-# and its twin fall in twin cells. The ground vehicles stand in three rows on the motor pool's hardstand, south of the main
-# road by the gate; the pads are the apron north of it.
-HQ_VEHICLES = [("tank", 51, -57), ("tank", 65, -57), ("tank", 79, -57), ("tank", 93, -57),
-               ("jeep", 45, -41), ("jeep", 57, -41), ("jeep", 69, -41), ("jeep", 81, -41), ("jeep", 93, -41), ("jeep", 105, -41),
+# and its twin fall in twin cells. The ground vehicles stand apart through the HQ, one beside each group of spawn spots, so
+# a Squad coming in finds a ride by it: by the camp, the command post, the hospital, the apron, the supply dump and the south
+# exit. One tank and the AA guns wait on the motor pool's hardstand; the pads are the apron north of the main road.
+HQ_VEHICLES = [("tank", -13, 191), ("tank", -3, 65), ("tank", -17, -83), ("tank", 65, -57),
+               ("jeep", -35, 113), ("jeep", -17, 11), ("jeep", 27, 181), ("jeep", 123, 71), ("jeep", -35, -67), ("jeep", 41, -179),
                ("aa", 57, -73), ("aa", 85, -73)]
 HQ_PADS = [(63, 53), (97, 53), (80, 87)]  # one helicopter on each
 JETS = 3  # at the off-map base
@@ -199,7 +203,7 @@ _HQ_TRACKS = [[(-1350, -50), (-1368, 10), (-1375, 70), (-1352, 128), (-1300, 118
               [(-1350, -50), (-1372, -105), (-1378, -160), (-1345, -205), (-1290, -222), (-1228, -246), (-1150, -268),
                (-1000, -300)],
               [(-1290, -222), (-1280, -175), (-1275, -136)], [(-1275, -80), (-1272, -47)],
-              # out along the crescent, north to A's road and south to B's
+              # out through the open ground north and south of the HQ, to A's road and to B's
               [(-1352, 128), (-1345, 300), (-1330, 470), (-1250, 470), (-1100, 470), (-900, 480)],
               [(-1345, -205), (-1352, -400), (-1340, -600), (-1250, -620), (-1050, -640), (-840, -640)]]
 ROADS += [("track", t) for t in _HQ_TRACKS] + [("track", [(-x, -y) for x, y in t]) for t in _HQ_TRACKS]
@@ -313,11 +317,10 @@ def in_hq(x, y):
 # NATO's HQ sites, each with the radius kept clear round it: fields, hedges and trees fill the ground between them
 HQ_SITES = {"post": (-1332, -12, 34), "pool": (-1275, -107, 58), "park": (-1278, -160, 34), "apron": (-1270, 14, 46),
             "camp": (-1412, 114, 40), "hospital": (-1305, 162, 36), "dump": (-1414, -166, 36), "gate": (-1204, -44, 22),
-            "guns": (-1386, 403, 48), "camp2": (-1362, 537, 30), "depot": (-1402, -470, 32), "workshop": (-1392, -585, 30),
             "forward": (-1120, -40, 34)}  # the forward gate stands at the road junction outside the HQ
-HQ_TOWERS = [(-1208, -28), (-1218, 170), (-1226, -226), (-1466, 90), (-1474, -110), (-1446, 330), (-1352, 630),
-             (-1442, -520), (-1348, -900), (-1262, 482), (-1262, -608)]
-_HQ_CLEAR = list(HQ_SITES.values()) + [(x, y, 10) for x, y in HQ_SPAWNS] + [(x, y, 7) for x, y in HQ_TOWERS]
+HQ_TOWERS = [(-1208, -28), (-1236, 166), (-1226, -226), (-1466, 90), (-1474, -110), (-1446, 330), (-1380, -270), (-1378, 204)]
+_HQ_CLEAR = (list(HQ_SITES.values()) + [(x, y, 10) for x, y in HQ_SPAWNS] + [(x, y, 7) for x, y in HQ_TOWERS]
+             + [(HQS["nato"][0] + dx, HQS["nato"][1] + dy, 9) for _, dx, dy in HQ_VEHICLES])
 # open ground kept free of woods and fields: the HQ sites, the point zones, and the sites of the landmarks beside them
 CLEAR = (_HQ_CLEAR + [(-x, -y, r) for x, y, r in _HQ_CLEAR] + [(x, y, r + 15) for _, x, y, r, _ in POINTS]
          + [(x, y, 66 if big else 58) for x, y, _, big in (FARM_A, FARM_B, FARM_K, FARM_L)] + [(x, y, 46) for x, y, _ in FARMS]
@@ -1138,33 +1141,14 @@ def build_hq(side):
     stand(mb, name("bladders"), *at(-1402, -186), turn, "prop")
     bags("dump_berm", -1414, -166, 0.0, [(22, 26), (-28, 26), (-28, -26), (22, -26)], 1.6)
 
-    # out along the crescent, north: the gun line, each gun in its sandbag pit, and a second camp
-    for k in range(4):
-        gx, gy = -1392 + k * 4, 370 + k * 22
-        arc(f"gun_pit{k}", gx, gy, 0.0, 5.0, 3.6)
-        mb = MB()
-        mb.box(0, 0, 0.0, 2.6, 2.0, 1.1, "milgreen")
-        mb.box(3.2, 0, 1.0, 5.6, 0.3, 0.3, "dark")
-        stand(mb, name(f"gun{k}"), *at(gx, gy), turn + r.uniform(-0.25, 0.25), "prop")
-    for k in range(4):
-        tent(f"north{k}", -1378 + k * 11, 535)
-    # and south: the ammunition depot inside its berm, the workshop's trucks under a net
-    stack("depot", -1414, -478, 0.0, 2, 3, 1.2)
-    bags("depot_berm", -1402, -470, 0.0, [(16, 18), (-20, 18), (-20, -18), (16, -18)], 1.8)
-    for i in range(3):
-        truck(name(f"workshop{i}"), *at(-1397 + i * 5, -585), turn + math.pi / 2)
-    camo_net(name("workshop_net"), *at(-1392, -585), turn, r)
-    for k, (x, y, rad) in enumerate(((-1362, 537, 22), (-1392, -585, 22), (-1386, 403, 30))):
-        pit(name(f"worn_far{k}"), *at(x, y), rad, "worn", 0.09, y + s)
-
     # the perimeter: a watchtower at each exit and round the back, a sandbag post beside each exit
     for k, (x, y) in enumerate(HQ_TOWERS):
         tower(k, x, y)
-    for k, (x, y, a) in enumerate(((-1202, -34, 0.1), (-1202, -56, -0.1), (-1212, 166, 0.5), (-1220, -234, -0.5))):
+    for k, (x, y, a) in enumerate(((-1202, -34, 0.1), (-1202, -56, -0.1), (-1216, 138, 0.5), (-1220, -234, -0.5))):
         arc(f"exit_bags{k}", x, y, a)
 
     # the front: a broken line of earth-filled barriers with gaps to walk out through, open wherever a road or track leaves
-    front = catmull([(-1250, 780)] + _HQ_FRONT + [(-1250, -1230)], 2.0)
+    front = catmull(_HQ_FRONT_LINE, 2.0)
     k = 0
     while k < len(front) - 9:
         n = r.randint(5, 8)  # a run of 10 to 16 m, then a gap as long again
