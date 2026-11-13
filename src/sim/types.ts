@@ -489,7 +489,7 @@ export interface Tune {
   droneWoundM: number;
   droneSuppressM: number; // the enemies this near the hit are Contacts for `barrageContactSeconds`
   droneSuppression: number;
-  droneVehicleDamage: number; // to a tank or an AA in the kill radius; anything lighter on the ground is destroyed
+  droneVehicleDamage: number; // to a vehicle on the ground in the kill radius; a jeep is destroyed outright
   droneHp: number; // against the AA's rounds and missiles
 
   // #139 Recon Plane: one pass across the Play Area along a line, revealing a strip under it

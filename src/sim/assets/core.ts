@@ -16,6 +16,7 @@ import { recon } from './recon';
 import { scan } from './scan';
 import { smoke } from './smoke';
 import { supply } from './supply';
+import { live, sleep, type Vehicle } from '../vehicles';
 
 /** One called Asset at work. `until` is the first tick it no longer works. */
 export interface Effect {
@@ -91,6 +92,21 @@ export function newAssets(t: Tune): Assets {
 export function assetRadio(m: Match, e: Effect, text: string, events: SimEvent[]) {
   const grid = m.map.grid && gridRef(m.map.grid, e);
   events.push({ kind: 'radio', side: e.side, squad: null, type: 'asset', text, ...(grid && { grid }), priority: 1 });
+}
+
+/** #139: `side` has `asset` at work: its one aircraft is out (or its last moments still show), so the next call waits. */
+export const inTheAir = (m: Match, side: SideId, asset: 'drone' | 'recon') => (m.assets.effects.some((e) => e.asset === asset && e.side === side) ? 'in the air' : null);
+
+/**
+ * #139: whether the enemy AA has shot down `v`, the aircraft `e` flies (vehicles.ts `hurt`). If so it sleeps where it fell, the
+ * effect is 'down' and stays `barrageContactSeconds` more for the Console to show the fall, and the radio says `line`.
+ */
+export function shotDown(m: Match, e: Effect, v: Vehicle, line: string, events: SimEvent[]): boolean {
+  if (live(v)) return false;
+  sleep(v);
+  Object.assign(e, { phase: 'down', phaseAt: m.tick, until: m.tick + Math.round(m.tune.barrageContactSeconds * m.tune.hz) });
+  assetRadio(m, e, line, events);
+  return true;
 }
 
 /** Why the Asset can't be called, or null. */

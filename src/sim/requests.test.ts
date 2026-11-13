@@ -192,15 +192,18 @@ describe('Request closes', () => {
     expect(request(f)).toBeNull();
   });
 
-  it('#139: a Recon Plane whose pass runs near closes Recon, not one far off; a Drone Strike closes Fire support when it hits', () => {
-    const r = scene(UNSEEN, { tune: { reconCooldownSeconds: 0 } });
+  it('#139: a Recon Plane closes Recon as it passes near, not one far off; a Drone Strike closes Fire support when it hits', () => {
+    const far = scene(UNSEEN);
+    run(far, 1);
+    const at = request(far)!.at;
+    run(far, 9 * HZ, [asset(far, 'recon', { x: at.x + 300, y: 0 }, { x: at.x + 300, y: 50 })]); // a pass north, 300 m east of the grid: level with it after 8 s
+    expect(request(far)).not.toBeNull();
+
+    const r = scene(UNSEEN);
     run(r, 1);
-    const at = request(r)!.at;
-    run(r, 3, [asset(r, 'recon', { x: at.x + 300, y: 0 }, { x: at.x + 300, y: 50 })]); // a pass north, 300 m east of the grid
-    expect(request(r)).not.toBeNull();
-    run(r, 16 * HZ); // that one has left (1500 m at 100 m/s)
-    expect(request(r)).not.toBeNull();
-    run(r, 3, [asset(r, 'recon', { x: at.x + 40, y: 300 }, { x: at.x + 40, y: 350 })]); // 40 m east of it, tapped far up the line
+    run(r, 3 * HZ, [asset(r, 'recon', { x: at.x + 40, y: 300 }, { x: at.x + 40, y: 350 })]); // 40 m east of it, tapped far up the line
+    expect(request(r)).not.toBeNull(); // still 500 m south of it
+    run(r, 6 * HZ);
     expect(request(r)).toBeNull();
 
     const f = scene(SEEN, { tune: { droneCooldownSeconds: 0 } });

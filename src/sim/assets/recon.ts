@@ -9,8 +9,7 @@ import { dist2, inHq, insidePolygon } from '../geometry';
 import { see } from '../memory';
 import { vehicleOf, type Mix } from '../state';
 import { high, live, sleep, wake } from '../vehicles';
-import { assetRadio, type Kind } from './core';
-import { inTheAir } from './drone';
+import { assetRadio, inTheAir, shotDown, type Kind } from './core';
 
 /** The pass starts and ends this far outside the Play Area: about a second and a half of flight, so it is at speed and on line as it crosses the edge. */
 const BEYOND_M = 150;
@@ -23,7 +22,7 @@ export const recon: Kind = {
   seconds: () => 0, // the pass is set at the call, by its length
   radius: (t) => t.reconStripM,
   line: (t) => ({ length: 0, width: 2 * t.reconStripM, across: true, beyond: BEYOND_M }),
-  gate: inTheAir('recon'),
+  gate: (m, side) => inTheAir(m, side, 'recon'),
 
   start(m, e) {
     const t = m.tune;
@@ -37,11 +36,7 @@ export const recon: Kind = {
     if (e.phase === 'down') return;
     const t = m.tune;
     const v = vehicleOf(m, e.vehicle!)!;
-    if (!live(v)) { // shot down (vehicles.ts `hurt`): the reveal stops here; the Console shows the fall for a moment
-      sleep(v);
-      Object.assign(e, { phase: 'down', phaseAt: m.tick, until: m.tick + Math.round(t.barrageContactSeconds * t.hz) });
-      return assetRadio(m, e, 'Recon lost', events);
-    }
+    if (shotDown(m, e, v, 'Recon lost', events)) return; // the reveal stops here
     if (m.tick >= e.land!) {
       sleep(v);
       const n = e.found!.length;

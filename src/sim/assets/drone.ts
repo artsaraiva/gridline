@@ -6,14 +6,9 @@
 // falls where it was with no blast, and the cooldown stands. One a Side at a time.
 import { dist2 } from '../geometry';
 import { vehicleOf, type Mix } from '../state';
-import type { Match } from '../index';
-import type { SideId } from '../types';
-import { live, sleep, wake } from '../vehicles';
-import { assetRadio, type Kind } from './core';
+import { sleep, wake } from '../vehicles';
+import { assetRadio, inTheAir, shotDown, type Kind } from './core';
 import { blast } from './strike';
-
-/** `side` has `asset` at work: its one aircraft is out (or its last moments still show). */
-export const inTheAir = (asset: 'drone' | 'recon') => (m: Match, side: SideId) => (m.assets.effects.some((e) => e.asset === asset && e.side === side) ? 'in the air' : null);
 
 export const drone: Kind = {
   name: 'Drone Strike',
@@ -23,7 +18,7 @@ export const drone: Kind = {
   firstReadySeconds: (t) => t.droneCooldownSeconds, // starts on cooldown, as the Barrage does
   seconds: (t) => t.barrageContactSeconds, // the flight is added at the call, by distance
   radius: (t) => t.droneSuppressM,
-  gate: inTheAir('drone'), // on a map wider than its cooldown flies, the next waits for this one
+  gate: (m, side) => inTheAir(m, side, 'drone'), // on a map wider than its cooldown flies, the next waits for this one
 
   start(m, e) {
     const t = m.tune;
@@ -38,11 +33,7 @@ export const drone: Kind = {
     if (e.told || e.phase === 'down') return;
     const t = m.tune;
     const v = vehicleOf(m, e.vehicle!)!;
-    if (!live(v)) { // shot down (vehicles.ts `hurt`): it falls where it was, with no blast; the Console shows that for a moment
-      sleep(v);
-      Object.assign(e, { phase: 'down', phaseAt: m.tick, until: m.tick + Math.round(t.barrageContactSeconds * t.hz) });
-      return assetRadio(m, e, 'Drone lost', events);
-    }
+    if (shotDown(m, e, v, 'Drone lost', events)) return; // it falls where it was, with no blast
     if (m.tick < e.land!) {
       const k = (m.tick - e.launch!) / (e.land! - e.launch!);
       return void Object.assign(v, { x: e.from!.x + (e.x - e.from!.x) * k, y: e.from!.y + (e.y - e.from!.y) * k, movedAt: m.tick });
@@ -51,8 +42,8 @@ export const drone: Kind = {
     sleep(v);
     events.push({ kind: 'impact', side: e.side, x: e.x, y: e.y, asset: 'drone' });
     assetRadio(m, e, 'Splash', events);
-    // The spec's 50 "kills a jeep, half a tank", but a jeep has 60 hit points: anything lighter than a tank or an AA is destroyed, as by a tank's round
-    blast(m, e.side, e, { killM: t.droneKillM, woundM: t.droneWoundM, suppressM: t.droneSuppressM, suppression: t.droneSuppression }, 'drone', events, { damage: (u) => (u.airborne ? 0 : u.kind === 'tank' || u.kind === 'aa' ? t.droneVehicleDamage : Infinity) });
+    // The spec's 50 "kills a jeep, half a tank", but a jeep has 60 hit points: a jeep is destroyed outright, as by a tank's round
+    blast(m, e.side, e, { killM: t.droneKillM, woundM: t.droneWoundM, suppressM: t.droneSuppressM, suppression: t.droneSuppression }, 'drone', events, { damage: (u) => (u.airborne ? 0 : u.kind === 'jeep' ? Infinity : t.droneVehicleDamage) });
   },
 
   contacts(m, e) {
