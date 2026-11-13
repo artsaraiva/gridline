@@ -493,3 +493,39 @@ describe('#139 Drone Strike and Recon Plane chapters', () => {
     expect(fx(call + 12, 'recon')).toBeUndefined();
   });
 });
+
+describe('#142 Redeploy Beacon chapter', () => {
+  const at = chapter('Redeploy Beacon') - 1;
+  const beacon = (t: number) => viewAt(t).effects!.find((e) => e.asset === 'beacon');
+  const echo = (t: number) => viewAt(t).squads.find((q) => q.name === 'Echo')!;
+  const rapid = (t: number) => viewAt(t).assets!.find((a) => a.asset === 'rapid')!;
+
+  it('Rapid Deploy is called first and its row carries its minute at work; nothing of it is on the map', () => {
+    expect(rapid(at + 0.5).up).toBeUndefined();
+    expect(rapid(at + 2)).toMatchObject({ untargeted: true, up: { left: 59, total: 60 } });
+    expect(eventsBetween(at, at + 2)).toContainEqual({ kind: 'radio', side: 'nato', squad: null, type: 'asset', text: 'Rapid deployment authorised', priority: 1 });
+  });
+
+  it('the beacon falls for 5 s ("Beacon inbound", "Beacon down"), then stays; the deny ring shows only while the prowler is inside 30 m', () => {
+    expect(beacon(at + 1)).toBeUndefined();
+    expect(beacon(at + 3)).toMatchObject({ x: -100, y: 50, landsIn: 4, fall: 5, side: 'nato', radius: 30 });
+    expect(beacon(at + 8)).toMatchObject({ landsIn: 0 });
+    const lines = eventsBetween(at, LENGTH).flatMap((e) => (e.kind === 'radio' && e.type === 'asset' ? [e.text] : []));
+    expect(lines).toEqual(['Rapid deployment authorised', 'Beacon inbound', 'Beacon down']);
+    const contested = Array.from({ length: 36 }, (_, s) => !!beacon(at + s + 0.5)?.contested);
+    expect(contested.slice(0, 11).some(Boolean)).toBe(false);
+    expect(contested.slice(12, 14).every(Boolean)).toBe(true);
+    expect(contested.slice(17).some(Boolean)).toBe(false);
+  });
+
+  it('Echo, wiped, reads "at beacon" except while it is contested, and Redeploys round it 10 s after the wipe (under Rapid Deploy)', () => {
+    expect(echo(at + 9)).toMatchObject({ strength: 0, atBeacon: true, redeployIn: 9 });
+    expect(echo(at + 13).atBeacon).toBeUndefined();
+    expect(echo(at + 17).atBeacon).toBe(true);
+    const back = eventsBetween(at, LENGTH).find((e) => e.kind === 'redeploy');
+    expect(back).toEqual({ kind: 'redeploy', side: 'nato', squad: 4, x: -100, y: 50 });
+    const men = viewAt(at + 18.5).friendlies.filter((f) => f.squad === 4);
+    expect(men).toHaveLength(4);
+    for (const f of men) expect(Math.hypot(f.x + 100, f.y - 50)).toBeLessThan(10);
+  });
+});

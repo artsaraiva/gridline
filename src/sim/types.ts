@@ -497,6 +497,17 @@ export interface Tune {
   reconSpeedMps: number;
   reconStripM: number; // enemies this near the aircraft are revealed
   reconHp: number;
+
+  // #142 Redeploy Beacon: a crate the Commander drops where wiped Squads may Redeploy
+  beaconCooldownSeconds: number; // from the call; it also starts the match on this cooldown
+  beaconSeconds: number; // live this long after it lands (it falls for `supplyFallSeconds`)
+  beaconRingM: number; // the call's ring
+  beaconDenyM: number; // a living enemy Soldier this near silences it
+
+  // #142 Rapid Deploy (was #145): for a while every Squad of the Side respawns and Redeploys faster
+  rapidCooldownSeconds: number; // from the call; it also starts the match on this cooldown
+  rapidSeconds: number;
+  rapidMul: number; // on `respawnSeconds` and `redeploySeconds` while it works
 }
 
 /** #55: what a Commander Score award is for. */
@@ -504,13 +515,13 @@ export type ScoreCategory = 'uav' | 'supply' | 'artillery' | 'orders';
 
 export type Command =
   | { tick: number; side: SideId; kind: 'order'; squad: number; point: string | null }
-  | { tick: number; side: SideId; kind: 'asset'; asset: 'scan' | 'supply' | 'barrage' | 'missile' | 'gunship' | 'smoke' | 'creep' | 'drone' | 'recon'; at: Vec2; to?: Vec2 } // #138: `to` is a line-shaped Asset's second tap: its line runs from `at` towards it
+  | { tick: number; side: SideId; kind: 'asset'; asset: 'scan' | 'supply' | 'barrage' | 'missile' | 'gunship' | 'smoke' | 'creep' | 'drone' | 'recon' | 'beacon' | 'rapid'; at?: Vec2; to?: Vec2 } // #138: `to` is a line-shaped Asset's second tap: its line runs from `at` towards it. #142: `at` is absent only for an untargeted Asset (Rapid Deploy)
   /** #136: no `id` places a Mark at `at`; with `id` it renews that Mark, or clears it when `at` is null. */
   | { tick: number; side: SideId; kind: 'mark'; at: Vec2 | null; id?: number };
 
 export type AssetKind = Extract<Command, { kind: 'asset' }>['asset'];
 /** #99: what a Squad may Request: never a Cruise Missile (#58), #101 nor a Gunship, #138 nor a line-shaped Asset. */
-export type RequestKind = Exclude<AssetKind, 'missile' | 'gunship' | 'smoke' | 'creep' | 'drone' | 'recon'>; // #139: a Drone Strike answers a Barrage Request and a Recon Plane a Scan one (requests.ts)
+export type RequestKind = Exclude<AssetKind, 'missile' | 'gunship' | 'smoke' | 'creep' | 'drone' | 'recon' | 'beacon' | 'rapid'>; // #139: a Drone Strike answers a Barrage Request and a Recon Plane a Scan one (requests.ts); #142: Squads never Request a beacon or Rapid Deploy
 
 export interface MatchResult {
   winner: SideId | null; // null = draw
@@ -591,6 +602,8 @@ export interface SquadView {
   takingFire?: boolean;
   /** The Capture Point id the wiped Squad would Redeploy at now; null = its HQ. Set only when wiped. */
   redeployAt?: string | null;
+  /** #142: the wiped Squad would Redeploy at its Side's Redeploy Beacon now, ahead of `redeployAt`. Set only then. */
+  atBeacon?: true;
   /** #34: what the Squad does on its own: heads for `point`, holds it, falls back to it (or the HQ), or fetches ammo at the HQ. */
   task?: 'move' | 'hold' | 'retreat' | 'resupply' | null;
   /** #34: the Capture Point id of the task; null = the HQ, or no task. */
@@ -682,6 +695,10 @@ export interface AssetView {
   retask?: true;
   /** #138: it is line-shaped: called with two taps, on a strip this long from the first towards the second and this wide. Absent otherwise. #139: `across`: the strip runs through the first tap right across the Play Area and `beyond` metres past each edge, whatever `length` says. */
   line?: { length: number; width: number; across?: true; beyond?: number };
+  /** #142: it is untargeted (Rapid Deploy): called with no spot, so Confirm needs no tap. Absent otherwise. */
+  untargeted?: true;
+  /** #142: an untargeted Asset at work (it has no effect on the map): the seconds it keeps working and its full time. Absent otherwise. */
+  up?: { left: number; total: number };
 }
 
 export interface EffectView {
@@ -722,6 +739,9 @@ export interface EffectView {
   // #139 Drone Strike and Recon Plane: in the sky, so in both Sides' views, with `side` and `craft` (`turn` 0: they fly straight). The drone's `from` is the HQ it left, its `flight` and `impactIn` as the missile's; the Recon Plane's `line` is its pass, in the caller's view only.
   /** The enemy AA shot it down: `craft` is where it was hit, and nothing more comes of it. Absent otherwise. */
   lost?: true;
+  // #142 Redeploy Beacon: a crate (`landsIn` and `fall` as the Supply Drop's) with `side`; in the enemy's view only while an enemy Soldier sees it. `radius` is its deny ring (`beaconDenyM`).
+  /** A living enemy Soldier is inside the deny ring, so no Squad Redeploys there. Own view only; absent otherwise. */
+  contested?: true;
 }
 
 /** Things that happened this tick, on every Side; `commanderEvents` keeps the ones a Side's Console may show. */

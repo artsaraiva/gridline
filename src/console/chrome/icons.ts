@@ -20,6 +20,11 @@ export const SMOKE_ICON = '<path fill="currentColor" stroke-width="0.6" d="M6.5 
 /** #138: the Creeping Barrage: three filled shells stepping along the arrow under them. */
 export const CREEP_ICON = '<path fill="currentColor" stroke-width="0.6" d="M4.6 5.5l1.5 2.6v6H3.1v-6z M11 3.5l1.5 2.6v8H9.5v-8z M17.4 5.5l1.5 2.6v6h-3v-6z"/><path d="M3 19.5h16.5M17.5 17l3 2.5-3 2.5"/>';
 
+/** #142: the Redeploy Beacon: a case, its mast and the filled light on top, signal arcs either side. */
+export const BEACON_ICON = '<path d="M8.5 16.5h7v4.5h-7z"/><path d="M12 16.5V7.2"/><circle cx="12" cy="5.8" r="1.5" fill="currentColor"/><path d="M8.6 3.4a4.6 4.6 0 0 0 0 4.8M15.4 3.4a4.6 4.6 0 0 1 0 4.8M6 2a8 8 0 0 0 0 7.6M18 2a8 8 0 0 1 0 7.6"/>';
+/** #142: Rapid Deploy: a stopwatch with two chevrons running through it. */
+export const RAPID_ICON = '<circle cx="12" cy="13.5" r="7.8"/><path d="M12 3v2.2M9.8 3h4.4"/><path d="M8.4 10.5l3 3-3 3M12.6 10.5l3 3-3 3"/>';
+
 const PATHS: Record<AssetKind, string> = {
   scan: '<path d="M12 2.5v18.5M2.5 11l9.5-1.8 9.5 1.8M8.3 19.8h7.4"/><circle cx="12" cy="9.4" r="1.1" fill="currentColor"/>',
   supply: '<path d="M3.5 10a8.5 6.5 0 0 1 17 0Zm0 0 6.3 5.6m10.7-5.6-6.3 5.6M12 10v5.6"/><path d="M8.6 15.6h6.8v5.4H8.6z"/><path d="M8.6 18.3h6.8"/>',
@@ -30,6 +35,8 @@ const PATHS: Record<AssetKind, string> = {
   creep: CREEP_ICON,
   drone: DRONE_ICON,
   recon: RECON_ICON,
+  beacon: BEACON_ICON,
+  rapid: RAPID_ICON,
 };
 
 /** #107: the Squad tile and card's badge for one member aboard a tank: a filled side-on hull, turret and gun. */

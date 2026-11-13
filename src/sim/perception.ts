@@ -3,6 +3,7 @@ import { dist2, inHq } from './geometry';
 import { los } from './grid';
 import { forget, see } from './memory';
 import { vehicleOf, type Soldier } from './state';
+import type { Vec2 } from './types';
 import { look as vehicleLook, seeVehicles } from './vehicles';
 
 /** The perception phase: memory ages, then every living Soldier on foot looks around, then #107 every crewed vehicle. */
@@ -10,6 +11,15 @@ export function perceive(m: Match) {
   forget(m);
   for (const s of m.soldiers) if (s.state === 'alive' && s.vehicle < 0 && !s.chute) look(m, s); // #130: a parachutist looks at nothing
   for (const v of m.vehicles) vehicleLook(m, v);
+}
+
+/** #142: `s` sees the spot `p` on the ground: within `visionM`, inside its vision cone and in line of sight. */
+export function sees(m: Match, s: Soldier, p: Vec2): boolean {
+  const t = m.tune;
+  const d2 = dist2(s, p);
+  if (d2 > t.visionM * t.visionM) return false;
+  if ((p.x - s.x) * s.fx + (p.y - s.y) * s.fy < t.visionCos * Math.sqrt(d2)) return false;
+  return los(m, s, p);
 }
 
 /**

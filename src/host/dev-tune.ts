@@ -21,6 +21,8 @@ export function devTune(freeAssets: boolean, tanks?: number): Tune {
     creepCooldownSeconds: 0,
     droneCooldownSeconds: 0,
     reconCooldownSeconds: 0,
+    beaconCooldownSeconds: 0,
+    rapidCooldownSeconds: 0,
     missileGated: false,
     matchSeconds: 3600,
   };

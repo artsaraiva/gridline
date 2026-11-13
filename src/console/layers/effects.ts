@@ -5,6 +5,7 @@
 // its focus is a mark (layers/gunship.ts), and only its label is here. #138: a line-shaped Asset (Smoke Screen, Creeping
 // Barrage) has a strip in place of the ring: a thin outlined rectangle, in the preview and until its last shell is down.
 // #139: the Recon Plane's preview strip runs right across the map; in the air it and the Drone Strike have only a label here.
+// #142: the Redeploy Beacon has only its label here too (layers/beacon.ts draws the case, lamp and deny ring); Rapid Deploy has no map effect.
 import * as THREE from 'three/webgpu';
 import { gridRef } from '../../sim/grid-ref';
 import type { CommanderView, Vec2 } from '../../sim/types';
@@ -18,7 +19,7 @@ import { css, dashedRing, fading, UNIT_PX } from './symbols';
 /** #101: how far the Gunship's focus mark reaches from its spot on screen (the Cruise Missile's target mark: a chevron unit). */
 export const FOCUS_MARK_PX = UNIT_PX;
 
-const NAME = { scan: 'Scan UAV', supply: 'Supply Drop', barrage: 'Barrage', missile: 'Missile', gunship: 'Gunship', smoke: 'Smoke Screen', creep: 'Creeping Barrage', drone: 'Drone Strike', recon: 'Recon Plane' };
+const NAME = { scan: 'Scan UAV', supply: 'Supply Drop', barrage: 'Barrage', missile: 'Missile', gunship: 'Gunship', smoke: 'Smoke Screen', creep: 'Creeping Barrage', drone: 'Drone Strike', recon: 'Recon Plane', beacon: 'Beacon', rapid: 'Rapid Deploy' };
 const discGeometry = new THREE.CircleGeometry(1, 96);
 /** The Barrage ring turns this fast while it works, so an ongoing strike reads at a glance. */
 const RING_TURN_RAD_PER_S = 0.25;
@@ -112,6 +113,13 @@ export function drawEffects(view: CommanderView, now: number) {
       if (e.side !== view.side || !e.craft || e.lost) continue;
       if (e.asset === 'drone') label(tags++, e, FOCUS_MARK_PX + 4, -18, `DRONE STRIKE IMPACT ${clock(Math.ceil(e.impactIn ?? 0))}`, css(sideColor(e.side)));
       else label(tags++, e.craft, 22, -34, `RECON PLANE ${clock(Math.ceil(e.left))}`, css(sideColor(e.side)));
+      continue;
+    }
+    if (e.asset === 'beacon') {
+      // #142: layers/beacon.ts draws the case, its lamp and the deny ring; here the label, to its own Commander, hostile while the beacon is silenced
+      if (e.side !== view.side) continue;
+      const time = e.landsIn ? `LANDS ${clock(Math.ceil(e.landsIn))}` : e.contested ? 'CONTESTED' : clock(Math.ceil(e.left));
+      label(tags++, { x: e.x + 6, y: e.y + 6 }, 6, -18, `BEACON ${time}`, css(e.contested ? COLOR.hostile : COLOR.friendly));
       continue;
     }
     if (e.asset === 'smoke' || e.asset === 'creep') {

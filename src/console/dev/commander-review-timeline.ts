@@ -1,16 +1,15 @@
 // DEV-only Commander look review timeline (#69): a hand-written, deterministic script of CommanderViews and Events on
 // Kaltenbach coordinates, so the Console's readability treatments (#70 firing pulse, #71 selection and Squad Leader
 // markers), the Cruise Missile's marks (#99), the tank (#107: sprite, turret, Wreck, badge, main gun), the jeep (#108:
-// sprite, Wreck, badge, MG, dismount), the jet and the AA (#110: a pass, the AA's stream on a helicopter and a jet), the helicopter's jobs (#131: a pickup away from the HQ, a hot drop, Support, a repair trip home, a bail-out and crash) and the parachute jump (#130: a crippled helicopter's riders come down on a chevron that grows from 70% to full size) and the transport helicopter (#109: lift-off, flight, landing, unload, home; #124: dogleg, flare, Landing Zone) and the Gunship (#101: its route ring, orbit and shells, its gunner's bursts and a paratrooper; the enemy's under the AA's bursts, falling as a Wreck) and the line-shaped Assets (#138: the Smoke Screen's strip, shells and discs, the Creeping Barrage's march and dust line) are judged on every
+// sprite, Wreck, badge, MG, dismount), the jet and the AA (#110: a pass, the AA's stream on a helicopter and a jet), the helicopter's jobs (#131: a pickup away from the HQ, a hot drop, Support, a repair trip home, a bail-out and crash) and the parachute jump (#130: a crippled helicopter's riders come down on a chevron that grows from 70% to full size) and the transport helicopter (#109: lift-off, flight, landing, unload, home; #124: dogleg, flare, Landing Zone) and the Gunship (#101: its route ring, orbit and shells, its gunner's bursts and a paratrooper; the enemy's under the AA's bursts, falling as a Wreck) and the line-shaped Assets (#138: the Smoke Screen's strip, shells and discs, the Creeping Barrage's march and dust line) and the Redeploy Beacon (#142: its fall, its blinking lamp, the deny ring while an enemy stands in it, a wiped Squad's tile "at beacon" and its Redeploy there; Rapid Deploy's row at work) are judged on every
 // Squad Leader state without a Simulation. `viewAt` and `eventsBetween` are pure.
-import { STAGGER_SECONDS } from '../../sim/assets/smoke';
-import { smokeDisc, smokeLife } from '../../sim/smoke';
+import { smokeDisc, smokeLife, STAGGER_SECONDS } from '../../sim/smoke';
 import { DEFAULT_TUNE } from '../../sim/tune';
 import type { AssetView, CommanderView, EffectView, FriendlyView, LastKnownView, MarkView, SideId, SimEvent, SoldierView, SquadView, Vec2, VehicleView } from '../../sim/types';
 
 /** The first twelve chapters end here; #131 adds the helicopter jobs after them. */
 const OLD_END = 192;
-export const LENGTH = 772;
+export const LENGTH = 808;
 
 /** Where each state starts, for scrubbing. */
 export const CHAPTERS = [
@@ -39,6 +38,7 @@ export const CHAPTERS = [
   { at: 720, title: 'Drone Strike' },
   { at: 740, title: 'Drone lost' },
   { at: 756, title: 'Recon Plane' },
+  { at: 772, title: 'Redeploy Beacon' },
 ];
 
 /** Centre of the overlapping Squads, for the close zoom preset. */
@@ -46,6 +46,16 @@ export const CLOSE_AT = { x: -66, y: 18 };
 
 const HQ = { x: -415, y: 0 };
 const HZ = DEFAULT_TUNE.hz;
+
+// #142 REDEPLOY BEACON: Rapid Deploy is called a second in (its row runs its minute: "Up"), then the beacon on open ground west
+// of Alpha: it falls under its canopy, lands and its lamp blinks. Echo is wiped at B and would Redeploy there (its tile says so)
+// until a prowling enemy walks inside the 30 m deny ring: the ring shows and the tile reads HQ again. The prowler moves on, and
+// Echo Redeploys round the beacon, in 10 s under Rapid Deploy. Defined up here as Echo's path reads them.
+const BEACON_AT = CHAPTERS.find((c) => c.title === 'Redeploy Beacon')!.at;
+const RAPID_AT = BEACON_AT + 1;
+const BEACON = { call: BEACON_AT + 2, at: { x: -100, y: 50 } };
+const ECHO_WIPE: Span = [BEACON_AT + 8, BEACON_AT + 8 + DEFAULT_TUNE.redeploySeconds * DEFAULT_TUNE.rapidMul];
+const PROWL: Span = [BEACON_AT + 9, BEACON_AT + 17];
 
 // #99: a Cruise Missile called on the Contacts 10 s before the missile chapter, so the chapter opens on the edge-glued
 // icon and the hit lands before the Wipe: it leaves from beyond the west edge behind the HQ (where the Simulation
@@ -385,7 +395,14 @@ const MEN: Man[] = [
     { id: 17, at: { x: -196, y: -152 }, down: { x: -3, y: 222 }, walk: { x: 2, y: 266 } },
     { id: 18, at: { x: -204, y: -156 }, down: { x: -16, y: 227 }, walk: { x: -10, y: 270 } },
     { id: 19, at: { x: -198, y: -142 }, down: { x: 2, y: 206 }, walk: { x: 4, y: 258 } },
-  ].map(({ id, at, down, walk }): Man => ({ id, squad: 4, from: FERRY_AT - 1, path: [[0, at.x, at.y], [PICK_DOWN, at.x, at.y], [PICK_DOWN + 8, PICKUP.x + (id - 17) * 3, PICKUP.y + (id - 17) * 3], [DOWN_B, down.x, down.y], [DOWN_B + 25, walk.x, walk.y], [LENGTH, walk.x, walk.y]], ...east })),
+  ].map(({ id, at, down, walk }): Man => {
+    const back = { x: BEACON.at.x + ((id % 2) * 2 - 1) * 4, y: BEACON.at.y + (id < 18 ? 4 : -4) }; // #142: round the beacon, each on its own side of it
+    return {
+      id, squad: 4, from: FERRY_AT - 1, dead: [ECHO_WIPE],
+      path: [[0, at.x, at.y], [PICK_DOWN, at.x, at.y], [PICK_DOWN + 8, PICKUP.x + (id - 17) * 3, PICKUP.y + (id - 17) * 3], [DOWN_B, down.x, down.y], [DOWN_B + 25, walk.x, walk.y], [ECHO_WIPE[0], walk.x, walk.y], [ECHO_WIPE[1], back.x, back.y], [LENGTH, back.x + 24, back.y - 8]],
+      ...east,
+    };
+  }),
 ];
 const CONTACTS: Man[] = [
   { id: 20, squad: -1, path: [[0, -14, 30], [OLD_END, -18, 28]], fx: -1, fy: 0 },
@@ -397,6 +414,8 @@ const HOT: Man[] = [
   { id: 24, squad: -1, path: [[0, 6, 310], [LENGTH, 6, 310]], fx: -0.6, fy: -0.8 },
   { id: 25, squad: -1, path: [[0, -8, 294], [LENGTH, -8, 294]], fx: -0.6, fy: -0.8 },
 ];
+/** #142: the enemy who walks inside the beacon's deny ring, waits there and moves on; a Contact while Alpha sees it. */
+const PROWLER: Man = { id: 26, squad: -1, path: [[PROWL[0], -40, 95], [PROWL[0] + 2.5, -88, 68], [PROWL[0] + 5.5, -88, 68], [PROWL[1], -40, 110]], fx: -0.8, fy: -0.6 };
 
 // #110 JET PASS: Charlie's 10 spawns as nato's jet pilot: at JET_AT the jet takes off from the base (where the Cruise Missile
 // leaves), off screen (its icon glued to the screen edge), flies in at `jetMps`
@@ -656,16 +675,17 @@ interface Sq {
   id: number;
   name: string;
   members: number[];
-  wiped?: Span;
+  wiped?: { span: Span; at: Vec2 }[]; // each wipe and where it Redeploys (#142: the HQ, or the beacon)
   from?: number; // #131: it is in the view from this time on
 }
 const SQUADS: Sq[] = [
   { id: 0, name: 'Alpha', members: [0, 1, 2, 3] },
-  { id: 1, name: 'Bravo', members: [4, 5, 6, 7], wiped: [50, 62] },
+  { id: 1, name: 'Bravo', members: [4, 5, 6, 7], wiped: [{ span: [50, 62], at: HQ }] },
   { id: 2, name: 'Charlie', members: [8, 9, 10, 11] },
   { id: 3, name: 'Delta', members: [12, 13, 14, 15] },
-  { id: 4, name: 'Echo', members: [16, 17, 18, 19], from: FERRY_AT - 1 },
+  { id: 4, name: 'Echo', members: [16, 17, 18, 19], from: FERRY_AT - 1, wiped: [{ span: ECHO_WIPE, at: BEACON.at }] },
 ];
+const wipeAt = (q: Sq, t: number) => q.wiped?.find(({ span: [a, b] }) => t >= a && t < b);
 
 const POINTS = [
   { id: 'A', name: 'A', x: -262, y: -322, radius: 25, owner: 'nato' as const, progress: 1 },
@@ -679,7 +699,8 @@ const soldier = (m: Man, t: number): SoldierView => ({ id: m.id, ...at(m.path, t
 
 function squadView(q: Sq, t: number): SquadView {
   const men = MEN.filter((m) => q.members.includes(m.id));
-  const gone = inSpan(q.wiped && [q.wiped], t);
+  const wipe = wipeAt(q, t);
+  const gone = !!wipe;
   const deadUntil = (m: Man) => m.dead?.find(([a, b]) => t >= a && t < b)?.[1];
   const leader = inSpan(men[0]!.dead, t) ? null : men[0]!.id; // the first roster member, as the Simulation's rule (#68, #54)
   return {
@@ -689,8 +710,8 @@ function squadView(q: Sq, t: number): SquadView {
     strength: men.filter((m) => !inSpan(m.dead, t) && !inSpan(m.wounded, t)).length,
     respawnIn: gone ? [] : men.map(deadUntil).filter((b): b is number => b !== undefined).map((b) => b - t),
     takingFire: !gone && t >= CHAPTERS[1]!.at,
-    ...(gone && { redeployAt: null }),
-    redeployIn: gone ? q.wiped![1] - t : null,
+    ...(gone && { redeployAt: null, ...(wipe.at === BEACON.at && beaconLive(t) && !contested(t) && { atBeacon: true as const }) }),
+    redeployIn: gone ? wipe.span[1] - t : null,
     task: gone ? null : 'hold',
     point: gone ? null : 'C',
     route: null,
@@ -722,14 +743,14 @@ export function viewAt(t: number): CommanderView {
     tick: Math.round(t * HZ),
     seconds: t,
     friendlies,
-    contacts: [...CONTACTS, ...(t >= HELI_AT ? [LOOKOUT] : []), ...(t >= FERRY_AT - 1 ? HOT : [])].map((c) => soldier(c, t)),
+    contacts: [...CONTACTS, ...(t >= HELI_AT ? [LOOKOUT] : []), ...(t >= FERRY_AT - 1 ? HOT : []), ...(inSpan([PROWL], t) ? [PROWLER] : [])].map((c) => soldier(c, t)),
     lastKnown: lostHeli(t),
     squads: SQUADS.filter((q) => (q.from ?? 0) <= t).map((q) => squadView(q, t)),
     points: POINTS,
     tickets: { nato: 150, pact: 150 },
     result: null,
-    assets: [{ asset: 'missile', readyIn: t < MISSILE.at ? 0 : Math.max(0, MISSILE.at + DEFAULT_TUNE.missileCooldownSeconds - t), cooldown: DEFAULT_TUNE.missileCooldownSeconds, radius: DEFAULT_TUNE.missileSuppressM }, gunshipRow(t), ...lineRows(t), ...airRows(t)],
-    effects: [...missileAt(t), ...gunshipsAt(t), ...smokeAt(t), ...creepAt(t), ...droneAt(DRONE, 'nato', t), ...droneAt(DRONE_DOWN, 'pact', t), ...reconAt(t)],
+    assets: [{ asset: 'missile', readyIn: t < MISSILE.at ? 0 : Math.max(0, MISSILE.at + DEFAULT_TUNE.missileCooldownSeconds - t), cooldown: DEFAULT_TUNE.missileCooldownSeconds, radius: DEFAULT_TUNE.missileSuppressM }, gunshipRow(t), ...lineRows(t), ...airRows(t), ...beaconRows(t)],
+    effects: [...missileAt(t), ...gunshipsAt(t), ...smokeAt(t), ...creepAt(t), ...droneAt(DRONE, 'nato', t), ...droneAt(DRONE_DOWN, 'pact', t), ...reconAt(t), ...beaconAt(t)],
     vehicles: [...tanksAt(t), ...jeepsAt(t), ...helisAt(t), ...paraHeli(t), ...airAt(t), ...gunshipBodies(t)],
     marks: marksAt(t),
   };
@@ -863,6 +884,35 @@ function airEvents(): [number, SimEvent][] {
   ];
 }
 
+// #142: the beacon chapter's effect, rows and lines (constants by BEACON_AT, at the top).
+const BEACON_FALL = G.supplyFallSeconds;
+const BEACON_TOTAL = BEACON_FALL + G.beaconSeconds;
+const beaconLive = (t: number) => t >= BEACON.call + BEACON_FALL;
+/** A living enemy (the prowler) stands inside the deny ring. */
+const contested = (t: number) => inSpan([PROWL], t) && Math.hypot(at(PROWLER.path, t).x - BEACON.at.x, at(PROWLER.path, t).y - BEACON.at.y) < G.beaconDenyM;
+
+function beaconAt(t: number): EffectView[] {
+  const s = t - BEACON.call;
+  if (s < 0 || s >= BEACON_TOTAL) return [];
+  return [{ asset: 'beacon', ...BEACON.at, radius: G.beaconDenyM, left: BEACON_TOTAL - s, total: BEACON_TOTAL, landsIn: Math.max(0, BEACON_FALL - s), fall: BEACON_FALL, side: 'nato', ...(beaconLive(t) && contested(t) && { contested: true as const }) }];
+}
+
+/** The two rows, each ready until its call; Rapid Deploy carries its minute at work on the row. */
+const beaconRows = (t: number): AssetView[] => [
+  { asset: 'beacon', readyIn: t < BEACON.call ? 0 : Math.max(0, BEACON.call + G.beaconCooldownSeconds - t), cooldown: G.beaconCooldownSeconds, radius: G.beaconRingM },
+  { asset: 'rapid', readyIn: t < RAPID_AT ? 0 : Math.max(0, RAPID_AT + G.rapidCooldownSeconds - t), cooldown: G.rapidCooldownSeconds, radius: 0, untargeted: true, ...(t >= RAPID_AT && t < RAPID_AT + G.rapidSeconds && { up: { left: RAPID_AT + G.rapidSeconds - t, total: G.rapidSeconds } }) },
+];
+
+function beaconEvents(): [number, SimEvent][] {
+  const line = (t: number, text: string): [number, SimEvent] => [t, { kind: 'radio', side: 'nato', squad: null, type: 'asset', text, grid: 'F6', priority: 1 }];
+  return [
+    [RAPID_AT, { kind: 'radio', side: 'nato', squad: null, type: 'asset', text: 'Rapid deployment authorised', priority: 1 }], // untargeted: no grid
+    line(BEACON.call, 'Beacon inbound'),
+    line(BEACON.call + BEACON_FALL, 'Beacon down'),
+    [ECHO_WIPE[0], { kind: 'radio', side: 'nato', squad: 4, type: 'wiped', text: 'Echo wiped', priority: 5 }],
+  ];
+}
+
 /** Events with `t0 < time <= t1`, in time order: what crossed since the last frame while playing. */
 export function eventsBetween(t0: number, t1: number): SimEvent[] {
   return EVENTS.filter(([t]) => t > t0 && t <= t1).map(([, e]) => e);
@@ -915,10 +965,10 @@ function casualties(): [number, SimEvent][] {
     }
     for (const [a, b] of m.dead ?? []) {
       events.push([a, { kind: 'death', side, id: m.id, ...at(m.path, a) }]);
-      if (b < LENGTH && sq.wiped?.[1] !== b) events.push([b, { kind: 'respawn', side, id: m.id, ...at(m.path, b) }]);
+      if (b < LENGTH && !sq.wiped?.some((w) => w.span[1] === b)) events.push([b, { kind: 'respawn', side, id: m.id, ...at(m.path, b) }]);
     }
   }
-  for (const q of SQUADS) if (q.wiped) events.push([q.wiped[1], { kind: 'redeploy', side, squad: q.id, ...HQ }]);
+  for (const q of SQUADS) for (const w of q.wiped ?? []) events.push([w.span[1], { kind: 'redeploy', side, squad: q.id, ...w.at }]);
   return events;
 }
 
@@ -964,4 +1014,4 @@ function orbitFire(): [number, SimEvent][] {
   return events;
 }
 
-const EVENTS: [number, SimEvent][] = [...casualties(), ...firefight(), ...strike(), ...gun(), ...mg(), ...sideGun(), ...orbitFire(), ...airFire(), ...gunshipEvents(), ...markEvents(), ...lineEvents(), ...airEvents()].sort((a, b) => a[0] - b[0]);
+const EVENTS: [number, SimEvent][] = [...casualties(), ...firefight(), ...strike(), ...gun(), ...mg(), ...sideGun(), ...orbitFire(), ...airFire(), ...gunshipEvents(), ...markEvents(), ...lineEvents(), ...airEvents(), ...beaconEvents()].sort((a, b) => a[0] - b[0]);

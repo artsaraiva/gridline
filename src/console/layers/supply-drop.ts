@@ -34,7 +34,7 @@ const drops = pool(() => {
 /** `scale` is the chevron size in metres (constant on screen), used for the icon. */
 export function drawSupplyDrops(view: CommanderView, scale: number) {
   for (const e of view.effects ?? []) {
-    if (e.landsIn === undefined || !e.fall) continue;
+    if (e.asset !== 'supply' || e.landsIn === undefined || !e.fall) continue; // #142: the beacon falls too, in layers/beacon.ts
     const d = supplyDrop({ x: e.x, y: e.y, landsIn: e.landsIn, fall: e.fall });
     const m = drops.next();
     m.shadow.visible = !d.landed;
