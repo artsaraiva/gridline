@@ -31,7 +31,7 @@ function setClose() {
 /** Close tactical zoom centred on one Asset's call spot (#101: wider for the Gunship's loops). */
 function setFocus(asset: AssetKind) {
   const { at } = ASSETS.find((a) => a.asset === asset)!;
-  camera.zoom = asset === 'gunship' ? 1.6 : 8;
+  camera.zoom = asset === 'gunship' || asset === 'recon' ? 1.6 : asset === 'drone' ? 3 : 8; // #139: wide enough for the Recon Plane's pass, and for the drone's flight in
   camera.position.set(at.x, at.y, 100);
   camera.updateProjectionMatrix();
 }
@@ -46,7 +46,7 @@ function follow(kind: VehicleKind) {
   }, 100);
 }
 
-/** `?focus=barrage|scan|supply|gunship|smoke|creep` frames that Asset close up, `?focus=tank|jeep|helicopter|jet|aa` follows nato's vehicle of that class, `?focus=close` the cluster; anything else is the overview. */
+/** `?focus=barrage|scan|supply|gunship|smoke|creep|drone|recon` frames that Asset close up, `?focus=tank|jeep|helicopter|jet|aa` follows nato's vehicle of that class, `?focus=close` the cluster; anything else is the overview. */
 function applyFocus(focus: string | null) {
   if (focus === 'close') setClose();
   else if (VEHICLES.includes(focus as VehicleKind)) follow(focus as VehicleKind);
@@ -71,7 +71,7 @@ export async function startAssetReview(): Promise<() => void> {
   controls.innerHTML = `
     <div class="eyebrow">DEV review / #60</div>
     <h2>Asset review</h2>
-    <p>Barrage · Scan UAV · Supply Drop · Gunship · Smoke Screen · Creeping Barrage cycling on the real bake.</p>
+    <p>Barrage · Scan UAV · Supply Drop · Gunship · Smoke Screen · Creeping Barrage · Drone Strike · Recon Plane cycling on the real bake.</p>
     <div class="row">
       <button id="ar-overview" type="button">Overview</button>
       <button id="ar-close" type="button">Close tactical</button>
@@ -104,7 +104,7 @@ export async function startAssetReview(): Promise<() => void> {
 
   function callAll() {
     const up = (asset: AssetKind) => session.view?.effects?.some((e) => e.asset === asset && e.side === 'nato');
-    for (const { asset, at, to } of ASSETS) if ((asset !== 'gunship' && asset !== 'smoke') || !up(asset)) host.send({ side: 'nato', kind: 'asset', asset, at, ...(to && { to }) });
+    for (const { asset, at, to } of ASSETS) if (!['gunship', 'smoke', 'drone', 'recon'].includes(asset) || !up(asset)) host.send({ side: 'nato', kind: 'asset', asset, at, ...(to && { to }) });
   }
   callAll();
   const interval = setInterval(callAll, CYCLE_SECONDS * 1000);

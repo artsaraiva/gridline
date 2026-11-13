@@ -455,3 +455,41 @@ describe('#138 line-shaped Assets', () => {
     expect(fx(call + 29, 'creep')).toBeUndefined();
   });
 });
+
+describe('#139 Drone Strike and Recon Plane chapters', () => {
+  const fx = (t: number, asset: 'drone' | 'recon', side = 'nato') => viewAt(t).effects!.find((e) => e.asset === asset && e.side === side);
+
+  it('Drone Strike: nato\'s leaves the HQ, flies straight at the Contacts at 30 m/s and lands one impact; its row is off while it flies', () => {
+    const call = chapter('Drone Strike');
+    expect(fx(call + 1, 'drone')).toMatchObject({ from: { x: -415, y: 0 }, x: -16, y: 28, radius: 15 });
+    const [a, b] = [fx(call + 2, 'drone')!.craft!, fx(call + 4, 'drone')!.craft!];
+    expect(Math.hypot(b.x - a.x, b.y - a.y)).toBeCloseTo(60);
+    expect(viewAt(call + 2).assets!.find((r) => r.asset === 'drone')).toMatchObject({ off: 'in the air' });
+    const hits = eventsBetween(call, LENGTH).filter((e) => e.kind === 'impact' && e.asset === 'drone');
+    expect(hits).toEqual([{ kind: 'impact', side: 'nato', x: -16, y: 28, asset: 'drone' }]);
+    const landed = call + 400 / 30;
+    expect(fx(landed + 0.5, 'drone')!.craft).toBeUndefined();
+    expect(fx(landed + 2.5, 'drone')).toBeUndefined();
+  });
+
+  it('Drone lost: the Pact\'s comes the other way and falls 2.5 s inside the AA\'s range, short of Alpha, where it was hit', () => {
+    const call = chapter('Drone lost');
+    const flying = fx(call + 3, 'drone', 'pact')!;
+    expect(flying.lost).toBeUndefined();
+    expect(flying.craft!.fx).toBeLessThan(0);
+    const down = [9, 10].map((s) => fx(call + s, 'drone', 'pact')!);
+    expect(down[0]).toMatchObject({ lost: true });
+    expect(down[0]!.craft).toEqual(down[1]!.craft);
+    expect(Math.hypot(down[0]!.craft!.x + 60, down[0]!.craft!.y - 48)).toBeGreaterThan(200); // from the AA
+    expect(Math.hypot(down[0]!.craft!.x + 60, down[0]!.craft!.y - 48)).toBeLessThan(300);
+    expect(down[1]!.left).toBeLessThan(down[0]!.left);
+    expect(fx(call + 12, 'drone', 'pact')).toBeUndefined();
+  });
+
+  it('Recon Plane: one pass north through the Contacts at 100 m/s, with its strip 120 m wide', () => {
+    const call = chapter('Recon Plane');
+    expect(fx(call + 1, 'recon')).toMatchObject({ line: { to: { x: 20, y: 560 }, width: 120 }, craft: { x: 20, y: -460, fx: 0, fy: 1 } });
+    expect(fx(call + 6, 'recon')!.craft!.y).toBeCloseTo(40);
+    expect(fx(call + 12, 'recon')).toBeUndefined();
+  });
+});

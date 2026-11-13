@@ -7,11 +7,14 @@
 // Command and the Squad stays selected; Clear sends a null Order. Only the Simulation decides what an Order does.
 // Mark (#136): in Mark mode every tap places a Mark, or renews the one tapped; out of it a tap on a Mark clears it. The spec
 // says both "tap a Mark to clear it" and "re-tapped" renews it: the mode is what tells them apart.
-import { hqHolds, insidePolygon, lineHits } from '../sim/geometry';
+import { chord, hqHolds, insidePolygon, lineHits } from '../sim/geometry';
 import { DEFAULT_TUNE } from '../sim/tune';
-import { enemyOf, type AssetKind, type Vec2 } from '../sim/types';
+import { enemyOf, type AssetKind, type RequestKind, type Vec2 } from '../sim/types';
 import { session } from './session';
 import { eliteSquad } from './summary';
+
+/** #139: the other Asset that answers each Request (sim/requests.ts). */
+const ALSO: Record<RequestKind, AssetKind | undefined> = { barrage: 'drone', scan: 'recon', supply: undefined };
 
 export const targeting = {
   armed: null as AssetKind | null,
@@ -61,14 +64,16 @@ export function escape() {
 /**
  * Answers a Squad's open Request (#41): selects the Squad and arms the matching Asset with its ring pinned at the requested
  * grid. The confirm is still the Commander's. An Asset that is cooling down, or a Request that has closed, only selects.
+ * #139: with the Barrage cooling down the Drone Strike arms instead, and the Recon Plane for the Scan UAV (it still wants its direction).
  */
 export function answer(squad: number) {
   select(squad);
   const view = session.view;
   const r = view?.squads.find((q) => q.id === squad)?.request;
-  if (!view || view.result || !r || view.assets?.find((a) => a.asset === r.asset)?.readyIn !== 0) return;
+  const asset = r && [r.asset, ALSO[r.asset]].find((k) => view?.assets?.some((a) => a.asset === k && a.readyIn === 0 && !a.off));
+  if (!view || view.result || !r || !asset) return;
   markMode(false);
-  targeting.armed = r.asset;
+  targeting.armed = asset;
   targeting.aim = null;
   targeting.spot = validSpot(r.at) ? { ...r.at } : null;
 }
@@ -94,9 +99,10 @@ const lineOf = () => (targeting.armed && session.view?.assets?.find((a) => a.ass
 /**
  * #138: the strip of the armed line-shaped Asset: from the pinned start, its length towards the pinned direction, or towards
  * `pointer` until there is one. `ok` is false where the Simulation would reject it (an end outside the Play Area, or the
- * line across the enemy HQ). Null with no line-shaped Asset armed, no start, or nothing to point at.
+ * line across the enemy HQ). Null with no line-shaped Asset armed, no start, or nothing to point at. #139: `across`: it runs
+ * through the start right across the Play Area (the Recon Plane's pass), and is always `ok`.
  */
-export function strip(pointer: Vec2 | null, aim = targeting.aim): { from: Vec2; to: Vec2; width: number; ok: boolean } | null {
+export function strip(pointer: Vec2 | null, aim = targeting.aim): { from: Vec2; to: Vec2; width: number; ok: boolean; across?: true } | null {
   const line = lineOf();
   const from = targeting.spot;
   const toward = aim ?? pointer;
@@ -104,6 +110,7 @@ export function strip(pointer: Vec2 | null, aim = targeting.aim): { from: Vec2; 
   if (!line || !from || !toward || !map) return null;
   const d = Math.hypot(toward.x - from.x, toward.y - from.y);
   if (!d) return null;
+  if (line.across) return { ...chord(map.playArea, from, (toward.x - from.x) / d, (toward.y - from.y) / d, line.beyond), width: line.width, ok: true, across: true }; // #139: right across the Play Area, wherever it points
   const to = { x: from.x + ((toward.x - from.x) / d) * line.length, y: from.y + ((toward.y - from.y) / d) * line.length };
   return { from, to, width: line.width, ok: inPlayArea(from) && inPlayArea(to) && !lineHits(map.hqs[enemyOf(session.commanderSide)], DEFAULT_TUNE.hqRadius, from, to) };
 }

@@ -1,12 +1,13 @@
 // What every Strike's blast does to the Soldiers round it (#58): kills, Wounds and suppresses by distance, friend or foe.
 // The Barrage (#40) lands one per shell, the Cruise Missile (#99) one, and #107 a tank's main gun one per round.
-// Soldiers aboard a vehicle are out of its reach: the vehicle takes the damage if it is within the kill radius (#110: never a jet).
+// Soldiers aboard a vehicle are out of its reach: the vehicle takes the damage if it is within the kill radius (#110: never a jet,
+// #139 nor anything else that flies as high: the Gunship, a drone, the Recon Plane).
 import { die, wound } from '../combat';
 import { dist2 } from '../geometry';
 import type { SideId, SimEvent, Vec2 } from '../types';
 import type { Match } from '../index';
 import type { Soldier } from '../state';
-import { hurt, live, type Vehicle } from '../vehicles';
+import { high, hurt, live, type Vehicle } from '../vehicles';
 
 export interface Blast {
   killM: number;
@@ -22,7 +23,7 @@ export interface Blast {
  */
 export function blast(m: Match, side: SideId, at: Vec2, b: Blast, cause: Soldier['cause'], events: SimEvent[], vehicles: { damage: (v: Vehicle) => number; foesOnly?: boolean }) {
   for (const v of m.vehicles)
-    if (live(v) && v.kind !== 'jet' && !(vehicles.foesOnly && v.side === side) && dist2(v, at) <= b.killM * b.killM) hurt(m, v, vehicles.damage(v), side, cause, events);
+    if (live(v) && !high(v) && !(vehicles.foesOnly && v.side === side) && dist2(v, at) <= b.killM * b.killM) hurt(m, v, vehicles.damage(v), side, cause, events);
   for (const s of m.soldiers) {
     if (s.state === 'dead' || s.vehicle >= 0) continue;
     const d2 = dist2(s, at);

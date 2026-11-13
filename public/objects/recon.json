@@ -1,0 +1,10 @@
+{
+  "frames": 33,
+  "framePx": 160,
+  "cols": 16,
+  "constants": {
+    "RECON_HEADINGS": 16,
+    "RECON_FACTIONS": 2,
+    "RECON_WORLD_M": 14.0
+  }
+}

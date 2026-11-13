@@ -44,6 +44,28 @@ export function lineHits(hq: Hq, hqRadius: number, a: Vec2, b: Vec2): boolean {
   return false;
 }
 
+/**
+ * #139: the straight line through `at` along the unit direction (ux, uy), cut where it enters and leaves `poly` (the outermost
+ * crossings, so a notch in the edge does not end it) and run `beyond` metres past each: where it starts and where it ends.
+ */
+export function chord(poly: Vec2[], at: Vec2, ux: number, uy: number, beyond = 0): { from: Vec2; to: Vec2 } {
+  let lo = 0;
+  let hi = 0;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[j]!;
+    const ex = poly[i]!.x - a.x;
+    const ey = poly[i]!.y - a.y;
+    const denom = ux * ey - uy * ex;
+    if (denom === 0) continue;
+    const k = ((a.x - at.x) * ey - (a.y - at.y) * ex) / denom; // metres along the line
+    const u = ((a.x - at.x) * uy - (a.y - at.y) * ux) / denom; // 0..1 along the edge
+    if (u < 0 || u > 1) continue;
+    lo = Math.min(lo, k);
+    hi = Math.max(hi, k);
+  }
+  return { from: { x: at.x + ux * (lo - beyond), y: at.y + uy * (lo - beyond) }, to: { x: at.x + ux * (hi + beyond), y: at.y + uy * (hi + beyond) } };
+}
+
 export const inHq = (m: Match, side: SideId, p: Vec2) => hqHolds(m.map.hqs[side], m.tune.hqRadius, p);
 
 /** The Play Area boundary, walls, water and the enemy HQ are walls to a Soldier. */

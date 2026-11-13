@@ -184,6 +184,19 @@ describe('Answering a Request', () => {
     expect(targeting).toMatchObject({ selected: 1, armed: null, spot: null });
   });
 
+  it('#139: with the Barrage cooling down the Drone Strike answers "fire support" instead; with neither ready it only selects', () => {
+    ask(30);
+    const drone = (readyIn: number, off?: string) => (session.view!.assets as unknown[]).push({ asset: 'drone', readyIn, cooldown: 60, radius: 15, ...(off && { off }) });
+    drone(0);
+    answer(1);
+    expect(targeting).toMatchObject({ selected: 1, armed: 'drone', spot: { x: 50, y: 50 } });
+    disarm();
+    ask(30);
+    drone(0, 'in the air');
+    answer(1);
+    expect(targeting).toMatchObject({ selected: 1, armed: null });
+  });
+
   it('a Squad with no open Request only selects, and a grid on the enemy HQ arms without pinning', () => {
     ask(0);
     answer(0);
@@ -311,5 +324,17 @@ describe('Line targeting (#138)', () => {
     expect(strip(null)).toBeNull();
     escape();
     expect(targeting.armed).toBeNull();
+  });
+
+  it('#139: a line that runs across the map (the Recon Plane): the strip spans the Play Area through the start and past each edge, wherever it points', () => {
+    session.view = { ...view, assets: [{ asset: 'recon', readyIn: 0, cooldown: 90, radius: 60, line: { length: 0, width: 120, across: true, beyond: 150 } }] } as unknown as CommanderView;
+    arm('recon');
+    tap({ x: 10, y: 20 }, 5);
+    const edge = Math.max(...TEST_FIELD.playArea.map((p) => p.y));
+    expect(strip({ x: 10, y: 30 })).toEqual({ from: { x: 10, y: -edge - 150 }, to: { x: 10, y: edge + 150 }, width: 120, ok: true, across: true });
+    tap({ x: 10, y: 30 }, 5); // a direction ten metres off is enough
+    expect(ready()).toBe(true);
+    confirm();
+    expect(sent).toEqual([{ side: 'nato', kind: 'asset', asset: 'recon', at: { x: 10, y: 20 }, to: { x: 10, y: 30 } }]);
   });
 });

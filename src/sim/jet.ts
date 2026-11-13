@@ -14,7 +14,7 @@ import { cosDeg, turnToward } from './momentum';
 import { pickWeighted, rnd } from './rng';
 import { ticksOf, vehicleOf, type Soldier, type Squad } from './state';
 import { enemyOf, type SideId, type Vec2 } from './types';
-import { clearOfHq, crippled, live, specOf, type Vehicle } from './vehicles';
+import { clearOfHq, crippled, high, live, specOf, type Vehicle } from './vehicles';
 
 /** Where a jet is in its sortie. Idle: no pilot, at the base. Rearming: flying home (`until` -1), then at the base until `until`. */
 export const SORTIE = ['idle', 'inbound', 'outbound', 'turning', 'rearming', 'dogfight'] as const;
@@ -45,7 +45,7 @@ export function known(m: Match, side: SideId): Map<number, Vec2> {
 export function markable(m: Match, id: number): boolean {
   const s = m.soldiers[id];
   const u = vehicleOf(m, id);
-  return s ? s.state === 'alive' && s.vehicle < 0 : !!u && live(u) && u.kind !== 'jet' && u.kind !== 'gunship';
+  return s ? s.state === 'alive' && s.vehicle < 0 : !!u && live(u) && !high(u);
 }
 
 /** The next pass, at the pilot's point (picked at its Squad's think); home when it has none. */

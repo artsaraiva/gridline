@@ -481,6 +481,22 @@ export interface Tune {
   creepWoundM: number;
   creepSuppressM: number; // enemies this near a shell that has landed are Contacts for `barrageContactSeconds`
   creepSuppression: number;
+
+  // #139 Drone Strike: a light Strike that flies from the caller's HQ; the enemy AA may shoot it down
+  droneCooldownSeconds: number; // from the call; it also starts the match on this cooldown
+  droneSpeedMps: number;
+  droneKillM: number;
+  droneWoundM: number;
+  droneSuppressM: number; // the enemies this near the hit are Contacts for `barrageContactSeconds`
+  droneSuppression: number;
+  droneVehicleDamage: number; // to a tank or an AA in the kill radius; anything lighter on the ground is destroyed
+  droneHp: number; // against the AA's rounds and missiles
+
+  // #139 Recon Plane: one pass across the Play Area along a line, revealing a strip under it
+  reconCooldownSeconds: number; // from the call; ready at match start
+  reconSpeedMps: number;
+  reconStripM: number; // enemies this near the aircraft are revealed
+  reconHp: number;
 }
 
 /** #55: what a Commander Score award is for. */
@@ -488,13 +504,13 @@ export type ScoreCategory = 'uav' | 'supply' | 'artillery' | 'orders';
 
 export type Command =
   | { tick: number; side: SideId; kind: 'order'; squad: number; point: string | null }
-  | { tick: number; side: SideId; kind: 'asset'; asset: 'scan' | 'supply' | 'barrage' | 'missile' | 'gunship' | 'smoke' | 'creep'; at: Vec2; to?: Vec2 } // #138: `to` is a line-shaped Asset's second tap: its line runs from `at` towards it
+  | { tick: number; side: SideId; kind: 'asset'; asset: 'scan' | 'supply' | 'barrage' | 'missile' | 'gunship' | 'smoke' | 'creep' | 'drone' | 'recon'; at: Vec2; to?: Vec2 } // #138: `to` is a line-shaped Asset's second tap: its line runs from `at` towards it
   /** #136: no `id` places a Mark at `at`; with `id` it renews that Mark, or clears it when `at` is null. */
   | { tick: number; side: SideId; kind: 'mark'; at: Vec2 | null; id?: number };
 
 export type AssetKind = Extract<Command, { kind: 'asset' }>['asset'];
 /** #99: what a Squad may Request: never a Cruise Missile (#58), #101 nor a Gunship, #138 nor a line-shaped Asset. */
-export type RequestKind = Exclude<AssetKind, 'missile' | 'gunship' | 'smoke' | 'creep'>;
+export type RequestKind = Exclude<AssetKind, 'missile' | 'gunship' | 'smoke' | 'creep' | 'drone' | 'recon'>; // #139: a Drone Strike answers a Barrage Request and a Recon Plane a Scan one (requests.ts)
 
 export interface MatchResult {
   winner: SideId | null; // null = draw
@@ -530,8 +546,8 @@ export interface FriendlyView extends SoldierView {
  * #107: a vehicle on the map: the Side's own (live, with `hp` and `seats`), an enemy one a friendly sees right now (position
  * and facing only), or a Wreck (`wreck`, no id: -1).
  */
-/** #107 #108: the vehicle classes on the ground; #109 the transport helicopter, in the air; #110 the jet (air) and the AA (ground); #101 the Gunship (air, flown by its Asset). */
-export type VehicleKind = 'tank' | 'jeep' | 'helicopter' | 'jet' | 'aa' | 'gunship';
+/** #107 #108: the vehicle classes on the ground; #109 the transport helicopter, in the air; #110 the jet (air) and the AA (ground); #101 the Gunship (air, flown by its Asset); #139 the Drone Strike's drone and the Recon Plane (air, flown by their Assets, nobody aboard). */
+export type VehicleKind = 'tank' | 'jeep' | 'helicopter' | 'jet' | 'aa' | 'gunship' | 'drone' | 'recon';
 
 export interface VehicleView {
   id: number;
@@ -664,8 +680,8 @@ export interface AssetView {
   off?: string;
   /** #101: it is at work and a call now moves its spot (the Gunship's focus) whatever `readyIn` says. Absent otherwise. */
   retask?: true;
-  /** #138: it is line-shaped: called with two taps, on a strip this long from the first towards the second and this wide. Absent otherwise. */
-  line?: { length: number; width: number };
+  /** #138: it is line-shaped: called with two taps, on a strip this long from the first towards the second and this wide. Absent otherwise. #139: `across`: the strip runs through the first tap right across the Play Area and `beyond` metres past each edge, whatever `length` says. */
+  line?: { length: number; width: number; across?: true; beyond?: number };
 }
 
 export interface EffectView {
@@ -703,6 +719,9 @@ export interface EffectView {
   line?: { to: Vec2; width: number };
   /** Smoke Screen: the discs on the ground, each with its radius now, the seconds since its shell landed, and how dense it is (1, falling to 0 as it thins). */
   smoke?: { x: number; y: number; r: number; age: number; density: number }[];
+  // #139 Drone Strike and Recon Plane: in the sky, so in both Sides' views, with `side` and `craft` (`turn` 0: they fly straight). The drone's `from` is the HQ it left, its `flight` and `impactIn` as the missile's; the Recon Plane's `line` is its pass, in the caller's view only.
+  /** The enemy AA shot it down: `craft` is where it was hit, and nothing more comes of it. Absent otherwise. */
+  lost?: true;
 }
 
 /** Things that happened this tick, on every Side; `commanderEvents` keeps the ones a Side's Console may show. */
@@ -726,6 +745,6 @@ export type SimEvent =
   /** #34: suppressive fire: a round at (x, y) near a Last Known Position (#136: or a Mark), with no enemy in view. */
   | { kind: 'suppressive'; side: SideId; from: number; x: number; y: number; hit: boolean }
   /** #40: a Barrage shell landed at (x, y); `side` called it. #99: or a Cruise Missile (`asset`), #101 a Gunship's shell. #107: or a tank's main gun, fired by vehicle `from`. */
-  | { kind: 'impact'; side: SideId; x: number; y: number; asset: 'barrage' | 'missile' | 'tank' | 'bomb' | 'gunship' | 'creep'; from?: number } // #138: or a Creeping Barrage's shell
+  | { kind: 'impact'; side: SideId; x: number; y: number; asset: 'barrage' | 'missile' | 'tank' | 'bomb' | 'gunship' | 'creep' | 'drone'; from?: number } // #138: or a Creeping Barrage's shell, #139 a Drone Strike
   /** #55: `side`'s Commander earned `points` of Commander Score. `reason` is safe to show: it never names a position or an unseen enemy. */
   | { kind: 'award'; side: SideId; category: ScoreCategory; points: number; reason: string };

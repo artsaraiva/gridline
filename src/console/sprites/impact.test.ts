@@ -64,6 +64,14 @@ describe('shell impact: explosion, drifting plume and lasting crater', () => {
     expect(impactLook(missile, EXPLOSION_MS * 1.5).explosion).toBeNull();
   });
 
+  it('#139: a Drone Strike hit is lighter: flash, crater and plume three quarters of a shell\'s', () => {
+    const drone = impactLook(recordImpact([], 50, -50, 0, 'drone').at(-1)!, EXPLOSION_MS / 2); // same seed as hit(): same size jitter
+    const shell = impactLook(hit(), EXPLOSION_MS / 2);
+    expect(drone.explosion!.size).toBeCloseTo(shell.explosion!.size * 0.75);
+    expect(drone.crater.size).toBeCloseTo(shell.crater.size * 0.75);
+    expect(drone.plume[0]!.size).toBeCloseTo(shell.plume[0]!.size * 0.75);
+  });
+
   it('leaves a crater that stays for the match', () => {
     const i = hit();
     const c = impactLook(i, 0).crater;

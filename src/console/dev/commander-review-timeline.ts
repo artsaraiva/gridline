@@ -10,7 +10,7 @@ import type { AssetView, CommanderView, EffectView, FriendlyView, LastKnownView,
 
 /** The first twelve chapters end here; #131 adds the helicopter jobs after them. */
 const OLD_END = 192;
-export const LENGTH = 720;
+export const LENGTH = 772;
 
 /** Where each state starts, for scrubbing. */
 export const CHAPTERS = [
@@ -36,6 +36,9 @@ export const CHAPTERS = [
   { at: 600, title: 'Mark' },
   { at: 640, title: 'Smoke Screen' },
   { at: 680, title: 'Creeping Barrage' },
+  { at: 720, title: 'Drone Strike' },
+  { at: 740, title: 'Drone lost' },
+  { at: 756, title: 'Recon Plane' },
 ];
 
 /** Centre of the overlapping Squads, for the close zoom preset. */
@@ -725,8 +728,8 @@ export function viewAt(t: number): CommanderView {
     points: POINTS,
     tickets: { nato: 150, pact: 150 },
     result: null,
-    assets: [{ asset: 'missile', readyIn: t < MISSILE.at ? 0 : Math.max(0, MISSILE.at + DEFAULT_TUNE.missileCooldownSeconds - t), cooldown: DEFAULT_TUNE.missileCooldownSeconds, radius: DEFAULT_TUNE.missileSuppressM }, gunshipRow(t), ...lineRows(t)],
-    effects: [...missileAt(t), ...gunshipsAt(t), ...smokeAt(t), ...creepAt(t)],
+    assets: [{ asset: 'missile', readyIn: t < MISSILE.at ? 0 : Math.max(0, MISSILE.at + DEFAULT_TUNE.missileCooldownSeconds - t), cooldown: DEFAULT_TUNE.missileCooldownSeconds, radius: DEFAULT_TUNE.missileSuppressM }, gunshipRow(t), ...lineRows(t), ...airRows(t)],
+    effects: [...missileAt(t), ...gunshipsAt(t), ...smokeAt(t), ...creepAt(t), ...droneAt(DRONE, 'nato', t), ...droneAt(DRONE_DOWN, 'pact', t), ...reconAt(t)],
     vehicles: [...tanksAt(t), ...jeepsAt(t), ...helisAt(t), ...paraHeli(t), ...airAt(t), ...gunshipBodies(t)],
     marks: marksAt(t),
   };
@@ -795,6 +798,68 @@ function lineEvents(): [number, SimEvent][] {
     line(CREEP.call, 'Creeping fire inbound', 'F5'),
     line(CREEP.call + G.creepWarningSeconds, 'Splash', 'F5'),
     ...CREEP_SHELLS.map((x): [number, SimEvent] => [CREEP.call + x.lands, { kind: 'impact', side: 'nato', x: x.x, y: x.y, asset: 'creep' }]),
+  ];
+}
+
+// #139 DRONE STRIKE: nato's drone is called on the Contacts a second into its chapter: it leaves the HQ and flies straight at
+// the spot at `droneSpeedMps` (the close zoom opens on the edge-glued icon), lands its small blast, and the shared impact takes
+// over. DRONE LOST: the Pact's comes the other way at Alpha; the AA by Alpha has it 2.5 s after it comes within `aaRangeM`, and
+// it falls where it was, with no blast. RECON PLANE: a pass north through the Contacts, from beyond the south edge of the Play
+// Area to beyond the north one at `reconSpeedMps`, the sweep band under it fading behind. The numbers are the Simulation's.
+// ponytail: the AA's bursts at the Pact's drone are not scripted (the AA chapter shows them); add shot events if the shoot-down needs its tracers here
+interface Drone { call: number; from: Vec2; to: Vec2; lostAfter?: number }
+const chapterAt = (title: string) => CHAPTERS.find((c) => c.title === title)!.at;
+const DRONE: Drone = { call: chapterAt('Drone Strike') + 1, from: HQ, to: { x: -16, y: 28 } };
+const DRONE_IN: Drone = { call: chapterAt('Drone lost') + 1, from: { x: 415, y: 0 }, to: CLOSE_AT };
+const droneFlight = (d: Drone) => Math.hypot(d.to.x - d.from.x, d.to.y - d.from.y) / G.droneSpeedMps;
+/** Where a drone is `s` seconds after its call, were nothing to stop it. */
+const droneSpot = (d: Drone, s: number) => {
+  const k = Math.min(1, s / droneFlight(d));
+  return { x: d.from.x + (d.to.x - d.from.x) * k, y: d.from.y + (d.to.y - d.from.y) * k };
+};
+/** The Pact's is shot down 2.5 s after it comes within `aaRangeM` of the AA. */
+const DRONE_DOWN: Drone = { ...DRONE_IN, lostAfter: (() => {
+  let s = 0;
+  for (const c = () => droneSpot(DRONE_IN, s); Math.hypot(c().x - AA_AT_SPOT.x, c().y - AA_AT_SPOT.y) > G.aaRangeM; ) s += 1 / HZ;
+  return s + 2.5;
+})() };
+
+function droneAt(d: Drone, side: SideId, t: number): EffectView[] {
+  const s = t - d.call;
+  const flight = droneFlight(d);
+  const ends = (d.lostAfter ?? flight) + G.barrageContactSeconds;
+  if (s < 0 || s >= ends) return [];
+  const lost = d.lostAfter !== undefined && s >= d.lostAfter;
+  const flown = lost ? d.lostAfter! : s;
+  const len = flight * G.droneSpeedMps;
+  const craft = { ...droneSpot(d, flown), fx: (d.to.x - d.from.x) / len, fy: (d.to.y - d.from.y) / len, turn: 0 };
+  return [{ asset: 'drone', ...d.to, radius: G.droneSuppressM, left: ends - s, total: flight + G.barrageContactSeconds, side, from: d.from, flight: Math.min(1, flown / flight), impactIn: lost ? 0 : Math.max(0, flight - s), ...((lost || s < flight) && { craft }), ...(lost && { lost }) }];
+}
+
+const RECON = { call: chapterAt('Recon Plane') + 1, x: 20, y: 30, from: { x: 20, y: -560 }, to: { x: 20, y: 560 } };
+const RECON_SECONDS = (RECON.to.y - RECON.from.y) / G.reconSpeedMps;
+
+function reconAt(t: number): EffectView[] {
+  const s = t - RECON.call;
+  if (s < 0 || s >= RECON_SECONDS) return [];
+  return [{ asset: 'recon', x: RECON.x, y: RECON.y, radius: G.reconStripM, left: RECON_SECONDS - s, total: RECON_SECONDS, side: 'nato', from: RECON.from, line: { to: RECON.to, width: 2 * G.reconStripM }, craft: { x: RECON.from.x, y: RECON.from.y + s * G.reconSpeedMps, fx: 0, fy: 1, turn: 0 } }];
+}
+
+/** #139: the two rows, each ready until its call (the Drone Strike is off while nato's is in the air). */
+const airRows = (t: number): AssetView[] => [
+  { asset: 'drone', readyIn: t < DRONE.call ? 0 : Math.max(0, DRONE.call + G.droneCooldownSeconds - t), cooldown: G.droneCooldownSeconds, radius: G.droneSuppressM, ...(droneAt(DRONE, 'nato', t).length && { off: 'in the air' }) },
+  { asset: 'recon', readyIn: t < RECON.call ? 0 : Math.max(0, RECON.call + G.reconCooldownSeconds - t), cooldown: G.reconCooldownSeconds, radius: G.reconStripM, line: { length: 0, width: 2 * G.reconStripM, across: true, beyond: 150 }, ...(reconAt(t).length && { off: 'in the air' }) },
+];
+
+function airEvents(): [number, SimEvent][] {
+  const line = (t: number, text: string, grid: string): [number, SimEvent] => [t, { kind: 'radio', side: 'nato', squad: null, type: 'asset', text, grid, priority: 1 }];
+  const hit = DRONE.call + droneFlight(DRONE);
+  return [
+    line(DRONE.call, 'Drone away', 'F6'),
+    line(hit, 'Splash', 'F6'),
+    [hit, { kind: 'impact', side: 'nato', ...DRONE.to, asset: 'drone' }],
+    line(RECON.call, 'Recon pass inbound', 'G6'),
+    line(RECON.call + RECON_SECONDS, 'Recon pass complete, 4 hostiles', 'G6'),
   ];
 }
 
@@ -899,4 +964,4 @@ function orbitFire(): [number, SimEvent][] {
   return events;
 }
 
-const EVENTS: [number, SimEvent][] = [...casualties(), ...firefight(), ...strike(), ...gun(), ...mg(), ...sideGun(), ...orbitFire(), ...airFire(), ...gunshipEvents(), ...markEvents(), ...lineEvents()].sort((a, b) => a[0] - b[0]);
+const EVENTS: [number, SimEvent][] = [...casualties(), ...firefight(), ...strike(), ...gun(), ...mg(), ...sideGun(), ...orbitFire(), ...airFire(), ...gunshipEvents(), ...markEvents(), ...lineEvents(), ...airEvents()].sort((a, b) => a[0] - b[0]);
