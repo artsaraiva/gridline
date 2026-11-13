@@ -142,7 +142,7 @@ describe('vehicle routes', () => {
     overCrossing(m, v);
     expect(v.route).toBe(ROAD); // over the deck, the road's field leads on
     expect(roadPast(m, v, roadDeck)).toBe(false);
-  });
+  }, 30_000); // the real Auental bake: its drive fields take seconds to build
 
   it('a tank driver marks down a point where known enemy tanks outnumber the friendly ones going, and where its Side just lost a tank', () => {
     for (const tune of [{ tankOutgunnedPenalty: 100, tankWreckPenalty: 0 }, { tankOutgunnedPenalty: 0, tankWreckPenalty: 100 }]) {

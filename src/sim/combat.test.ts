@@ -75,7 +75,7 @@ describe('line of sight', () => {
 
   it('a wall between them blocks sight and fire', () => {
     const { events } = play(scene({ place: faceOff, map: { walls: [{ x0: 50, y0: -5, x1: 51, y1: 5 }] } }), 30 * HZ);
-    expect(shots(events)).toEqual([]);
+    expect(events.filter((e) => e.kind === 'shot' || e.kind === 'suppressive')).toEqual([]);
   });
 
   it('vision reaches 150 m: a Soldier turns to an enemy at 145 m but not at 155 m', () => {
@@ -322,6 +322,25 @@ describe('Redeploy', () => {
     expect(wipe({ 3: { x: 0, y: 300 } }).find((e) => e.side === 'nato')).toMatchObject({ x: -560, y: 0 });
   });
 
+  // nato's HQ lists three spawn spots, none of them its centre
+  const SPOTS = [{ x: -570, y: 40 }, { x: -540, y: -30 }, { x: -580, y: -50 }];
+  const spotted = { hqs: { nato: { x: -560, y: 0, spawns: SPOTS }, pact: { x: 560, y: 0 } } };
+  const spotOf = (p: { x: number; y: number }) => SPOTS.findIndex((o) => o.x === p.x && o.y === p.y);
+
+  it('each Squad starts the Match on a spawn spot of its HQ of its own', () => {
+    const m = scene({ place: {}, map: spotted, squads: 3 });
+    expect(commanderView(m, 'nato').friendlies.map(spotOf).sort()).toEqual([0, 1, 2]);
+  });
+
+  it('a wiped Squad Redeploys at its HQ on a spawn spot no friendly Soldier stands on', () => {
+    // nato Squad 0 is wiped as above; Squad 1 never leaves its own spot
+    const m = scene({ place: { 0: { x: 0, y: 0, fx: -1 }, 2: { x: -100, y: 0, fx: 1 } }, tune: { ...ONE_SHOT, walkSpeed: 0 }, map: spotted, squads: 2 });
+    const held = spotOf(m.soldiers[1]!);
+    const back = of(play(m, 40 * HZ).events, 'redeploy', 'nato')[0]!;
+    expect(spotOf(back)).toBeGreaterThanOrEqual(0);
+    expect(spotOf(back)).not.toBe(held);
+  });
+
   it("the Commander sees a wiped Squad's redeploy countdown", () => {
     const m = scene({
       place: { 0: { x: 0, y: 0, fx: -1 }, 2: { x: -100, y: 0, fx: 1 } },
@@ -358,7 +377,26 @@ describe('bounds', () => {
     const gap = Math.min(...views.flatMap((v) => v.friendlies.map((c) => Math.hypot(c.x - hqs.nato.x, c.y - hqs.nato.y))));
     expect(gap).toBeGreaterThanOrEqual(DEFAULT_TUNE.hqRadius);
     expect(gap).toBeLessThan(DEFAULT_TUNE.hqRadius + 3); // they did walk right up to it
-    expect(shots(events, 'nato').length).toBeGreaterThan(0);
+    expect(shots(events, 'pact')).toEqual([]);
+  });
+
+  it('a Soldier in its own HQ sees the enemy outside but never fires out', () => {
+    // nato id 0 stands in its HQ facing east; pact id 1 stands 50 m outside it, in plain sight, its back turned
+    const m = scene({ place: { 0: { x: -540, y: 0, fx: 1 }, 1: { x: -470, y: 0, fx: 1 } }, tune: { ...ONE_SHOT, walkSpeed: 0 } });
+    const { events, views } = play(m, 10 * HZ);
+    expect(views.at(-1)!.contacts.map((c) => c.id)).toEqual([1]);
+    expect(events.filter((e) => e.kind === 'shot' || e.kind === 'suppressive')).toEqual([]);
+  });
+
+  it("the enemy stops at the edge of an HQ's area, wherever the area reaches past the radius", () => {
+    // nato's HQ is the box x -200..-60 round its centre at -100; the pact Squad walks at a point on that centre from the east
+    const area = [{ x: -200, y: -80 }, { x: -60, y: -80 }, { x: -60, y: 80 }, { x: -200, y: 80 }];
+    const hqs = { nato: { x: -100, y: 0, area }, pact: { x: 100, y: 0 } };
+    const m = scene({ place: {}, tune: { squadSize: 4, spread: 6, hp: 1e9 }, map: { hqs, points: [{ id: 'H', name: 'H', x: -100, y: 0, owner: 'nato' }] } });
+    const { events, views } = play(m, 120 * HZ, 'pact');
+    const west = Math.min(...views.flatMap((v) => v.friendlies.map((c) => c.x)));
+    expect(west).toBeGreaterThanOrEqual(-60);
+    expect(west).toBeLessThan(-57); // they did walk right up to it
     expect(shots(events, 'pact')).toEqual([]);
   });
 });

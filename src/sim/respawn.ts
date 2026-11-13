@@ -5,12 +5,27 @@ import { insideCount } from './capture';
 import { canStand, dist2 } from './geometry';
 import { nearestWalkable } from './grid';
 import { footLeader, inSky, lastDeath, membersOf, wiped, type Point, type Soldier, type Squad } from './state';
-import { enemyOf, type SimEvent, type Vec2 } from './types';
+import { rnd } from './rng';
+import { enemyOf, type SideId, type SimEvent, type Vec2 } from './types';
 import { boardOnReturn, leave } from './vehicles';
 
 function bringBack(m: Match, s: Soldier, at: Vec2) {
   leave(m, s);
   Object.assign(s, { x: at.x, y: at.y, state: 'alive', hp: m.tune.hp, suppression: 0, target: -1, reviving: -1, nextFire: m.tick, rockets: m.tune.rockets, exited: -1, ...resetSoldierAi(m) });
+}
+
+const SPOT_CLEAR_M = 10;
+
+/**
+ * Where a Squad comes into its HQ: a seeded pick of the HQ's spawn spots with no living friendly Soldier within `SPOT_CLEAR_M`
+ * (of them all when every one is taken), so Squads never pile onto one spot; the centre on a map that lists none (no draw).
+ */
+export function spawnSpot(m: Match, side: SideId): Vec2 {
+  const hq = m.map.hqs[side];
+  if (!hq.spawns?.length) return hq;
+  const free = hq.spawns.filter((p) => !m.soldiers.some((s) => s.side === side && s.state === 'alive' && dist2(s, p) < SPOT_CLEAR_M * SPOT_CLEAR_M));
+  const from = free.length ? free : hq.spawns;
+  return from[Math.floor(rnd(m) * from.length)]!;
 }
 
 /** A Squad is quiet when no member saw an enemy for `quietSeconds` and no living member is suppressed. */
@@ -45,7 +60,7 @@ export function returnToFight(m: Match, events: SimEvent[]) {
     const members = membersOf(m, sq);
     if (wiped(members)) {
       if (m.tick - lastDeath(members) < t.redeploySeconds * t.hz) continue;
-      const at = nearestWalkable(m, redeployPoint(m, sq) ?? m.map.hqs[sq.side]);
+      const at = nearestWalkable(m, redeployPoint(m, sq) ?? spawnSpot(m, sq.side));
       for (const s of members) {
         const spot = { x: at.x + s.ox, y: at.y + s.oy };
         bringBack(m, s, canStand(m, s, spot) ? spot : at);
@@ -56,9 +71,10 @@ export function returnToFight(m: Match, events: SimEvent[]) {
     }
     const leader = footLeader(members.filter((s) => s.state === 'alive' && !inSky(m, s)));
     if (!quiet(m, sq, members)) continue;
-    const home = leader ?? nearestWalkable(m, redeployPoint(m, sq) ?? m.map.hqs[sq.side]);
+    let home: Vec2 | undefined = leader;
     for (const s of members) {
       if (s.state !== 'dead' || m.tick - s.deadAt < t.respawnSeconds * t.hz) continue;
+      home ??= nearestWalkable(m, redeployPoint(m, sq) ?? spawnSpot(m, sq.side)); // drawn once, and only when someone comes back
       const behind = leader ? { x: leader.x - leader.fx * t.respawnBehindM, y: leader.y - leader.fy * t.respawnBehindM } : home;
       bringBack(m, s, canStand(m, s, behind) ? behind : home);
       boardOnReturn(m, sq, s);

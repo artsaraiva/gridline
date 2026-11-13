@@ -75,6 +75,14 @@ describe('calling an Asset', () => {
     expect(rejections(step(m, [scan(m, { x: -550, y: 10 })]))).toEqual([]); // the own HQ is fine
   });
 
+  it("is rejected anywhere on an enemy HQ's area, however far from its centre", () => {
+    // pact's HQ is the box x 400..600 round its centre at 560
+    const area = [{ x: 400, y: -150 }, { x: 600, y: -150 }, { x: 600, y: 150 }, { x: 400, y: 150 }];
+    const m = createMatch({ seed: 1, map: { ...field, hqs: { ...field.hqs, pact: { x: 560, y: 0, area } } }, tune: DEFAULT_TUNE, squadsPerSide: 1, commanderSide: 'nato' });
+    expect(rejections(step(m, [scan(m, { x: 410, y: 140 })]))).toEqual(['on the enemy HQ']);
+    expect(rejections(step(m, [scan(m, { x: 390, y: 140 })]))).toEqual([]);
+  });
+
   it('an Asset that is not in the game is rejected', () => {
     const m = scene();
     expect(rejections(step(m, [{ ...scan(m, { x: 0, y: 0 }), asset: 'nope' as AssetKind }]))).toEqual(['not available']);

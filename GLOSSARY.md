@@ -75,7 +75,7 @@ A per-match measure of the Commander's useful contribution through Orders and As
 _Avoid_: Tickets, currency, experience points
 
 **HQ**:
-A side's base at its own map edge that can never be captured; where vehicles wait and wiped squads can redeploy.
+A side's base at its own map edge that can never be captured: an area of ground, not a spot (on Kaltenbach a circle, on Auental a stretch of land bulging out of the map's end), which the enemy can neither enter nor fire into and from which nobody fires out; where vehicles wait and where squads start the match and wiped squads can redeploy, each on a spawn spot of its own.
 _Avoid_: Main base, spawn, deployment
 
 **Wounded**:

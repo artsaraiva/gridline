@@ -1134,16 +1134,17 @@ def church(ccx, ccy, ang):
         tree_at(ccx + lx * ca - ly * sa, ccy + lx * sa + ly * ca, "decid1", 1.1)
 
 
-def build_houses(inside, box, river, quay):
+def build_houses(inside, box, river, quay, road_margin=0.6):
     """A village's houses: rows along the streets where inside(x, y, s) holds (s scales the village's outline), barns and back
     houses filled in behind them over box (centre x, y, half width, half height), and cars parked on the streets. Houses keep
-    river metres from the river's centre line, parked cars quay metres."""
+    river metres from the river's centre line, parked cars quay metres; road_margin more keeps a house's corner off a street
+    it stands askew to, where vehicles must pass."""
     n = 0
 
     def place(cx, cy, a, w, d, kind):
         nonlocal n
         r = 0.5 * math.hypot(w, d) * 0.62 + 0.5  # a Hessian village packs houses close
-        if not inside(cx, cy, 1.05) or not free(cx, cy, r, 0.6, river):
+        if not inside(cx, cy, 1.05) or not free(cx, cy, r, road_margin, river):
             return
         house(f"house_{n}", cx, cy, a, w, d, kind)
         FOOT.append((cx, cy, r))
@@ -1314,6 +1315,31 @@ VEHICLE_SLOTS = {}  # #107: per side, where its tanks wait: one under each vehic
 HELIPADS = {}  # #109: per side, where its transport helicopter waits: open sand between the camo nets (build_hq); no pad drawn yet
 
 
+def truck(name, wx, wy, a):
+    """A parked army truck, its cab toward local +x."""
+    mb = MB()
+    mb.box(3.2, 0, 0.5, 2.0, 2.5, 2.4, "milgreen")
+    mb.box(-1.0, 0, 0.6, 6.0, 2.5, 2.6, "canvas")
+    return mb.obj(name, (wx, wy, MAP.height(wx, wy)), a, "prop")
+
+
+def camo_net(name, wx, wy, a, r):
+    """A 22 m by 16 m camouflage net sagging to the ground at its edges; r draws its ripples."""
+    nx, ny = 14, 10
+    verts, faces = [], []
+    for j in range(ny + 1):
+        for i in range(nx + 1):
+            x, y = -11 + 22 * i / nx, -8 + 16 * j / ny
+            edge = min(i, nx - i, j, ny - j)
+            z = 3.6 if edge > 1 else 3.6 * edge / 2 + 0.2
+            verts.append((x + r.uniform(-0.3, 0.3), y + r.uniform(-0.3, 0.3), z + r.uniform(-0.25, 0.25)))
+    for j in range(ny):
+        for i in range(nx):
+            k = j * (nx + 1) + i
+            faces.append((k, k + 1, k + nx + 2, k + nx + 1))
+    return make_obj(name, verts, faces, ["camonet"], loc=(wx, wy, MAP.height(wx, wy)), rot=a, cover="prop")
+
+
 def build_hq(tag, cx, cy, a, s=1.0):
     """Requisitioned motor pool: a ~70 m sandbagged compound with tents, containers, trucks under camo nets, sized for a
     35 m HQ radius; s spreads the compound for a bigger HQ, its tents and vehicles keep their size."""
@@ -1347,25 +1373,9 @@ def build_hq(tag, cx, cy, a, s=1.0):
     r = random.Random(11 if tag == "nato" else 23)
     for net, (nx0, ny0) in enumerate([(4, -18), (8, 18)]):  # vehicle park: trucks under camo nets
         for i in range(3):
-            wx, wy = W(nx0 - 6 + i * 5, ny0)
-            mb = MB()
-            mb.box(3.2, 0, 0.5, 2.0, 2.5, 2.4, "milgreen")
-            mb.box(-1.0, 0, 0.6, 6.0, 2.5, 2.6, "canvas")
-            mb.obj(f"hq_{tag}_truck{net}{i}", (wx, wy, MAP.height(wx, wy)), a + math.pi / 2, "prop")
-        nx, ny = 14, 10
-        verts, faces = [], []
-        for j in range(ny + 1):
-            for i in range(nx + 1):
-                x, y = -11 + 22 * i / nx, -8 + 16 * j / ny
-                edge = min(i, nx - i, j, ny - j)
-                z = 3.6 if edge > 1 else 3.6 * edge / 2 + 0.2
-                verts.append((x + r.uniform(-0.3, 0.3), y + r.uniform(-0.3, 0.3), z + r.uniform(-0.25, 0.25)))
-        for j in range(ny):
-            for i in range(nx):
-                k = j * (nx + 1) + i
-                faces.append((k, k + 1, k + nx + 2, k + nx + 1))
+            truck(f"hq_{tag}_truck{net}{i}", *W(nx0 - 6 + i * 5, ny0), a + math.pi / 2)
         wx, wy = W(nx0 - 1, ny0)
-        make_obj(f"hq_{tag}_net{net}", verts, faces, ["camonet"], loc=(wx, wy, MAP.height(wx, wy)), rot=a, cover="prop")
+        camo_net(f"hq_{tag}_net{net}", wx, wy, a, r)
         VEHICLE_SLOTS.setdefault(tag, []).append((wx, wy))
     HELIPADS[tag] = W(6, 0)
     FOOT.append((cx, cy, 46 * s))

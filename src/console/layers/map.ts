@@ -5,7 +5,7 @@ import * as THREE from 'three/webgpu';
 import { dot, float, floor, fract, fwidth, length, mix, positionWorld, screenCoordinate, smoothstep, step, texture, uv, vec2, vec3, vec4 } from 'three/tsl';
 import type { BakedMap } from '../../maps/baked';
 import { atFallback, frameBudget, playStart } from '../../maps/quality';
-import type { MapData, SideId } from '../../sim/types';
+import type { MapData, SideId, Vec2 } from '../../sim/types';
 import { SIDES } from '../../sim/types';
 import { LAYOUT } from '../chrome/rail';
 import { camera, COLOR, grade, layer, renderer } from '../renderer';
@@ -14,7 +14,7 @@ import { boundarySdf, SDF_PER_M } from './boundary';
 
 const SDF_RES = 512;
 const OOB_BLOCK_M = 4;
-const HQ_TINT = 0.1; // blends in linear light, where a faint fill over this dark map reads stronger than in CSS
+const HQ_TINT = 0.06; // blends in linear light, where a faint fill over this dark map reads stronger than in CSS
 
 /** Zoom limits of the current map; the whole surroundings fill the screen at `min`, the bake's full detail is one texel per px at `max`. */
 export const zoomRange = { min: 0.5, max: 20 };
@@ -38,6 +38,8 @@ interface Textures {
   levels: ImageBitmap[];
   outer: THREE.Texture;
   sdf: THREE.Texture;
+  /** The distance field of each HQ that is an area; an HQ without one is its circle. */
+  hq: Partial<Record<SideId, THREE.Texture>>;
 }
 const loaded = new Map<string, Promise<Textures>>();
 /** Index into `images.play` the play texture starts at: 0 is the full 8192 bake, 1 the 4096 fallback (#45). */
@@ -66,14 +68,20 @@ function textures(map: BakedMap): Promise<Textures> {
       play.minFilter = THREE.LinearMipmapLinearFilter;
       play.anisotropy = 8;
       const outer = new THREE.Texture(outerImage);
-      const sdf = new THREE.DataTexture(boundarySdf(map.playArea, map.sizeM, SDF_RES), SDF_RES, SDF_RES, THREE.RedFormat, THREE.UnsignedByteType);
-      sdf.minFilter = sdf.magFilter = THREE.LinearFilter;
+      const field = (poly: Vec2[]) => {
+        const f = new THREE.DataTexture(boundarySdf(poly, map.sizeM, SDF_RES), SDF_RES, SDF_RES, THREE.RedFormat, THREE.UnsignedByteType);
+        f.minFilter = f.magFilter = THREE.LinearFilter;
+        f.needsUpdate = true;
+        return f;
+      };
+      const sdf = field(map.playArea);
+      const hq = Object.fromEntries(SIDES.flatMap((side) => (map.hqs[side].area ? [[side, field(map.hqs[side].area)]] : [])));
       for (const x of [play, outer]) {
         x.colorSpace = THREE.SRGBColorSpace;
         x.flipY = false; // the bitmaps are flipped on decode so row 0 (north) lands at the top
       }
-      for (const x of [play, outer, sdf]) x.needsUpdate = true;
-      return { play, levels, outer, sdf };
+      for (const x of [play, outer]) x.needsUpdate = true;
+      return { play, levels, outer, sdf, hq };
     })();
     loaded.set(map.name, t);
   }
@@ -83,18 +91,20 @@ function textures(map: BakedMap): Promise<Textures> {
 /** Metres per CSS pixel on screen at this fragment, for lines that keep their width at every zoom. */
 const cssPx = () => fwidth(positionWorld.x).mul(devicePixelRatio);
 
-/** Colour node of the play plane: bake inside the boundary, dimmed outside, HQ zones tinted, boundary line on the edge. */
+/** Colour node of the play plane: bake inside the boundary, dimmed outside, each HQ tinted and outlined in its Side's colour, boundary line on the edge. */
 function playColour(map: BakedMap, t: Textures, commander: SideId): THREE.Node<'vec3'> {
   const px = cssPx();
-  const sd = texture(t.sdf, positionWorld.xy.div(map.sizeM).add(0.5)).r.mul(255).sub(128).div(SDF_PER_M); // metres, negative inside
+  const metres = (field: THREE.Texture) => texture(field, positionWorld.xy.div(map.sizeM).add(0.5)).r.mul(255).sub(128).div(SDF_PER_M);
+  const sd = metres(t.sdf); // negative inside
   const inside = float(1).sub(smoothstep(px.negate(), px, sd));
   let c = mix(oob(t.play, map.sizeM / OOB_BLOCK_M, 5), grade(texture(t.play).rgb), inside);
   for (const side of SIDES) {
     const hq = map.hqs[side];
     const team = new THREE.Color(side === commander ? COLOR.friendly : COLOR.hostile);
-    const d = length(positionWorld.xy.sub(vec2(hq.x, hq.y)));
-    const fill = float(1).sub(smoothstep(float(hq.radius).sub(px), float(hq.radius).add(px), d));
-    const ring = float(1).sub(smoothstep(px, px.mul(2), d.sub(hq.radius).abs()));
+    // metres from the HQ's edge, negative inside: its area's distance field, or its circle
+    const d = t.hq[side] ? metres(t.hq[side]) : length(positionWorld.xy.sub(vec2(hq.x, hq.y))).sub(hq.radius);
+    const fill = float(1).sub(smoothstep(px.negate(), px, d));
+    const ring = float(1).sub(smoothstep(px, px.mul(2), d.abs()));
     c = mix(c, vec3(team.r, team.g, team.b), fill.mul(HQ_TINT).add(ring.mul(0.9)));
   }
   const casing = float(1).sub(smoothstep(px.mul(2.5), px.mul(3.5), sd.abs()));

@@ -9,7 +9,7 @@ import type { Match } from './index';
 import { bestPoint } from './ai/squad';
 import { assetContacts } from './assets/core';
 import { launchPoint } from './assets/missile';
-import { dist2, insidePolygon } from './geometry';
+import { dist2, inHq, insidePolygon } from './geometry';
 import { cosDeg, turnToward } from './momentum';
 import { pickWeighted, rnd } from './rng';
 import { ticksOf, vehicleOf, type Soldier, type Squad } from './state';
@@ -100,7 +100,7 @@ export function sortie(m: Match, v: Vehicle) {
     const at = markable(m, v.prey) ? known(m, v.side).get(v.prey) : undefined;
     if (at) v.spot = at; // the run follows its mark to where the Side last saw it
     else if (v.prey < 0 && dist2(v, v.spot!) > t.jetFireM * t.jetFireM) aim(m, v); // a mark the Side finds while it flies in
-    if (v.drop && dist2(v, v.spot!) <= (t.jetMps * t.jetBombFallSeconds) ** 2) bomb(m, v);
+    if (v.drop && dist2(v, v.spot!) <= (t.jetMps * t.jetBombFallSeconds) ** 2 && !inHq(m, v.side, v)) bomb(m, v); // nor out of its own HQ (combat.ts fire)
     if (toward(m, v, v.spot!, true)) Object.assign(v, { sortie: 'outbound', passes: v.passes - 1 });
   } else if (v.sortie === 'dogfight') dogfight(m, v);
   else if (v.sortie === 'outbound') {

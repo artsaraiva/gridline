@@ -1,9 +1,10 @@
 """Auental, the 128 v 128 Conquest map (#150): terrain, the river Auer with its reservoir and seven crossings, roads, the
-rail line, the HQs, a landmark at each of the 12 Capture Points, the twin town, woods, fields and hedges, and what the
-war has left on them: shell holes, tank ruts, wrecks and burnt farms.
+rail line, an HQ bulging out of each end, a landmark at each of the 12 Capture Points, the twin town, woods, fields and
+hedges, and what the war has left on them: shell holes, tank ruts, wrecks and burnt farms.
 Headless Blender script; it is the map's source of truth (ADR 0001, ADR 0002) and its outputs are committed.
 
-A 2.5 km valley from the layout session of 2026-11-10: NATO HQ west and Warsaw Pact HQ east, 12 Capture Points in three
+A 2.5 km valley from the layout session of 2026-11-10, baked on a 3 km square so that an HQ fits beyond each end of it
+(2026-11-12): NATO HQ west and Warsaw Pact HQ east, 12 Capture Points in three
 Lanes, a 20 m river crossing the line between the HQs north to south with 7 crossings (3 / 1 / 3), a reservoir behind a dam
 in a gorge filling the south edge, Hochwacht hill over the old bridge in the north. Points, HQs, crossings and the boundary
 match under a half turn about the map centre; the scenery around them is not mirrored.
@@ -17,6 +18,7 @@ This file is the layout and the landmarks; what every map bake shares is in asse
 """
 import math
 import os
+import random
 import sys
 
 import numpy as np
@@ -25,27 +27,43 @@ from mathutils import Vector, kdtree
 sys.dont_write_bytecode = True  # no __pycache__ beside the shared module
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from bake import (COVER_IDS, FOOT, MATS, MB, OUTER, ROAD_PTS, RS, Mat, bank, blob, build_banks,  # noqa: E402
-                  build_crossings, build_houses, build_hq, build_materials, build_poles, build_protos, build_roads,
-                  build_terrain, build_woods, bump, catmull, church, disc_patch, farmstead, finish, flat_patch, free, gable,
+                  build_crossings, build_houses, build_materials, build_poles, build_protos, build_roads,
+                  build_terrain, build_woods, bump, camo_net, catmull, church, disc_patch, farmstead, finish, flat_patch, free, gable,
                   ground_z, hedge_line, house, index_roads, log, log_stack, make_obj, near_crossing, nz, on_road, proto, put,
-                  r2, rng, road_near, sstep, strip, tree_at, vary)
+                  r2, rng, road_near, sstep, strip, tree_at, truck, vary)
 
-HALF = 1250.0
-OUTER_EXT = 3750.0  # the surroundings: 3x the map, as on Kaltenbach
+HALF = 1500.0  # the valley is 2.5 km across; the bake is 3 km so that each HQ fits beyond its end
+OUTER_EXT = 3750.0  # the surroundings: 2.5x the map
 EXT = OUTER_EXT if OUTER else HALF
 RIVER_W = 20.0
-TERRAIN_N = 1025 if OUTER else 1281  # 2 m between vertices on the play bake, 7 m on the surroundings
+TERRAIN_N = 1025 if OUTER else 1537  # 2 m between vertices on the play bake, 7 m on the surroundings
 HEIGHT_CELL_M = 2  # nothing in the game reads the height grids yet, and at 1 m they would add 50 MB a bake
 
 # ------------------------------------------------------------------ layout (#150)
 # Metres, origin at map centre, x east, y north. Gameplay positions match under a half turn about the centre.
-_HALF_AREA = [(-1250, 800), (-1120, 930), (-980, 1060), (-830, 1250), (1250, 1250)]
-PLAY_AREA = _HALF_AREA + [(-x, -y) for x, y in _HALF_AREA]  # 6.05 km², corners cut north-west and south-east
-HQS = {"nato": (-1120.0, -40.0), "pact": (1120.0, 40.0)}
-HQ_RADIUS = 60.0
-POINTS = [  # id, x, y, capture radius, owner at the start; the site each one gets when the map is dressed
-    ("A", -900.0, 480.0, 30.0, "nato"),  # Kreuzhof: farmstead on the west ridge road
-    ("B", -840.0, -640.0, 30.0, "nato"),  # Lindenhof: walled farm on the south road out of the HQ
+# The Play Area ends on an arc at each end: NATO's leaves the north-west cut corner, swings 240 m out past the valley's old
+# west edge (x = -1250) and comes back in at the south-west corner. NATO's HQ is an area, not a spot: a lobe against the
+# middle of that arc. Its back is the arc between two of the arc's own corners, south to north; its front runs from the
+# arc's north corner round the command post, 50 m into the valley, and back to the south corner, in one soft line. The
+# ground between the arc and the valley north and south of it is open to both Sides. The Warsaw Pact's is its half turn.
+_ARC = [(round(x), round(y)) for x, y in catmull(
+    [(-1250, -1250), (-1330, -1000), (-1400, -750), (-1452, -500), (-1482, -250), (-1490, -70), (-1484, 100), (-1455, 330),
+     (-1400, 540), (-1325, 700), (-1250, 800)], 100.0)]
+_HQ_BACK = _ARC[_ARC.index((-1470, -371)):_ARC.index((-1455, 330)) + 1]
+_HQ_FRONT_LINE = [(-1455, 330), (-1405, 300), (-1335, 262), (-1270, 222), (-1228, 180), (-1203, 120), (-1192, 30), (-1202, -60),
+                  (-1196, -150), (-1212, -228), (-1255, -282), (-1330, -322), (-1410, -352), (-1470, -371)]
+_HQ_FRONT = [(round(x), round(y)) for x, y in catmull(_HQ_FRONT_LINE, 40.0)][1:-1]
+_HALF_AREA = [(-1120, 930), (-980, 1060), (-830, 1250), (1250, 1250)] + [(-x, -y) for x, y in _ARC[1:]]
+PLAY_AREA = _HALF_AREA + [(-x, -y) for x, y in _HALF_AREA]  # 6.71 km², corners cut north-west and south-east
+HQS = {"nato": (-1350.0, -50.0), "pact": (1350.0, 50.0)}  # the command post, on the main road
+HQ_RADIUS = 150.0  # the margin kept round the centre where a rule wants a circle; the HQ itself is HQ_AREA
+HQ_AREA = {"nato": _HQ_BACK + _HQ_FRONT, "pact": [(-x, -y) for x, y in _HQ_BACK + _HQ_FRONT]}  # 0.16 km² each
+# where NATO's Squads start and Redeploy: by the tent camp, the command post, the hospital, the supply dump, the exits
+HQ_SPAWNS = [(-1420, 86), (-1396, 86), (-1414, 144), (-1340, 6), (-1378, -30), (-1336, 150), (-1270, 150), (-1392, -132),
+             (-1420, -200), (-1305, -200), (-1440, 20), (-1232, 40)]
+POINTS = [  # id, x, y, capture radius, owner at the start (every one neutral); the site each one gets when the map is dressed
+    ("A", -900.0, 480.0, 30.0, None),  # Kreuzhof: farmstead on the west ridge road
+    ("B", -840.0, -640.0, 30.0, None),  # Lindenhof: walled farm on the south road out of the HQ
     ("C", -520.0, 560.0, 35.0, None),  # Ziegelei: brickworks 300 m from the west bank
     ("D", -430.0, -520.0, 35.0, None),  # Obstgut: orchard estate and rail halt on open farmland
     ("E", -130.0, 40.0, 45.0, None),  # Unterau: west half of the twin town, the west bridgehead
@@ -54,8 +72,8 @@ POINTS = [  # id, x, y, capture radius, owner at the start; the site each one ge
     ("H", 130.0, -40.0, 45.0, None),  # Oberau: east half of the twin town, the east bridgehead
     ("I", 430.0, 520.0, 35.0, None),  # Bahnhof: station and sidings on the rail line
     ("J", 520.0, -560.0, 35.0, None),  # Kieswerk: gravel works 300 m from the east bank
-    ("K", 840.0, 640.0, 30.0, "pact"),  # Waldhof: forest farm on the east ridge road
-    ("L", 900.0, -480.0, 30.0, "pact"),  # Birkenhof: farm on the south road out of the HQ
+    ("K", 840.0, 640.0, 30.0, None),  # Waldhof: forest farm on the east ridge road
+    ("L", 900.0, -480.0, 30.0, None),  # Birkenhof: farm on the south road out of the HQ
 ]
 PT = {i: (x, y) for i, x, y, _, _ in POINTS}
 KEYSTONE = ["E", "H"]  # the twin town: the Missile gate needs both halves
@@ -66,11 +84,13 @@ CROSSINGS = [  # north to south, twins under the half turn; armour crosses at th
 ]
 # #154: each Side's vehicles, sized so about a third of a Side can ride out at the opening. HQ slots and helipads are metres
 # from NATO's HQ, x toward the field, and PACT's are their half turn. Odd metres put each one on a 2 m cell centre, so a slot
-# and its twin fall in twin cells. The slots clear the compound's tents and containers on both Sides.
-HQ_VEHICLES = [("tank", 1, 29), ("tank", 13, 29), ("tank", 25, 29), ("tank", 37, 29),
-               ("jeep", 1, 15), ("jeep", 13, 15), ("jeep", 25, 15), ("jeep", 1, -17), ("jeep", 13, -17), ("jeep", 25, -17),
-               ("aa", 1, -29), ("aa", 13, -29)]
-HQ_PADS = [(-15, 25), (-15, -1), (-15, -27)]  # one helicopter on each
+# and its twin fall in twin cells. The ground vehicles stand apart through the HQ, one beside each group of spawn spots, so
+# a Squad coming in finds a ride by it: by the camp, the command post, the hospital, the apron, the supply dump and the south
+# exit. One tank and the AA guns wait on the motor pool's hardstand; the pads are the apron north of the main road.
+HQ_VEHICLES = [("tank", -13, 191), ("tank", -3, 65), ("tank", -17, -83), ("tank", 65, -57),
+               ("jeep", -35, 113), ("jeep", -17, 11), ("jeep", 27, 181), ("jeep", 123, 71), ("jeep", -35, -67), ("jeep", 41, -179),
+               ("aa", 57, -73), ("aa", 85, -73)]
+HQ_PADS = [(63, 53), (97, 53), (80, 87)]  # one helicopter on each
 JETS = 3  # at the off-map base
 # Metres from NATO's bank's points, on the road back toward its HQ; each PACT-bank point takes its twin's half turn. None in
 # the twin town (the keystone is an infantry fight), a tank and a jeep at the armour points D and I, a jeep at every other.
@@ -150,8 +170,8 @@ def _siding(off, k0, k1):
 
 
 ROADS = [
-    ("main", [(-EXT - 12, -150), (-2400, -110), (-1300, -60), (-1120, -40), (-940, -80), (-700, -20), (-420, 60), (-220, 50),
-              (-130, 40), (0, 0), (130, -40), (230, -45), (420, -60), (700, 20), (940, 80), (1120, 40), (1300, 60), (2400, 110),
+    ("main", [(-EXT - 12, -150), (-2400, -110), (-1350, -50), (-1120, -40), (-940, -80), (-700, -20), (-420, 60), (-220, 50),
+              (-130, 40), (0, 0), (130, -40), (230, -45), (420, -60), (700, 20), (940, 80), (1120, 40), (1350, 50), (2400, 110),
               (EXT + 12, 150)]),
     # the valley roads: HQ, rear point, bank point, outer bridge, outlier, and on to the other HQ
     ("minor", [(-1120, -40), (-1060, 200), (-900, 480), (-720, 570), (-520, 560), (-400, 700), (-230, 930), (-60, 1020),
@@ -176,6 +196,17 @@ ROADS = [
     ("rail", _RAIL_PTS),
     ("rail", _siding(-6.0, 10, 110)), ("rail", _siding(-11.5, 25, 95)),  # the station's sidings, north of the main line
 ]
+# NATO's HQ tracks: a loop from the command post north past the tent camp and the hospital and south past the supply dump,
+# out to the valley roads north and south of the main road, with a link through the motor pool between the two
+_HQ_TRACKS = [[(-1350, -50), (-1368, 10), (-1375, 70), (-1352, 128), (-1300, 118), (-1262, 100), (-1228, 150), (-1150, 185),
+               (-1060, 200)],
+              [(-1350, -50), (-1372, -105), (-1378, -160), (-1345, -205), (-1290, -222), (-1228, -246), (-1150, -268),
+               (-1000, -300)],
+              [(-1290, -222), (-1280, -175), (-1275, -136)], [(-1275, -80), (-1272, -47)],
+              # out through the open ground north and south of the HQ, to A's road and to B's
+              [(-1352, 128), (-1345, 300), (-1330, 470), (-1250, 470), (-1100, 470), (-900, 480)],
+              [(-1345, -205), (-1352, -400), (-1340, -600), (-1250, -620), (-1050, -640), (-840, -640)]]
+ROADS += [("track", t) for t in _HQ_TRACKS] + [("track", [(-x, -y) for x, y in t]) for t in _HQ_TRACKS]
 # Unterau's streets off the square at E, and Oberau's as their half turn, so both Sides drive the same town
 _STREETS = [[(-130, 40), (-120, 100), (-135, 160), (-190, 190)], [(-135, 160), (-85, 150), (-62, 90), (-55, 17)],
             [(-130, 40), (-105, -30), (-70, -90), (-20, -150)], [(-250, 160), (-245, 100), (-225, 50), (-215, -20), (-170, -80)]]
@@ -273,8 +304,25 @@ def woods_val(x, y):
     return 0.9 * w + 0.35 * nz(x, y, 45, 2.2) + 0.2 * nz(x, y, 150, 4.1)
 
 
-# open ground kept free of woods and fields: the HQs, the point zones, and the sites of the landmarks beside them
-CLEAR = ([(*HQS["nato"], HQ_RADIUS + 20), (*HQS["pact"], HQ_RADIUS + 20)] + [(x, y, r + 15) for _, x, y, r, _ in POINTS]
+def in_hq(x, y):
+    """Inside either Side's HQ (even-odd rule)."""
+    hit = False
+    for poly in HQ_AREA.values():
+        for (ax, ay), (bx, by) in zip(poly, poly[1:] + poly[:1]):
+            if (ay > y) != (by > y) and x < (bx - ax) * (y - ay) / (by - ay) + ax:
+                hit = not hit
+    return hit
+
+
+# NATO's HQ sites, each with the radius kept clear round it: fields, hedges and trees fill the ground between them
+HQ_SITES = {"post": (-1332, -12, 34), "pool": (-1275, -107, 58), "park": (-1278, -160, 34), "apron": (-1270, 14, 46),
+            "camp": (-1412, 114, 40), "hospital": (-1305, 162, 36), "dump": (-1414, -166, 36), "gate": (-1204, -44, 22),
+            "forward": (-1120, -40, 34)}  # the forward gate stands at the road junction outside the HQ
+HQ_TOWERS = [(-1208, -28), (-1236, 166), (-1226, -226), (-1466, 90), (-1474, -110), (-1446, 330), (-1380, -270), (-1378, 204)]
+_HQ_CLEAR = (list(HQ_SITES.values()) + [(x, y, 10) for x, y in HQ_SPAWNS] + [(x, y, 7) for x, y in HQ_TOWERS]
+             + [(HQS["nato"][0] + dx, HQS["nato"][1] + dy, 9) for _, dx, dy in HQ_VEHICLES])
+# open ground kept free of woods and fields: the HQ sites, the point zones, and the sites of the landmarks beside them
+CLEAR = (_HQ_CLEAR + [(-x, -y, r) for x, y, r in _HQ_CLEAR] + [(x, y, r + 15) for _, x, y, r, _ in POINTS]
          + [(x, y, 66 if big else 58) for x, y, _, big in (FARM_A, FARM_B, FARM_K, FARM_L)] + [(x, y, 46) for x, y, _ in FARMS]
          + [(-560, 500, 64), (-640, 452, 42), (560, -500, 64), (640, -452, 46),  # C's brickworks and clay pit, J's gravel works and pit
             (-400, -500, 66), (-385, -420, 95), (-444, -566, 34), (-608, -556, 30),  # D's manor, orchard, greenhouses, halt
@@ -337,6 +385,8 @@ def plain(name, colour, rough=0.9):
 def build_extras():
     """Auental's own materials and scatter prototypes, beside the shared ones. Returns the prototypes."""
     plain("white", (0.72, 0.73, 0.71), 0.5)
+    plain("redcross", (0.50, 0.05, 0.04), 0.6)
+    plain("worn", (0.12, 0.10, 0.07), 0.95)  # grass trodden down to earth
     plain("gravel", (0.33, 0.31, 0.27)).bump(MATS["gravel"].noise(MATS["gravel"].coord("Object"), 2.5, 4), 0.5, 0.15)
     M = Mat("glass")  # a greenhouse roof: panes between glazing bars
     o = M._sep(M.coord("Object"))
@@ -416,7 +466,7 @@ def build_dam():
     a = -math.atan(river_dxdy(cy))
     W = frame(cx, cy, a)
     mb = MB()
-    mb.box(0, -4, -3.0, 60, 4.0, 5.9, "concrete")  # local x across the river, y downstream (north)
+    mb.box(0, -6.5, -3.0, 60, 4.0, 5.9, "concrete")  # local x across the river, y downstream (north); clear of the dam road, which vehicles cross on
     mb.cyl(-6, -22, -3.0, 3.2, 8.5, "concrete", 12, top_m="roof_flat")  # the intake tower
     mb.box(-6, -13, 2.2, 1.6, 18, 0.3, "metal")  # its gangway from the crest
     mb.obj("dam", (cx, cy, 0.0), a, "wall")
@@ -725,7 +775,7 @@ def build_town():
     for west in (True, False):
         s = 1 if west else -1
         build_houses(lambda x, y, k=1.0, west=west: (x < river_x(y)) == west and in_town(x, y, k),
-                     (s * TOWN[0], s * TOWN[1], TOWN[3], TOWN[3]), bank(8), bank(6))
+                     (s * TOWN[0], s * TOWN[1], TOWN[3], TOWN[3]), bank(8), bank(6), road_margin=3.0)
     px, py, a = 330.0, 15.0, 0.05  # the football ground
     W = frame(px, py, a)
     flat_patch("pitch", px, py, 100, 64, a, "f_meadow", 0.08, cover="open")
@@ -815,7 +865,7 @@ def build_war():
             continue
         for _ in range(rng.randint(2, 7)):
             x, y, r = cx + rng.gauss(0, 16), cy + rng.gauss(0, 16), rng.uniform(1.4, 4.2)
-            if zone(x, y) in ("farm", "clear", "road") and not clearing(x, y) and not near_crossing(x, y, 35) and free(x, y, r):
+            if zone(x, y) in ("farm", "clear", "road") and not clearing(x, y) and not in_hq(x, y) and not near_crossing(x, y, 35) and free(x, y, r):
                 crater(x, y, r)
                 n += 1
     log(f"  craters: {n}")
@@ -972,6 +1022,150 @@ def build_fields():
     log(f"  fields: {n}")
 
 
+# ------------------------------------------------------------------------ HQ
+def build_hq(side):
+    """A Side's HQ, spread over its area as sites with farmland left between them: the command post on the main road, the
+    motor pool's hardstand and the helicopter apron by the gate, a tent camp, a field hospital, a supply dump, watchtowers
+    and sandbag posts on the perimeter and at the exits, and a forward gate at the road junction outside it. Sites are
+    given for NATO; the Warsaw Pact's stand at their half turn, pitched by their own hand."""
+    s, turn = (1, 0.0) if side == "nato" else (-1, math.pi)
+    r = random.Random(11 if side == "nato" else 23)
+
+    def at(x, y):
+        return s * x, s * y
+
+    def name(what):
+        return f"hq_{side}_{what}"
+
+    def tent(what, x, y, a=0.0, w=5.5, d=9.0, h=1.8, roof="canvas"):
+        mb = MB()
+        gable(mb, w, d, h, 35, roof, roof, oh=0.2, z0=-0.5)
+        stand(mb, name(what), *at(x, y), a + turn + r.uniform(-0.07, 0.07))
+        FOOT.append((*at(x, y), max(w, d) / 2))
+        return mb
+
+    def bags(what, x, y, a, pts, h=1.1):
+        """A sandbag wall along a local polyline."""
+        mb = MB()
+        wall_run(mb, pts, h, "sand", 1.0)
+        stand(mb, name(what), *at(x, y), a + turn, "wall")
+
+    def arc(what, x, y, a, rad=4.5, sweep=2.4):
+        """A sandbag post: an arc of wall, open to the rear, its middle toward heading a."""
+        bags(what, x, y, a, [(rad * math.cos(t), rad * math.sin(t)) for t in np.linspace(-sweep / 2, sweep / 2, 6)])
+
+    def tower(k, x, y):
+        mb = MB()
+        for sx in (-1, 1):
+            for sy in (-1, 1):
+                mb.box(sx * 1.3, sy * 1.3, -0.5, 0.3, 0.3, 8.8, "timber")
+        mb.box(0, 0, 5.4, 3.4, 3.4, 0.25, "timber")
+        for sx, sy, w, d in ((0, 1.6, 3.4, 0.2), (0, -1.6, 3.4, 0.2), (1.6, 0, 0.2, 3.4), (-1.6, 0, 0.2, 3.4)):
+            mb.box(sx, sy, 5.65, w, d, 1.0, "sand")
+        mb.box(0, 0, 8.2, 4.2, 4.2, 0.2, "roof_metal")
+        stand(mb, name(f"tower{k}"), *at(x, y), turn + r.uniform(-0.4, 0.4), "prop")
+
+    def stack(what, x, y, a, rows, cols, gap=0.5):
+        """Shipping containers side by side, some two high."""
+        mb = MB()
+        for i in range(rows):
+            for j in range(cols):
+                mb.box(i * 6.6, j * (2.45 + gap), -0.3, 6.1, 2.45, 2.9 * (2 if r.random() < 0.35 else 1) + 0.3, "container")
+        stand(mb, name(what), *at(x, y), a + turn)
+
+    # ground worn bare where the camp lives: under the tents, the wards, the dump and the command post
+    for k, (x, y, rad) in enumerate(((-1412, 114, 30), (-1305, 162, 24), (-1414, -166, 30), (-1328, -10, 24))):
+        pit(name(f"worn{k}"), *at(x, y), rad, "worn", 0.09, y + s)
+
+    # the command post, north of the main road: the staff tents in a row, the operations tent, the radio mast
+    for k in range(3):
+        tent(f"post{k}", -1340 + k * 12, -20)
+    tent("ops", -1318, 8, math.pi / 2, 8, 13, 2.4)
+    mb = MB()
+    mb.cyl(0, 0, -0.5, 0.25, 22, "metal", 6)
+    stand(mb, name("mast"), *at(-1306, -18), 0, "prop")
+    arc("post_bags0", -1348, -36, -1.9, 5.5)
+    arc("post_bags1", -1304, -34, -1.2, 5.5)
+
+    # the motor pool: a gravel hardstand for the vehicle slots, trucks under camouflage nets south of it
+    for k, (x, y, rad) in enumerate(((-1296, -106, 27), (-1256, -108, 27), (-1276, -96, 24), (-1278, -160, 26))):
+        pit(name(f"hardstand{k}"), *at(x, y), rad, "sand", 0.1, x + s)
+    for net, nx in enumerate((-1298, -1258)):
+        for i in range(3):
+            truck(name(f"truck{net}{i}"), *at(nx - 5 + i * 5, -160), turn + math.pi / 2)
+        camo_net(name(f"net{net}"), *at(nx, -160), turn, r)
+    stack("pool_store", -1232, -128, math.pi / 2, 1, 3)
+    mb = MB()  # fuel drums by the store
+    for k in range(8):
+        mb.cyl(r.uniform(-1.5, 1.5), k * 1.1, -0.2, 0.45, 1.3, "dark", 8)
+    stand(mb, name("drums"), *at(-1236, -106), turn, "prop")
+
+    # the helicopter apron: a pad under each helicopter, the fuel bowser and the windsock
+    for k, (dx, dy) in enumerate(HQ_PADS):
+        pad = hq_slot(side, dx, dy)
+        disc_patch(name(f"pad{k}"), pad["x"], pad["y"], 8.5, "yardconc", 0.14)
+    truck(name("bowser"), *at(-1243, 30), turn + 0.4)
+    mb = MB()
+    mb.cyl(0, 0, -0.5, 0.12, 9, "metal", 6)
+    mb.box(1.4, 0, 8.2, 2.8, 0.5, 0.5, "redcross")
+    stand(mb, name("windsock"), *at(-1296, 34), turn + r.uniform(0, 6.28), "prop")
+
+    # the tent camp: two rows of squad tents, the mess tent behind them
+    for row, ty in enumerate((104, 124)):
+        for k in range(5):
+            tent(f"camp{row}{k}", -1436 + k * 11, ty)
+    tent("mess", -1376, 112, 0.0, 8, 16, 2.4)
+
+    # the field hospital: ward tents round a yard, a red cross on each roof, the ambulances beside them
+    for k, (hx, hy, ha) in enumerate(((-1318, 170, 0.0), (-1292, 170, 0.0), (-1305, 150, math.pi / 2))):
+        mb = tent(f"ward{k}", hx, hy, ha, 7.5, 15, 2.2, "white")
+        cross = MB()
+        zr = 2.2 + 3.75 * math.tan(math.radians(35)) + 0.12
+        cross.box(0, 0, zr, 1.2, 5.0, 0.12, "redcross")
+        cross.box(0, 0, zr, 3.6, 1.6, 0.12, "redcross")
+        stand(cross, name(f"cross{k}"), *at(hx, hy), ha + turn, "prop")
+    for k in range(2):
+        truck(name(f"ambulance{k}"), *at(-1284 + k * 6, 146), turn + math.pi / 2)
+
+    # the supply dump: containers, crate stacks and fuel bladders inside a low berm, open toward the track
+    stack("dump0", -1432, -160, 0.0, 2, 4)
+    stack("dump1", -1430, -184, 0.0, 2, 3)
+    mb = MB()
+    for k in range(9):
+        mb.box(r.uniform(-9, 9), r.uniform(-7, 7), -0.2, r.uniform(1.2, 2.4), r.uniform(1.2, 2.4), r.uniform(1.0, 2.6), "timber",
+               a=r.uniform(0, 1.5))
+    stand(mb, name("crates"), *at(-1404, -150), turn, "prop")
+    mb = MB()
+    for k in range(3):
+        mb.box(0, k * 6.5, -0.2, 9.0, 5.0, 1.1, "dark")
+    stand(mb, name("bladders"), *at(-1402, -186), turn, "prop")
+    bags("dump_berm", -1414, -166, 0.0, [(22, 26), (-28, 26), (-28, -26), (22, -26)], 1.6)
+
+    # the perimeter: a watchtower at each exit and round the back, a sandbag post beside each exit
+    for k, (x, y) in enumerate(HQ_TOWERS):
+        tower(k, x, y)
+    for k, (x, y, a) in enumerate(((-1202, -34, 0.1), (-1202, -56, -0.1), (-1216, 138, 0.5), (-1220, -234, -0.5))):
+        arc(f"exit_bags{k}", x, y, a)
+
+    # the front: a broken line of earth-filled barriers with gaps to walk out through, open wherever a road or track leaves
+    front = catmull(_HQ_FRONT_LINE, 2.0)
+    k = 0
+    while k < len(front) - 9:
+        n = r.randint(5, 8)  # a run of 10 to 16 m, then a gap as long again
+        (x0, y0), (x1, y1) = front[k], front[min(k + n, len(front) - 1)]
+        if not any(on_road(*at(*p), 5.0) for p in front[k:k + n + 1]):
+            L = math.hypot(x1 - x0, y1 - y0)
+            bags(f"front{k}", (x0 + x1) / 2, (y0 + y1) / 2, math.atan2(y1 - y0, x1 - x0), [(-L / 2, 0), (L / 2, 0)], 1.6)
+        k += n + r.randint(4, 8)
+
+    # the forward gate, at the junction of the valley roads: the guard hut, a tower, sandbag posts covering the roads in
+    tent("guard", -1136, -24, 0.3, 4.5, 6, 2.0, "roof_metal")
+    tower("_fwd", -1134, -58)
+    for k, (x, y, a) in enumerate(((-1102, -28, 0.5), (-1104, -54, -0.5), (-1100, -4, 1.4))):
+        arc(f"fwd_bags{k}", x, y, a, 4.0)
+    FOOT.extend((*at(x, y), rad) for x, y, rad in HQ_SITES.values())
+
+
 # ----------------------------------------------------------------- map.json
 def hq_slot(side, dx, dy):
     """#154: the spot dx, dy metres from the Side's HQ as NATO's HQ_VEHICLES and HQ_PADS give it; PACT's is the half turn."""
@@ -991,14 +1185,16 @@ def meta():
     return {
         "name": "Auental", "village": "Unterau", "river": "Auer", "sizeM": int(2 * HALF),
         "playArea": [{"x": x, "y": y} for x, y in PLAY_AREA],
-        "hqs": {side: {"x": x, "y": y, "radius": HQ_RADIUS} for side, (x, y) in HQS.items()},
+        "hqs": {side: {"x": x, "y": y, "radius": HQ_RADIUS, "area": [{"x": ax, "y": ay} for ax, ay in HQ_AREA[side]],
+                       "spawns": [hq_slot(side, sx - HQS["nato"][0], sy - HQS["nato"][1]) for sx, sy in HQ_SPAWNS]}
+                for side, (x, y) in HQS.items()},
         "points": [{"id": i, "name": i, "x": x, "y": y, "radius": r, "owner": o, **point_vehicles(i)} for i, x, y, r, o in POINTS],
         "keystone": KEYSTONE,
         "crossings": [{"id": i, "kind": k, "x": r2(x), "y": r2(y), "halfWidth": hw} for i, k, x, y, hw in CROSSINGS],
         "vehicleSlots": {side: [{"kind": k, **hq_slot(side, dx, dy)} for k, dx, dy in HQ_VEHICLES] for side in HQS},
         "helipad": {side: [hq_slot(side, dx, dy) for dx, dy in HQ_PADS] for side in HQS},
         "jets": {side: JETS for side in HQS},
-        "grid": {"cols": 10, "rows": 10, "squareM": 250.0, "letters": "ABCDEFGHIJ"},
+        "grid": {"cols": 12, "rows": 12, "squareM": 250.0, "letters": "ABCDEFGHIJKL"},
         "data": {"cells": int(2 * HALF), "cellM": 1, "cover": "cover_u8.bin", "ground": "ground_f32.bin", "top": "top_f32.bin",
                  "heightCellM": HEIGHT_CELL_M, "coverIds": COVER_IDS},
         "images": {"play": [f"map_{8192 >> k}.webp" for k in range(14)],
@@ -1015,17 +1211,8 @@ def main():
     build_roads()
     P = build_extras()
     log("landmarks")
-    build_hq("nato", *HQS["nato"], 0.05, HQ_RADIUS / 35)
-    build_hq("pact", *HQS["pact"], -0.12, HQ_RADIUS / 35)
-    for side in HQS:  # what the bigger compound adds to the motor pool: a pad under each helicopter, a tent line at the back
-        for k, (dx, dy) in enumerate(HQ_PADS):
-            pad = hq_slot(side, dx, dy)
-            disc_patch(f"helipad_{side}{k}", pad["x"], pad["y"], 8.5, "yardconc", 0.14)
-        for k in range(6):
-            tent = hq_slot(side, -50, -40 + k * 16)
-            mb = MB()
-            gable(mb, 5.5, 9, 1.8, 35, "canvas", "canvas", oh=0.2, z0=-0.5)
-            stand(mb, f"hq_{side}_line{k}", tent["x"], tent["y"], math.pi / 2)
+    for side in HQS:
+        build_hq(side)
     build_crossings()
     build_dam()
     build_staudamm()

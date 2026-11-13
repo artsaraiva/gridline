@@ -2,7 +2,7 @@
 // locks on a target it holds (`lockOn`), fires one once the lock is done, then reloads; the missile turns after its target, and
 // close on it hits with a seeded chance or flies on past until it is spent (`flyMissiles`).
 import type { Match } from './index';
-import { dist2 } from './geometry';
+import { dist2, inHq } from './geometry';
 import { jetLock } from './jet';
 import { turnToward } from './momentum';
 import { rnd } from './rng';
@@ -48,7 +48,7 @@ function lockOn(m: Match, v: Vehicle, prey: number, lockSeconds: number, reloadS
 export function launchMissiles(m: Match) {
   const t = m.tune;
   for (const v of m.vehicles) {
-    if (!live(v) || v.seats[0]! < 0) continue;
+    if (!live(v) || v.seats[0]! < 0 || inHq(m, v.side, v)) continue; // nor out of its own HQ (combat.ts fire)
     const target = vehicleOf(m, v.target);
     if (v.kind === 'aa') lockOn(m, v, target && flies(target) ? target.id : -1, t.aaLockSeconds, t.aaReloadSeconds);
     else if (v.kind === 'jet') lockOn(m, v, jetLock(m, v), t.jetLockSeconds, t.jetReloadSeconds);

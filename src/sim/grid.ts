@@ -1,5 +1,5 @@
 import type { Match } from './index';
-import { insidePolygon } from './geometry';
+import { hqHolds, insidePolygon } from './geometry';
 import type { MapData, Rect, SideId, Terrain, Tune, Vec2 } from './types';
 
 export const WALL = 1;
@@ -115,12 +115,12 @@ export function driveGrid(map: MapData, g: Grid, side: SideId, t: Tune): Grid {
     }
   const hq = map.hqs[side === 'nato' ? 'pact' : 'nato'];
   const r = hq.radius ?? t.hqRadius;
-  for (let j = Math.max(0, Math.floor((hq.y - r - y0) / t.cellM)); j < Math.min(rows, Math.ceil((hq.y + r - y0) / t.cellM)); j++)
-    for (let i = Math.max(0, Math.floor((hq.x - r - x0) / t.cellM)); i < Math.min(cols, Math.ceil((hq.x + r - x0) / t.cellM)); i++) {
-      const dx = x0 + (i + 0.5) * t.cellM - hq.x;
-      const dy = y0 + (j + 0.5) * t.cellM - hq.y;
-      if (dx * dx + dy * dy < r * r) cost[j * cols + i] = 0;
-    }
+  const box = hq.area ?? [{ x: hq.x - r, y: hq.y - r }, { x: hq.x + r, y: hq.y + r }];
+  const lo = (v: number[], o: number) => Math.max(0, Math.floor((Math.min(...v) - o) / t.cellM));
+  const hi = (v: number[], o: number, n: number) => Math.min(n, Math.ceil((Math.max(...v) - o) / t.cellM));
+  const [xs, ys] = [box.map((p) => p.x), box.map((p) => p.y)];
+  for (let j = lo(ys, y0); j < hi(ys, y0, rows); j++)
+    for (let i = lo(xs, x0); i < hi(xs, x0, cols); i++) if (hqHolds(hq, t.hqRadius, { x: x0 + (i + 0.5) * t.cellM, y: y0 + (j + 0.5) * t.cellM })) cost[j * cols + i] = 0;
   return { ...g, cost };
 }
 
