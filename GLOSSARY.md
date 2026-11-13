@@ -196,6 +196,10 @@ _Avoid_: Resupply, ammo box, care package
 The Asset that, after a warning, lands a spread of shells round a chosen spot, killing, Wounding and suppressing Soldiers of either Side by their distance from each shell.
 _Avoid_: Strike, airstrike, bombardment, arty
 
+**Mark**:
+A spot the Commander flags as a suspected enemy position. It joins what the Side knows, so every Squad, Elite or not, treats it as one: an own Capture Point near it counts as threatened, the helicopter lands away from it, and a Squad taking fire from an enemy it cannot see fires at it. It never shows an enemy and never changes an Order. It fades by itself, the Commander can renew or clear it, and a friendly Soldier who checks the spot and finds nobody clears it.
+_Avoid_: Ping, waypoint, marker, Mark Target
+
 ### Radio
 
 **Callout**:

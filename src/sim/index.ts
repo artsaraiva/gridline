@@ -7,6 +7,7 @@ import { casualties, fire, suppressionDecay } from './combat';
 import { assetEffects, hashAssets, newAssets, type Assets } from './assets/core';
 import { applyCommands } from './commands';
 import { buildGrid, driveGrid, type Grid } from './grid';
+import { hashMarks, marks, newMarks, type Marks } from './marks';
 import { hashMemory, hear, type Sighting } from './memory';
 import { hashOrders, orders } from './orders';
 import { perceive } from './perception';
@@ -44,6 +45,7 @@ export interface Match {
   assets: Assets; // cooldowns and effects at work; see assets/core.ts
   radio: Radio; // what each Squad may say next; see radio.ts
   score: Score; // each Side's Commander Score by category; see score.ts
+  marks: Marks; // #136: each Side's live Marks; see marks.ts
   result: MatchResult | null;
 }
 
@@ -76,6 +78,7 @@ export function createMatch(opts: {
     assets: newAssets(tune),
     radio: newRadio(opts.squadsPerSide * SIDES.length, opts.squadsPerSide * SIDES.length * tune.squadSize, map.points.map((p) => p.owner ?? null)),
     score: newScore(),
+    marks: newMarks(),
     result: null,
   };
   for (const side of SIDES) {
@@ -118,6 +121,7 @@ export function step(m: Match, commands: Command[]): SimEvent[] {
     }
   casualties(m, events);
   perceive(m);
+  marks(m, events);
   assetEffects(m, events);
   fire(m, events);
   hear(m, events);
@@ -155,5 +159,6 @@ export function stateHash(m: Match): string {
   hashRequests(m, mix);
   hashScore(m, mix);
   hashVehicles(m, mix);
+  hashMarks(m, mix);
   return h.toString(16).padStart(8, '0');
 }

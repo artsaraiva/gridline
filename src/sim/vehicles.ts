@@ -748,7 +748,7 @@ export function plan(m: Match, v: Vehicle) {
   if (v.goal >= 0) {
     const p = m.points[v.goal]!;
     v.lz = landingZone(m, p, known, (q) => clearOfHq(m, v.side, q, 1));
-    const hot = sideKnown(m, v.side).some((e) => dist2(e, p) <= squared(m.tune.lzThreatM)); // #131: any friendly Squad's eyes
+    const hot = sideKnown(m, v.side).some((e) => e.source !== 'marked' && dist2(e, p) <= squared(m.tune.lzThreatM)); // #131: any friendly Squad's eyes; #136: not a Mark, a guess is no reason to jump (it still turns the Landing Zone away)
     const circles = hot && (v.seats[1]! >= 0 || v.seats[2]! >= 0); // with no gunner, circling is pointless (#128): the riders still jump
     Object.assign(v, { spot: circles ? { x: p.x, y: p.y } : null, drop: hot, until: -1, ...(circles && { spin: spinFor(m, v) }) });
   }

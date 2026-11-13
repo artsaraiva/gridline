@@ -5,13 +5,16 @@ import { vehicleOf, type Mix, type Soldier, type Squad } from './state';
 import { dist2 } from './geometry';
 import { SIDES, type LastKnownView, type SideId, type SimEvent } from './types';
 
-/** One enemy Soldier (or #107 vehicle) a Squad knows about. `heard` entries (gunfire) steer behaviour but never become Contacts. */
+/**
+ * One enemy Soldier (or #107 vehicle) a Squad knows about. `heard` entries (gunfire) steer behaviour but never become Contacts.
+ * #136: `marked` is one of the Side's Marks: no enemy behind it, never in a Squad's memory, only in `sideKnown`.
+ */
 export interface Sighting {
-  id: number; // enemy Soldier or vehicle id
+  id: number; // enemy Soldier or vehicle id; #136: minus the Mark's id for a `marked` one
   x: number;
   y: number;
   tick: number;
-  source: 'seen' | 'heard';
+  source: 'seen' | 'heard' | 'marked';
 }
 
 /** One entry per enemy id: the newest replaces the old. */
@@ -21,7 +24,10 @@ function note(list: Sighting[], s: Sighting) {
   else list[i] = s;
 }
 
-/** Enemies known to any Squad of `side` (BF4-style shared spotting): the freshest sighting per enemy id and source, so a newer `heard` never hides an older `seen`. */
+/**
+ * Enemies known to any Squad of `side` (BF4-style shared spotting): the freshest sighting per enemy id and source, so a newer `heard` never hides an older `seen`.
+ * #136: and the Side's Marks, as fresh as this tick. Whatever reads a position reacts to a Mark; whatever needs an enemy filters on `seen`.
+ */
 export function sideKnown(m: Match, side: SideId): Sighting[] {
   const best = new Map<string, Sighting>();
   for (const sq of m.squads)
@@ -30,7 +36,7 @@ export function sideKnown(m: Match, side: SideId): Sighting[] {
         const key = `${s.id}${s.source}`;
         if ((best.get(key)?.tick ?? -1) < s.tick) best.set(key, s);
       }
-  return [...best.values()];
+  return [...best.values(), ...m.marks.of[side].map((k): Sighting => ({ id: -k.id, x: k.x, y: k.y, tick: m.tick, source: 'marked' }))];
 }
 
 /** A Soldier (or vehicle) of `sq` sees enemy `e` (Soldier or vehicle) this tick: the Squad remembers it and the Side's Commander gets it as a Contact. */
@@ -92,7 +98,7 @@ export function lastKnown(m: Match, side: SideId): LastKnownView[] {
   return m.sightings[side].filter((s) => !isContact(m, s)).map((s) => ({ x: s.x, y: s.y, fade: 1 - (m.tick - 1 - s.tick) / span }));
 }
 
-const SOURCE = { seen: 0, heard: 1 };
+const SOURCE = { seen: 0, heard: 1, marked: 2 };
 
 export function hashMemory(m: Match, mix: Mix) {
   const all = (list: Sighting[]) => {

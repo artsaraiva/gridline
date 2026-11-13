@@ -356,4 +356,9 @@ export const DEFAULT_TUNE: Tune = {
   driveCaution: [0.5, 1.5],
   tankOutgunnedPenalty: 0.5,
   tankWreckPenalty: 0.3,
+  // #136 Mark
+  markMax: 3,
+  markSeconds: 90, // the spec's 60 ran out before a Squad walked to a Mark placed ahead of it (240 m at a walk)
+  markClearM: 40,
+  markClearSeconds: 5,
 };

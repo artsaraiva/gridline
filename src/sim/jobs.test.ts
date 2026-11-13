@@ -141,6 +141,16 @@ describe('#131 ferry', () => {
     for (const s of squad) expect(dist(s, P)).toBeLessThan(T.lzM[1] + 60);
   });
 
+  it('#136: a Mark by the goal does not make it hot: nobody is known to be there, so the helicopter lands its riders', () => {
+    const { m, h } = call();
+    m.tune.markSeconds = 1e4; // it outlives the trip
+    step(m, [{ tick: m.tick, side: 'nato', kind: 'mark', at: { x: P.x + 20, y: 30 } }]);
+    const log = trip(m, h, false);
+    expect(log.boarded).toBeGreaterThan(0);
+    expect(log.jumped).toBe(-1);
+    expect(log.down).not.toBeNull();
+  });
+
   it('a hot goal: it circles the point at orbitM for orbitSeconds, its gunner firing, then the riders jump over the Landing Zone', () => {
     const { m, h } = call({ hot: true, gunners: [2] });
     const log = trip(m, h, true);

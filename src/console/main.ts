@@ -2,6 +2,7 @@
 import './input';
 import { applyMix, soundEvents, soundFrame } from './audio';
 import { drawAssetRail } from './chrome/assets';
+import { drawMark } from './chrome/mark';
 import { bindMixer } from './chrome/mixer';
 import { drawRadioLog, logRadio, showRadioLog } from './chrome/radio-log';
 import { drawRail, showAward, toastEvent } from './chrome/rail';
@@ -21,6 +22,7 @@ import { drawHelicopters } from './layers/helicopter';
 import { drawAas } from './layers/aa';
 import { drawJets } from './layers/jet';
 import { drawAirMissiles } from './layers/air-missiles';
+import { drawMarks } from './layers/marks';
 import { drawOrders, hideOrderTags } from './layers/orders';
 import { drawHqs, drawPoint } from './layers/points';
 import { drawScanUavs } from './layers/scan-uav';
@@ -43,6 +45,7 @@ renderer.setAnimationLoop(() => {
     session.view = null;
     drawRail(null);
     drawAssetRail(null);
+    drawMark(null);
     drawSquads(null);
     showRadioLog(false);
     drawGrid(null);
@@ -72,6 +75,7 @@ renderer.setAnimationLoop(() => {
   const scale = UNIT_PX * metresPerPx.value; // one symbol unit in metres
   drawRail(view);
   drawAssetRail(view); // before the effects: their labels keep clear of the map Confirm button it places
+  drawMark(view);
   drawSquads(view);
   showRadioLog(true);
   drawRadioLog(now);
@@ -90,6 +94,7 @@ renderer.setAnimationLoop(() => {
   drawJets(view, scale, now);
   drawAirMissiles(view, scale);
   drawOrders(view, metresPerPx.value);
+  drawMarks(view, scale, now);
   drawDeathMarkers(now, scale);
   drawLastKnown(view, scale);
   drawChevrons(view, scale, now);

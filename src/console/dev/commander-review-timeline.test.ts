@@ -405,4 +405,25 @@ describe('commander review timeline (#69)', () => {
     expect(last.vehicles!.some((v) => v.id === 45)).toBe(false);
     expect(events.some((e) => e.kind === 'impact' && e.asset === 'gunship' && e.side === 'pact')).toBe(true);
   });
+
+  it('#136 Mark: three Marks, one fading through the chapter by A, one called clear, one taking Alpha\'s suppressive fire', () => {
+    const from = chapter('Mark') - 1;
+    expect(viewAt(from - 1).marks).toEqual([]);
+    const mid = viewAt(from + 10);
+    expect(mid.marks!.map((k) => k.id)).toEqual([1, 2, 3]);
+    const a = mid.points.find((p) => p.id === 'A')!;
+    const byA = mid.marks![0]!;
+    expect(a.owner).toBe('nato');
+    expect(Math.hypot(byA.x - a.x, byA.y - a.y)).toBeLessThan(a.radius + DEFAULT_TUNE.threatenedM); // A counts as threatened
+    const fades = [5, 20, 35].map((dt) => viewAt(from + dt).marks![0]!.fade);
+    expect(fades[0]).toBeGreaterThan(fades[1]!);
+    expect(fades[1]).toBeGreaterThan(fades[2]!);
+    expect(fades[2]).toBeGreaterThan(0);
+    expect(viewAt(from + 20).marks!.map((k) => k.id)).toEqual([1, 3]); // 2 was checked
+    const events = eventsBetween(from, LENGTH);
+    expect(events).toContainEqual(expect.objectContaining({ kind: 'radio', type: 'clear', squad: 0, grid: 'F6' }));
+    const aim = mid.marks![2]!;
+    const fire = events.filter((e): e is Extract<SimEvent, { kind: 'suppressive' }> => e.kind === 'suppressive' && e.side === 'nato' && Math.hypot(e.x - aim.x, e.y - aim.y) < 6);
+    expect(fire.length).toBeGreaterThan(10);
+  });
 });

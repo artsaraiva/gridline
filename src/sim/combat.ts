@@ -116,7 +116,7 @@ function aim(m: Match, s: Soldier): Shot | null {
 
 /**
  * Suppressive fire, with no enemy in view: at the nearest Last Known Position (seen, not heard) its Squad has from the last `suppressiveSeconds`,
- * in range and line of sight. Scattered round it; enemies near the aim point are suppressed less than by aimed fire, and the
+ * in range and line of sight. #136: or, with none and its Squad taking fire, at the nearest Mark, in range and line of sight. Scattered round it; enemies near the aim point are suppressed less than by aimed fire, and the
  * nearest is hit at a fraction of the chance. Flankers and Soldiers short of ammo hold it.
  */
 function suppressive(m: Match, s: Soldier): Shot | null {
@@ -124,12 +124,21 @@ function suppressive(m: Match, s: Soldier): Shot | null {
   if (s.target >= 0 || s.reviving >= 0 || m.tick < s.nextFire || s.role === 'flank' || s.ammo < t.suppressiveMinAmmo) return null;
   let lkp: Vec2 | null = null;
   let best = t.fireRangeM * t.fireRangeM;
-  for (const c of m.squads[s.squad]!.memory) {
+  const sq = m.squads[s.squad]!;
+  for (const c of sq.memory) {
     const d2 = dist2(c, s);
     if (c.source !== 'seen' || !m.soldiers[c.id] || m.tick - c.tick > t.suppressiveSeconds * t.hz || d2 >= best || d2 < 64) continue; // #107: never at a vehicle
     best = d2;
     lkp = c;
   }
+  // #136: taking fire with no such position, it fires at the nearest of its Side's Marks instead: a wrong Mark costs the ammunition
+  if (!lkp && m.tick - sq.lastHit <= t.takingFireSeconds * t.hz)
+    for (const k of m.marks.of[s.side]) {
+      const d2 = dist2(k, s);
+      if (d2 >= best || d2 < 64) continue;
+      best = d2;
+      lkp = k;
+    }
   if (!lkp || !los(m, s, lkp)) return null;
   return rake(m, s, lkp, t.suppressiveScatterM, t.fireSeconds);
 }
