@@ -384,4 +384,20 @@ export const DEFAULT_TUNE: Tune = {
   creepWoundM: 6,
   creepSuppressM: 14,
   creepSuppression: 1,
+
+  // #139 Drone Strike
+  droneCooldownSeconds: 60,
+  droneSpeedMps: 45, // the spec's 30 read as slow on the map
+  droneKillM: 4,
+  droneWoundM: 8,
+  droneSuppressM: 15,
+  droneSuppression: 1,
+  droneVehicleDamage: 50,
+  droneHp: 15, // the spec's 30 was set against an `aaDps` that does not exist: the AA's bursts do about 4 a second and its missile 45, so this falls about 2.5 s into `aaRangeM`, the spec's target
+
+  // #139 Recon Plane
+  reconCooldownSeconds: 90,
+  reconSpeedMps: 100,
+  reconStripM: 60,
+  reconHp: 20, // the spec's 40, likewise: about 3 s into `aaRangeM` (the spec's target is 3.5 s; at 22 one pass in 40 got through a lone AA on its line)
 };

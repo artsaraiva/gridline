@@ -4,6 +4,7 @@
 // The Barrage ring turns while it works and pulses on each impact (#98). #101: the Gunship has no ring once called:
 // its focus is a mark (layers/gunship.ts), and only its label is here. #138: a line-shaped Asset (Smoke Screen, Creeping
 // Barrage) has a strip in place of the ring: a thin outlined rectangle, in the preview and until its last shell is down.
+// #139: the Recon Plane's preview strip runs right across the map; in the air it and the Drone Strike have only a label here.
 import * as THREE from 'three/webgpu';
 import { gridRef } from '../../sim/grid-ref';
 import type { CommanderView, Vec2 } from '../../sim/types';
@@ -17,7 +18,7 @@ import { css, dashedRing, fading, UNIT_PX } from './symbols';
 /** #101: how far the Gunship's focus mark reaches from its spot on screen (the Cruise Missile's target mark: a chevron unit). */
 export const FOCUS_MARK_PX = UNIT_PX;
 
-const NAME = { scan: 'Scan UAV', supply: 'Supply Drop', barrage: 'Barrage', missile: 'Missile', gunship: 'Gunship', smoke: 'Smoke Screen', creep: 'Creeping Barrage' };
+const NAME = { scan: 'Scan UAV', supply: 'Supply Drop', barrage: 'Barrage', missile: 'Missile', gunship: 'Gunship', smoke: 'Smoke Screen', creep: 'Creeping Barrage', drone: 'Drone Strike', recon: 'Recon Plane' };
 const discGeometry = new THREE.CircleGeometry(1, 96);
 /** The Barrage ring turns this fast while it works, so an ongoing strike reads at a glance. */
 const RING_TURN_RAD_PER_S = 0.25;
@@ -104,6 +105,13 @@ export function drawEffects(view: CommanderView, now: number) {
     if (e.asset === 'gunship') {
       // layers/gunship.ts draws its focus mark; here the label beside it, to its own Commander, until it turns for home
       if (e.left > 0 && e.side === view.side) label(tags++, e, FOCUS_MARK_PX + 4, -18, `GUNSHIP ${e.phase === 'inbound' ? 'INBOUND' : clock(Math.ceil(e.left))}`, css(sideColor(e.side)));
+      continue;
+    }
+    if (e.asset === 'drone' || e.asset === 'recon') {
+      // #139: layers/drone.ts and layers/recon.ts draw them; here the label, to its own Commander, while it flies: by the drone's impact mark, by the Recon Plane itself
+      if (e.side !== view.side || !e.craft || e.lost) continue;
+      if (e.asset === 'drone') label(tags++, e, FOCUS_MARK_PX + 4, -18, `DRONE STRIKE IMPACT ${clock(Math.ceil(e.impactIn ?? 0))}`, css(sideColor(e.side)));
+      else label(tags++, e.craft, 22, -34, `RECON PLANE ${clock(Math.ceil(e.left))}`, css(sideColor(e.side)));
       continue;
     }
     if (e.asset === 'smoke' || e.asset === 'creep') {

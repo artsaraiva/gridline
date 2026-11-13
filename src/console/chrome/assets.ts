@@ -2,7 +2,7 @@
 // Confirm button beside the target ring, and the Asset hotkeys. Rows read ready, cooling, active or armed from the view
 // and targeting.
 import { gridRef } from '../../sim/grid-ref';
-import { CREEP_ICON, GUNSHIP_ICON, MISSILE_ICON, SMOKE_ICON } from './icons';
+import { CREEP_ICON, DRONE_ICON, GUNSHIP_ICON, MISSILE_ICON, RECON_ICON, SMOKE_ICON } from './icons';
 import type { AssetKind, CommanderView, Vec2 } from '../../sim/types';
 import { FOCUS_MARK_PX } from '../layers/effects';
 import { pxToWorld, toScreen } from '../renderer';
@@ -19,6 +19,8 @@ const ROWS: { key: string; asset: AssetKind; name: string; icon: string }[] = [
   { key: 'T', asset: 'gunship', name: 'Gunship', icon: icon(GUNSHIP_ICON) },
   { key: 'Y', asset: 'smoke', name: 'Smoke Screen', icon: icon(SMOKE_ICON) },
   { key: 'U', asset: 'creep', name: 'Creeping Barrage', icon: icon(CREEP_ICON) },
+  { key: 'I', asset: 'drone', name: 'Drone Strike', icon: icon(DRONE_ICON) },
+  { key: 'O', asset: 'recon', name: 'Recon Plane', icon: icon(RECON_ICON) },
 ];
 
 const box = document.getElementById('assets')!;
@@ -89,7 +91,8 @@ function placeMapConfirm(view: CommanderView | null) {
   mapConfirm.hidden = !spot || !radius || !ready();
   if (!spot || !radius || !ready()) return;
   mapConfirm.querySelector('span')!.textContent = `Confirm ${grid(spot)}`;
-  const c = toScreen(strip(null)?.to ?? spot); // #138: at the far end of a strip, clear of the start
+  const line = strip(null);
+  const c = toScreen(line && !line.across ? line.to : spot); // #138: at the far end of a strip, clear of the start; #139 by the start of one that runs off the map
   const panels = [...document.querySelectorAll('[data-hit]')].map((e) => e.getBoundingClientRect()).filter((r) => r.width > 0);
   const at = placeConfirm({ ...c, r: armed === 'gunship' ? FOCUS_MARK_PX : radius / pxToWorld() }, { w: mapConfirm.offsetWidth, h: mapConfirm.offsetHeight }, { w: innerWidth, h: innerHeight }, panels);
   mapConfirm.style.left = `${at.x}px`;

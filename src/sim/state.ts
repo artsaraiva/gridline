@@ -50,7 +50,7 @@ export interface Soldier {
   away: number; // aboard: the drive metres from its vehicle to its own Capture Point at its last think, -1 = not yet measured
   awaySince: number; // aboard: tick that distance began to grow, -1 = it is not growing
   // #55 Commander Score
-  cause: 'barrage' | 'missile' | 'gunship' | 'creep' | null; // what an enemy Strike did to it: scores for the enemy Commander on death; cleared by Revive
+  cause: 'barrage' | 'missile' | 'gunship' | 'creep' | 'drone' | null; // what an enemy Strike did to it: scores for the enemy Commander on death; cleared by Revive
   uavUntil: number; // #75 last tick it counts as UAV-discovered by the enemy Side (the Scan found it unseen, then the grace); see assets/scan.ts
   // #121 Staggered set-off
   reaction: number; // seconds it holds before moving off after its Squad's change, seeded
@@ -182,7 +182,7 @@ export function hashSoldiers(m: Match, mix: Mix) {
     mix(s.reviving);
     mix(s.deadAt);
     mix(s.ammo);
-    mix(s.cause === 'barrage' ? 1 : s.cause === 'missile' ? 2 : s.cause === 'gunship' ? 3 : s.cause === 'creep' ? 4 : 0);
+    mix(s.cause === 'barrage' ? 1 : s.cause === 'missile' ? 2 : s.cause === 'gunship' ? 3 : s.cause === 'creep' ? 4 : s.cause === 'drone' ? 5 : 0);
     mix(s.uavUntil); // #75
     mix(+s.uavAssist);
     mix(s.vehicle); // #107

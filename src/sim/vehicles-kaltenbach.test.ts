@@ -48,7 +48,7 @@ describe('#107 tanks on Kaltenbach', () => {
   it('two tanks a Side wait under the HQ vehicle park\'s camo nets, two jeeps beside them, and Soldiers board them all at match start; a jeep waits at every point but C', () => {
     const tanks = m.vehicles.filter((v) => v.kind === 'tank');
     expect(tanks.map((v) => [v.side, v.slot.x, v.slot.y])).toEqual((['nato', 'pact'] as const).flatMap((side) => KALTENBACH.vehicleSlots![side]!.filter((s) => s.kind === 'tank').map((s) => [side, s.x, s.y])));
-    const hq = m.vehicles.filter((v) => v.point < 0 && v.kind !== 'gunship'); // #101: the Gunship sleeps off the map until its Asset is called
+    const hq = m.vehicles.filter((v) => v.point < 0 && !['gunship', 'drone', 'recon'].includes(v.kind)); // #101: the Gunship sleeps off the map until its Asset is called
     for (const j of hq.filter((v) => v.kind === 'jeep')) {
       const last = tanks.filter((v) => v.side === j.side).at(-1)!.slot;
       expect(Math.hypot(j.slot.x - last.x, j.slot.y - last.y)).toBeLessThan(25);
@@ -217,7 +217,7 @@ describe('#154 Kaltenbach\'s vehicles come from its map.json', () => {
   it('the vehicles createMatch makes (id, side, kind, slot, point, dormant) are the ones the tune and the 9 m row made before', () => {
     const m = createMatch({ seed: 1, map: KALTENBACH, tune: DEFAULT_TUNE, squadsPerSide: 4, commanderSide: 'nato' });
     const base = 1555.5294117647059; // the jet's off-map base (`launchPoint`)
-    expect(m.vehicles.filter((v) => v.kind !== 'gunship').map((v) => [v.id, v.side, v.kind, v.slot.x, v.slot.y, v.point, v.deadAt === -2])).toEqual([ // #101: the Gunships come after, asleep off the map
+    expect(m.vehicles.filter((v) => !['gunship', 'drone', 'recon'].includes(v.kind)).map((v) => [v.id, v.side, v.kind, v.slot.x, v.slot.y, v.point, v.deadAt === -2])).toEqual([ // #101: the Gunships come after, asleep off the map
       [32, 'nato', 'tank', -411.1, -17.83, -1, false],
       [33, 'nato', 'tank', -408.91, 18.33, -1, false],
       [34, 'nato', 'jeep', -399.91, 18.33, -1, false],

@@ -1,7 +1,9 @@
 // Hand-drawn SVG line icons (1.6 px stroke) for the Assets.
 import type { AssetKind, VehicleKind } from '../../sim/types';
+import { DRONE_OUTLINE } from '../sprites/drone';
 import { GUNSHIP_OUTLINE } from '../sprites/gunship';
 import { MISSILE_OUTLINE } from '../sprites/missile';
+import { RECON_OUTLINE } from '../sprites/recon';
 
 /** A map icon's outline (symbol units, nose +y), filled, nose up-right, for the Asset row. */
 const filled = (outline: [number, number][], size: number) => `<path fill="currentColor" stroke-width="0.6" transform="rotate(45 12 12)" d="M${outline.map(([x, y]) => `${(12 + x * size).toFixed(2)} ${(12 - y * size).toFixed(2)}`).join('L')}Z"/>`;
@@ -9,6 +11,9 @@ const filled = (outline: [number, number][], size: number) => `<path fill="curre
 export const MISSILE_ICON = filled(MISSILE_OUTLINE, 14);
 /** #101: the same Gunship. */
 export const GUNSHIP_ICON = filled(GUNSHIP_OUTLINE, 13);
+/** #139: the same drone and Recon Plane. */
+export const DRONE_ICON = filled(DRONE_OUTLINE, 14);
+export const RECON_ICON = filled(RECON_OUTLINE, 14);
 
 /** #138: the Smoke Screen: a filled cloud over the ground line. */
 export const SMOKE_ICON = '<path fill="currentColor" stroke-width="0.6" d="M6.5 16.5a3.6 3.6 0 0 1-.6-7.1 4.6 4.6 0 0 1 8.7-1.6 3.9 3.9 0 0 1 3.6 8.7z"/><path d="M3.5 20.5h17"/>';
@@ -23,6 +28,8 @@ const PATHS: Record<AssetKind, string> = {
   gunship: GUNSHIP_ICON,
   smoke: SMOKE_ICON,
   creep: CREEP_ICON,
+  drone: DRONE_ICON,
+  recon: RECON_ICON,
 };
 
 /** #107: the Squad tile and card's badge for one member aboard a tank: a filled side-on hull, turret and gun. */
@@ -38,7 +45,7 @@ export const AA_BADGE = '<svg class="aa" viewBox="0 0 24 14" fill="currentColor"
 /** #101: the badge for a member aboard the Gunship: a filled side-on fuselage, high wing with two engines under it, the tall fin and a gun port. */
 export const GUNSHIP_BADGE = '<svg class="gunship" viewBox="0 0 24 14" fill="currentColor"><path d="M1.5 7.2l2-1.8h15.5l3.5 2-3.5 2.2H3.5z"/><path d="M18 5.6l1.6-4.6h2.2l-1 4.6z"/><path d="M7 4.4h11v1H7z"/><path d="M8.6 5.4h2.2v1.6H8.6zM13.6 5.4h2.2v1.6h-2.2z"/><path d="M5 8.2h1.6v1.6H5z" fill-opacity="0.45"/></svg>';
 /** The badge of each vehicle class, for the Squad tile and card. */
-export const VEHICLE_BADGE: Record<VehicleKind, string> = { tank: TANK_BADGE, jeep: JEEP_BADGE, helicopter: HELI_BADGE, jet: JET_BADGE, aa: AA_BADGE, gunship: GUNSHIP_BADGE };
+export const VEHICLE_BADGE: Record<VehicleKind, string> = { tank: TANK_BADGE, jeep: JEEP_BADGE, helicopter: HELI_BADGE, jet: JET_BADGE, aa: AA_BADGE, gunship: GUNSHIP_BADGE, drone: '', recon: '' }; // #139: nobody is ever aboard a drone or the Recon Plane
 
 export const assetIcon = (asset: AssetKind, strokeWidth = 1.6) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${strokeWidth}" stroke-linejoin="round" stroke-linecap="round">${PATHS[asset]}</svg>`;

@@ -38,7 +38,7 @@ const run = (m: Match, ticks: number, commands: Command[] = []) => {
 };
 const squad = (m: Match): SquadView => commanderView(m, 'nato').squads[0]!;
 const request = (m: Match) => squad(m).request;
-const asset = (m: Match, kind: 'scan' | 'supply' | 'barrage', at: { x: number; y: number }): Command => ({ tick: m.tick, side: 'nato', kind: 'asset', asset: kind, at });
+const asset = (m: Match, kind: 'scan' | 'supply' | 'barrage' | 'drone' | 'recon', at: { x: number; y: number }, to?: { x: number; y: number }): Command => ({ tick: m.tick, side: 'nato', kind: 'asset', asset: kind, at, ...(to && { to }) });
 
 // NATO's Soldier at the origin faces east. SEEN: the Pact's is ahead of it, in view. UNSEEN: it is behind (and shoots NATO's, who can't see it).
 const SEEN = { 0: { x: 0, y: 0, suppression: 0.9 }, 1: { x: 80, y: 30 } };
@@ -188,6 +188,30 @@ describe('Request closes', () => {
     run(f, 1, [asset(f, 'barrage', spot)]);
     run(f, 13 * HZ);
     expect(request(f)).not.toBeNull(); // shells leave at 10 s and fly 4 s
+    run(f, 1 * HZ);
+    expect(request(f)).toBeNull();
+  });
+
+  it('#139: a Recon Plane closes Recon as it passes near, not one far off; a Drone Strike closes Fire support when it hits', () => {
+    const far = scene(UNSEEN);
+    run(far, 1);
+    const at = request(far)!.at;
+    run(far, 9 * HZ, [asset(far, 'recon', { x: at.x + 300, y: 0 }, { x: at.x + 300, y: 50 })]); // a pass north, 300 m east of the grid: level with it after 8 s
+    expect(request(far)).not.toBeNull();
+
+    const r = scene(UNSEEN);
+    run(r, 1);
+    run(r, 3 * HZ, [asset(r, 'recon', { x: at.x + 40, y: 300 }, { x: at.x + 40, y: 350 })]); // 40 m east of it, tapped far up the line
+    expect(request(r)).not.toBeNull(); // still 500 m south of it
+    run(r, 6 * HZ);
+    expect(request(r)).toBeNull();
+
+    const f = scene(SEEN, { tune: { droneCooldownSeconds: 0 } });
+    run(f, 1);
+    const spot = request(f)!.at;
+    run(f, 1, [asset(f, 'drone', spot)]);
+    run(f, 13 * HZ);
+    expect(request(f)).not.toBeNull(); // 613 m from the HQ at 45 m/s: 13.6 s
     run(f, 1 * HZ);
     expect(request(f)).toBeNull();
   });

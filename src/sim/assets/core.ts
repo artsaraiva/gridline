@@ -2,18 +2,21 @@
 // tick until its time runs out. Each kind lives in its own module and joins KINDS (Supply Drop #39, Barrage #40).
 // #101: a kind may take a second call while it works as a new spot for the same effect (`retask`: the Gunship's focus).
 import type { Match } from '../index';
-import { inHq, insidePolygon, lineHits } from '../geometry';
+import { chord, inHq, insidePolygon, lineHits } from '../geometry';
 import { gridRef } from '../grid-ref';
 import type { Mix } from '../state';
 import type { Soldier } from '../state';
 import { enemyOf, SIDES, type AssetKind, type AssetView, type Command, type EffectView, type SideId, type SimEvent, type Tune, type Vec2 } from '../types';
 import { barrage, type Shell } from './barrage';
 import { creep } from './creep';
+import { drone } from './drone';
 import { gunship } from './gunship';
 import { missile } from './missile';
+import { recon } from './recon';
 import { scan } from './scan';
 import { smoke } from './smoke';
 import { supply } from './supply';
+import { live, sleep, type Vehicle } from '../vehicles';
 
 /** One called Asset at work. `until` is the first tick it no longer works. */
 export interface Effect {
@@ -25,18 +28,19 @@ export interface Effect {
   told: boolean; // its "on effect" radio line went out
   shells?: Shell[]; // #40 Barrage, #138 Smoke Screen and Creeping Barrage
   to?: Vec2; // #138 a line-shaped Asset: the far end of its line, which starts at `x` and `y`
-  from?: Vec2; // #99 Cruise Missile: where it was launched ...
+  from?: Vec2; // #99 Cruise Missile: where it was launched ... (#139: a drone's HQ; where the Recon Plane's pass starts, `to` where it ends)
   launch?: number; // ... on this tick ...
   land?: number; // ... and the tick it lands
   given?: Record<number, number>; // #74 Supply Drop: Commander Score points each Soldier (by id) drew from this crate
   open?: Record<number, number>; // #74 Supply Drop: of those, what the Console has not heard of yet
-  vehicle?: number; // #101 Gunship: the id of the vehicle it flies ...
-  phase?: 'inbound' | 'station' | 'leaving' | 'down'; // ... where it is in its sortie ...
+  vehicle?: number; // #101 Gunship: the id of the vehicle it flies ... (#139: a drone's, the Recon Plane's)
+  phase?: 'inbound' | 'station' | 'leaving' | 'down'; // ... where it is in its sortie ... (#139: 'inbound' in flight, 'down' shot down)
   phaseAt?: number; // ... since this tick ...
   nextShot?: number; // ... the first tick its cannon may fire again ...
   prey?: number; // ... the id of the enemy it flies at (-1: at its focus, `x` and `y`) ...
   turn?: number; // ... which way it turned this tick: 1 left, -1 right, 0 straight on ...
   out?: boolean; // ... and whether it is flying out from a spot too close inside its turn, to come back round onto it
+  found?: number[]; // #139 Recon Plane: the ids of the enemies it has revealed this pass
 }
 
 export interface Assets {
@@ -71,12 +75,12 @@ export interface Kind {
   fall?(t: Tune): number;
   /** #101: `side`'s effect of this kind that a call now moves rather than starting another (no cooldown, no gate), if there is one; with `at`, moves it there. */
   retask?(m: Match, side: SideId, at?: Vec2): Effect | undefined;
-  /** #138: it is line-shaped: the call carries a second tap, and the effect a line this long from the first towards it. */
-  line?(t: Tune): { length: number; width: number };
+  /** #138: it is line-shaped: the call carries a second tap, and the effect a line this long from the first towards it. #139: `across`: the line runs through the first tap right across the Play Area and `beyond` metres past each edge (the effect's `from` and `to`). */
+  line?(t: Tune): NonNullable<AssetView['line']>;
 }
 
-const KINDS: Partial<Record<AssetKind, Kind>> = { scan, supply, barrage, missile, gunship, smoke, creep };
-const ORDER: AssetKind[] = ['scan', 'supply', 'barrage', 'missile', 'gunship', 'smoke', 'creep'];
+const KINDS: Partial<Record<AssetKind, Kind>> = { scan, supply, barrage, missile, gunship, smoke, creep, drone, recon };
+const ORDER: AssetKind[] = ['scan', 'supply', 'barrage', 'missile', 'gunship', 'smoke', 'creep', 'drone', 'recon'];
 const kinds = () => ORDER.filter((k) => KINDS[k]);
 
 export function newAssets(t: Tune): Assets {
@@ -90,6 +94,21 @@ export function assetRadio(m: Match, e: Effect, text: string, events: SimEvent[]
   events.push({ kind: 'radio', side: e.side, squad: null, type: 'asset', text, ...(grid && { grid }), priority: 1 });
 }
 
+/** #139: `side` has `asset` at work: its one aircraft is out (or its last moments still show), so the next call waits. */
+export const inTheAir = (m: Match, side: SideId, asset: 'drone' | 'recon') => (m.assets.effects.some((e) => e.asset === asset && e.side === side) ? 'in the air' : null);
+
+/**
+ * #139: whether the enemy AA has shot down `v`, the aircraft `e` flies (vehicles.ts `hurt`). If so it sleeps where it fell, the
+ * effect is 'down' and stays `barrageContactSeconds` more for the Console to show the fall, and the radio says `line`.
+ */
+export function shotDown(m: Match, e: Effect, v: Vehicle, line: string, events: SimEvent[]): boolean {
+  if (live(v)) return false;
+  sleep(v);
+  Object.assign(e, { phase: 'down', phaseAt: m.tick, until: m.tick + Math.round(m.tune.barrageContactSeconds * m.tune.hz) });
+  assetRadio(m, e, line, events);
+  return true;
+}
+
 /** Why the Asset can't be called, or null. */
 export function checkCall(m: Match, c: Extract<Command, { kind: 'asset' }>): string | null {
   if (!KINDS[c.asset]) return 'not available';
@@ -100,20 +119,23 @@ export function checkCall(m: Match, c: Extract<Command, { kind: 'asset' }>): str
   }
   if (!insidePolygon(m.map.playArea, c.at.x, c.at.y)) return 'outside the Play Area';
   if (inHq(m, enemyOf(c.side), c.at)) return 'on the enemy HQ';
-  if (!KINDS[c.asset]!.line) return null;
-  const to = lineEnd(m, c);
+  const line = KINDS[c.asset]!.line?.(m.tune);
+  if (!line) return null;
+  const to = lineOf(m, c)?.to;
   if (!to) return 'needs a direction';
+  if (line.across) return null; // #139: it only flies over
   if (!insidePolygon(m.map.playArea, to.x, to.y)) return 'outside the Play Area';
   return lineHits(m.map.hqs[enemyOf(c.side)], m.tune.hqRadius, c.at, to) ? 'on the enemy HQ' : null;
 }
 
-/** #138: the far end of a line-shaped Asset's line: its length from `at` towards `to`; null with no second tap, or one on the first. */
-function lineEnd(m: Match, c: Extract<Command, { kind: 'asset' }>): Vec2 | null {
+/** #138: a line-shaped Asset's line: its length from `at` towards `to` (#139: or right across the Play Area through `at`); null with no second tap, or one on the first. */
+function lineOf(m: Match, c: Extract<Command, { kind: 'asset' }>): { from: Vec2; to: Vec2 } | null {
   const dx = (c.to?.x ?? c.at.x) - c.at.x;
   const dy = (c.to?.y ?? c.at.y) - c.at.y;
   const d = Math.sqrt(dx * dx + dy * dy);
-  const L = KINDS[c.asset]!.line!(m.tune).length;
-  return d ? { x: c.at.x + (dx / d) * L, y: c.at.y + (dy / d) * L } : null;
+  if (!d) return null;
+  const line = KINDS[c.asset]!.line!(m.tune);
+  return line.across ? chord(m.map.playArea, c.at, dx / d, dy / d, line.beyond) : { from: c.at, to: { x: c.at.x + (dx / d) * line.length, y: c.at.y + (dy / d) * line.length } };
 }
 
 /** Starts the cooldown and puts the effect to work from this tick. */
@@ -124,7 +146,8 @@ export function call(m: Match, c: Extract<Command, { kind: 'asset' }>, events: S
   if (up) return assetRadio(m, up, `${kind.name} retasked`, events);
   m.assets.readyAt[c.side][c.asset] = m.tick + Math.round(kind.cooldownSeconds(t) * t.hz);
   const e: Effect = { side: c.side, asset: c.asset, x: c.at.x, y: c.at.y, until: m.tick + Math.round(kind.seconds(t) * t.hz), told: false };
-  if (kind.line) e.to = lineEnd(m, c)!;
+  const line = kind.line && lineOf(m, c)!;
+  if (line) Object.assign(e, { to: line.to, ...(kind.line!(t).across && { from: line.from }) });
   kind.start?.(m, e);
   m.assets.effects.push(e);
   assetRadio(m, e, kind.called ?? `${kind.name} inbound`, events);

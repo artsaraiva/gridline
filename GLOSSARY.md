@@ -196,6 +196,14 @@ _Avoid_: Strike, airstrike, bombardment, arty
 The Strike that, after a warning, lands its shells one after the other along a line the Commander drew, each a step further on: a wall of suppression that moves, more than a blast that kills. The Commander gives it a start and a direction.
 _Avoid_: Rolling barrage, walking fire, line strike
 
+**Drone Strike**:
+The light Strike: a small unmanned aircraft that leaves the Commander's own HQ and flies straight at one chosen spot to land a single small blast there. Its flight is its warning, and the enemy's anti-aircraft vehicle may shoot it down on the way.
+_Avoid_: Drone (alone), kamikaze drone, loitering munition, UAV strike
+
+**Recon Plane**:
+The Asset that crosses the whole Play Area once along a line the Commander drew and reveals every enemy in a strip under it as a Contact as it passes, then as a Last Known Position. The Commander gives it a point and a direction; the enemy's anti-aircraft vehicle may shoot it down, and what lies beyond stays hidden.
+_Avoid_: Recon pass (the flight, not the Asset), spy plane, recon UAV, flyover
+
 **Screen**:
 An Asset that changes what can be seen and harms nobody.
 _Avoid_: Concealment, cover, obscurant

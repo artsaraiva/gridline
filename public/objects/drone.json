@@ -1,0 +1,10 @@
+{
+  "frames": 33,
+  "framePx": 128,
+  "cols": 16,
+  "constants": {
+    "DRONE_HEADINGS": 16,
+    "DRONE_FACTIONS": 2,
+    "DRONE_WORLD_M": 4.0
+  }
+}
