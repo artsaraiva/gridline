@@ -3,6 +3,7 @@
 // Arm an Asset, and its preview ring follows the pointer; a tap pins the ring, a second tap on the same spot (or Confirm)
 // calls the Asset there; arming it again, Cancel or Esc disarms. #101: while the Gunship is up its row arms again, and the call moves its focus.
 // #138: a line-shaped Asset (its row carries `line`) takes two taps: the start, then the direction; Esc clears the first tap.
+// #142: an untargeted Asset (its row carries `untargeted`: Rapid Deploy) takes no tap: armed, Confirm calls it.
 // Orders (#36): select a Squad (its tile, or its chevrons on the map), then tap a Capture Point: the Order goes out as a
 // Command and the Squad stays selected; Clear sends a null Order. Only the Simulation decides what an Order does.
 // Mark (#136): in Mark mode every tap places a Mark, or renews the one tapped; out of it a tap on a Mark clears it. The spec
@@ -93,8 +94,14 @@ export function validSpot(p: Vec2): boolean {
   return !hqHolds(map.hqs[enemyOf(session.commanderSide)], DEFAULT_TUNE.hqRadius, p);
 }
 
+/** The armed Asset's row in the view. */
+const armedRow = () => (targeting.armed && session.view?.assets?.find((a) => a.asset === targeting.armed)) || null;
+
 /** #138: the armed Asset's line shape, when it is line-shaped. */
-const lineOf = () => (targeting.armed && session.view?.assets?.find((a) => a.asset === targeting.armed)?.line) || null;
+const lineOf = () => armedRow()?.line ?? null;
+
+/** #142: the armed Asset takes no spot (Rapid Deploy): armed, it waits only for Confirm. */
+export const untargeted = () => !!armedRow()?.untargeted;
 
 /**
  * #138: the strip of the armed line-shaped Asset: from the pinned start, its length towards the pinned direction, or towards
@@ -115,17 +122,17 @@ export function strip(pointer: Vec2 | null, aim = targeting.aim): { from: Vec2; 
   return { from, to, width: line.width, ok: inPlayArea(from) && inPlayArea(to) && !lineHits(map.hqs[enemyOf(session.commanderSide)], DEFAULT_TUNE.hqRadius, from, to) };
 }
 
-/** The armed Asset has all it needs for Confirm: its spot, and (#138) a line-shaped one its direction. */
-export const ready = () => !!targeting.spot && (!lineOf() || !!targeting.aim);
+/** The armed Asset has all it needs for Confirm: its spot, and (#138) a line-shaped one its direction; #142 an untargeted one nothing. */
+export const ready = () => untargeted() || (!!targeting.spot && (!lineOf() || !!targeting.aim));
 
 /** Called after an Asset is confirmed (the feed throws a static burst). */
 export const confirmed: (() => void)[] = [];
 
-/** Calls the armed Asset on the pinned spot. */
+/** Calls the armed Asset on the pinned spot (#142: an untargeted one with none). */
 export function confirm() {
   const { armed, spot, aim } = targeting;
-  if (!armed || !spot || !ready()) return;
-  session.host?.send({ side: session.commanderSide, kind: 'asset', asset: armed, at: spot, ...(aim && { to: aim }) });
+  if (!armed || !ready()) return;
+  session.host?.send({ side: session.commanderSide, kind: 'asset', asset: armed, ...(spot && { at: spot }), ...(aim && { to: aim }) });
   disarm();
   for (const f of confirmed) f();
 }
@@ -138,6 +145,7 @@ export function confirm() {
  */
 export function tap(p: Vec2, sameM: number, pickM = sameM) {
   const { armed, spot, aim } = targeting;
+  if (untargeted()) return; // #142: the map is not its target; Confirm calls it
   if (armed && spot && lineOf()) {
     const same = (q: Vec2) => (p.x - q.x) ** 2 + (p.y - q.y) ** 2 <= sameM * sameM;
     if (aim && same(aim)) return confirm();

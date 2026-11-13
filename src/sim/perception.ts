@@ -3,6 +3,7 @@ import { dist2, inHq } from './geometry';
 import { los } from './grid';
 import { forget, see } from './memory';
 import { vehicleOf, type Soldier } from './state';
+import type { Tune, Vec2 } from './types';
 import { look as vehicleLook, seeVehicles } from './vehicles';
 
 /** The perception phase: memory ages, then every living Soldier on foot looks around, then #107 every crewed vehicle. */
@@ -11,6 +12,12 @@ export function perceive(m: Match) {
   for (const s of m.soldiers) if (s.state === 'alive' && s.vehicle < 0 && !s.chute) look(m, s); // #130: a parachutist looks at nothing
   for (const v of m.vehicles) vehicleLook(m, v);
 }
+
+/** `p`, `d2` square metres from `s`, is within `visionM` and inside its vision cone. */
+const inView = (t: Tune, s: Soldier, p: Vec2, d2: number) => d2 <= t.visionM * t.visionM && (p.x - s.x) * s.fx + (p.y - s.y) * s.fy >= t.visionCos * Math.sqrt(d2);
+
+/** #142: `s` sees the spot `p` on the ground: within `visionM`, inside its vision cone and in line of sight. */
+export const sees = (m: Match, s: Soldier, p: Vec2): boolean => inView(m.tune, s, p, dist2(s, p)) && los(m, s, p);
 
 /**
  * Sees every living enemy inside the vision cone and range, in line of sight, and not in its own HQ; each goes into
@@ -24,10 +31,7 @@ function look(m: Match, s: Soldier) {
   for (const e of m.soldiers) {
     if (e.side === s.side || e.state !== 'alive' || e.vehicle >= 0) continue; // #107: aboard, it is the vehicle that is seen
     const d2 = dist2(s, e);
-    if (d2 > t.visionM * t.visionM) continue;
-    const dx = e.x - s.x;
-    const dy = e.y - s.y;
-    if (dx * s.fx + dy * s.fy < t.visionCos * Math.sqrt(d2)) continue;
+    if (!inView(t, s, e, d2)) continue;
     if (inHq(m, e.side, e)) continue;
     if (!e.chute && !los(m, s, e)) continue; // #130: over walls, as anything airborne
     // #75: out of all eyes (UAV or Soldier) last tick and found again by sight alone: no longer UAV-discovered. A UAV still over it re-stamps it this tick (assetEffects runs next).

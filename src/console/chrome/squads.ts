@@ -41,7 +41,7 @@ function badges(q: SquadView, view: CommanderView): string {
 const alertOf = (q: SquadView, view: CommanderView) => squadAlert(q, view.friendlies.some((f) => f.squad === q.id && f.suppressed));
 
 function whereOf(q: SquadView, view: CommanderView): string {
-  if (wiped(q)) return 'HQ';
+  if (wiped(q)) return q.atBeacon ? 'AT BEACON' : 'HQ'; // #142: where it comes back
   const c = squadCentroid(view, q.id);
   const g = session.host?.map.grid;
   return c && g ? gridRef(g, c) : 'HQ';
@@ -75,10 +75,11 @@ export function drawSquads(view: CommanderView | null) {
     if (isSel) selIdx = i;
     t.hidden = isSel;
     const cls = `tile${isSel ? ' sel' : ''}${q.order?.state === 'delayed' ? ' delayed' : ''}${wiped(q) ? ' wiped' : ''}${q.request ? ' req' : ''}${alertOf(q, view) ? ' fire' : ''}`;
-    const html = `${q.request ? `<span class="rq">${assetIcon(q.request.asset, 2.4)}</span>` : ''}<b>${q.name[0]}</b><span class="pips">${pips(q, view)}</span>${badges(q, view)}`;
+    const corner = q.request ? `<span class="rq">${assetIcon(q.request.asset, 2.4)}</span>` : q.atBeacon ? `<span class="bc" title="at beacon">${assetIcon('beacon', 2.4)}</span>` : ''; // #142: a Redeploy pending at the beacon
+    const html = `${corner}<b>${q.name[0]}</b><span class="pips">${pips(q, view)}</span>${badges(q, view)}`;
     if (t.className !== cls) t.className = cls;
     if (t.dataset.h !== html) t.innerHTML = t.dataset.h = html;
-    t.title = q.name;
+    t.title = q.atBeacon ? `${q.name} · at beacon` : q.name;
   });
   const q = selIdx >= 0 ? view.squads[selIdx] : undefined;
   card.hidden = !q;

@@ -31,6 +31,7 @@ import { drawScanUavs } from './layers/scan-uav';
 import { drawShells } from './layers/shells';
 import { drawSmokeScreens } from './layers/smoke-screen';
 import { drawSupplyDrops } from './layers/supply-drop';
+import { drawBeacons } from './layers/beacon';
 import { UNIT_PX } from './layers/symbols';
 import { addShot, drawTracers } from './layers/tracers';
 import { checkEnd } from './match-flow';
@@ -88,6 +89,7 @@ renderer.setAnimationLoop(() => {
   drawEffects(view, now);
   drawScanUavs(view, scale, now);
   drawSupplyDrops(view, scale);
+  drawBeacons(view, scale, now);
   drawShells(view, now);
   drawMissiles(view, scale);
   drawGunships(view, scale);

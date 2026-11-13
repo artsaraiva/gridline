@@ -8,6 +8,8 @@ import { footLeader, inSky, lastDeath, membersOf, wiped, type Point, type Soldie
 import { rnd } from './rng';
 import { enemyOf, type SideId, type SimEvent, type Vec2 } from './types';
 import { boardOnReturn, leave } from './vehicles';
+import type { Effect } from './assets/core';
+import { beaconDenied, liveBeacon } from './assets/crate';
 
 function bringBack(m: Match, s: Soldier, at: Vec2) {
   leave(m, s);
@@ -34,9 +36,24 @@ export function quiet(m: Match, sq: Squad, members: Soldier[]): boolean {
   return m.tick - sq.lastSeen >= t.quietSeconds * t.hz && !members.some((s) => s.state === 'alive' && s.suppression > t.suppressedAt);
 }
 
-/** Where a wiped Squad Redeploys (#107: those who find a free vehicle seat ride it instead; see boardOnReturn): the owned, uncontested Capture Point nearest its Order's point or goal (or its HQ), else its HQ. */
+/**
+ * #142: the Rapid Deploy multiplier on `side`'s respawn and Redeploy times: `rapidMul` while one works, else 1. Read against the
+ * whole time at every tick, so a timer already running is shortened the same way (one past its shortened time comes back at once).
+ */
+const timerMul = (m: Match, side: SideId) => (m.assets.effects.some((e) => e.asset === 'rapid' && e.side === side) ? m.tune.rapidMul : 1);
+
+/** Ticks from a death until that member may Squad Respawn (#142: shortened while Rapid Deploy works). */
+export const respawnTicks = (m: Match, side: SideId) => m.tune.respawnSeconds * m.tune.hz * timerMul(m, side);
+
+/** Ticks from a Squad's last death until it Redeploys (#142: shortened while Rapid Deploy works). */
+export const redeployTicks = (m: Match, side: SideId) => m.tune.redeploySeconds * m.tune.hz * timerMul(m, side);
+
+/** What steers where a wiped Squad comes back: its Order's point, else its goal, else its HQ. */
+const steer = (m: Match, sq: Squad): Vec2 => m.points[sq.order?.point ?? sq.goal] ?? m.map.hqs[sq.side];
+
+/** Where a wiped Squad Redeploys (#107: those who find a free vehicle seat ride it instead; see boardOnReturn): the owned, uncontested Capture Point nearest its Order's point or goal (or its HQ), else its HQ. #142: unless `redeployBeacon` has it. */
 export function redeployPoint(m: Match, sq: Squad): Point | null {
-  const near = m.points[sq.order?.point ?? sq.goal] ?? m.map.hqs[sq.side]; // an Order steers the choice
+  const near = steer(m, sq); // an Order steers the choice
   let at: Point | null = null;
   let best = Infinity;
   for (const p of m.points) {
@@ -45,6 +62,21 @@ export function redeployPoint(m: Match, sq: Squad): Point | null {
     at = p;
   }
   return at;
+}
+
+/**
+ * #142: the Side's Redeploy Beacon when a wiped Squad comes back there rather than at `redeployPoint`: landed, silent while a
+ * living enemy Soldier stands within `beaconDenyM`, and nearer the Squad's Order point or goal than both the Capture Point
+ * `redeployPoint` picks and the HQ. Every Squad of the Side uses it, Elite or not (#153: the beacon is physical, Side-wide).
+ * Squad Respawn never does: a dead member still comes back behind the leader, or where `redeployPoint` says (out of scope).
+ */
+export function redeployBeacon(m: Match, sq: Squad): Effect | null {
+  const b = liveBeacon(m, sq.side);
+  if (!b || beaconDenied(m, b)) return null;
+  const near = steer(m, sq);
+  const d = dist2(b, near);
+  const p = redeployPoint(m, sq);
+  return d < dist2(m.map.hqs[sq.side], near) && (!p || d < dist2(p, near)) ? b : null;
 }
 
 /**
@@ -59,8 +91,8 @@ export function returnToFight(m: Match, events: SimEvent[]) {
   for (const sq of m.squads) {
     const members = membersOf(m, sq);
     if (wiped(members)) {
-      if (m.tick - lastDeath(members) < t.redeploySeconds * t.hz) continue;
-      const at = nearestWalkable(m, redeployPoint(m, sq) ?? spawnSpot(m, sq.side));
+      if (m.tick - lastDeath(members) < redeployTicks(m, sq.side)) continue;
+      const at = nearestWalkable(m, redeployBeacon(m, sq) ?? redeployPoint(m, sq) ?? spawnSpot(m, sq.side)); // #142: round the beacon, spread as at a point
       for (const s of members) {
         const spot = { x: at.x + s.ox, y: at.y + s.oy };
         bringBack(m, s, canStand(m, s, spot) ? spot : at);
@@ -73,7 +105,7 @@ export function returnToFight(m: Match, events: SimEvent[]) {
     if (!quiet(m, sq, members)) continue;
     let home: Vec2 | undefined = leader;
     for (const s of members) {
-      if (s.state !== 'dead' || m.tick - s.deadAt < t.respawnSeconds * t.hz) continue;
+      if (s.state !== 'dead' || m.tick - s.deadAt < respawnTicks(m, sq.side)) continue;
       home ??= nearestWalkable(m, redeployPoint(m, sq) ?? spawnSpot(m, sq.side)); // drawn once, and only when someone comes back
       const behind = leader ? { x: leader.x - leader.fx * t.respawnBehindM, y: leader.y - leader.fy * t.respawnBehindM } : home;
       bringBack(m, s, canStand(m, s, behind) ? behind : home);

@@ -5,11 +5,14 @@ import { award } from './score';
 import { callName, sideOf, sign, stageTicks, vehicleOf, type Mix, type Point, type Soldier } from './state';
 import { enemyOf, SIDES, type SideId, type SimEvent } from './types';
 
-/** A living Soldier inside the point, and not #109 up in a helicopter: they count for it. */
-const counts = (m: Match, s: Soldier, p: Point) => s.state === 'alive' && dist2(s, p) < p.radius * p.radius && !vehicleOf(m, s.vehicle)?.airborne && !s.chute;
+/** A ring on the ground: a Capture Point, or #142 a Redeploy Beacon's deny ring. */
+type Ring = Pick<Point, 'x' | 'y' | 'radius'>;
 
-/** Living Soldiers of `side` inside the point; the Wounded, the dead and #109 the airborne don't count. */
-export function insideCount(m: Match, p: Point, side: SideId): number {
+/** A living Soldier inside the point, and not #109 up in a helicopter: they count for it. */
+const counts = (m: Match, s: Soldier, p: Ring) => s.state === 'alive' && dist2(s, p) < p.radius * p.radius && !vehicleOf(m, s.vehicle)?.airborne && !s.chute;
+
+/** Living Soldiers of `side` inside the point (#142: or any ring); the Wounded, the dead and #109 the airborne don't count. */
+export function insideCount(m: Match, p: Ring, side: SideId): number {
   let n = 0;
   for (const s of m.soldiers) if (s.side === side && counts(m, s, p)) n++;
   return n;

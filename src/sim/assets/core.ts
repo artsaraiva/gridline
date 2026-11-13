@@ -8,10 +8,12 @@ import type { Mix } from '../state';
 import type { Soldier } from '../state';
 import { enemyOf, SIDES, type AssetKind, type AssetView, type Command, type EffectView, type SideId, type SimEvent, type Tune, type Vec2 } from '../types';
 import { barrage, type Shell } from './barrage';
+import { beacon } from './beacon';
 import { creep } from './creep';
 import { drone } from './drone';
 import { gunship } from './gunship';
 import { missile } from './missile';
+import { rapid } from './rapid';
 import { recon } from './recon';
 import { scan } from './scan';
 import { smoke } from './smoke';
@@ -54,6 +56,8 @@ export interface Kind {
   called?: string;
   /** #99: in the sky, so both Sides' views carry its effect (fog hides nothing up there). */
   sky?: boolean;
+  /** #142: a thing on the ground the enemy's Soldiers can see: `side`'s view carries the enemy's effect while this says one does. */
+  seen?(m: Match, e: Effect, side: SideId): boolean;
   cooldownSeconds(t: Tune): number;
   seconds(t: Tune): number; // how long the effect works
   radius(t: Tune): number;
@@ -77,10 +81,15 @@ export interface Kind {
   retask?(m: Match, side: SideId, at?: Vec2): Effect | undefined;
   /** #138: it is line-shaped: the call carries a second tap, and the effect a line this long from the first towards it. #139: `across`: the line runs through the first tap right across the Play Area and `beyond` metres past each edge (the effect's `from` and `to`). */
   line?(t: Tune): NonNullable<AssetView['line']>;
+  /**
+   * #142: it is untargeted (Rapid Deploy): called with no spot, so the Play Area and HQ checks don't apply. Its effect has no place:
+   * `x` and `y` stay 0 and nothing reads them, it has no view entry (the row carries `up`), and its radio lines name no grid.
+   */
+  untargeted?: true;
 }
 
-const KINDS: Partial<Record<AssetKind, Kind>> = { scan, supply, barrage, missile, gunship, smoke, creep, drone, recon };
-const ORDER: AssetKind[] = ['scan', 'supply', 'barrage', 'missile', 'gunship', 'smoke', 'creep', 'drone', 'recon'];
+const KINDS: Partial<Record<AssetKind, Kind>> = { scan, supply, barrage, missile, gunship, smoke, creep, drone, recon, beacon, rapid };
+const ORDER: AssetKind[] = ['scan', 'supply', 'barrage', 'missile', 'gunship', 'smoke', 'creep', 'drone', 'recon', 'beacon', 'rapid'];
 const kinds = () => ORDER.filter((k) => KINDS[k]);
 
 export function newAssets(t: Tune): Assets {
@@ -88,9 +97,9 @@ export function newAssets(t: Tune): Assets {
   return { readyAt: { nato: ready(), pact: ready() }, effects: [] };
 }
 
-/** A radio line on the Asset net, located at the effect's spot. */
+/** A radio line on the Asset net, located at the effect's spot (#142: an untargeted Asset's has none). */
 export function assetRadio(m: Match, e: Effect, text: string, events: SimEvent[]) {
-  const grid = m.map.grid && gridRef(m.map.grid, e);
+  const grid = !KINDS[e.asset]!.untargeted && m.map.grid && gridRef(m.map.grid, e);
   events.push({ kind: 'radio', side: e.side, squad: null, type: 'asset', text, ...(grid && { grid }), priority: 1 });
 }
 
@@ -117,36 +126,40 @@ export function checkCall(m: Match, c: Extract<Command, { kind: 'asset' }>): str
     const off = KINDS[c.asset]!.gate?.(m, c.side);
     if (off) return off;
   }
-  if (!insidePolygon(m.map.playArea, c.at.x, c.at.y)) return 'outside the Play Area';
-  if (inHq(m, enemyOf(c.side), c.at)) return 'on the enemy HQ';
+  if (KINDS[c.asset]!.untargeted) return null; // #142: anywhere, as it acts on no place
+  const at = c.at;
+  if (!at) return 'needs a spot';
+  if (!insidePolygon(m.map.playArea, at.x, at.y)) return 'outside the Play Area';
+  if (inHq(m, enemyOf(c.side), at)) return 'on the enemy HQ';
   const line = KINDS[c.asset]!.line?.(m.tune);
   if (!line) return null;
-  const to = lineOf(m, c)?.to;
+  const to = lineOf(m, c, at)?.to;
   if (!to) return 'needs a direction';
   if (line.across) return null; // #139: it only flies over
   if (!insidePolygon(m.map.playArea, to.x, to.y)) return 'outside the Play Area';
-  return lineHits(m.map.hqs[enemyOf(c.side)], m.tune.hqRadius, c.at, to) ? 'on the enemy HQ' : null;
+  return lineHits(m.map.hqs[enemyOf(c.side)], m.tune.hqRadius, at, to) ? 'on the enemy HQ' : null;
 }
 
 /** #138: a line-shaped Asset's line: its length from `at` towards `to` (#139: or right across the Play Area through `at`); null with no second tap, or one on the first. */
-function lineOf(m: Match, c: Extract<Command, { kind: 'asset' }>): { from: Vec2; to: Vec2 } | null {
-  const dx = (c.to?.x ?? c.at.x) - c.at.x;
-  const dy = (c.to?.y ?? c.at.y) - c.at.y;
+function lineOf(m: Match, c: Extract<Command, { kind: 'asset' }>, at: Vec2): { from: Vec2; to: Vec2 } | null {
+  const dx = (c.to?.x ?? at.x) - at.x;
+  const dy = (c.to?.y ?? at.y) - at.y;
   const d = Math.sqrt(dx * dx + dy * dy);
   if (!d) return null;
   const line = KINDS[c.asset]!.line!(m.tune);
-  return line.across ? chord(m.map.playArea, c.at, dx / d, dy / d, line.beyond) : { from: c.at, to: { x: c.at.x + (dx / d) * line.length, y: c.at.y + (dy / d) * line.length } };
+  return line.across ? chord(m.map.playArea, at, dx / d, dy / d, line.beyond) : { from: at, to: { x: at.x + (dx / d) * line.length, y: at.y + (dy / d) * line.length } };
 }
 
 /** Starts the cooldown and puts the effect to work from this tick. */
 export function call(m: Match, c: Extract<Command, { kind: 'asset' }>, events: SimEvent[]) {
   const kind = KINDS[c.asset]!;
   const t = m.tune;
-  const up = kind.retask?.(m, c.side, c.at);
+  const at = kind.untargeted ? { x: 0, y: 0 } : c.at!; // checkCall let it through; #142: an untargeted Asset's effect has no place
+  const up = kind.retask?.(m, c.side, at);
   if (up) return assetRadio(m, up, `${kind.name} retasked`, events);
   m.assets.readyAt[c.side][c.asset] = m.tick + Math.round(kind.cooldownSeconds(t) * t.hz);
-  const e: Effect = { side: c.side, asset: c.asset, x: c.at.x, y: c.at.y, until: m.tick + Math.round(kind.seconds(t) * t.hz), told: false };
-  const line = kind.line && lineOf(m, c)!;
+  const e: Effect = { side: c.side, asset: c.asset, x: at.x, y: at.y, until: m.tick + Math.round(kind.seconds(t) * t.hz), told: false };
+  const line = kind.line && lineOf(m, c, at)!;
   if (line) Object.assign(e, { to: line.to, ...(kind.line!(t).across && { from: line.from }) });
   kind.start?.(m, e);
   m.assets.effects.push(e);
@@ -170,6 +183,8 @@ export function assetViews(m: Match, side: SideId): AssetView[] {
     const retask = !!KINDS[k]!.retask?.(m, side);
     const off = !retask && KINDS[k]!.gate?.(m, side);
     const line = KINDS[k]!.line?.(t);
+    const untargeted = KINDS[k]!.untargeted;
+    const fx = untargeted && m.assets.effects.find((e) => e.asset === k && e.side === side);
     return {
       asset: k,
       readyIn: Math.max(0, m.assets.readyAt[side][k]! - m.tick) / t.hz,
@@ -178,6 +193,8 @@ export function assetViews(m: Match, side: SideId): AssetView[] {
       ...(off && { off }),
       ...(retask && { retask }),
       ...(line && { line }),
+      ...(untargeted && { untargeted }),
+      ...(fx && { up: { left: (fx.until - m.tick) / t.hz, total: KINDS[k]!.seconds(t) } }),
     };
   });
 }
@@ -190,7 +207,7 @@ const fallView = (m: Match, e: Effect) => {
 export function effectViews(m: Match, side: SideId): EffectView[] {
   const t = m.tune;
   return m.assets.effects
-    .filter((e) => e.side === side || KINDS[e.asset]!.sky)
+    .filter((e) => !KINDS[e.asset]!.untargeted && (e.side === side || KINDS[e.asset]!.sky || KINDS[e.asset]!.seen?.(m, e, side)))
     .map((e) => ({ asset: e.asset, x: e.x, y: e.y, radius: KINDS[e.asset]!.radius(t), left: (e.until - m.tick) / t.hz, total: KINDS[e.asset]!.seconds(t), ...fallView(m, e), ...KINDS[e.asset]!.view?.(m, e, e.side === side) }));
 }
 

@@ -1,0 +1,12 @@
+{
+  "frames": 10,
+  "framePx": 256,
+  "cols": 10,
+  "constants": {
+    "BEACON_SWING_FRAMES": 8,
+    "BEACON_WORLD_M": 8.0,
+    "BEACON_CRATE_OFFSET_M": 1.166,
+    "BEACON_LAMP_X_M": 0.38,
+    "BEACON_LAMP_Y_M": 0.22
+  }
+}

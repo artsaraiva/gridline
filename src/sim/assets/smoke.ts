@@ -2,12 +2,9 @@
 // each leaves a disc of smoke that blooms, holds and thins (../smoke.ts: ground sight through a disc fails both ways). It harms
 // nobody, shows no Contacts and scores nothing. In the sky, so both Sides' views carry it.
 import type { Mix } from '../state';
-import { smokeDisc, smokeLife } from '../smoke';
+import { smokeDisc, smokeLife, STAGGER_SECONDS } from '../smoke';
 import { flying, hashShells } from './barrage';
 import { assetRadio, type Kind } from './core';
-
-/** The spec staggers the landings and gives no Tune key: each shell lands this long after the one before. */
-export const STAGGER_SECONDS = 0.5;
 
 export const smoke: Kind = {
   name: 'Smoke Screen',

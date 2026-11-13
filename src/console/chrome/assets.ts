@@ -1,8 +1,8 @@
 // Asset rail (hotkey and icon; the name, timer and bar open beside it), the Confirm row under the armed Asset, the map
 // Confirm button beside the target ring, and the Asset hotkeys. Rows read ready, cooling, active or armed from the view
-// and targeting.
+// and targeting. #142: an untargeted Asset (Rapid Deploy) arms straight to its Confirm row, and its time at work is on its row.
 import { gridRef } from '../../sim/grid-ref';
-import { CREEP_ICON, DRONE_ICON, GUNSHIP_ICON, MISSILE_ICON, RECON_ICON, SMOKE_ICON } from './icons';
+import { BEACON_ICON, CREEP_ICON, DRONE_ICON, GUNSHIP_ICON, MISSILE_ICON, RAPID_ICON, RECON_ICON, SMOKE_ICON } from './icons';
 import type { AssetKind, CommanderView, Vec2 } from '../../sim/types';
 import { FOCUS_MARK_PX } from '../layers/effects';
 import { pxToWorld, toScreen } from '../renderer';
@@ -21,6 +21,8 @@ const ROWS: { key: string; asset: AssetKind; name: string; icon: string }[] = [
   { key: 'U', asset: 'creep', name: 'Creeping Barrage', icon: icon(CREEP_ICON) },
   { key: 'I', asset: 'drone', name: 'Drone Strike', icon: icon(DRONE_ICON) },
   { key: 'O', asset: 'recon', name: 'Recon Plane', icon: icon(RECON_ICON) },
+  { key: 'P', asset: 'beacon', name: 'Redeploy Beacon', icon: icon(BEACON_ICON) }, // #142: at the end of the row until #147 lays it out for 13
+  { key: 'A', asset: 'rapid', name: 'Rapid Deploy', icon: icon(RAPID_ICON) },
 ];
 
 const box = document.getElementById('assets')!;
@@ -66,7 +68,7 @@ export function drawAssetRail(view: CommanderView | null) {
   if (!view || view.result) disarm();
   for (const r of rows) {
     const a = view?.assets?.find((a) => a.asset === r.asset);
-    const fx = view?.effects?.filter((e) => e.asset === r.asset && (e.side ?? view.side) === view.side && (e.asset !== 'gunship' || e.left > 0)).sort((p, q) => q.left - p.left)[0]; // #99: not the enemy's missile; #101 nor a Gunship off station
+    const fx = a?.up ?? view?.effects?.filter((e) => e.asset === r.asset && (e.side ?? view.side) === view.side && (e.asset !== 'gunship' || e.left > 0)).sort((p, q) => q.left - p.left)[0]; // #99: not the enemy's missile; #101 nor a Gunship off station; #142 an untargeted Asset's time is on its row
     const armed = targeting.armed === r.asset;
     const state = !a || a.off ? 'off' : armed ? 'armed' : fx ? 'active' : a.readyIn > 0 ? 'cooling' : 'ready';
     const cls = `asset ${state}`;
@@ -80,7 +82,7 @@ export function drawAssetRail(view: CommanderView | null) {
     if (!armed) continue;
     const cf = r.cf.querySelector<HTMLButtonElement>('.cf')!;
     cf.disabled = !ready();
-    cf.querySelector('span')!.textContent = ready() ? `Confirm ${grid(targeting.spot!)}` : targeting.spot ? 'Tap the direction' : 'Tap the map'; // #138: a line-shaped Asset takes a second tap
+    cf.querySelector('span')!.textContent = !ready() ? (targeting.spot ? 'Tap the direction' : 'Tap the map') : targeting.spot ? `Confirm ${grid(targeting.spot)}` : 'Confirm'; // #138: a line-shaped Asset takes a second tap; #142 an untargeted one none
   }
   placeMapConfirm(view);
 }

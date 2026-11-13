@@ -91,7 +91,7 @@ A dead soldier returning to the fight next to their living squad.
 _Avoid_: Squad spawn, buddy spawn
 
 **Redeploy**:
-A wiped squad returning to the fight as a whole from its HQ or a capture point its side owns.
+A wiped squad returning to the fight as a whole from its HQ, a capture point its side owns, or its side's Redeploy Beacon.
 _Avoid_: Respawn (for whole squads), reinforce
 
 ### Vehicles
@@ -211,6 +211,14 @@ _Avoid_: Concealment, cover, obscurant
 **Smoke Screen**:
 The Screen that lays a wall of smoke along a line the Commander drew, with a start and a direction. While it stands, nobody on the ground sees through it or into it, from either Side; anything in the air sees through it, and suppressive fire still crosses it.
 _Avoid_: Smoke, smoke grenade, smokescreen
+
+**Redeploy Beacon**:
+The Asset that drops a crate with a mast and a blinking light at a chosen spot; while it stands, a wiped Squad of its side whose Order point or goal it is nearer than any held Capture Point and the HQ Redeploys there, unless a living enemy Soldier stands near it. One per side: a new one replaces the old.
+_Avoid_: Spawn beacon, rally point, forward spawn, squad beacon
+
+**Rapid Deploy**:
+The Asset with no target that, for a while, has every Squad of the Commander's side Squad Respawn and Redeploy in half the time.
+_Avoid_: Reinforce, fast respawn, reinforcements
 
 **Mark**:
 A spot the Commander flags as a suspected enemy position. It joins what the Side knows, so every Squad, Elite or not, treats it as one: an own Capture Point near it counts as threatened, the helicopter lands away from it, and a Squad taking fire from an enemy it cannot see fires at it. It never shows an enemy and never changes an Order. It fades by itself, the Commander can renew or clear it, and a friendly Soldier who checks the spot and finds nobody clears it.

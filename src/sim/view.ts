@@ -4,7 +4,7 @@ import { drainEvery, ticketsStart } from './capture';
 import type { Match } from './index';
 import { orderView } from './orders';
 import { requestView } from './requests';
-import { redeployPoint } from './respawn';
+import { redeployBeacon, redeployPoint, redeployTicks, respawnTicks } from './respawn';
 import { scoreView } from './score';
 import { markViews } from './marks';
 import { contactIds, justSeen, lastKnown } from './memory';
@@ -23,10 +23,10 @@ function squadView(m: Match, sq: Squad): SquadView {
     name: squadName(m, sq),
     size: members.length,
     strength: members.filter((s) => s.state === 'alive').length,
-    respawnIn: gone ? [] : members.filter((s) => s.state === 'dead').map((s) => secondsUntil(s.deadAt + t.respawnSeconds * t.hz)),
+    respawnIn: gone ? [] : members.filter((s) => s.state === 'dead').map((s) => secondsUntil(s.deadAt + respawnTicks(m, sq.side))),
     takingFire: !gone && m.tick - sq.lastHit <= t.takingFireSeconds * t.hz,
-    ...(gone && { redeployAt: redeployPoint(m, sq)?.id ?? null }),
-    redeployIn: gone ? secondsUntil(lastDeath(members) + t.redeploySeconds * t.hz) : null,
+    ...(gone && { redeployAt: redeployPoint(m, sq)?.id ?? null, ...(redeployBeacon(m, sq) && { atBeacon: true as const }) }),
+    redeployIn: gone ? secondsUntil(lastDeath(members) + redeployTicks(m, sq.side)) : null,
     task: sq.task === 'none' ? null : sq.task === 'point' ? (sq.mode === 'hold' ? 'hold' : 'move') : sq.task,
     point: sq.task === 'none' ? null : (m.points[sq.goal]?.id ?? null),
     route: m.map.crossings?.[sq.route]?.id ?? null,

@@ -62,8 +62,9 @@ export function toastEvent(e: SimEvent, view: CommanderView) {
   if (e.type === 'asset') showToast(e.text, e.grid ? `Grid ${e.grid}` : FACTION[view.side]);
   else if (e.type === 'captured' || e.type === 'lost') showToast(e.text, e.grid ? `Grid ${e.grid}` : 'Capture Point');
   else if (e.type === 'wiped') {
-    const at = view.squads.find((q) => q.id === e.squad)?.redeployAt;
-    showToast(e.text, `Redeploying at ${at ? `Capture Point ${view.points.find((p) => p.id === at)?.name ?? at}` : 'HQ'}`);
+    const q = view.squads.find((q) => q.id === e.squad);
+    const at = q?.redeployAt;
+    showToast(e.text, `Redeploying at ${q?.atBeacon ? 'the Redeploy Beacon' : at ? `Capture Point ${view.points.find((p) => p.id === at)?.name ?? at}` : 'HQ'}`); // #142
   } else if (e.type === 'request') {
     const who = e.squad !== null ? (view.squads.find((q) => q.id === e.squad)?.name ?? 'Squad') : 'Squad';
     showToast('Support requested', `${who}${e.grid ? ` · grid ${e.grid}` : ''} · tap to arm`);

@@ -338,3 +338,27 @@ describe('Line targeting (#138)', () => {
     expect(sent).toEqual([{ side: 'nato', kind: 'asset', asset: 'recon', at: { x: 10, y: 20 }, to: { x: 10, y: 30 } }]);
   });
 });
+
+describe('Untargeted Asset (#142)', () => {
+  // Rapid Deploy's row says it takes no spot.
+  beforeEach(() => {
+    session.view = { ...view, assets: [{ asset: 'rapid', readyIn: 0, cooldown: 180, radius: 0, untargeted: true }] } as unknown as CommanderView;
+  });
+
+  it('armed, it is ready at once: Confirm calls it with no spot and disarms', () => {
+    arm('rapid');
+    expect(ready()).toBe(true);
+    confirm();
+    expect(sent).toEqual([{ side: 'nato', kind: 'asset', asset: 'rapid' }]);
+    expect(targeting.armed).toBeNull();
+  });
+
+  it('a tap on the map neither pins a spot nor calls it, and Escape disarms it', () => {
+    arm('rapid');
+    tap({ x: 10, y: 20 }, 5);
+    tap({ x: 10, y: 20 }, 5);
+    expect([sent, targeting.spot, targeting.armed]).toEqual([[], null, 'rapid']);
+    escape();
+    expect(targeting.armed).toBeNull();
+  });
+});

@@ -400,4 +400,15 @@ export const DEFAULT_TUNE: Tune = {
   reconSpeedMps: 100,
   reconStripM: 60,
   reconHp: 20, // the spec's 40, likewise: about 3 s into `aaRangeM` (the spec's target is 3.5 s; at 22 one pass in 40 got through a lone AA on its line)
+
+  // #142 Redeploy Beacon
+  beaconCooldownSeconds: 120,
+  beaconSeconds: 90,
+  beaconRingM: 10,
+  beaconDenyM: 30,
+
+  // #142 Rapid Deploy (was #145)
+  rapidCooldownSeconds: 180,
+  rapidSeconds: 60,
+  rapidMul: 0.5,
 };

@@ -10,6 +10,7 @@ export const ASSETS: { asset: AssetKind; at: Vec2; to?: Vec2 }[] = [
   { asset: 'creep', at: { x: -110, y: -120 }, to: { x: 10, y: -120 } }, // #138: marching east
   { asset: 'drone', at: { x: -150, y: 60 } }, // #139: 6 s out from the HQ; one at a time, as the Simulation has it
   { asset: 'recon', at: { x: 60, y: 0 }, to: { x: 60, y: 100 } }, // #139: a pass north, east of the centre
+  { asset: 'beacon', at: { x: -60, y: 90 } }, // #142: each re-call replaces it, so it falls again every cycle; Rapid Deploy has nothing on the map
 ];
 
 /** Time between Asset re-calls so Barrage, Scan and Supply Drop stay visible together. */

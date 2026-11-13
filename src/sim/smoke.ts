@@ -4,6 +4,12 @@ import { segDist2 } from './geometry';
 import type { Match } from './index';
 import type { Tune, Vec2 } from './types';
 
+/**
+ * The spec staggers the landings and gives no Tune key: each shell lands this long after the one before. Here rather than in
+ * assets/smoke.ts so the DEV review timeline can read it without loading an Asset module before the core (an import cycle).
+ */
+export const STAGGER_SECONDS = 0.5;
+
 /** How long a disc lasts from its landing, in seconds. */
 export const smokeLife = (t: Tune) => t.smokeBloomSeconds + t.smokeHoldSeconds + t.smokeThinSeconds;
 
