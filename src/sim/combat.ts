@@ -6,7 +6,7 @@
 import type { Match } from './index';
 import { logDeath, resetSoldierAi } from './ai';
 import { dist2, inHq } from './geometry';
-import { cellAt, COVER, los } from './grid';
+import { cellAt, COVER, wallLos } from './grid';
 import { flyMissiles, launchMissiles } from './air-missiles';
 import { between, rnd } from './rng';
 import { award } from './score';
@@ -139,7 +139,7 @@ function suppressive(m: Match, s: Soldier): Shot | null {
       best = d2;
       lkp = k;
     }
-  if (!lkp || !los(m, s, lkp)) return null;
+  if (!lkp || !wallLos(m, s, lkp)) return null; // #138: suppressive fire has no target, so it crosses smoke
   return rake(m, s, lkp, t.suppressiveScatterM, t.fireSeconds);
 }
 
@@ -200,7 +200,7 @@ export function wound(m: Match, e: Soldier, events: SimEvent[]) {
   events.push({ kind: 'wounded', side: e.side, id: e.id, x: e.x, y: e.y });
 }
 
-const KILL = { barrage: 'Barrage kill', missile: 'Missile kill', gunship: 'Gunship kill' };
+const KILL = { barrage: 'Barrage kill', missile: 'Missile kill', gunship: 'Gunship kill', creep: 'Creeping Barrage kill' };
 
 export function die(m: Match, s: Soldier, events: SimEvent[]) {
   leave(m, s); // #107

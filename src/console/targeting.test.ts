@@ -4,7 +4,7 @@ import type { UnstampedCommand } from '../host/protocol';
 import { TEST_FIELD } from '../maps/test-field';
 import { session } from './session';
 import type { CommanderView } from '../sim/types';
-import { answer, arm, clearOrder, confirm, disarm, escape, markMode, placeConfirm, select, tap, targeting } from './targeting';
+import { answer, arm, clearOrder, confirm, disarm, escape, markMode, placeConfirm, ready, select, strip, tap, targeting } from './targeting';
 
 // The Sim host is the boundary: a fake one records what the Console sends.
 let sent: UnstampedCommand[];
@@ -236,5 +236,80 @@ describe('Mark (#136)', () => {
     select(0);
     escape();
     expect([targeting.marking, targeting.selected]).toEqual([false, 0]);
+  });
+});
+
+describe('Line targeting (#138)', () => {
+  // The Smoke Screen's row says it is line-shaped: 60 m from the first tap towards the second.
+  const SMOKE = { asset: 'smoke', readyIn: 0, cooldown: 90, radius: 7.5, line: { length: 60, width: 15 } };
+  beforeEach(() => {
+    session.view = { ...view, assets: [SMOKE, { asset: 'scan', readyIn: 0, cooldown: 60, radius: 60 }] } as unknown as CommanderView;
+  });
+
+  it('the first tap sets the start, the second the direction, and Confirm calls it with both', () => {
+    arm('smoke');
+    tap({ x: 10, y: 20 }, 5);
+    expect([targeting.spot, targeting.aim, ready()]).toEqual([{ x: 10, y: 20 }, null, false]);
+    confirm();
+    expect(sent).toEqual([]); // no direction yet
+    tap({ x: 10, y: 100 }, 5);
+    expect([targeting.spot, targeting.aim, ready()]).toEqual([{ x: 10, y: 20 }, { x: 10, y: 100 }, true]);
+    expect(sent).toEqual([]);
+    confirm();
+    expect(sent).toEqual([{ side: 'nato', kind: 'asset', asset: 'smoke', at: { x: 10, y: 20 }, to: { x: 10, y: 100 } }]);
+    expect([targeting.armed, targeting.spot, targeting.aim]).toEqual([null, null, null]);
+  });
+
+  it('a second tap on the start is no direction; a third tap moves the direction, and one on it confirms', () => {
+    arm('smoke');
+    tap({ x: 10, y: 20 }, 5);
+    tap({ x: 12, y: 21 }, 5);
+    expect(targeting.aim).toBeNull();
+    tap({ x: 10, y: 100 }, 5);
+    tap({ x: 100, y: 20 }, 5);
+    expect([targeting.spot, targeting.aim]).toEqual([{ x: 10, y: 20 }, { x: 100, y: 20 }]);
+    tap({ x: 102, y: 21 }, 5);
+    expect(sent).toEqual([{ side: 'nato', kind: 'asset', asset: 'smoke', at: { x: 10, y: 20 }, to: { x: 100, y: 20 } }]);
+  });
+
+  it('Escape clears the first tap and keeps the Asset armed; again, it disarms', () => {
+    arm('smoke');
+    tap({ x: 10, y: 20 }, 5);
+    tap({ x: 10, y: 100 }, 5);
+    escape();
+    expect([targeting.armed, targeting.spot, targeting.aim]).toEqual(['smoke', null, null]);
+    escape();
+    expect(targeting.armed).toBeNull();
+  });
+
+  it('the strip runs its length from the start towards the direction, however far the second tap is', () => {
+    arm('smoke');
+    expect(strip({ x: 50, y: 50 })).toBeNull(); // no start yet
+    tap({ x: 10, y: 20 }, 5);
+    expect(strip({ x: 10, y: 500 })).toEqual({ from: { x: 10, y: 20 }, to: { x: 10, y: 80 }, width: 15, ok: true });
+    tap({ x: 40, y: 60 }, 5);
+    expect(strip(null)).toEqual({ from: { x: 10, y: 20 }, to: { x: 46, y: 68 }, width: 15, ok: true }); // the pinned direction: 3-4-5
+  });
+
+  it('a direction whose wall leaves the Play Area or crosses the enemy HQ is not taken', () => {
+    arm('smoke');
+    tap({ x: 0, y: 280 }, 5);
+    expect(strip({ x: 0, y: 400 })!.ok).toBe(false);
+    tap({ x: 0, y: 400 }, 5); // north, over the edge at y = 298
+    expect(targeting.aim).toBeNull();
+    arm('smoke');
+    arm('smoke');
+    tap({ x: 277, y: -50 }, 5); // 50 m south of the enemy HQ (radius 35)
+    tap({ x: 277, y: 50 }, 5); // through it: both ends are clear
+    expect(targeting.aim).toBeNull();
+  });
+
+  it('an Asset that is not line-shaped still takes one tap, and Escape disarms it', () => {
+    arm('scan');
+    tap({ x: 10, y: 20 }, 5);
+    expect(ready()).toBe(true);
+    expect(strip(null)).toBeNull();
+    escape();
+    expect(targeting.armed).toBeNull();
   });
 });

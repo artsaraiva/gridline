@@ -10,12 +10,19 @@ export const MISSILE_ICON = filled(MISSILE_OUTLINE, 14);
 /** #101: the same Gunship. */
 export const GUNSHIP_ICON = filled(GUNSHIP_OUTLINE, 13);
 
+/** #138: the Smoke Screen: a filled cloud over the ground line. */
+export const SMOKE_ICON = '<path fill="currentColor" stroke-width="0.6" d="M6.5 16.5a3.6 3.6 0 0 1-.6-7.1 4.6 4.6 0 0 1 8.7-1.6 3.9 3.9 0 0 1 3.6 8.7z"/><path d="M3.5 20.5h17"/>';
+/** #138: the Creeping Barrage: three filled shells stepping along the arrow under them. */
+export const CREEP_ICON = '<path fill="currentColor" stroke-width="0.6" d="M4.6 5.5l1.5 2.6v6H3.1v-6z M11 3.5l1.5 2.6v8H9.5v-8z M17.4 5.5l1.5 2.6v6h-3v-6z"/><path d="M3 19.5h16.5M17.5 17l3 2.5-3 2.5"/>';
+
 const PATHS: Record<AssetKind, string> = {
   scan: '<path d="M12 2.5v18.5M2.5 11l9.5-1.8 9.5 1.8M8.3 19.8h7.4"/><circle cx="12" cy="9.4" r="1.1" fill="currentColor"/>',
   supply: '<path d="M3.5 10a8.5 6.5 0 0 1 17 0Zm0 0 6.3 5.6m10.7-5.6-6.3 5.6M12 10v5.6"/><path d="M8.6 15.6h6.8v5.4H8.6z"/><path d="M8.6 18.3h6.8"/>',
   barrage: '<path d="M5.5 3.5l1.6 3v8H3.9v-8z M12 6.5l1.6 3v8h-3.2v-8z M18.5 3.5l1.6 3v8h-3.2v-8z"/><path d="M3.5 18.5h17M5 21h14"/>',
   missile: MISSILE_ICON,
   gunship: GUNSHIP_ICON,
+  smoke: SMOKE_ICON,
+  creep: CREEP_ICON,
 };
 
 /** #107: the Squad tile and card's badge for one member aboard a tank: a filled side-on hull, turret and gun. */

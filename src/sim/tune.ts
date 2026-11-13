@@ -361,4 +361,27 @@ export const DEFAULT_TUNE: Tune = {
   markSeconds: 90, // the spec's 60 ran out before a Squad walked to a Mark placed ahead of it (240 m at a walk)
   markClearM: 40,
   markClearSeconds: 5,
+
+  // #138 Smoke Screen
+  smokeCooldownSeconds: 90,
+  smokeLengthM: 60,
+  smokeWidthM: 15,
+  smokeShells: 4,
+  smokeWarningSeconds: 6,
+  smokeBloomSeconds: 5,
+  smokeHoldSeconds: 40,
+  smokeThinSeconds: 10,
+
+  // #138 Creeping Barrage
+  creepCooldownSeconds: 150,
+  creepLengthM: 120,
+  creepShells: 12,
+  creepStepSeconds: 1.5,
+  creepStepM: 10,
+  creepScatterM: 4,
+  creepWarningSeconds: 10,
+  creepKillM: 3,
+  creepWoundM: 6,
+  creepSuppressM: 14,
+  creepSuppression: 1,
 };

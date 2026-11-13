@@ -2,11 +2,12 @@
 // moves and taps, chrome/assets.ts arms and confirms, layers/effects.ts draws the preview from it.
 // Arm an Asset, and its preview ring follows the pointer; a tap pins the ring, a second tap on the same spot (or Confirm)
 // calls the Asset there; arming it again, Cancel or Esc disarms. #101: while the Gunship is up its row arms again, and the call moves its focus.
+// #138: a line-shaped Asset (its row carries `line`) takes two taps: the start, then the direction; Esc clears the first tap.
 // Orders (#36): select a Squad (its tile, or its chevrons on the map), then tap a Capture Point: the Order goes out as a
 // Command and the Squad stays selected; Clear sends a null Order. Only the Simulation decides what an Order does.
 // Mark (#136): in Mark mode every tap places a Mark, or renews the one tapped; out of it a tap on a Mark clears it. The spec
 // says both "tap a Mark to clear it" and "re-tapped" renews it: the mode is what tells them apart.
-import { hqHolds, insidePolygon } from '../sim/geometry';
+import { hqHolds, insidePolygon, lineHits } from '../sim/geometry';
 import { DEFAULT_TUNE } from '../sim/tune';
 import { enemyOf, type AssetKind, type Vec2 } from '../sim/types';
 import { session } from './session';
@@ -18,6 +19,8 @@ export const targeting = {
   pointer: null as Vec2 | null,
   /** The pinned target spot; null until the first tap. */
   spot: null as Vec2 | null,
+  /** #138: a line-shaped Asset's second tap, the way its line runs from `spot`; null until then. */
+  aim: null as Vec2 | null,
   /** The selected friendly Squad's id; null = none. */
   selected: null as number | null,
   /** #136: Mark mode is on. */
@@ -26,7 +29,7 @@ export const targeting = {
 
 export function disarm() {
   targeting.armed = null;
-  targeting.spot = null;
+  targeting.spot = targeting.aim = null;
 }
 
 /** Arms `asset`, or disarms when it is the one already armed. */
@@ -34,7 +37,7 @@ export function arm(asset: AssetKind) {
   if (targeting.armed === asset) return disarm();
   markMode(false);
   targeting.armed = asset;
-  targeting.spot = null;
+  targeting.spot = targeting.aim = null;
 }
 
 export const hover = (p: Vec2 | null) => (targeting.pointer = p);
@@ -47,9 +50,10 @@ export function markMode(on: boolean) {
   targeting.marking = on;
 }
 
-/** Esc: disarms an armed Asset, else leaves Mark mode, else drops the Squad selection. */
+/** Esc: disarms an armed Asset (#138: a line-shaped one with its start set loses that first), else leaves Mark mode, else drops the Squad selection. */
 export function escape() {
-  if (targeting.armed) disarm();
+  if (lineOf() && targeting.spot) targeting.spot = targeting.aim = null;
+  else if (targeting.armed) disarm();
   else if (targeting.marking) markMode(false);
   else select(null);
 }
@@ -65,6 +69,7 @@ export function answer(squad: number) {
   if (!view || view.result || !r || view.assets?.find((a) => a.asset === r.asset)?.readyIn !== 0) return;
   markMode(false);
   targeting.armed = r.asset;
+  targeting.aim = null;
   targeting.spot = validSpot(r.at) ? { ...r.at } : null;
 }
 
@@ -83,26 +88,55 @@ export function validSpot(p: Vec2): boolean {
   return !hqHolds(map.hqs[enemyOf(session.commanderSide)], DEFAULT_TUNE.hqRadius, p);
 }
 
+/** #138: the armed Asset's line shape, when it is line-shaped. */
+const lineOf = () => (targeting.armed && session.view?.assets?.find((a) => a.asset === targeting.armed)?.line) || null;
+
+/**
+ * #138: the strip of the armed line-shaped Asset: from the pinned start, its length towards the pinned direction, or towards
+ * `pointer` until there is one. `ok` is false where the Simulation would reject it (an end outside the Play Area, or the
+ * line across the enemy HQ). Null with no line-shaped Asset armed, no start, or nothing to point at.
+ */
+export function strip(pointer: Vec2 | null, aim = targeting.aim): { from: Vec2; to: Vec2; width: number; ok: boolean } | null {
+  const line = lineOf();
+  const from = targeting.spot;
+  const toward = aim ?? pointer;
+  const map = session.host?.map;
+  if (!line || !from || !toward || !map) return null;
+  const d = Math.hypot(toward.x - from.x, toward.y - from.y);
+  if (!d) return null;
+  const to = { x: from.x + ((toward.x - from.x) / d) * line.length, y: from.y + ((toward.y - from.y) / d) * line.length };
+  return { from, to, width: line.width, ok: inPlayArea(from) && inPlayArea(to) && !lineHits(map.hqs[enemyOf(session.commanderSide)], DEFAULT_TUNE.hqRadius, from, to) };
+}
+
+/** The armed Asset has all it needs for Confirm: its spot, and (#138) a line-shaped one its direction. */
+export const ready = () => !!targeting.spot && (!lineOf() || !!targeting.aim);
+
 /** Called after an Asset is confirmed (the feed throws a static burst). */
 export const confirmed: (() => void)[] = [];
 
 /** Calls the armed Asset on the pinned spot. */
 export function confirm() {
-  const { armed, spot } = targeting;
-  if (!armed || !spot) return;
-  session.host?.send({ side: session.commanderSide, kind: 'asset', asset: armed, at: spot });
+  const { armed, spot, aim } = targeting;
+  if (!armed || !spot || !ready()) return;
+  session.host?.send({ side: session.commanderSide, kind: 'asset', asset: armed, at: spot, ...(aim && { to: aim }) });
   disarm();
   for (const f of confirmed) f();
 }
 
 /**
  * A tap on the map at `p`. With an Asset armed it pins or confirms (within `sameM` metres of the pinned spot is the same
- * spot). Otherwise a friendly Soldier of an Elite Squad (#153) within `pickM` selects its Squad, a Capture Point (its ring, at
+ * spot; #138: a line-shaped Asset pins its start, then its direction, and a tap on the direction confirms). Otherwise a friendly Soldier of an Elite Squad (#153) within `pickM` selects its Squad, a Capture Point (its ring, at
  * least `pickM` wide) gives the selected Squad its Order, and empty ground drops the selection. #136: a Mark within `pickM`
  * is cleared, before anything under it; in Mark mode the tap renews that Mark instead, or places one anywhere in the Play Area.
  */
 export function tap(p: Vec2, sameM: number, pickM = sameM) {
-  const { armed, spot } = targeting;
+  const { armed, spot, aim } = targeting;
+  if (armed && spot && lineOf()) {
+    const same = (q: Vec2) => (p.x - q.x) ** 2 + (p.y - q.y) ** 2 <= sameM * sameM;
+    if (aim && same(aim)) return confirm();
+    if (!same(spot) && strip(p, null)?.ok) targeting.aim = p;
+    return;
+  }
   if (armed) {
     if (!validSpot(p)) return;
     if (spot && (p.x - spot.x) ** 2 + (p.y - spot.y) ** 2 <= sameM * sameM) return confirm();

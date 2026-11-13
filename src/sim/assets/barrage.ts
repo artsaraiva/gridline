@@ -3,6 +3,7 @@
 // Nobody dodges it (#58: a Squad in the zone is the Commander's mistake); the caller sees the enemies in it as Contacts
 // from the first impact until `barrageContactSeconds` after the last.
 import { dist2 } from '../geometry';
+import type { Match } from '../index';
 import { rnd } from '../rng';
 import type { Mix } from '../state';
 import type { Tune, Vec2 } from '../types';
@@ -69,16 +70,19 @@ export const barrage: Kind = {
     return m.soldiers.filter((s) => s.side !== e.side && s.state === 'alive' && s.vehicle < 0 && dist2(s, e) <= r * r);
   },
 
-  view(m, e) {
-    const t = m.tune;
-    const shells = e.shells!;
-    return {
-      shells: shells.filter((s) => !s.done && s.launch <= m.tick).map((s) => ({ x: s.x, y: s.y, flight: (m.tick - s.launch) / (s.land - s.launch) })),
-      impactIn: shells.some((s) => s.done) ? 0 : Math.max(0, (shells[0]!.land - m.tick) / t.hz),
-    };
-  },
+  view: (m, e) => flying(m, e.shells!),
 
-  hash(e, mix: Mix) {
-    for (const s of e.shells!) for (const v of [Math.round(s.x * 1000), Math.round(s.y * 1000), s.launch, s.land, +s.done]) mix(v);
-  },
+  hash: (e, mix: Mix) => hashShells(e.shells!, mix),
 };
+
+/** For an effect's view: the shells in the air, and the seconds until the first lands (#138: the Smoke Screen's and the Creeping Barrage's too). */
+export function flying(m: Match, shells: Shell[]) {
+  return {
+    shells: shells.filter((s) => !s.done && s.launch <= m.tick).map((s) => ({ x: s.x, y: s.y, flight: (m.tick - s.launch) / (s.land - s.launch) })),
+    impactIn: shells.some((s) => s.done) ? 0 : Math.max(0, (shells[0]!.land - m.tick) / m.tune.hz),
+  };
+}
+
+export function hashShells(shells: Shell[], mix: Mix) {
+  for (const s of shells) for (const v of [Math.round(s.x * 1000), Math.round(s.y * 1000), s.launch, s.land, +s.done]) mix(v);
+}

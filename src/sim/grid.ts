@@ -1,5 +1,6 @@
 import type { Match } from './index';
 import { hqHolds, insidePolygon } from './geometry';
+import { smoked } from './smoke';
 import type { MapData, Rect, SideId, Terrain, Tune, Vec2 } from './types';
 
 export const WALL = 1;
@@ -168,8 +169,11 @@ export function nearestWalkable(m: Match, p: Vec2, g: Grid = m.grid): Vec2 {
   return best; // shortcut: the first ring with a walkable cell, up to 1.4x farther than the true nearest; fine for a Redeploy spot
 }
 
-/** Grid line of sight: samples every half cell between the two, blocked by any wall cell. */
-export function los(m: Match, a: Vec2, b: Vec2): boolean {
+/** Ground line of sight: clear of walls, and (#138) of smoke. Whatever is in the air never asks: it sees over both. */
+export const los = (m: Match, a: Vec2, b: Vec2): boolean => wallLos(m, a, b) && !smoked(m, a, b);
+
+/** Grid line of sight: samples every half cell between the two, blocked by any wall cell. Smoke does not stop it: a round crosses smoke. */
+export function wallLos(m: Match, a: Vec2, b: Vec2): boolean {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
   const n = Math.ceil(Math.sqrt(dx * dx + dy * dy) / (m.tune.cellM / 2));

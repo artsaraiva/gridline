@@ -47,6 +47,8 @@ export interface ShellInFlight {
   /** Remaining turn (within half a heading step) applied to the body frame. */
   bodyRotation: number;
   size: number;
+  /** #138: a Smoke Screen shell: its tail is grey. */
+  smoke?: true;
 }
 
 /**
@@ -105,15 +107,18 @@ export function shellStreak(from: Vec2, to: Vec2, flight: number): ShellStreak {
   return { tail: { x: tail.x, y: tail.y }, head: { x: head.x, y: head.y }, length: Math.hypot(dx, dy), angle: Math.atan2(dy, dx) };
 }
 
-/** Friendly barrage shells in their visible window in `view`, coming in on the bearing from the Commander's own HQ. */
+/**
+ * The shells in their visible window in `view`: the Barrage's, and (#138) the Creeping Barrage's and the Smoke Screen's, each
+ * coming in on the bearing from its caller's HQ (the Commander's own, but for an enemy's in the sky).
+ */
 export function barrageShells(view: CommanderView, map: MapData, exaggeration = SHELL_EXAGGERATION): ShellInFlight[] {
-  const hq = map.hqs[view.side];
-  const from = { x: hq.x, y: hq.y };
   const out: ShellInFlight[] = [];
   for (const e of view.effects ?? []) {
-    if (e.asset !== 'barrage') continue;
+    if (e.asset !== 'barrage' && e.asset !== 'creep' && e.asset !== 'smoke') continue;
+    const hq = map.hqs[e.side ?? view.side];
+    const from = { x: hq.x, y: hq.y };
     for (const s of e.shells ?? []) {
-      if (s.flight >= SHELL_VISIBLE_FROM) out.push(shellInFlight(from, { x: s.x, y: s.y }, s.flight, exaggeration));
+      if (s.flight >= SHELL_VISIBLE_FROM) out.push({ ...shellInFlight(from, { x: s.x, y: s.y }, s.flight, exaggeration), ...(e.asset === 'smoke' && { smoke: true as const }) });
     }
   }
   return out;

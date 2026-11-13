@@ -260,3 +260,23 @@ describe('#107: an enemy tank under the Soldier sight rules', () => {
     expect(play(home, 1).at(-1)!.vehicles!.filter((x) => x.side === 'pact')).toEqual([]);
   });
 });
+
+describe('line-shaped Assets in the sky (#138)', () => {
+  const call = (asset: 'smoke' | 'creep') => {
+    const m = scene({}, { tune: { creepCooldownSeconds: 0 } });
+    step(m, [{ tick: 0, side: 'nato', kind: 'asset', asset, at: { x: 100, y: 0 }, to: { x: 100, y: 50 } }]);
+    return { own: commanderView(m, 'nato').effects!, enemy: commanderView(m, 'pact').effects! };
+  };
+
+  it('a Smoke Screen is in the enemy view whole: its caller, strip, shells and discs', () => {
+    const { own, enemy } = call('smoke');
+    expect(Object.keys(enemy[0]!).sort()).toEqual(['asset', 'impactIn', 'left', 'line', 'radius', 'shells', 'side', 'smoke', 'total', 'x', 'y']);
+    expect(enemy).toEqual(own);
+  });
+
+  it("a Creeping Barrage's shells are; its strip and the count to its first shell are its caller's alone", () => {
+    const { own, enemy } = call('creep');
+    expect(Object.keys(own[0]!).sort()).toEqual(['asset', 'impactIn', 'left', 'line', 'radius', 'shells', 'side', 'total', 'x', 'y']);
+    expect(Object.keys(enemy[0]!).sort()).toEqual(['asset', 'left', 'radius', 'shells', 'side', 'total', 'x', 'y']);
+  });
+});
