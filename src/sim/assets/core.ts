@@ -88,7 +88,8 @@ export interface Kind {
   untargeted?: true;
 }
 
-const KINDS: Partial<Record<AssetKind, Kind>> = { scan, supply, barrage, missile, gunship, smoke, creep, drone, recon, beacon, rapid };const ORDER: AssetKind[] = ['scan', 'supply', 'barrage', 'missile', 'gunship', 'smoke', 'creep', 'drone', 'recon', 'beacon', 'rapid'];
+const KINDS: Partial<Record<AssetKind, Kind>> = { scan, supply, barrage, missile, gunship, smoke, creep, drone, recon, beacon, rapid };
+const ORDER: AssetKind[] = ['scan', 'supply', 'barrage', 'missile', 'gunship', 'smoke', 'creep', 'drone', 'recon', 'beacon', 'rapid'];
 const kinds = () => ORDER.filter((k) => KINDS[k]);
 
 export function newAssets(t: Tune): Assets {

@@ -602,8 +602,6 @@ export interface SquadView {
   takingFire?: boolean;
   /** The Capture Point id the wiped Squad would Redeploy at now; null = its HQ. Set only when wiped. */
   redeployAt?: string | null;
-  /** #142: the wiped Squad would Redeploy at its Side's Redeploy Beacon now, ahead of `redeployAt`. Set only then. */
-  atBeacon?: true;
   /** #34: what the Squad does on its own: heads for `point`, holds it, falls back to it (or the HQ), or fetches ammo at the HQ. */
   task?: 'move' | 'hold' | 'retreat' | 'resupply' | null;
   /** #34: the Capture Point id of the task; null = the HQ, or no task. */
@@ -623,6 +621,9 @@ export interface SquadView {
    * (`at`, null `grid` only on a map without one) and the seconds left before it expires.
    */
   request?: { asset: RequestKind; at: Vec2; grid: string | null; left: number } | null;
+  // #142 Redeploy Beacon
+  /** The wiped Squad would Redeploy at its Side's Redeploy Beacon now, ahead of `redeployAt`. Set only then. */
+  atBeacon?: true;
 }
 
 export interface PointView {
