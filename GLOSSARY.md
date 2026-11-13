@@ -176,10 +176,6 @@ _Avoid_: Attack, fire mission, bombardment
 The Strike that flies in from beyond the Commander's own map edge to one chosen spot and lands a single large blast there; its whole approach is visible, and the flight is its warning.
 _Avoid_: Missile strike, rocket, tomahawk
 
-**Strafing Run**:
-The Strike in which an aircraft flies in along a line the Commander chose, fires along it and flies off; the whole pass is visible.
-_Avoid_: Airstrike, gun run, CAS
-
 **Gunship**:
 The Strike that flies slowly over the battlefield for a while in wide turns, over the enemies its Side knows, reveals the ones under it as Contacts and shells them from the air. The Commander gives it a focus, the spot it works round, and may move that while it flies. Soldiers coming back may spawn aboard it: as its gunner, or to parachute down as it passes their goal.
 _Avoid_: AC-130, Spooky, air support
@@ -195,6 +191,18 @@ _Avoid_: Resupply, ammo box, care package
 **Artillery Barrage**:
 The Asset that, after a warning, lands a spread of shells round a chosen spot, killing, Wounding and suppressing Soldiers of either Side by their distance from each shell.
 _Avoid_: Strike, airstrike, bombardment, arty
+
+**Creeping Barrage**:
+The Strike that, after a warning, lands its shells one after the other along a line the Commander drew, each a step further on: a wall of suppression that moves, more than a blast that kills. The Commander gives it a start and a direction.
+_Avoid_: Rolling barrage, walking fire, line strike
+
+**Screen**:
+An Asset that changes what can be seen and harms nobody.
+_Avoid_: Concealment, cover, obscurant
+
+**Smoke Screen**:
+The Screen that lays a wall of smoke along a line the Commander drew, with a start and a direction. While it stands, nobody on the ground sees through it or into it, from either Side; anything in the air sees through it, and suppressive fire still crosses it.
+_Avoid_: Smoke, smoke grenade, smokescreen
 
 **Mark**:
 A spot the Commander flags as a suspected enemy position. It joins what the Side knows, so every Squad, Elite or not, treats it as one: an own Capture Point near it counts as threatened, the helicopter lands away from it, and a Squad taking fire from an enemy it cannot see fires at it. It never shows an enemy and never changes an Order. It fades by itself, the Commander can renew or clear it, and a friendly Soldier who checks the spot and finds nobody clears it.

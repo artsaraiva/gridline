@@ -427,3 +427,31 @@ describe('commander review timeline (#69)', () => {
     expect(fire.length).toBeGreaterThan(10);
   });
 });
+
+describe('#138 line-shaped Assets', () => {
+  const fx = (t: number, asset: 'smoke' | 'creep') => viewAt(t).effects!.find((e) => e.asset === asset);
+
+  it('Smoke Screen: the strip and four shells half a second apart, then four discs that bloom, hold and thin out', () => {
+    const call = chapter('Smoke Screen') + 1;
+    expect(fx(call - 0.5, 'smoke')).toBeUndefined();
+    expect(fx(call + 1, 'smoke')).toMatchObject({ side: 'nato', x: -40, y: -12, line: { to: { x: -40, y: 48 }, width: 15 }, impactIn: 5, shells: [], smoke: [] });
+    expect(fx(call + 5.9, 'smoke')!.shells).toHaveLength(4);
+    expect(fx(call + 6.6, 'smoke')!.smoke!.map((d) => d.y)).toEqual([-4.5, 10.5]); // two down, two in the air
+    expect(fx(call + 6.6, 'smoke')!.shells).toHaveLength(2);
+    expect(fx(call + 20, 'smoke')!.smoke!.map((d) => [d.r, d.density])).toEqual([[7.5, 1], [7.5, 1], [7.5, 1], [7.5, 1]]);
+    expect(fx(call + 56, 'smoke')!.smoke![0]).toMatchObject({ r: 3.75, density: 0.5 });
+    expect(fx(call + 63, 'smoke')).toBeUndefined();
+    expect(viewAt(call - 1).assets!.find((a) => a.asset === 'smoke')).toMatchObject({ readyIn: 0, line: { length: 60, width: 15 } }); // armed here, two taps place the strip
+  });
+
+  it('Creeping Barrage: twelve impacts march the line, 1.5 s and 10 m apart, from 10 s after the call', () => {
+    const call = chapter('Creeping Barrage') + 1;
+    const hits = eventsBetween(call, LENGTH).filter((e) => e.kind === 'impact' && e.asset === 'creep') as { x: number; y: number }[];
+    expect(hits.map((h) => h.y)).toEqual([62, 52, 42, 32, 22, 12, 2, -8, -18, -28, -38, -48]);
+    for (const h of hits) expect(Math.abs(h.x + 16)).toBeLessThanOrEqual(4);
+    expect(eventsBetween(call + 9.9, call + 10.1).filter((e) => e.kind === 'impact')).toHaveLength(1);
+    expect(eventsBetween(call + 26.4, call + 26.6).filter((e) => e.kind === 'impact')).toHaveLength(1);
+    expect(fx(call + 8, 'creep')).toMatchObject({ impactIn: 2, line: { to: { x: -16, y: -58 }, width: 36 }, shells: [{ flight: 0.5 }, { flight: 0.125 }] });
+    expect(fx(call + 29, 'creep')).toBeUndefined();
+  });
+});

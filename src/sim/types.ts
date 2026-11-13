@@ -458,6 +458,29 @@ export interface Tune {
   markSeconds: number; // a Mark's life from when it was placed or last renewed
   markClearM: number; // a friendly Soldier this near a Mark, with line of sight to it, checks it
   markClearSeconds: number; // checked this long with no enemy seen within markClearM, the Mark is cleared
+
+  // #138 Smoke Screen
+  smokeCooldownSeconds: number; // from the call; ready at match start
+  smokeLengthM: number; // the wall runs this far from the first tap towards the second ...
+  smokeWidthM: number; // ... and is this thick: each shell's disc is this wide once bloomed
+  smokeShells: number; // spaced evenly along the wall
+  smokeWarningSeconds: number; // from the call to the first landing
+  smokeBloomSeconds: number; // a disc grows to its full width over this long from its landing ...
+  smokeHoldSeconds: number; // ... holds it this long ...
+  smokeThinSeconds: number; // ... and shrinks to nothing over this long
+
+  // #138 Creeping Barrage
+  creepCooldownSeconds: number; // from the call; it also starts the match on this cooldown
+  creepLengthM: number; // the strip drawn from the first tap towards the second
+  creepShells: number; // one after the other from the start ...
+  creepStepSeconds: number; // ... this long apart ...
+  creepStepM: number; // ... each this much further along the line ...
+  creepScatterM: number; // ... and up to this far off it to either side (seeded)
+  creepWarningSeconds: number; // from the call to the first landing
+  creepKillM: number;
+  creepWoundM: number;
+  creepSuppressM: number; // enemies this near a shell that has landed are Contacts for `barrageContactSeconds`
+  creepSuppression: number;
 }
 
 /** #55: what a Commander Score award is for. */
@@ -465,13 +488,13 @@ export type ScoreCategory = 'uav' | 'supply' | 'artillery' | 'orders';
 
 export type Command =
   | { tick: number; side: SideId; kind: 'order'; squad: number; point: string | null }
-  | { tick: number; side: SideId; kind: 'asset'; asset: 'scan' | 'supply' | 'barrage' | 'missile' | 'gunship'; at: Vec2 }
+  | { tick: number; side: SideId; kind: 'asset'; asset: 'scan' | 'supply' | 'barrage' | 'missile' | 'gunship' | 'smoke' | 'creep'; at: Vec2; to?: Vec2 } // #138: `to` is a line-shaped Asset's second tap: its line runs from `at` towards it
   /** #136: no `id` places a Mark at `at`; with `id` it renews that Mark, or clears it when `at` is null. */
   | { tick: number; side: SideId; kind: 'mark'; at: Vec2 | null; id?: number };
 
 export type AssetKind = Extract<Command, { kind: 'asset' }>['asset'];
-/** #99: what a Squad may Request: never a Cruise Missile (#58), #101 nor a Gunship. */
-export type RequestKind = Exclude<AssetKind, 'missile' | 'gunship'>;
+/** #99: what a Squad may Request: never a Cruise Missile (#58), #101 nor a Gunship, #138 nor a line-shaped Asset. */
+export type RequestKind = Exclude<AssetKind, 'missile' | 'gunship' | 'smoke' | 'creep'>;
 
 export interface MatchResult {
   winner: SideId | null; // null = draw
@@ -641,6 +664,8 @@ export interface AssetView {
   off?: string;
   /** #101: it is at work and a call now moves its spot (the Gunship's focus) whatever `readyIn` says. Absent otherwise. */
   retask?: true;
+  /** #138: it is line-shaped: called with two taps, on a strip this long from the first towards the second and this wide. Absent otherwise. */
+  line?: { length: number; width: number };
 }
 
 export interface EffectView {
@@ -673,6 +698,11 @@ export interface EffectView {
   phase?: 'inbound' | 'station' | 'leaving';
   /** The aircraft: the ground spot under it, its unit heading and the way it is turning (1 left, -1 right, 0 straight on). Absent once shot down. */
   craft?: { x: number; y: number; fx: number; fy: number; turn: number };
+  // #138 Smoke Screen (in the sky, so in both Sides' views, with `side`) and Creeping Barrage (its shells in flight are in both; the strip only in the caller's)
+  /** The strip of a line-shaped Asset: it runs from (`x`, `y`) to `to` and is `width` across. */
+  line?: { to: Vec2; width: number };
+  /** Smoke Screen: the discs on the ground, each with its radius now, the seconds since its shell landed, and how dense it is (1, falling to 0 as it thins). */
+  smoke?: { x: number; y: number; r: number; age: number; density: number }[];
 }
 
 /** Things that happened this tick, on every Side; `commanderEvents` keeps the ones a Side's Console may show. */
@@ -696,6 +726,6 @@ export type SimEvent =
   /** #34: suppressive fire: a round at (x, y) near a Last Known Position (#136: or a Mark), with no enemy in view. */
   | { kind: 'suppressive'; side: SideId; from: number; x: number; y: number; hit: boolean }
   /** #40: a Barrage shell landed at (x, y); `side` called it. #99: or a Cruise Missile (`asset`), #101 a Gunship's shell. #107: or a tank's main gun, fired by vehicle `from`. */
-  | { kind: 'impact'; side: SideId; x: number; y: number; asset: 'barrage' | 'missile' | 'tank' | 'bomb' | 'gunship'; from?: number }
+  | { kind: 'impact'; side: SideId; x: number; y: number; asset: 'barrage' | 'missile' | 'tank' | 'bomb' | 'gunship' | 'creep'; from?: number } // #138: or a Creeping Barrage's shell
   /** #55: `side`'s Commander earned `points` of Commander Score. `reason` is safe to show: it never names a position or an unseen enemy. */
   | { kind: 'award'; side: SideId; category: ScoreCategory; points: number; reason: string };

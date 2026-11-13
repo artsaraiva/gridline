@@ -25,6 +25,7 @@ export const REPLAY_RECORD: MatchRecord = {
   log: [
     { tick: 10, side: 'nato', kind: 'order', squad: 0, point: 'B' },
     { tick: 200, side: 'nato', kind: 'asset', asset: 'scan', at: { x: 0, y: 0 } },
+    { tick: 400, side: 'nato', kind: 'asset', asset: 'smoke', at: { x: 20, y: -30 }, to: { x: 20, y: 30 } }, // #138: a wall east of B, between the Sides as they meet
   ],
 };
 

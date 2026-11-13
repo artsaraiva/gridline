@@ -25,7 +25,7 @@ describe('asset review config', () => {
       expect(insidePolygon(PLAY_AREA, at.x, at.y)).toBe(true);
       const d2 = (at.x - enemyHq.x) ** 2 + (at.y - enemyHq.y) ** 2;
       expect(d2).toBeGreaterThanOrEqual(enemyHq.radius * enemyHq.radius);
-      expect(asset).toMatch(/^(scan|supply|barrage|gunship)$/);
+      expect(asset).toMatch(/^(scan|supply|barrage|gunship|smoke|creep)$/);
     }
   });
 });

@@ -27,6 +27,7 @@ import { drawOrders, hideOrderTags } from './layers/orders';
 import { drawHqs, drawPoint } from './layers/points';
 import { drawScanUavs } from './layers/scan-uav';
 import { drawShells } from './layers/shells';
+import { drawSmokeScreens } from './layers/smoke-screen';
 import { drawSupplyDrops } from './layers/supply-drop';
 import { UNIT_PX } from './layers/symbols';
 import { addShot, drawTracers } from './layers/tracers';
@@ -81,6 +82,7 @@ renderer.setAnimationLoop(() => {
   drawRadioLog(now);
   drawGrid(view);
   drawImpacts(now);
+  drawSmokeScreens(view);
   drawEffects(view, now);
   drawScanUavs(view, scale, now);
   drawSupplyDrops(view, scale);

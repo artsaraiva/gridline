@@ -5,6 +5,15 @@ import { enemyOf, type Hq, type SideId, type Vec2 } from './types';
 
 export const dist2 = (a: Vec2, b: Vec2) => (a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y);
 
+/** Squared distance from `p` to the segment from `a` to `b`. */
+export function segDist2(p: Vec2, a: Vec2, b: Vec2): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len2 = dx * dx + dy * dy;
+  const k = len2 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2)) : 0;
+  return dist2(p, { x: a.x + dx * k, y: a.y + dy * k });
+}
+
 /** Even-odd point-in-polygon. */
 export function insidePolygon(poly: Vec2[], x: number, y: number): boolean {
   let inside = false;
@@ -27,6 +36,13 @@ export function keystone(m: Match) {
 
 /** Whether the HQ holds the spot: inside its `area`, or without one inside its circle (`hqRadius` wide when it names no radius). */
 export const hqHolds = (hq: Hq, hqRadius: number, p: Vec2) => (hq.area ? insidePolygon(hq.area, p.x, p.y) : dist2(p, hq) < (hq.radius ?? hqRadius) ** 2);
+
+/** #138: whether the straight line from `a` to `b` touches the HQ, sampled every 2 m (an HQ area is no circle to measure against). */
+export function lineHits(hq: Hq, hqRadius: number, a: Vec2, b: Vec2): boolean {
+  const n = Math.ceil(Math.sqrt(dist2(a, b)) / 2);
+  for (let k = 0; k <= n; k++) if (hqHolds(hq, hqRadius, n ? { x: a.x + ((b.x - a.x) * k) / n, y: a.y + ((b.y - a.y) * k) / n } : a)) return true;
+  return false;
+}
 
 export const inHq = (m: Match, side: SideId, p: Vec2) => hqHolds(m.map.hqs[side], m.tune.hqRadius, p);
 

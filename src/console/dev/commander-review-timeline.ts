@@ -1,14 +1,16 @@
 // DEV-only Commander look review timeline (#69): a hand-written, deterministic script of CommanderViews and Events on
 // Kaltenbach coordinates, so the Console's readability treatments (#70 firing pulse, #71 selection and Squad Leader
 // markers), the Cruise Missile's marks (#99), the tank (#107: sprite, turret, Wreck, badge, main gun), the jeep (#108:
-// sprite, Wreck, badge, MG, dismount), the jet and the AA (#110: a pass, the AA's stream on a helicopter and a jet), the helicopter's jobs (#131: a pickup away from the HQ, a hot drop, Support, a repair trip home, a bail-out and crash) and the parachute jump (#130: a crippled helicopter's riders come down on a chevron that grows from 70% to full size) and the transport helicopter (#109: lift-off, flight, landing, unload, home; #124: dogleg, flare, Landing Zone) and the Gunship (#101: its route ring, orbit and shells, its gunner's bursts and a paratrooper; the enemy's under the AA's bursts, falling as a Wreck) are judged on every
+// sprite, Wreck, badge, MG, dismount), the jet and the AA (#110: a pass, the AA's stream on a helicopter and a jet), the helicopter's jobs (#131: a pickup away from the HQ, a hot drop, Support, a repair trip home, a bail-out and crash) and the parachute jump (#130: a crippled helicopter's riders come down on a chevron that grows from 70% to full size) and the transport helicopter (#109: lift-off, flight, landing, unload, home; #124: dogleg, flare, Landing Zone) and the Gunship (#101: its route ring, orbit and shells, its gunner's bursts and a paratrooper; the enemy's under the AA's bursts, falling as a Wreck) and the line-shaped Assets (#138: the Smoke Screen's strip, shells and discs, the Creeping Barrage's march and dust line) are judged on every
 // Squad Leader state without a Simulation. `viewAt` and `eventsBetween` are pure.
+import { STAGGER_SECONDS } from '../../sim/assets/smoke';
+import { smokeDisc, smokeLife } from '../../sim/smoke';
 import { DEFAULT_TUNE } from '../../sim/tune';
 import type { AssetView, CommanderView, EffectView, FriendlyView, LastKnownView, MarkView, SideId, SimEvent, SoldierView, SquadView, Vec2, VehicleView } from '../../sim/types';
 
 /** The first twelve chapters end here; #131 adds the helicopter jobs after them. */
 const OLD_END = 192;
-export const LENGTH = 640;
+export const LENGTH = 720;
 
 /** Where each state starts, for scrubbing. */
 export const CHAPTERS = [
@@ -32,6 +34,8 @@ export const CHAPTERS = [
   { at: 512, title: 'Gunship' },
   { at: 570, title: 'Gunship down' },
   { at: 600, title: 'Mark' },
+  { at: 640, title: 'Smoke Screen' },
+  { at: 680, title: 'Creeping Barrage' },
 ];
 
 /** Centre of the overlapping Squads, for the close zoom preset. */
@@ -721,8 +725,8 @@ export function viewAt(t: number): CommanderView {
     points: POINTS,
     tickets: { nato: 150, pact: 150 },
     result: null,
-    assets: [{ asset: 'missile', readyIn: t < MISSILE.at ? 0 : Math.max(0, MISSILE.at + DEFAULT_TUNE.missileCooldownSeconds - t), cooldown: DEFAULT_TUNE.missileCooldownSeconds, radius: DEFAULT_TUNE.missileSuppressM }, gunshipRow(t)],
-    effects: [...missileAt(t), ...gunshipsAt(t)],
+    assets: [{ asset: 'missile', readyIn: t < MISSILE.at ? 0 : Math.max(0, MISSILE.at + DEFAULT_TUNE.missileCooldownSeconds - t), cooldown: DEFAULT_TUNE.missileCooldownSeconds, radius: DEFAULT_TUNE.missileSuppressM }, gunshipRow(t), ...lineRows(t)],
+    effects: [...missileAt(t), ...gunshipsAt(t), ...smokeAt(t), ...creepAt(t)],
     vehicles: [...tanksAt(t), ...jeepsAt(t), ...helisAt(t), ...paraHeli(t), ...airAt(t), ...gunshipBodies(t)],
     marks: marksAt(t),
   };
@@ -746,6 +750,52 @@ function markEvents(): [number, SimEvent][] {
   const aim = MARKS[2]!;
   for (let t = MARK_FIRE.from, i = 0; t < MARK_FIRE.to; t += 0.7, i++) events.push([t, { kind: 'suppressive', side: 'nato', from: i % 4, x: aim.x + ((i % 5) - 2) * 1.5, y: aim.y + ((i % 3) - 1) * 1.5, hit: false }]);
   return events;
+}
+
+// #138: a Smoke Screen across the ground between Alpha and the Contacts, called 2 s into its chapter: the strip, four grey-tailed
+// shells half a second apart, the discs blooming, holding and thinning. Then a Creeping Barrage walked south through the
+// Contacts: the strip, a shell every 1.5 s each 10 m on, and the dust line they leave. The numbers are the Simulation's.
+const SMOKE = { call: CHAPTERS.find((c) => c.title === 'Smoke Screen')!.at + 2, x: -40, y: -12, to: { x: -40, y: 48 } };
+const CREEP = { call: CHAPTERS.find((c) => c.title === 'Creeping Barrage')!.at + 2, x: -16, y: 62, to: { x: -16, y: -58 } };
+const CREEP_REACH = G.creepScatterM + G.creepSuppressM;
+const SMOKE_SECONDS = G.smokeWarningSeconds + (G.smokeShells - 1) * STAGGER_SECONDS + smokeLife(G);
+const CREEP_SECONDS = G.creepWarningSeconds + (G.creepShells - 1) * G.creepStepSeconds + G.barrageContactSeconds;
+/** Where each shell lands and how long after the call. */
+const SMOKE_SHELLS = Array.from({ length: G.smokeShells }, (_, i) => ({ x: SMOKE.x, y: SMOKE.y + ((i + 0.5) / G.smokeShells) * G.smokeLengthM, lands: G.smokeWarningSeconds + i * STAGGER_SECONDS }));
+const CREEP_SHELLS = Array.from({ length: G.creepShells }, (_, i) => ({ x: CREEP.x + (((i * 7) % 9) - 4) * 0.9, y: CREEP.y - i * G.creepStepM, lands: G.creepWarningSeconds + i * G.creepStepSeconds }));
+
+/** The shells of a line-shaped Asset in the air `s` seconds after its call, as the Simulation's view gives them. */
+const inFlight = (shells: { x: number; y: number; lands: number }[], s: number) =>
+  shells.filter((x) => s >= x.lands - G.barrageFlightSeconds && s < x.lands).map((x) => ({ x: x.x, y: x.y, flight: (s - x.lands + G.barrageFlightSeconds) / G.barrageFlightSeconds }));
+
+function smokeAt(t: number): EffectView[] {
+  const s = t - SMOKE.call;
+  if (s < 0 || s >= SMOKE_SECONDS) return [];
+  const smoke = SMOKE_SHELLS.map((x) => ({ x: x.x, y: x.y, age: s - x.lands, ...smokeDisc(G, (s - x.lands) * HZ) })).filter((d) => d.r > 0);
+  return [{ asset: 'smoke', side: 'nato', x: SMOKE.x, y: SMOKE.y, radius: G.smokeWidthM / 2, left: SMOKE_SECONDS - s, total: SMOKE_SECONDS, line: { to: SMOKE.to, width: G.smokeWidthM }, shells: inFlight(SMOKE_SHELLS, s), impactIn: Math.max(0, G.smokeWarningSeconds - s), smoke }];
+}
+
+function creepAt(t: number): EffectView[] {
+  const s = t - CREEP.call;
+  if (s < 0 || s >= CREEP_SECONDS) return [];
+  return [{ asset: 'creep', side: 'nato', x: CREEP.x, y: CREEP.y, radius: CREEP_REACH, left: CREEP_SECONDS - s, total: CREEP_SECONDS, line: { to: CREEP.to, width: 2 * CREEP_REACH }, shells: inFlight(CREEP_SHELLS, s), impactIn: Math.max(0, G.creepWarningSeconds - s) }];
+}
+
+/** #138: the two rows, each ready until its call: armed on this page, two taps and Confirm place the strip (the scripted host takes no Command). */
+const lineRows = (t: number): AssetView[] => [
+  { asset: 'smoke', readyIn: t < SMOKE.call ? 0 : Math.max(0, SMOKE.call + G.smokeCooldownSeconds - t), cooldown: G.smokeCooldownSeconds, radius: G.smokeWidthM / 2, line: { length: G.smokeLengthM, width: G.smokeWidthM } },
+  { asset: 'creep', readyIn: t < CREEP.call ? 0 : Math.max(0, CREEP.call + G.creepCooldownSeconds - t), cooldown: G.creepCooldownSeconds, radius: CREEP_REACH, line: { length: G.creepLengthM, width: 2 * CREEP_REACH } },
+];
+
+function lineEvents(): [number, SimEvent][] {
+  const line = (t: number, text: string, grid: string): [number, SimEvent] => [t, { kind: 'radio', side: 'nato', squad: null, type: 'asset', text, grid, priority: 1 }];
+  return [
+    line(SMOKE.call, 'Smoke inbound', 'F5'),
+    line(SMOKE.call + G.smokeWarningSeconds, 'Smoke on the deck', 'F5'),
+    line(CREEP.call, 'Creeping fire inbound', 'F5'),
+    line(CREEP.call + G.creepWarningSeconds, 'Splash', 'F5'),
+    ...CREEP_SHELLS.map((x): [number, SimEvent] => [CREEP.call + x.lands, { kind: 'impact', side: 'nato', x: x.x, y: x.y, asset: 'creep' }]),
+  ];
 }
 
 /** Events with `t0 < time <= t1`, in time order: what crossed since the last frame while playing. */
@@ -849,4 +899,4 @@ function orbitFire(): [number, SimEvent][] {
   return events;
 }
 
-const EVENTS: [number, SimEvent][] = [...casualties(), ...firefight(), ...strike(), ...gun(), ...mg(), ...sideGun(), ...orbitFire(), ...airFire(), ...gunshipEvents(), ...markEvents()].sort((a, b) => a[0] - b[0]);
+const EVENTS: [number, SimEvent][] = [...casualties(), ...firefight(), ...strike(), ...gun(), ...mg(), ...sideGun(), ...orbitFire(), ...airFire(), ...gunshipEvents(), ...markEvents(), ...lineEvents()].sort((a, b) => a[0] - b[0]);

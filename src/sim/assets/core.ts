@@ -2,15 +2,17 @@
 // tick until its time runs out. Each kind lives in its own module and joins KINDS (Supply Drop #39, Barrage #40).
 // #101: a kind may take a second call while it works as a new spot for the same effect (`retask`: the Gunship's focus).
 import type { Match } from '../index';
-import { inHq, insidePolygon } from '../geometry';
+import { inHq, insidePolygon, lineHits } from '../geometry';
 import { gridRef } from '../grid-ref';
 import type { Mix } from '../state';
 import type { Soldier } from '../state';
 import { enemyOf, SIDES, type AssetKind, type AssetView, type Command, type EffectView, type SideId, type SimEvent, type Tune, type Vec2 } from '../types';
 import { barrage, type Shell } from './barrage';
+import { creep } from './creep';
 import { gunship } from './gunship';
 import { missile } from './missile';
 import { scan } from './scan';
+import { smoke } from './smoke';
 import { supply } from './supply';
 
 /** One called Asset at work. `until` is the first tick it no longer works. */
@@ -21,7 +23,8 @@ export interface Effect {
   y: number;
   until: number;
   told: boolean; // its "on effect" radio line went out
-  shells?: Shell[]; // #40 Barrage
+  shells?: Shell[]; // #40 Barrage, #138 Smoke Screen and Creeping Barrage
+  to?: Vec2; // #138 a line-shaped Asset: the far end of its line, which starts at `x` and `y`
   from?: Vec2; // #99 Cruise Missile: where it was launched ...
   launch?: number; // ... on this tick ...
   land?: number; // ... and the tick it lands
@@ -61,17 +64,19 @@ export interface Kind {
   /** #40: enemies of the caller the effect shows as Contacts for as long as it lasts. */
   contacts?(m: Match, e: Effect): Soldier[];
   /** #40: extra fields for the effect's view. */
-  view?(m: Match, e: Effect): Partial<EffectView>;
+  view?(m: Match, e: Effect, own: boolean): Partial<EffectView>; // #138: `own` is false in the enemy's view of a `sky` kind
   hash?(e: Effect, mix: Mix): void;
   // #39: a kind that falls before it works says how long the fall has left and takes in all
   landsIn?(m: Match, e: Effect): number;
   fall?(t: Tune): number;
   /** #101: `side`'s effect of this kind that a call now moves rather than starting another (no cooldown, no gate), if there is one; with `at`, moves it there. */
   retask?(m: Match, side: SideId, at?: Vec2): Effect | undefined;
+  /** #138: it is line-shaped: the call carries a second tap, and the effect a line this long from the first towards it. */
+  line?(t: Tune): { length: number; width: number };
 }
 
-const KINDS: Partial<Record<AssetKind, Kind>> = { scan, supply, barrage, missile, gunship };
-const ORDER: AssetKind[] = ['scan', 'supply', 'barrage', 'missile', 'gunship'];
+const KINDS: Partial<Record<AssetKind, Kind>> = { scan, supply, barrage, missile, gunship, smoke, creep };
+const ORDER: AssetKind[] = ['scan', 'supply', 'barrage', 'missile', 'gunship', 'smoke', 'creep'];
 const kinds = () => ORDER.filter((k) => KINDS[k]);
 
 export function newAssets(t: Tune): Assets {
@@ -95,7 +100,20 @@ export function checkCall(m: Match, c: Extract<Command, { kind: 'asset' }>): str
   }
   if (!insidePolygon(m.map.playArea, c.at.x, c.at.y)) return 'outside the Play Area';
   if (inHq(m, enemyOf(c.side), c.at)) return 'on the enemy HQ';
-  return null;
+  if (!KINDS[c.asset]!.line) return null;
+  const to = lineEnd(m, c);
+  if (!to) return 'needs a direction';
+  if (!insidePolygon(m.map.playArea, to.x, to.y)) return 'outside the Play Area';
+  return lineHits(m.map.hqs[enemyOf(c.side)], m.tune.hqRadius, c.at, to) ? 'on the enemy HQ' : null;
+}
+
+/** #138: the far end of a line-shaped Asset's line: its length from `at` towards `to`; null with no second tap, or one on the first. */
+function lineEnd(m: Match, c: Extract<Command, { kind: 'asset' }>): Vec2 | null {
+  const dx = (c.to?.x ?? c.at.x) - c.at.x;
+  const dy = (c.to?.y ?? c.at.y) - c.at.y;
+  const d = Math.sqrt(dx * dx + dy * dy);
+  const L = KINDS[c.asset]!.line!(m.tune).length;
+  return d ? { x: c.at.x + (dx / d) * L, y: c.at.y + (dy / d) * L } : null;
 }
 
 /** Starts the cooldown and puts the effect to work from this tick. */
@@ -106,6 +124,7 @@ export function call(m: Match, c: Extract<Command, { kind: 'asset' }>, events: S
   if (up) return assetRadio(m, up, `${kind.name} retasked`, events);
   m.assets.readyAt[c.side][c.asset] = m.tick + Math.round(kind.cooldownSeconds(t) * t.hz);
   const e: Effect = { side: c.side, asset: c.asset, x: c.at.x, y: c.at.y, until: m.tick + Math.round(kind.seconds(t) * t.hz), told: false };
+  if (kind.line) e.to = lineEnd(m, c)!;
   kind.start?.(m, e);
   m.assets.effects.push(e);
   assetRadio(m, e, kind.called ?? `${kind.name} inbound`, events);
@@ -127,6 +146,7 @@ export function assetViews(m: Match, side: SideId): AssetView[] {
   return kinds().map((k) => {
     const retask = !!KINDS[k]!.retask?.(m, side);
     const off = !retask && KINDS[k]!.gate?.(m, side);
+    const line = KINDS[k]!.line?.(t);
     return {
       asset: k,
       readyIn: Math.max(0, m.assets.readyAt[side][k]! - m.tick) / t.hz,
@@ -134,6 +154,7 @@ export function assetViews(m: Match, side: SideId): AssetView[] {
       radius: KINDS[k]!.radius(t),
       ...(off && { off }),
       ...(retask && { retask }),
+      ...(line && { line }),
     };
   });
 }
@@ -147,7 +168,7 @@ export function effectViews(m: Match, side: SideId): EffectView[] {
   const t = m.tune;
   return m.assets.effects
     .filter((e) => e.side === side || KINDS[e.asset]!.sky)
-    .map((e) => ({ asset: e.asset, x: e.x, y: e.y, radius: KINDS[e.asset]!.radius(t), left: (e.until - m.tick) / t.hz, total: KINDS[e.asset]!.seconds(t), ...fallView(m, e), ...KINDS[e.asset]!.view?.(m, e) }));
+    .map((e) => ({ asset: e.asset, x: e.x, y: e.y, radius: KINDS[e.asset]!.radius(t), left: (e.until - m.tick) / t.hz, total: KINDS[e.asset]!.seconds(t), ...fallView(m, e), ...KINDS[e.asset]!.view?.(m, e, e.side === side) }));
 }
 
 export function hashAssets(m: Match, mix: Mix) {
@@ -160,6 +181,7 @@ export function hashAssets(m: Match, mix: Mix) {
     mix(Math.round(e.y * 1000));
     mix(e.until);
     mix(e.told ? 1 : 0);
+    if (e.to) mix(Math.round(e.to.x * 1000)), mix(Math.round(e.to.y * 1000));
     KINDS[e.asset]!.hash?.(e, mix);
   }
 }

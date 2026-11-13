@@ -46,7 +46,7 @@ function follow(kind: VehicleKind) {
   }, 100);
 }
 
-/** `?focus=barrage|scan|supply|gunship` frames that Asset close up, `?focus=tank|jeep|helicopter|jet|aa` follows nato's vehicle of that class, `?focus=close` the cluster; anything else is the overview. */
+/** `?focus=barrage|scan|supply|gunship|smoke|creep` frames that Asset close up, `?focus=tank|jeep|helicopter|jet|aa` follows nato's vehicle of that class, `?focus=close` the cluster; anything else is the overview. */
 function applyFocus(focus: string | null) {
   if (focus === 'close') setClose();
   else if (VEHICLES.includes(focus as VehicleKind)) follow(focus as VehicleKind);
@@ -71,7 +71,7 @@ export async function startAssetReview(): Promise<() => void> {
   controls.innerHTML = `
     <div class="eyebrow">DEV review / #60</div>
     <h2>Asset review</h2>
-    <p>Barrage · Scan UAV · Supply Drop · Gunship cycling on the real bake.</p>
+    <p>Barrage · Scan UAV · Supply Drop · Gunship · Smoke Screen · Creeping Barrage cycling on the real bake.</p>
     <div class="row">
       <button id="ar-overview" type="button">Overview</button>
       <button id="ar-close" type="button">Close tactical</button>
@@ -103,8 +103,8 @@ export async function startAssetReview(): Promise<() => void> {
   document.body.dataset.reviewReady = 'true'; // scripts/review-capture.mjs waits for this
 
   function callAll() {
-    const gunshipUp = session.view?.effects?.some((e) => e.asset === 'gunship' && e.side === 'nato');
-    for (const { asset, at } of ASSETS) if (asset !== 'gunship' || !gunshipUp) host.send({ side: 'nato', kind: 'asset', asset, at });
+    const up = (asset: AssetKind) => session.view?.effects?.some((e) => e.asset === asset && e.side === 'nato');
+    for (const { asset, at, to } of ASSETS) if ((asset !== 'gunship' && asset !== 'smoke') || !up(asset)) host.send({ side: 'nato', kind: 'asset', asset, at, ...(to && { to }) });
   }
   callAll();
   const interval = setInterval(callAll, CYCLE_SECONDS * 1000);

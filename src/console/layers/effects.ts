@@ -2,21 +2,22 @@
 // Squad) and each working Asset's ring with its time left. Labels are DOM tags over the canvas and keep clear of the
 // map Confirm button. The baked objects (Scan UAV, Supply Drop crate, shells, impacts) each have a layer of their own (#77).
 // The Barrage ring turns while it works and pulses on each impact (#98). #101: the Gunship has no ring once called:
-// its focus is a mark (layers/gunship.ts), and only its label is here.
+// its focus is a mark (layers/gunship.ts), and only its label is here. #138: a line-shaped Asset (Smoke Screen, Creeping
+// Barrage) has a strip in place of the ring: a thin outlined rectangle, in the preview and until its last shell is down.
 import * as THREE from 'three/webgpu';
 import { gridRef } from '../../sim/grid-ref';
 import type { CommanderView, Vec2 } from '../../sim/types';
-import { COLOR, pool, sideColor, toScreen } from '../renderer';
+import { COLOR, metresPerPx, pool, sideColor, toScreen } from '../renderer';
 import { session } from '../session';
 import { lastImpactAt } from './impacts';
 import { clock, eliteSquad } from '../summary';
-import { overlaps, targeting, validSpot } from '../targeting';
+import { overlaps, strip, targeting, validSpot } from '../targeting';
 import { css, dashedRing, fading, UNIT_PX } from './symbols';
 
 /** #101: how far the Gunship's focus mark reaches from its spot on screen (the Cruise Missile's target mark: a chevron unit). */
 export const FOCUS_MARK_PX = UNIT_PX;
 
-const NAME = { scan: 'Scan UAV', supply: 'Supply Drop', barrage: 'Barrage', missile: 'Missile', gunship: 'Gunship' };
+const NAME = { scan: 'Scan UAV', supply: 'Supply Drop', barrage: 'Barrage', missile: 'Missile', gunship: 'Gunship', smoke: 'Smoke Screen', creep: 'Creeping Barrage' };
 const discGeometry = new THREE.CircleGeometry(1, 96);
 /** The Barrage ring turns this fast while it works, so an ongoing strike reads at a glance. */
 const RING_TURN_RAD_PER_S = 0.25;
@@ -28,6 +29,34 @@ const rings = pool(() => {
   const disc = new THREE.Mesh(discGeometry, fading(COLOR.friendly, 0.06));
   return Object.assign(new THREE.Group().add(disc, ring.mesh), { ring, disc });
 });
+/** #138: a strip's outline is this wide on screen, whatever the zoom. */
+const STRIP_PX = 1.5;
+const unitQuad = new THREE.PlaneGeometry(1, 1);
+/** #138: a strip: a faint fill and four edges on unit quads, pooled like the rings. */
+const strips = pool(() => {
+  const fill = new THREE.Mesh(unitQuad, fading(COLOR.friendly, 0.06));
+  const edges = [0, 1, 2, 3].map(() => new THREE.Mesh(unitQuad, fading(COLOR.friendly, 0.85)));
+  return Object.assign(new THREE.Group().add(fill, ...edges), { fill, edges });
+});
+
+/** #138: the strip from `a` to `b`, `width` metres across, outlined in `color`. */
+function stripAt(a: Vec2, b: Vec2, width: number, color: number, fill: number) {
+  const s = strips.next();
+  const length = Math.hypot(b.x - a.x, b.y - a.y);
+  const w = STRIP_PX * metresPerPx.value;
+  s.position.set((a.x + b.x) / 2, (a.y + b.y) / 2, 0.5);
+  s.rotation.z = Math.atan2(b.y - a.y, b.x - a.x);
+  s.fill.scale.set(length, width, 1);
+  material(s.fill).opacity = fill;
+  s.edges.forEach((e, i) => {
+    const side = i < 2; // the two long sides, then the two ends
+    const sign = i % 2 ? 1 : -1;
+    e.position.set(side ? 0 : (sign * length) / 2, side ? (sign * width) / 2 : 0, 0);
+    e.scale.set(side ? length : w, side ? w : width, 1);
+  });
+  for (const m of [s.fill, ...s.edges]) material(m).color.setHex(color);
+}
+
 const labelBox = document.getElementById('labels')!;
 const labels: HTMLElement[] = [];
 
@@ -77,6 +106,14 @@ export function drawEffects(view: CommanderView, now: number) {
       if (e.left > 0 && e.side === view.side) label(tags++, e, FOCUS_MARK_PX + 4, -18, `GUNSHIP ${e.phase === 'inbound' ? 'INBOUND' : clock(Math.ceil(e.left))}`, css(sideColor(e.side)));
       continue;
     }
+    if (e.asset === 'smoke' || e.asset === 'creep') {
+      // the strip until the last shell is down (the enemy's Creeping Barrage has none: only its shells show); the label to its own Commander
+      const falling = !!e.impactIn || !!e.shells?.length;
+      const color = e.asset === 'creep' && e.side === view.side ? COLOR.hostile : sideColor(e.side ?? view.side); // the Creeping Barrage is a danger zone to its own Side too, as the Barrage's ring
+      if (e.line && falling) stripAt(e, e.line.to, e.line.width, color, 0.06);
+      if (e.line && e.side === view.side) label(tags++, e.line.to, 8, -18, `${NAME[e.asset].toUpperCase()} ${e.impactIn ? `IMPACT ${clock(Math.ceil(e.impactIn))}` : clock(Math.ceil(e.left))}`, css(color));
+      continue;
+    }
     const danger = e.asset === 'barrage';
     const r = ringAt(e, e.radius, danger ? COLOR.hostile : COLOR.friendly, danger ? 0.1 : 0.06);
     r.ring.mesh.rotation.z = danger ? (now / 1000) * RING_TURN_RAD_PER_S : 0;
@@ -93,8 +130,10 @@ export function drawEffects(view: CommanderView, now: number) {
   const at = targeting.armed && (targeting.spot ?? targeting.pointer);
   const radius = targeting.armed && view.assets?.find((a) => a.asset === targeting.armed)?.radius;
   if (at && radius) {
-    const color = validSpot(at) ? COLOR.bone : COLOR.hostile;
+    const line = strip(targeting.pointer); // #138: once its start is pinned, a line-shaped Asset previews its strip towards the pointer, then the pinned direction
+    const color = validSpot(at) && line?.ok !== false ? COLOR.bone : COLOR.hostile;
     const mark = targeting.armed === 'gunship'; // #101: its focus is a spot, not an area: layers/gunship.ts draws the mark
+    if (line) stripAt(line.from, line.to, line.width, color, targeting.aim ? 0.12 : 0.06);
     if (!mark) ringAt(at, radius, color, targeting.spot ? 0.12 : 0.06);
     const edge = mark ? at : { x: at.x + radius * 0.72, y: at.y + radius * 0.72 };
     const dx = mark ? FOCUS_MARK_PX + 4 : 6;
@@ -104,6 +143,7 @@ export function drawEffects(view: CommanderView, now: number) {
     if (near) label(tags++, edge, dx, 2, `${near.name.toUpperCase()} ${Math.round(near.d)} M`, css(color));
   }
   rings.end();
+  strips.end();
   for (let i = tags; i < labels.length; i++) labels[i]!.hidden = true;
 }
 
