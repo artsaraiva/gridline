@@ -1,4 +1,4 @@
-// Mark (#136): the Commander's intel marker, a standing action with no cooldown. Up to `markMax` a Side; each is a spot the
+// Mark (#136): a spot the Commander flags as a suspected enemy position, a standing action with no cooldown. Up to `markMax` a Side; each is a spot the
 // Side treats as a known enemy position (memory.ts `sideKnown`) and a suppressed Squad's fire goes to (combat.ts), never a Contact.
 import { dist2, insidePolygon } from './geometry';
 import { los } from './grid';
@@ -8,7 +8,7 @@ import { elite, ticksOf, type Mix } from './state';
 import { SIDES, type Command, type MarkView, type SideId, type SimEvent } from './types';
 
 export interface Mark {
-  id: number; // from 1, never reused in a Match
+  id: number; // from 1 within its Side, never reused in a Match
   x: number;
   y: number;
   until: number; // tick it fades out
@@ -16,11 +16,11 @@ export interface Mark {
 }
 
 export interface Marks {
-  next: number; // the next Mark's id
+  next: Record<SideId, number>; // each Side's next Mark id: its own count, so the ids a Console sees say nothing of the enemy's Marks
   of: Record<SideId, Mark[]>; // oldest first
 }
 
-export const newMarks = (): Marks => ({ next: 1, of: { nato: [], pact: [] } });
+export const newMarks = (): Marks => ({ next: { nato: 1, pact: 1 }, of: { nato: [], pact: [] } });
 
 type MarkCommand = Extract<Command, { kind: 'mark' }>;
 
@@ -36,7 +36,7 @@ export function applyMark(m: Match, c: MarkCommand) {
   const live = m.marks.of[c.side];
   const until = m.tick + ticksOf(m.tune, m.tune.markSeconds);
   if (c.id === undefined) {
-    live.push({ id: m.marks.next++, x: c.at!.x, y: c.at!.y, until, checked: 0 });
+    live.push({ id: m.marks.next[c.side]++, x: c.at!.x, y: c.at!.y, until, checked: 0 });
     if (live.length > m.tune.markMax) live.shift();
   } else if (c.at) live.find((k) => k.id === c.id)!.until = until;
   else m.marks.of[c.side] = live.filter((k) => k.id !== c.id);
@@ -68,8 +68,8 @@ export const markViews = (m: Match, side: SideId): MarkView[] =>
   m.marks.of[side].map((k) => ({ id: k.id, x: k.x, y: k.y, fade: (k.until - m.tick) / ticksOf(m.tune, m.tune.markSeconds) }));
 
 export function hashMarks(m: Match, mix: Mix) {
-  mix(m.marks.next);
   for (const side of SIDES) {
+    mix(m.marks.next[side]);
     mix(m.marks.of[side].length);
     for (const k of m.marks.of[side]) {
       mix(k.id);

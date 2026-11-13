@@ -77,6 +77,24 @@ describe('Mark: place, renew, clear', () => {
     expect(events.filter((e) => e.kind === 'rejected').map((e) => e.reason)).toEqual(['unknown mark']);
   });
 
+  it('ids count within a Side: the enemy\'s Marks leave no gap in them', () => {
+    const m = scene();
+    step(m, [place(m, 300, 0, 'pact'), place(m, 310, 0, 'pact')]);
+    step(m, [place(m, 0, 0)]);
+    expect(marks(m).map((k) => k.id)).toEqual([1]);
+  });
+
+  it('a Match replayed from the same Mark Commands hashes the same', () => {
+    const log = (m: Match): Command[][] => [[place(m, 20, 0), place(m, 300, 100, 'pact')], [], [{ tick: 2, side: 'nato', kind: 'mark', id: 1, at: { x: 20, y: 0 } }], [{ tick: 3, side: 'pact', kind: 'mark', id: 1, at: null }]];
+    const hashes = [0, 1].map(() => {
+      const m = scene({ place: { 0: { x: 0, y: 0 } } });
+      for (const commands of log(m)) step(m, commands);
+      run(m, 8);
+      return stateHash(m);
+    });
+    expect(hashes[0]).toBe(hashes[1]);
+  });
+
   it('moves the state hash', () => {
     const a = scene();
     const b = scene();

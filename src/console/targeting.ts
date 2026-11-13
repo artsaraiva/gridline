@@ -32,7 +32,7 @@ export function disarm() {
 /** Arms `asset`, or disarms when it is the one already armed. */
 export function arm(asset: AssetKind) {
   if (targeting.armed === asset) return disarm();
-  targeting.marking = false;
+  markMode(false);
   targeting.armed = asset;
   targeting.spot = null;
 }
@@ -63,7 +63,7 @@ export function answer(squad: number) {
   const view = session.view;
   const r = view?.squads.find((q) => q.id === squad)?.request;
   if (!view || view.result || !r || view.assets?.find((a) => a.asset === r.asset)?.readyIn !== 0) return;
-  targeting.marking = false;
+  markMode(false);
   targeting.armed = r.asset;
   targeting.spot = validSpot(r.at) ? { ...r.at } : null;
 }

@@ -420,11 +420,6 @@ export interface Tune {
 
   // #153 Elite Squads
   eliteSquads: number; // each Side's first this many Squads are on the Commander's net: Orders, Requests, Callouts, tiles
-  // #136 Mark
-  markMax: number; // live Marks a Side; one more replaces the oldest
-  markSeconds: number; // a Mark's life from when it was placed or last renewed
-  markClearM: number; // a friendly Soldier this near a Mark, with line of sight to it, checks it
-  markClearSeconds: number; // checked this long with no enemy seen within markClearM, the Mark is cleared
 
   // #154 Vehicles for 128 v 128
   jetGapSeconds: [number, number]; // a Side's first jet takes off at match start, each next one this long after the one before (seeded), so no two fly out together
@@ -452,6 +447,11 @@ export interface Tune {
   driveCaution: [number, number]; // a driver planning a detour weighs the danger by a seeded factor between these
   tankOutgunnedPenalty: number; // off a point's score for a tank driver, per enemy tank the Side knows there beyond the friendly tanks going (its own counted)
   tankWreckPenalty: number; // off a point's score for a tank driver, per own tank Wreck there lately (`routeLossSeconds`)
+  // #136 Mark
+  markMax: number; // live Marks a Side; one more replaces the oldest
+  markSeconds: number; // a Mark's life from when it was placed or last renewed
+  markClearM: number; // a friendly Soldier this near a Mark, with line of sight to it, checks it
+  markClearSeconds: number; // checked this long with no enemy seen within markClearM, the Mark is cleared
 }
 
 /** #55: what a Commander Score award is for. */
