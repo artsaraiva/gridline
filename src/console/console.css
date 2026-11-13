@@ -64,6 +64,8 @@ canvas { display: block; touch-action: none; }
 .asset.armed > * { background: var(--bone); color: var(--ink); border-color: var(--bone); text-shadow: none; }
 .asset.armed .t, .asset.armed .key { color: var(--ink); }
 .asset.armed .key { animation: blink 1s steps(1) infinite; }
+.asset.mark .ico text { fill: var(--ink); font-family: var(--font); } /* #136: the "?" cut out of the diamond */
+.asset.mark.armed .ico text { fill: var(--bone); }
 .cfrow { display: flex; gap: 4px; height: 36px; width: 248px; } /* wide enough for "Confirm D6 · Esc cancels" and the cancel cell */
 .cfrow[hidden] { display: none; }
 #assets .cfrow button { border: 0; background: var(--ho); color: var(--ink); font-weight: 700; font-size: 13px; letter-spacing: 0.1em; text-shadow: none; min-height: 36px; }

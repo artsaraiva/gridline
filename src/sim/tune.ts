@@ -329,6 +329,11 @@ export const DEFAULT_TUNE: Tune = {
 
   // #153 Elite Squads
   eliteSquads: 8,
+  // #136 Mark
+  markMax: 3,
+  markSeconds: 90, // the spec's 60 ran out before a Squad walked to a Mark placed ahead of it (240 m at a walk)
+  markClearM: 40,
+  markClearSeconds: 5,
 
   // #154 Vehicles for 128 v 128
   jetGapSeconds: [15, 45],

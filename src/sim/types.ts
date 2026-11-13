@@ -420,6 +420,11 @@ export interface Tune {
 
   // #153 Elite Squads
   eliteSquads: number; // each Side's first this many Squads are on the Commander's net: Orders, Requests, Callouts, tiles
+  // #136 Mark
+  markMax: number; // live Marks a Side; one more replaces the oldest
+  markSeconds: number; // a Mark's life from when it was placed or last renewed
+  markClearM: number; // a friendly Soldier this near a Mark, with line of sight to it, checks it
+  markClearSeconds: number; // checked this long with no enemy seen within markClearM, the Mark is cleared
 
   // #154 Vehicles for 128 v 128
   jetGapSeconds: [number, number]; // a Side's first jet takes off at match start, each next one this long after the one before (seeded), so no two fly out together
@@ -454,7 +459,9 @@ export type ScoreCategory = 'uav' | 'supply' | 'artillery' | 'orders';
 
 export type Command =
   | { tick: number; side: SideId; kind: 'order'; squad: number; point: string | null }
-  | { tick: number; side: SideId; kind: 'asset'; asset: 'scan' | 'supply' | 'barrage' | 'missile' | 'gunship'; at: Vec2 };
+  | { tick: number; side: SideId; kind: 'asset'; asset: 'scan' | 'supply' | 'barrage' | 'missile' | 'gunship'; at: Vec2 }
+  /** #136: no `id` places a Mark at `at`; with `id` it renews that Mark, or clears it when `at` is null. */
+  | { tick: number; side: SideId; kind: 'mark'; at: Vec2 | null; id?: number };
 
 export type AssetKind = Extract<Command, { kind: 'asset' }>['asset'];
 /** #99: what a Squad may Request: never a Cruise Missile (#58), #101 nor a Gunship. */
@@ -604,6 +611,16 @@ export interface CommanderView {
   ticketsStart?: number;
   /** #152: seconds per enemy Ticket the point lead drains now; null when level. */
   drainEvery?: number | null;
+  /** #136: this Side's Marks, oldest first. */
+  marks?: MarkView[];
+}
+
+/** #136: a Mark on its own Side's Console; `fade` runs from 1 (just placed or renewed) to 0 (gone). */
+export interface MarkView {
+  id: number;
+  x: number;
+  y: number;
+  fade: number;
 }
 
 export interface AssetView {
@@ -665,12 +682,12 @@ export type SimEvent =
    * (e.g. 'contact', 'ack', 'flanking', 'request'). `squad` is null for a line not from a Squad (HQ, the asset net).
    * `text` is the line without the Grid Reference; `grid` is set when the line is located (see `gridRef`).
    * `priority` is set by radio.ts from the `type` (RADIO_PRIORITY): a higher one pre-empts a waiting lower one. Callouts: 'contact',
-   * 'fire', 'mandown', 'capturing', 'captured', 'redeploying'. Commander-side lines (`squad` null): 'lost' (a Capture Point the Side
+   * 'fire', 'mandown', 'capturing', 'captured', 'redeploying', 'clear' (#136: a Mark checked and found empty; the Side net's, `squad` null, for a Squad that is not Elite). Commander-side lines (`squad` null): 'lost' (a Capture Point the Side
    * held, #85), 'captured' (#153: a point only Squads that are not Elite took) and 'wiped' (sent for a Squad that is gone, with its
    * `squad`). Only Elite Squads (#153) send lines of their own.
    */
   | { kind: 'radio'; side: SideId; squad: number | null; type: string; text: string; grid?: string; priority: number }
-  /** #34: suppressive fire: a round at (x, y) near a Last Known Position, with no enemy in view. */
+  /** #34: suppressive fire: a round at (x, y) near a Last Known Position (#136: or a Mark), with no enemy in view. */
   | { kind: 'suppressive'; side: SideId; from: number; x: number; y: number; hit: boolean }
   /** #40: a Barrage shell landed at (x, y); `side` called it. #99: or a Cruise Missile (`asset`), #101 a Gunship's shell. #107: or a tank's main gun, fired by vehicle `from`. */
   | { kind: 'impact'; side: SideId; x: number; y: number; asset: 'barrage' | 'missile' | 'tank' | 'bomb' | 'gunship'; from?: number }

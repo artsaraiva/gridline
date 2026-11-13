@@ -6,6 +6,7 @@ import { orderView } from './orders';
 import { requestView } from './requests';
 import { redeployPoint } from './respawn';
 import { scoreView } from './score';
+import { markViews } from './marks';
 import { contactIds, justSeen, lastKnown } from './memory';
 import { elite, lastDeath, membersOf, squadName, stageTicks, vehicleOf, wiped, type Soldier, type Squad } from './state';
 import { vehicleViews } from './vehicles';
@@ -59,6 +60,7 @@ export function commanderView(m: Match, side: SideId): CommanderView {
     effects: effectViews(m, side),
     score: scoreView(m, side),
     vehicles: vehicleViews(m, side, new Set(seen)),
+    marks: markViews(m, side),
   };
 }
 

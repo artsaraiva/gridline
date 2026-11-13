@@ -2,6 +2,7 @@
 // Orders are #36's (orders.ts), Assets #37's: each fills in its own kind's check and apply.
 import { call, checkCall } from './assets/core';
 import type { Match } from './index';
+import { applyMark, checkMark } from './marks';
 import { giveOrder } from './orders';
 import { elite } from './state';
 import type { Command, SimEvent } from './types';
@@ -25,7 +26,9 @@ const order: Handler<Of<'order'>> = {
 
 const asset: Handler<Of<'asset'>> = { check: checkCall, apply: call };
 
-const handlers: { [K in Command['kind']]: Handler<Of<K>> } = { order, asset };
+const mark: Handler<Of<'mark'>> = { check: checkMark, apply: applyMark };
+
+const handlers: { [K in Command['kind']]: Handler<Of<K>> } = { order, asset, mark };
 
 export function applyCommands(m: Match, commands: Command[], events: SimEvent[]) {
   for (const c of commands) {

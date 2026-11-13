@@ -4,11 +4,11 @@
 // sprite, Wreck, badge, MG, dismount), the jet and the AA (#110: a pass, the AA's stream on a helicopter and a jet), the helicopter's jobs (#131: a pickup away from the HQ, a hot drop, Support, a repair trip home, a bail-out and crash) and the parachute jump (#130: a crippled helicopter's riders come down on a chevron that grows from 70% to full size) and the transport helicopter (#109: lift-off, flight, landing, unload, home; #124: dogleg, flare, Landing Zone) and the Gunship (#101: its route ring, orbit and shells, its gunner's bursts and a paratrooper; the enemy's under the AA's bursts, falling as a Wreck) are judged on every
 // Squad Leader state without a Simulation. `viewAt` and `eventsBetween` are pure.
 import { DEFAULT_TUNE } from '../../sim/tune';
-import type { AssetView, CommanderView, EffectView, FriendlyView, LastKnownView, SideId, SimEvent, SoldierView, SquadView, Vec2, VehicleView } from '../../sim/types';
+import type { AssetView, CommanderView, EffectView, FriendlyView, LastKnownView, MarkView, SideId, SimEvent, SoldierView, SquadView, Vec2, VehicleView } from '../../sim/types';
 
 /** The first twelve chapters end here; #131 adds the helicopter jobs after them. */
 const OLD_END = 192;
-export const LENGTH = 600;
+export const LENGTH = 640;
 
 /** Where each state starts, for scrubbing. */
 export const CHAPTERS = [
@@ -31,6 +31,7 @@ export const CHAPTERS = [
   { at: 472, title: 'AA' },
   { at: 512, title: 'Gunship' },
   { at: 570, title: 'Gunship down' },
+  { at: 600, title: 'Mark' },
 ];
 
 /** Centre of the overlapping Squads, for the close zoom preset. */
@@ -723,7 +724,28 @@ export function viewAt(t: number): CommanderView {
     assets: [{ asset: 'missile', readyIn: t < MISSILE.at ? 0 : Math.max(0, MISSILE.at + DEFAULT_TUNE.missileCooldownSeconds - t), cooldown: DEFAULT_TUNE.missileCooldownSeconds, radius: DEFAULT_TUNE.missileSuppressM }, gunshipRow(t)],
     effects: [...missileAt(t), ...gunshipsAt(t)],
     vehicles: [...tanksAt(t), ...jeepsAt(t), ...helisAt(t), ...paraHeli(t), ...airAt(t), ...gunshipBodies(t)],
+    marks: marksAt(t),
   };
+}
+
+// #136: three Marks. One by A (an own point: its ring reaches A's, so A counts as threatened) lives the whole chapter and fades
+// as it goes, its life shortened to the chapter's so the fade shows. One beside Alpha is checked and called clear. One north-east
+// of C takes Alpha's suppressive fire.
+const MARK_AT = CHAPTERS.find((c) => c.title === 'Mark')!.at;
+const MARKS = [
+  { id: 1, x: -232, y: -345, from: MARK_AT, until: LENGTH, life: LENGTH - MARK_AT },
+  { id: 2, x: -80, y: 45, from: MARK_AT + 3, until: MARK_AT + 15, life: DEFAULT_TUNE.markSeconds },
+  { id: 3, x: 40, y: 70, from: MARK_AT + 6, until: LENGTH, life: DEFAULT_TUNE.markSeconds },
+];
+const MARK_FIRE = { from: MARK_AT + 10, to: MARK_AT + 30 };
+
+const marksAt = (t: number): MarkView[] => MARKS.filter((k) => t >= k.from && t < k.until).map((k) => ({ id: k.id, x: k.x, y: k.y, fade: 1 - (t - k.from) / k.life }));
+
+function markEvents(): [number, SimEvent][] {
+  const events: [number, SimEvent][] = [[MARKS[1]!.until, { kind: 'radio', side: 'nato', squad: 0, type: 'clear', text: 'clear', grid: 'F6', priority: 1 }]];
+  const aim = MARKS[2]!;
+  for (let t = MARK_FIRE.from, i = 0; t < MARK_FIRE.to; t += 0.7, i++) events.push([t, { kind: 'suppressive', side: 'nato', from: i % 4, x: aim.x + ((i % 5) - 2) * 1.5, y: aim.y + ((i % 3) - 1) * 1.5, hit: false }]);
+  return events;
 }
 
 /** Events with `t0 < time <= t1`, in time order: what crossed since the last frame while playing. */
@@ -827,4 +849,4 @@ function orbitFire(): [number, SimEvent][] {
   return events;
 }
 
-const EVENTS: [number, SimEvent][] = [...casualties(), ...firefight(), ...strike(), ...gun(), ...mg(), ...sideGun(), ...orbitFire(), ...airFire(), ...gunshipEvents()].sort((a, b) => a[0] - b[0]);
+const EVENTS: [number, SimEvent][] = [...casualties(), ...firefight(), ...strike(), ...gun(), ...mg(), ...sideGun(), ...orbitFire(), ...airFire(), ...gunshipEvents(), ...markEvents()].sort((a, b) => a[0] - b[0]);

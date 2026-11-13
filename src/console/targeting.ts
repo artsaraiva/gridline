@@ -4,6 +4,8 @@
 // calls the Asset there; arming it again, Cancel or Esc disarms. #101: while the Gunship is up its row arms again, and the call moves its focus.
 // Orders (#36): select a Squad (its tile, or its chevrons on the map), then tap a Capture Point: the Order goes out as a
 // Command and the Squad stays selected; Clear sends a null Order. Only the Simulation decides what an Order does.
+// Mark (#136): in Mark mode every tap places a Mark, or renews the one tapped; out of it a tap on a Mark clears it. The spec
+// says both "tap a Mark to clear it" and "re-tapped" renews it: the mode is what tells them apart.
 import { insidePolygon } from '../sim/geometry';
 import { DEFAULT_TUNE } from '../sim/tune';
 import { enemyOf, type AssetKind, type Vec2 } from '../sim/types';
@@ -18,6 +20,8 @@ export const targeting = {
   spot: null as Vec2 | null,
   /** The selected friendly Squad's id; null = none. */
   selected: null as number | null,
+  /** #136: Mark mode is on. */
+  marking: false,
 };
 
 export function disarm() {
@@ -28,6 +32,7 @@ export function disarm() {
 /** Arms `asset`, or disarms when it is the one already armed. */
 export function arm(asset: AssetKind) {
   if (targeting.armed === asset) return disarm();
+  targeting.marking = false;
   targeting.armed = asset;
   targeting.spot = null;
 }
@@ -36,9 +41,16 @@ export const hover = (p: Vec2 | null) => (targeting.pointer = p);
 
 export const select = (squad: number | null) => (targeting.selected = squad);
 
-/** Esc: disarms an armed Asset, else drops the Squad selection. */
+/** #136: enters or leaves Mark mode; entering disarms an armed Asset. */
+export function markMode(on: boolean) {
+  if (on) disarm();
+  targeting.marking = on;
+}
+
+/** Esc: disarms an armed Asset, else leaves Mark mode, else drops the Squad selection. */
 export function escape() {
   if (targeting.armed) disarm();
+  else if (targeting.marking) markMode(false);
   else select(null);
 }
 
@@ -51,6 +63,7 @@ export function answer(squad: number) {
   const view = session.view;
   const r = view?.squads.find((q) => q.id === squad)?.request;
   if (!view || view.result || !r || view.assets?.find((a) => a.asset === r.asset)?.readyIn !== 0) return;
+  targeting.marking = false;
   targeting.armed = r.asset;
   targeting.spot = validSpot(r.at) ? { ...r.at } : null;
 }
@@ -61,10 +74,12 @@ export function clearOrder() {
   if (selected !== null) session.host?.send({ side: session.commanderSide, kind: 'order', squad: selected, point: null });
 }
 
+const inPlayArea = (p: Vec2) => !!session.host && insidePolygon(session.host.map.playArea, p.x, p.y);
+
 /** Assets land anywhere inside the Play Area except on the enemy HQ (the Simulation rejects the rest). */
 export function validSpot(p: Vec2): boolean {
   const map = session.host?.map;
-  if (!map || !insidePolygon(map.playArea, p.x, p.y)) return false;
+  if (!map || !inPlayArea(p)) return false;
   const hq = map.hqs[enemyOf(session.commanderSide)];
   const r = hq.radius ?? DEFAULT_TUNE.hqRadius;
   return (p.x - hq.x) ** 2 + (p.y - hq.y) ** 2 >= r * r;
@@ -85,7 +100,8 @@ export function confirm() {
 /**
  * A tap on the map at `p`. With an Asset armed it pins or confirms (within `sameM` metres of the pinned spot is the same
  * spot). Otherwise a friendly Soldier of an Elite Squad (#153) within `pickM` selects its Squad, a Capture Point (its ring, at
- * least `pickM` wide) gives the selected Squad its Order, and empty ground drops the selection.
+ * least `pickM` wide) gives the selected Squad its Order, and empty ground drops the selection. #136: a Mark within `pickM`
+ * is cleared, before anything under it; in Mark mode the tap renews that Mark instead, or places one anywhere in the Play Area.
  */
 export function tap(p: Vec2, sameM: number, pickM = sameM) {
   const { armed, spot } = targeting;
@@ -97,6 +113,10 @@ export function tap(p: Vec2, sameM: number, pickM = sameM) {
   }
   const near = (q: Vec2, r: number) => (p.x - q.x) ** 2 + (p.y - q.y) ** 2 <= r * r;
   const view = session.view;
+  const side = session.commanderSide;
+  const mark = view?.marks?.find((k) => near(k, pickM));
+  if (mark) return session.host?.send({ side, kind: 'mark', id: mark.id, at: targeting.marking ? { x: mark.x, y: mark.y } : null });
+  if (targeting.marking) return inPlayArea(p) ? session.host?.send({ side, kind: 'mark', at: p }) : undefined;
   const friend = view?.friendlies.find((f) => near(f, pickM) && eliteSquad(view, f.squad));
   if (friend) return select(friend.squad);
   const point = view?.points.find((q) => near(q, Math.max(q.radius, pickM)));

@@ -4,7 +4,7 @@ import type { UnstampedCommand } from '../host/protocol';
 import { TEST_FIELD } from '../maps/test-field';
 import { session } from './session';
 import type { CommanderView } from '../sim/types';
-import { answer, arm, clearOrder, confirm, disarm, escape, placeConfirm, select, tap, targeting } from './targeting';
+import { answer, arm, clearOrder, confirm, disarm, escape, markMode, placeConfirm, select, tap, targeting } from './targeting';
 
 // The Sim host is the boundary: a fake one records what the Console sends.
 let sent: UnstampedCommand[];
@@ -15,6 +15,7 @@ beforeEach(() => {
   session.view = view;
   disarm();
   select(null);
+  markMode(false);
 });
 
 // Squad 0 stands (two Soldiers) 100 m west of point B; Squad 1 stands in B's ring; Squad 8, not Elite (#153), stands in A's ring.
@@ -190,5 +191,50 @@ describe('Answering a Request', () => {
     ask(0, false);
     answer(1);
     expect(targeting).toMatchObject({ armed: 'barrage', spot: null });
+  });
+});
+
+describe('Mark (#136)', () => {
+  const marked = { ...view, marks: [{ id: 4, x: 300, y: 100, fade: 0.5 }] } as CommanderView;
+
+  it('in Mark mode a tap on the map places a Mark and the mode stays on', () => {
+    markMode(true);
+    tap({ x: 50, y: 60 }, 5);
+    tap({ x: -100, y: 0 }, 5); // on Squad 0: still a Mark, not a selection
+    expect(sent).toEqual([
+      { side: 'nato', kind: 'mark', at: { x: 50, y: 60 } },
+      { side: 'nato', kind: 'mark', at: { x: -100, y: 0 } },
+    ]);
+    expect(targeting.marking).toBe(true);
+    expect(targeting.selected).toBeNull();
+  });
+
+  it('in Mark mode a tap on a Mark renews it; out of Mark mode it clears it', () => {
+    session.view = marked;
+    markMode(true);
+    tap({ x: 303, y: 98 }, 5);
+    markMode(false);
+    tap({ x: 303, y: 98 }, 5);
+    expect(sent).toEqual([
+      { side: 'nato', kind: 'mark', id: 4, at: { x: 300, y: 100 } },
+      { side: 'nato', kind: 'mark', id: 4, at: null },
+    ]);
+  });
+
+  it('a tap outside the Play Area places nothing', () => {
+    markMode(true);
+    tap({ x: 9000, y: 0 }, 5);
+    expect(sent).toEqual([]);
+  });
+
+  it('arming an Asset leaves Mark mode, Mark mode disarms an Asset, and Esc leaves Mark mode before it drops the selection', () => {
+    markMode(true);
+    arm('scan');
+    expect(targeting.marking).toBe(false);
+    markMode(true);
+    expect(targeting.armed).toBeNull();
+    select(0);
+    escape();
+    expect([targeting.marking, targeting.selected]).toEqual([false, 0]);
   });
 });
