@@ -7,8 +7,8 @@ import { edgeClamp } from '../edge-clamp';
 import { pool, sideColor, toScreen, toWorld } from '../renderer';
 import { bar, brackets, fading, merge, px, shade } from './symbols';
 
-/** Icon size in chevrons (its brackets span about 1.9 of these), as the missile's. */
-const ICON_SCALE = 1.44;
+/** Icon size in chevrons (its brackets span about 1.9 of these): smaller than the missile's 1.44, as these are lighter things. */
+const ICON_SCALE = 0.95;
 const ICON_WHITEN = 0.55;
 const ARROW_SCALE = 1.6;
 /** The edge-clamped icon's centre keeps this far inside the screen, as the missile's. */

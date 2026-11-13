@@ -1,8 +1,8 @@
 """Build the Drone Strike's drone and its top-down sprite sheet (#139).
 
 Headless Blender script (ADR 0001, ADR 0002), laid out as the Gunship's bake (assets/objects/gunship/build.py). One small
-fixed-wing strike drone for both Factions (3.4 m span, 2.6 m nose to tail): a slim fuselage with a glazed seeker nose, a
-straight mid wing, a V tail and a pusher propeller. Rendered level at 16 headings, lit with Kaltenbach's sun (azimuth 45 deg
+fixed-wing strike drone for both Factions (3.6 m span, 2.6 m nose to tail): a bulbous sensor nose on a slim fuselage, long
+slender wings set well back, a V tail and a pusher propeller. Rendered level at 16 headings, lit with Kaltenbach's sun (azimuth 45 deg
 NE, elevation 24 deg) and sky fill in world space, so the Console picks the nearest heading and the baked light never turns
 with it. The paint is the `FactionPaint` material role, rendered once per Faction. Rows, in order: nato, pact; then the soft
 body shadow (facing east). Packed into `public/objects/drone.png` (16 columns; frame = faction * 16 + heading; then the shadow).
@@ -30,7 +30,7 @@ FRAME_PX = 128
 HEADINGS = 16  # DRONE_HEADINGS in src/console/sprites/drone.ts
 # Sheet rows in order (DRONE_FACTIONS): the FactionPaint material role, nato then pact.
 PAINTS = (("nato", (0.20, 0.30, 0.40)), ("pact", (0.40, 0.22, 0.17)))
-ORTHO_M = 4.0  # DRONE_WORLD_M: the sprite quad's world size in metres (a 3.4 m span)
+ORTHO_M = 4.0  # DRONE_WORLD_M: the sprite quad's world size in metres (a 3.6 m span)
 SUN_ELEV = 24.0
 SUN_AZ = 45.0
 
@@ -99,24 +99,22 @@ def pair(half):
     return half, [(-x, y) for x, y in reversed(half)]
 
 
-# The body, nose +Y, centred on its middle: a slim fuselage with a sensor ball under a glazed nose, a straight mid wing
-# with the warhead bay between its roots, a V tail and a pusher propeller. Material indices: 0 FactionPaint, 1 running gear,
-# 2 airframe grey, 3 optics.
+# The body, nose +Y, centred on its middle, in the shape everyone knows a drone by: a bulbous sensor nose on a slim
+# fuselage, long slender wings set well back, a V tail and a pusher propeller. Material indices: 0 FactionPaint, 1 running
+# gear, 2 airframe grey, 3 optics.
 drone = solid("Drone", [
-    (0.0, 1.05, 0.34, 0.2, 0.26, 0.1, 3, 0.1),        # nose glazing over the seeker
-    (0.0, 0.1, 0.4, 0.3, 0.9, 0.08, 2, 0.0),          # warhead bay cover on the spine
-    (0.0, -1.24, 0.3, 0.9, 0.04, 0.1, 1, 0.0),        # propeller disc, edge-on from above
-    (0.0, -1.16, 0.3, 0.16, 0.14, 0.16, 1, 0.0),      # spinner
+    (0.0, 0.96, 0.36, 0.22, 0.3, 0.1, 3, 0.12),       # the sensor dome's glazing on the bulbous nose
+    (0.0, -0.2, 0.4, 0.14, 1.0, 0.06, 2, 0.0),        # spine fairing
+    (0.0, -1.26, 0.3, 0.8, 0.04, 0.1, 1, 0.0),        # propeller disc, edge-on from above
+    (0.0, -1.19, 0.3, 0.14, 0.12, 0.14, 1, 0.0),      # spinner
 ])
 bm = bmesh.new()
 bm.from_mesh(drone.data)
-slab(bm, mirrored([(0.0, 1.3), (0.1, 1.2), (0.17, 0.9), (0.19, 0.3), (0.19, -0.7), (0.13, -1.1)]), 0.18, 0.38, 0)  # fuselage
-for wing in pair([(0.15, 0.32), (1.6, 0.12), (1.6, -0.16), (0.15, -0.22)]):  # straight mid wing, tapering out
-    slab(bm, wing, 0.3, 0.36, 0)
-for tip in pair([(1.6, 0.12), (1.72, 0.02), (1.72, -0.12), (1.6, -0.16)]):  # wingtips in airframe grey
-    slab(bm, tip, 0.3, 0.36, 2)
-for tail in pair([(0.1, -0.78), (0.62, -0.98), (0.62, -1.14), (0.1, -1.08)]):  # V tail, seen from above
-    slab(bm, tail, 0.34, 0.48, 0)
+slab(bm, mirrored([(0.0, 1.3), (0.14, 1.22), (0.2, 1.0), (0.2, 0.7), (0.13, 0.4), (0.12, -0.9), (0.08, -1.15)]), 0.18, 0.38, 0)  # fuselage, the nose swollen
+for wing in pair([(0.12, 0.05), (1.8, -0.08), (1.8, -0.22), (0.12, -0.3)]):  # long slender wings, set back
+    slab(bm, wing, 0.3, 0.35, 0)
+for tail in pair([(0.08, -0.85), (0.55, -1.12), (0.55, -1.24), (0.08, -1.1)]):  # V tail, seen from above
+    slab(bm, tail, 0.34, 0.5, 0)
 bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
 bm.to_mesh(drone.data)
 bm.free()

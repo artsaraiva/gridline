@@ -210,9 +210,9 @@ describe('Request closes', () => {
     run(f, 1);
     const spot = request(f)!.at;
     run(f, 1, [asset(f, 'drone', spot)]);
-    run(f, 19 * HZ);
-    expect(request(f)).not.toBeNull(); // 613 m from the HQ at 30 m/s: 20.4 s
-    run(f, 2 * HZ);
+    run(f, 13 * HZ);
+    expect(request(f)).not.toBeNull(); // 613 m from the HQ at 45 m/s: 13.6 s
+    run(f, 1 * HZ);
     expect(request(f)).toBeNull();
   });
 });

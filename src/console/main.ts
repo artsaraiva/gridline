@@ -92,7 +92,7 @@ renderer.setAnimationLoop(() => {
   drawMissiles(view, scale);
   drawGunships(view, scale);
   drawDrones(view, scale);
-  drawRecons(view, scale);
+  drawRecons(view, scale, now);
   drawTanks(view, scale);
   drawJeeps(view, scale);
   drawHelicopters(view, scale, now);

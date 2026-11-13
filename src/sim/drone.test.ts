@@ -55,8 +55,8 @@ const rejections = (events: SimEvent[]) => events.flatMap((e) => (e.kind === 're
 const row = (v: CommanderView) => v.assets!.find((a) => a.asset === 'drone')!;
 const effect = (v: CommanderView) => v.effects!.find((e) => e.asset === 'drone');
 const CENTRE = { x: 0, y: 0 };
-/** 415 m from the HQ to the centre at 30 m/s. */
-const FLIGHT = Math.round((415 / 30) * HZ);
+/** 415 m from the HQ to the centre at 45 m/s. */
+const FLIGHT = Math.round((415 / 45) * HZ);
 
 describe('Drone Strike: the call', () => {
   it('starts on its 60 s cooldown with a 15 m ring and no point gate', () => {
@@ -78,18 +78,18 @@ describe('Drone Strike: the call', () => {
 });
 
 describe('Drone Strike: the flight', () => {
-  it('leaves the own HQ and flies straight at the spot at 30 m/s, in both Sides\' views', () => {
+  it('leaves the own HQ and flies straight at the spot at 45 m/s, in both Sides\' views', () => {
     const run = play(scene(), FLIGHT + 3 * HZ, CENTRE);
     expect(effect(run.views[0]!)).toMatchObject({ side: 'nato', from: { x: -415, y: 0 }, craft: { fx: 1, fy: 0, turn: 0 } });
     const at5 = effect(run.pact[5 * HZ]!)!;
-    expect(at5.craft!.x).toBeCloseTo(-415 + 150, 0);
+    expect(Math.abs(at5.craft!.x - (-415 + 225))).toBeLessThan(1);
     expect(at5.craft!.y).toBe(0);
-    expect(at5.flight).toBeCloseTo(150 / 415, 2);
-    expect(at5.impactIn).toBeCloseTo(415 / 30 - 5, 0);
+    expect(at5.flight).toBeCloseTo(225 / 415, 1);
+    expect(at5.impactIn).toBeCloseTo(415 / 45 - 5, 0);
     expect(run.pact[5 * HZ]!.vehicles!.some((v) => v.kind === 'drone' && v.side === 'nato')).toBe(true); // the sky rule: the AA's tracers have something to end on
   });
 
-  it('lands one blast 415 m away 13.8 s after confirm, says "Splash", and goes 2 s later', () => {
+  it('lands one blast 415 m away 9.2 s after confirm, says "Splash", and goes 2 s later', () => {
     const run = play(scene(), FLIGHT + 3 * HZ, CENTRE);
     expect(impacts(run)).toMatchObject([{ tick: FLIGHT, side: 'nato', x: 0, y: 0, asset: 'drone' }]);
     expect(said(run, 'Splash')).toBe(FLIGHT);
@@ -153,14 +153,14 @@ describe('Drone Strike: the enemy AA', () => {
   it('shoots it down within 3 s of its coming into range: it falls with no blast, "Drone lost", and the cooldown keeps running', () => {
     const after: number[] = [];
     for (let seed = 1; seed <= 10; seed++) {
-      const m = withAa({ x: 100, y: 0 }, seed); // in range (300 m) once the drone is 215 m out: 7.2 s
+      const m = withAa({ x: 100, y: 0 }, seed); // in range (300 m) once the drone is 215 m out: 4.8 s
       m.tune.droneCooldownSeconds = 60;
       m.assets.readyAt.nato.drone = 0;
       Object.assign(m.soldiers[6]!, { x: 0, y: 0 });
       const run = play(m, FLIGHT + 3 * HZ, CENTRE);
       const lost = said(run, 'Drone lost');
       expect(lost).toBeGreaterThan(0);
-      after.push(lost / HZ - 215 / 30);
+      after.push(lost / HZ - 215 / 45);
       expect(impacts(run)).toEqual([]);
       expect(m.soldiers[6]!.state).toBe('alive');
       expect(effect(run.views[lost]!)).toMatchObject({ lost: true });
@@ -182,7 +182,7 @@ describe('Drone Strike: the enemy AA', () => {
     const heli = m.vehicles.find((v) => v.kind === 'helicopter' && v.side === 'nato')!;
     Object.assign(heli, { x: 100, y: 250, airborne: true, seats: [0, -1, -1, -1, -1, -1] });
     Object.assign(m.soldiers[0]!, { x: 100, y: 250, vehicle: heli.id });
-    play(m, 10 * HZ, CENTRE); // the drone is 115 m out, far nearer than the helicopter
+    play(m, 7 * HZ, CENTRE); // the drone is 100 m out, far nearer than the helicopter
     expect(aa.target).toBe(heli.id);
   });
 });

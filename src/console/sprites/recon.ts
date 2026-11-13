@@ -3,6 +3,7 @@
 import { DEFAULT_TUNE } from '../../sim/tune';
 import type { EffectView, SideId, Vec2 } from '../../sim/types';
 import { downed, levelFlight, type LevelFlight } from './level-flight';
+import { CRUISE_ALTITUDE_M } from './missile';
 import type { SpriteSheetSpec } from './sheet';
 
 /** Headings baked per Faction (heading k at k * 360 / RECON_HEADINGS deg from east). */
@@ -14,8 +15,11 @@ export const RECON_SHADOW_FRAME = RECON_FACTIONS * RECON_HEADINGS;
 export const RECON_WORLD_M = 14;
 /** Tunable exaggeration on its world scale so it reads at close tactical zoom. */
 export const RECON_EXAGGERATION = 1.6;
-/** The sweep band reaches this far back from the aircraft, in this many steps, each fainter than the one ahead of it. */
-const BAND = { lengthM: 2.4 * DEFAULT_TUNE.reconSpeedMps, steps: 8, opacity: 0.3 }; // the material's opacity curve makes that a faint wash
+/**
+ * The sweep band: the ground it has looked at lights up under it and fades over `seconds`, in cells `cellM` long that stay
+ * where they are on the ground (so nothing slides along with the aircraft); `opacity` is a cell's as the aircraft crosses it.
+ */
+const BAND = { seconds: 6, cellM: 20, opacity: 0.3 }; // the material's opacity curve makes that a faint wash
 
 export const RECON_SHEET: SpriteSheetSpec = {
   file: 'objects/recon.png',
@@ -41,8 +45,8 @@ export interface ReconInFlight extends LevelFlight {
 type ReconView = EffectView & { side: SideId; craft: NonNullable<EffectView['craft']> };
 
 export function reconInFlight(e: ReconView, exaggeration = RECON_EXAGGERATION): ReconInFlight {
-  const { fall, opacity } = e.lost ? downed(e.left, DEFAULT_TUNE.barrageContactSeconds) : { fall: 0, opacity: 1 };
-  return { ...levelFlight(e.craft, e.side, RECON_HEADINGS, fall), side: e.side, size: RECON_WORLD_M * exaggeration, lost: !!e.lost, opacity };
+  const { height, opacity } = e.lost ? downed(e.left, DEFAULT_TUNE.barrageContactSeconds) : { height: 1, opacity: 1 };
+  return { ...levelFlight(e.craft, e.side, RECON_HEADINGS, CRUISE_ALTITUDE_M * height), side: e.side, size: RECON_WORLD_M * exaggeration, lost: !!e.lost, opacity };
 }
 
 export interface BandStep {
@@ -52,20 +56,33 @@ export interface BandStep {
   opacity: number;
 }
 
+/** A pass as the band needs it: where it starts, its unit direction and how wide it looks. */
+export interface Pass {
+  from: Vec2;
+  fx: number;
+  fy: number;
+  width: number;
+}
+
+/** The pass of a Recon Plane's effect and how far along it the aircraft is; null in the enemy's view (only the caller's carries the pass). */
+export function passOf(e: EffectView): (Pass & { flown: number }) | null {
+  if (!e.craft || !e.from || !e.line) return null;
+  return { from: e.from, fx: e.craft.fx, fy: e.craft.fy, width: e.line.width, flown: Math.hypot(e.craft.x - e.from.x, e.craft.y - e.from.y) };
+}
+
 /**
- * The sweep band on the ground under the aircraft: `line.width` across, from the aircraft back along the pass (never before
- * its start, `from`), strongest under it and fading to nothing behind. Only the caller's view carries the pass, so only its
- * Console draws the band; none once it is shot down.
+ * The sweep band on the ground of `pass`, with the aircraft `headM` along it: each cell it has crossed, strongest where it
+ * is now and fading to nothing where it was BAND.seconds ago. `sweptM` is how far the look reached: short of `headM` once
+ * the aircraft is gone (off the far end, or shot down), when `headM` runs on as the time since, so what is left fades out.
  */
-export function sweepBand(e: EffectView): BandStep[] {
-  if (!e.craft || !e.from || !e.line || e.lost) return [];
-  const { x, y, fx, fy } = e.craft;
-  const flown = Math.hypot(x - e.from.x, y - e.from.y);
-  const step = BAND.lengthM / BAND.steps;
+export function sweepBand(pass: Pass, headM: number, sweptM = headM): BandStep[] {
+  const reach = BAND.seconds * DEFAULT_TUNE.reconSpeedMps;
+  const at = (d: number) => ({ x: pass.from.x + pass.fx * d, y: pass.from.y + pass.fy * d });
   const out: BandStep[] = [];
-  for (let k = 0; k < BAND.steps && k * step < flown; k++) {
-    const [a, b] = [k * step, Math.min(flown, (k + 1) * step)];
-    out.push({ from: { x: x - fx * b, y: y - fy * b }, to: { x: x - fx * a, y: y - fy * a }, width: e.line.width, opacity: BAND.opacity * (1 - k / BAND.steps) });
+  for (let a = Math.max(0, Math.floor((headM - reach) / BAND.cellM) * BAND.cellM); a < Math.min(headM, sweptM); a += BAND.cellM) {
+    const b = Math.min(a + BAND.cellM, headM, sweptM);
+    const opacity = BAND.opacity * (1 - (headM - (a + b) / 2) / reach);
+    if (opacity > 0) out.push({ from: at(a), to: at(b), width: pass.width, opacity });
   }
   return out;
 }

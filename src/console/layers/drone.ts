@@ -1,7 +1,8 @@
 // The Drone Strike on the map (#139), own ones and the enemy's (the sky rule): the baked drone at the nearest heading, lifted
 // north-east of its ground shadow to the Cruise Missile's altitude, a thin short contrail along the path it flew, its
-// bracketed tactical icon (edge-clamped while it is off screen, layers/sky-icon.ts), and its impact mark: a small square
-// with a faint ring as wide as its blast suppresses. Shot down, it falls onto its shadow and fades, mark and icon gone. At
+// bracketed tactical icon (edge-clamped while it is off screen, layers/sky-icon.ts), a bright line from it to its impact mark
+// as the Cruise Missile's, and the mark: a small square with a faint ring as wide as its blast suppresses. Near its spot it
+// comes down on a shallow slope and meets its shadow there. Shot down, it falls onto its shadow and fades, mark and icon gone. At
 // the hit the shared impact (a smaller explosion and crater than a shell's) takes over. sprites/drone.ts says where everything is.
 import * as THREE from 'three/webgpu';
 import type { CommanderView } from '../../sim/types';
@@ -11,7 +12,9 @@ import { spriteMesh } from '../sprites/sheet';
 import { skyIcons } from './sky-icon';
 import { dashedRing, fading, frameFill, frameOutline, merge, px, streak } from './symbols';
 
-const Z = { shadow: 0.42, ring: 0.5, trail: 0.6, body: 0.72, marker: 0.9 };
+const Z = { shadow: 0.42, ring: 0.5, line: 0.56, trail: 0.6, body: 0.72, marker: 0.9 };
+/** The line to its spot, as the Cruise Missile's. */
+const LINE = { px: 1.5, opacity: 0.85 };
 const SHADOW_OPACITY = 0.42;
 /** The contrail is this wide on screen and this strong: thinner and fainter than the missile's. */
 const TRAIL = { px: 1.5, opacity: 0.45 };
@@ -25,6 +28,7 @@ const quad = new THREE.PlaneGeometry(1, 1);
 const shadows = pool(() => spriteMesh(DRONE_SHEET, { frame: DRONE_SHADOW_FRAME, shadow: true, opacity: SHADOW_OPACITY }));
 const bodies = pool(() => spriteMesh(DRONE_SHEET));
 const trails = pool(() => new THREE.Mesh(quad, streak()));
+const lines = pool(() => new THREE.Mesh(quad, fading(0xffffff, LINE.opacity)));
 const marks = pool(() => new THREE.Mesh(markGeometry, fading(0xffffff, MARK_OPACITY)));
 const rings = pool(() => {
   const ring = dashedRing(40, 0xffffff, { dash: 3, gap: 5, width: 1.5, opacity: RING_OPACITY }); // a quad big enough for its ring
@@ -53,10 +57,17 @@ export function drawDrones(view: CommanderView, scale: number) {
     const { tail, head } = d.trail;
     const t = trails.next();
     t.position.set((tail.x + head.x) / 2, (tail.y + head.y) / 2, Z.trail);
-    t.rotation.z = d.heading;
+    t.rotation.z = Math.atan2(head.y - tail.y, head.x - tail.x);
     t.scale.set(Math.hypot(head.x - tail.x, head.y - tail.y), TRAIL.px * metresPerPx.value, 1);
     material(t).opacity = TRAIL.opacity * d.opacity;
     if (d.lost) continue;
+
+    const line = lines.next();
+    const [lx, ly] = [d.to.x - d.x, d.to.y - d.y];
+    line.position.set((d.x + d.to.x) / 2, (d.y + d.to.y) / 2, Z.line);
+    line.rotation.z = Math.atan2(ly, lx);
+    line.scale.set(Math.hypot(lx, ly), LINE.px * metresPerPx.value, 1);
+    material(line).color.setHex(sideColor(d.side));
 
     const mark = marks.next();
     mark.position.set(d.to.x, d.to.y, Z.marker);
@@ -68,5 +79,5 @@ export function drawDrones(view: CommanderView, scale: number) {
     r.ring.tint.value.setHex(sideColor(d.side));
     icons.place(d, d.to, d.heading, d.side, scale);
   }
-  for (const q of [shadows, bodies, trails, marks, rings, icons]) q.end();
+  for (const q of [shadows, bodies, trails, lines, marks, rings, icons]) q.end();
 }

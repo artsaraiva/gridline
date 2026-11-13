@@ -23,14 +23,14 @@ export const lifted = (p: Vec2, altitude = CRUISE_ALTITUDE_M): Vec2 => ({ x: p.x
 
 /**
  * The pose of an aircraft over the ground spot `craft`, heading along its unit (fx, fy), from a sheet of `headings` frames a
- * Faction row (nato, then pact). `fall` (0..1) is how far a shot-down one has dropped: it comes down as a thing falls, slowly then fast, onto its shadow.
+ * Faction row (nato, then pact), `altitude` metres up.
  */
-export function levelFlight(craft: { x: number; y: number; fx: number; fy: number }, side: SideId, headings: number, fall = 0): LevelFlight {
+export function levelFlight(craft: { x: number; y: number; fx: number; fy: number }, side: SideId, headings: number, altitude = CRUISE_ALTITUDE_M): LevelFlight {
   const heading = Math.atan2(craft.fy, craft.fx);
   const step = (2 * Math.PI) / headings;
   const k = Math.round(heading / step);
   return {
-    ...lifted(craft, CRUISE_ALTITUDE_M * (1 - fall * fall)),
+    ...lifted(craft, altitude),
     heading,
     frame: (side === 'nato' ? 0 : 1) * headings + (((k % headings) + headings) % headings),
     rotation: heading - k * step,
@@ -38,8 +38,12 @@ export function levelFlight(craft: { x: number; y: number; fx: number; fy: numbe
   };
 }
 
-/** How a shot-down aircraft shows over the `seconds` the Simulation keeps it, with `left` of them to go: it falls for the first part, then fades where it lies. */
-export function downed(left: number, seconds: number): { fall: number; opacity: number } {
+/**
+ * How a shot-down aircraft shows over the `seconds` the Simulation keeps it, with `left` of them to go: it falls for the first
+ * part, as a thing falls, slowly then fast (`height`: what is left of its altitude, 1 to 0), then fades where it lies.
+ */
+export function downed(left: number, seconds: number): { height: number; opacity: number } {
   const f = Math.max(0, Math.min(1, 1 - left / seconds));
-  return { fall: Math.min(1, f / 0.6), opacity: f < 0.6 ? 1 : Math.max(0, 1 - (f - 0.6) / 0.4) };
+  const fall = Math.min(1, f / 0.6);
+  return { height: 1 - fall * fall, opacity: f < 0.6 ? 1 : Math.max(0, 1 - (f - 0.6) / 0.4) };
 }

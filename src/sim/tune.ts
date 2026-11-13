@@ -387,7 +387,7 @@ export const DEFAULT_TUNE: Tune = {
 
   // #139 Drone Strike
   droneCooldownSeconds: 60,
-  droneSpeedMps: 30,
+  droneSpeedMps: 45, // the spec's 30 read as slow on the map
   droneKillM: 4,
   droneWoundM: 8,
   droneSuppressM: 15,
