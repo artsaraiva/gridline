@@ -10,7 +10,8 @@ import { assetRadio, type Kind } from './core';
 export const STAGGER_SECONDS = 0.5;
 
 export const smoke: Kind = {
-  name: 'Smoke',
+  name: 'Smoke Screen',
+  called: 'Smoke inbound', // the spec's Voice Line
   sky: true,
   cooldownSeconds: (t) => t.smokeCooldownSeconds,
   seconds: (t) => t.smokeWarningSeconds + (t.smokeShells - 1) * STAGGER_SECONDS + smokeLife(t),

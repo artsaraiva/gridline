@@ -181,7 +181,7 @@ export function hashAssets(m: Match, mix: Mix) {
     mix(Math.round(e.y * 1000));
     mix(e.until);
     mix(e.told ? 1 : 0);
-    if (e.to) mix(Math.round(e.to.x * 1000)), mix(Math.round(e.to.y * 1000));
+    for (const v of e.to ? [e.to.x, e.to.y] : []) mix(Math.round(v * 1000));
     KINDS[e.asset]!.hash?.(e, mix);
   }
 }
