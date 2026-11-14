@@ -87,13 +87,30 @@ describe('Auental map metadata', () => {
     expect(map.grid).toEqual({ cols: 12, rows: 12, squareM: 250, letters: 'ABCDEFGHIJKL' });
   });
 
-  it('has 7 crossings, 3 / 1 / 3 north to south: the main bridge and three twin pairs, armour at 5', () => {
+  it('has 9 crossings, 4 / 1 / 4 north to south: the main bridge and four twin pairs, armour at 5', () => {
     const kinds = (sign: number) => map.crossings.filter((c) => Math.sign(c.y) === sign).map((c) => c.kind).sort();
-    expect(map.crossings).toHaveLength(7);
+    expect(map.crossings).toHaveLength(9);
     expect(map.crossings.filter((c) => c.y === 0)).toMatchObject([{ kind: 'bridge', x: 0 }]);
-    expect(kinds(1)).toEqual(['bridge', 'footbridge', 'ford']);
-    expect(kinds(-1)).toEqual(['bridge', 'footbridge', 'ford']);
+    expect(kinds(1)).toEqual(['bridge', 'footbridge', 'footbridge', 'ford']);
+    expect(kinds(-1)).toEqual(['bridge', 'footbridge', 'footbridge', 'ford']);
     expect(map.crossings.filter((c) => c.kind !== 'footbridge')).toHaveLength(5);
+  });
+
+  it('#156: lists the crossings north to south, the twin town\'s two footbridges either side of MAIN and 120 to 150 m from it, twins under the half turn', () => {
+    expect(map.crossings.map((c) => c.id)).toEqual(['OLD', 'NF', 'RAIL', 'NTOWN', 'MAIN', 'STOWN', 'WEIR', 'SF', 'DAM']);
+    const ys = map.crossings.map((c) => c.y);
+    expect(ys).toEqual([...ys].sort((a, b) => b - a));
+    const [north, south] = ['NTOWN', 'STOWN'].map((id) => map.crossings.find((c) => c.id === id)!);
+    for (const c of [north!, south!]) {
+      expect(c, c.id).toMatchObject({ kind: 'footbridge', halfWidth: 1.5 });
+      expect(Math.hypot(c.x, c.y), c.id).toBeGreaterThanOrEqual(120);
+      expect(Math.hypot(c.x, c.y), c.id).toBeLessThanOrEqual(150);
+    }
+    expect(near(south!, rotated(north!))).toBe(true);
+  });
+
+  it('#156: marks no crossing the centre\'s own fight: MAIN takes danger as every other crossing does', () => {
+    expect(map.crossings.filter((c) => c.centreFight)).toEqual([]);
   });
 
   it('lists a play-area mip chain from 8192 down to 1 px and the surroundings out to 7.5 km, all present', () => {

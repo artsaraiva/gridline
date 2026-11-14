@@ -123,7 +123,8 @@ describe('vehicle routes', () => {
   });
 
   it('with danger known along its road to a point across the water, a fresh driver may take another crossing (Auental: Kaltenbach has one way over for a vehicle)', () => {
-    const m = createMatch({ seed: 1, map: bake('auental'), tune: { ...QUIET, driveSeenS: 1000 }, squadsPerSide: 4, commanderSide: 'nato' });
+    // #156: the way round over the ford sits near the 120 s cap, and moves with the hedges each re-bake of Auental draws; this is about taking another crossing at all
+    const m = createMatch({ seed: 1, map: bake('auental'), tune: { ...QUIET, driveSeenS: 1000, driveMaxDetourS: 240 }, squadsPerSide: 4, commanderSide: 'nato' });
     const v = m.vehicles.find((o) => o.side === 'nato' && o.kind === 'tank')!;
     const p = m.points.findIndex((_, i) => across(m, i, v) && flowDist(m, driveFlow(m, 'nato', i), v) < Infinity);
     Object.assign(v, { goal: p, route: -1 });
