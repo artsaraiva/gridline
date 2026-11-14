@@ -6,7 +6,7 @@ import { approach, BRAKE_RESERVE, cosDeg, stopSpeed, turnToward } from '../momen
 import { dist2 } from '../geometry';
 import { cellIndex, openRun } from '../grid';
 import type { Vec2 } from '../types';
-import { specOf, type Vehicle } from './body';
+import { SPECS, type Vehicle } from './body';
 import { alongPath, overCrossing, routeFlow } from './drive-route';
 
 /**
@@ -28,9 +28,10 @@ export function step(m: Match, v: Vehicle, halt: boolean) {
   v.parked = left === 0;
   const k = cellIndex(m, v.x, v.y);
   const cost = (k >= 0 && g.cost[k]) || 20;
-  const tank = v.kind !== 'jeep'; // #110: an AA handles as a tank
-  const accel = tank ? t.tankAccel : t.jeepAccel;
-  const { roadMps, openMps } = specOf(t, v.kind);
+  const spec = SPECS[v.kind];
+  const handling = spec.handling!; // every ground kind has its handling
+  const accel = handling.accel(t);
+  const [roadMps, openMps] = [spec.roadMps(t), spec.openMps(t)];
   const open = (x: number, y: number) => {
     const c = cellIndex(m, x, y);
     return c >= 0 && g.cost[c]! > 0;
@@ -68,7 +69,7 @@ export function step(m: Match, v: Vehicle, halt: boolean) {
     const dot = v.fx * way.x + v.fy * way.y;
     const soft = dot > 0 && dot < cosDeg(1) ? { x: v.fx + (way.x - v.fx) * STEER_EASE, y: v.fy + (way.y - v.fy) * STEER_EASE } : way; // eased: a correction is steered in over a few ticks, not snapped to (within a degree it is, or it would never quite get there)
     const n2 = Math.sqrt(soft.x * soft.x + soft.y * soft.y);
-    const { fx, fy } = turnToward(v.fx, v.fy, soft.x / n2, soft.y / n2, tank ? t.tankTurnDegPerS : t.jeepTurnDegPerS, t.hz);
+    const { fx, fy } = turnToward(v.fx, v.fy, soft.x / n2, soft.y / n2, handling.turnDegPerS(t), t.hz);
     if (halt || v.parked) return move(fx, fy, 0);
     const align = Math.max(0, fx * way.x + fy * way.y); // 1 straight on, 0 at a right angle or worse
     const base = cost === 10 ? roadMps : (openMps * 20) / cost;

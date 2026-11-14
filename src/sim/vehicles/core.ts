@@ -16,7 +16,7 @@ import { see, sideKnown } from '../memory';
 import { ticksOf, vehicleOf, type Mix, type Soldier, type Squad } from '../state';
 import { SIDES, type SideId, type SimEvent, type Vec2, type VehicleKind, type VehicleView } from '../types';
 import { aaPoint } from './aa';
-import { air, crippled, DORMANT, flies, flown, fresh, held, high, live, riders, specOf, unmanned, wreck, type Round, type Vehicle } from './body';
+import { air, crippled, DORMANT, flies, flown, fresh, held, high, live, riders, SPECS, unmanned, wreck, type Round, type Vehicle } from './body';
 import { pickRoute } from './drive-route';
 import { step } from './ground';
 import { crewOnReturn, fly } from './helicopter';
@@ -49,7 +49,7 @@ const slotsOf = (m: Match, side: SideId, kind: VehicleKind): Vec2[] => (kind ===
 /** #154: a Side's count of `kind`: the tune's number, else the map's (its slots of that kind, or its `jets`). */
 function countOf(m: Match, side: SideId, kind: VehicleKind): number {
   const t = m.tune;
-  const n = { tank: t.tanksPerSide, jeep: t.jeepsPerSide, helicopter: t.helisPerSide, jet: t.jetsPerSide, aa: t.aasPerSide, gunship: 1, drone: 1, recon: 1 }[kind]; // #101: one Gunship a Side, whatever the map; #139 one drone and one Recon Plane
+  const n = SPECS[kind].perSide(t);
   return n ?? (kind === 'jet' ? (m.map.jets?.[side] ?? 0) : slotsOf(m, side, kind).length);
 }
 
@@ -356,7 +356,7 @@ export function look(m: Match, v: Vehicle) {
   const consider = (id: number, rank: number, d2: number) => {
     if (d2 <= squared(range) && (!best || rank < best.rank || (rank === best.rank && d2 < best.d2))) best = { id, rank, d2 };
   };
-  let coaxD2 = squared(specOf(t, v.kind).gunM);
+  let coaxD2 = squared(SPECS[v.kind].gunM(t));
   for (const e of m.soldiers) {
     if (e.side === v.side || e.state !== 'alive' || e.vehicle >= 0 || !sees(e)) continue;
     if (!m.sightings[v.side].some((o) => o.id === e.id && o.tick >= m.tick - 1)) e.uavUntil = -1; // #75, as for a Soldier's eyes
@@ -388,7 +388,7 @@ export function sideGun(m: Match, v: Vehicle, seat: number): Soldier | null {
   if (!out) return null;
   const cos = cosDeg(t.gunArcDeg / 2);
   let best: Soldier | null = null;
-  let bestD2 = squared(specOf(t, v.kind).gunM);
+  let bestD2 = squared(SPECS[v.kind].gunM(t));
   for (const e of m.soldiers) {
     if (e.side === v.side || e.state !== 'alive' || e.vehicle >= 0 || inHq(m, e.side, e)) continue;
     const d2 = dist2(v, e);
@@ -473,7 +473,7 @@ export function hurt(m: Match, v: Vehicle, damage: number, by: SideId, cause: So
   if (!live(v)) return;
   v.hp -= damage;
   if (v.hp > 0) return;
-  if (v.kind === 'gunship') bail(m, v);
+  if (SPECS[v.kind].ridersBail) bail(m, v);
   for (const s of riders(m, v)) {
     if (cause && by !== s.side) s.cause = cause;
     die(m, s, events);
@@ -494,7 +494,7 @@ export function vehicleViews(m: Match, side: SideId, seen: Set<number>): Vehicle
     const base = { id: v.id, side: v.side, kind: v.kind, x: v.x, y: v.y, fx: v.fx, fy: v.fy, ...turret(v) };
     const rounds = v.rounds.map((r) => ({ from: { x: r.x0, y: r.y0 }, to: { x: r.x, y: r.y }, flight: (m.tick - r.launch) / (r.land - r.launch) }));
     const missiles = v.missiles.map(({ x, y, fx, fy }) => ({ x, y, fx, fy }));
-    views.push({ ...base, ...(v.side === side && { hp: v.hp / specOf(m.tune, v.kind).hp, seats: [...v.seats] }), ...(rounds.length && { rounds }), ...(missiles.length && { missiles }), ...(v.seats.every((id) => id < 0) && { empty: true }), ...(v.airborne && { airborne: true }), ...(held(m, v) && { disabled: true as const }) });
+    views.push({ ...base, ...(v.side === side && { hp: v.hp / SPECS[v.kind].hp(m.tune), seats: [...v.seats] }), ...(rounds.length && { rounds }), ...(missiles.length && { missiles }), ...(v.seats.every((id) => id < 0) && { empty: true }), ...(v.airborne && { airborne: true }), ...(held(m, v) && { disabled: true as const }) });
   }
   for (const w of m.wrecks)
     if (w.side === side || w.seen) views.push({ id: -1, side: w.side, kind: w.kind, x: w.x, y: w.y, fx: w.fx, fy: w.fy, tx: w.fx, ty: w.fy, wreck: true });

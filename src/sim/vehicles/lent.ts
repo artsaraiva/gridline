@@ -6,7 +6,7 @@ import { dist2 } from '../geometry';
 import { rnd } from '../rng';
 import { membersOf, vehicleOf, type Soldier, type Squad } from '../state';
 import type { Vec2 } from '../types';
-import { crippled, DORMANT, fresh, live, specOf, type Vehicle } from './body';
+import { crippled, DORMANT, fresh, live, SPECS, type Vehicle } from './body';
 import { mount } from './core';
 import { goalOf, startCrew } from './seats';
 
@@ -14,7 +14,7 @@ import { goalOf, startCrew } from './seats';
 export const GUNSHIP_GUN = 1;
 
 /** #101: the Gunship `v` wakes fresh where it waits (its Side's launch point), in the air, heading along (fx, fy). #139: a drone or the Recon Plane wakes at `at`. */
-export const wake = (m: Match, v: Vehicle, fx: number, fy: number, at: Vec2 = v.slot) => Object.assign(v, fresh(m, v.side, v.kind, v.slot), { x: at.x, y: at.y, fx, fy, airborne: true, speed: specOf(m.tune, v.kind).openMps });
+export const wake = (m: Match, v: Vehicle, fx: number, fy: number, at: Vec2 = v.slot) => Object.assign(v, fresh(m, v.side, v.kind, v.slot), { x: at.x, y: at.y, fx, fy, airborne: true, speed: SPECS[v.kind].openMps(m.tune) });
 /** #101: the Gunship `v` home off the map: asleep again until its next call. #139: so a drone that has hit or been shot down, and the Recon Plane after its pass. */
 export const sleep = (v: Vehicle) => Object.assign(v, { deadAt: DORMANT, airborne: false, speed: 0 });
 

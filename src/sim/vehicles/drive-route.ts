@@ -7,7 +7,7 @@ import { cellCentre, cellIndex } from '../grid';
 import { sideKnown } from '../memory';
 import { rnd } from '../rng';
 import type { Vec2, VehicleKind } from '../types';
-import { live, specOf, type Vehicle } from './body';
+import { live, SPECS, type Vehicle } from './body';
 
 /** `Vehicle.route`: -1 not chosen yet (it drives its road), its road, or `VIA + c` over crossing `c` first. */
 export const ROAD = 0;
@@ -68,7 +68,7 @@ export function alongPath(m: Match, v: Vehicle, n: number, seen: (p: Vec2) => bo
 function line(m: Match, v: Vehicle, route: number, most = Infinity): { secs: number; pts: Vec2[] } | null {
   const g = m.drive[v.side];
   const goal = m.points[v.goal]!;
-  const { roadMps, openMps } = specOf(m.tune, v.kind);
+  const [roadMps, openMps] = [SPECS[v.kind].roadMps(m.tune), SPECS[v.kind].openMps(m.tune)];
   const end = goal.radius + m.tune.routeSeenRadiusM;
   const legs = route >= VIA ? [crossingDriveFlow(m, v.side, route - VIA), driveFlow(m, v.side, v.goal)] : [driveFlow(m, v.side, v.goal)];
   let p: Vec2 = v;
@@ -169,7 +169,7 @@ function detour(m: Match, v: Vehicle, at: Spot[]) {
   const g = m.drive[v.side];
   const { cols, rows } = g;
   const caution = t.driveCaution[0] + rnd(m) * (t.driveCaution[1] - t.driveCaution[0]);
-  const perSecond = specOf(t, v.kind).roadMps * 5 * caution; // a road cell costs 10 and takes cellM / roadMps seconds; a place's seconds are spread over its 2 r of road: x its seconds / its radius
+  const perSecond = SPECS[v.kind].roadMps(t) * 5 * caution; // a road cell costs 10 and takes cellM / roadMps seconds; a place's seconds are spread over its 2 r of road: x its seconds / its radius
   const reach = Math.max(...at.map((s) => s.r));
   const span = Math.sqrt(dist2(v, to)) + 400; // ponytail: only danger this near the two ends weighs on the search; widen if detours start running into trouble farther out
   const close = at.filter((s) => dist2(s, v) < (span + reach) ** 2 && dist2(s, to) < (span + reach) ** 2).map((s) => ({ ...s, w: (1.5 * perSecond * s.s) / s.r })); // x 1.5: the fall-off below averages two thirds across the width

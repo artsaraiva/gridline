@@ -9,7 +9,7 @@ import { sideKnown } from '../memory';
 import { turnToward, approach } from '../momentum';
 import { membersOf, ticksOf, type Point, type Soldier, type Squad } from '../state';
 import type { Vec2 } from '../types';
-import { crippled, held, live, riders, specOf, wreck, type Vehicle } from './body';
+import { crippled, held, live, riders, SPECS, wreck, type Vehicle } from './body';
 import { fitsRide } from './core';
 import { plan } from './helicopter';
 import { getOut, jump, onPad, PILOT_SEAT } from './seats';
@@ -29,7 +29,7 @@ export type Job = (typeof JOBS)[number];
 export function decideJob(m: Match, v: Vehicle) {
   const t = m.tune;
   if (v.job === 'bail' || v.flareUntil >= 0 || held(m, v)) return; // #143: an EMP holds it to its job, as to its place
-  const max = specOf(t, v.kind).hp;
+  const max = SPECS[v.kind].hp(t);
   const aboard = riders(m, v);
   const pax = aboard.filter((s) => !s.crew);
   const set = (job: Job, o: Partial<Vehicle> = {}) => {
@@ -109,7 +109,7 @@ export function spinFor(m: Match, v: Vehicle): number {
 /** #131: on its helipad under `heliRepairBelow` it repairs, with or without a pilot; and regains `heliRepairHpPerS` until full, then it is free for work. */
 export function repairOnPad(m: Match, v: Vehicle) {
   const t = m.tune;
-  const max = specOf(t, v.kind).hp;
+  const max = SPECS[v.kind].hp(t);
   if (!onPad(v)) return;
   if (v.job !== 'repair' && v.hp < t.heliRepairBelow * max) Object.assign(v, { job: 'repair', claim: -1, fetch: -1, spot: null, drop: false, until: -1 });
   if (v.job !== 'repair') return;

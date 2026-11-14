@@ -14,7 +14,7 @@ import { cosDeg, turnToward } from '../momentum';
 import { between, pickWeighted, rnd } from '../rng';
 import { membersOf, ticksOf, vehicleOf, type Soldier, type Squad } from '../state';
 import { enemyOf, type SideId, type Vec2 } from '../types';
-import { crippled, high, live, specOf, type Vehicle } from './body';
+import { crippled, high, live, SPECS, type Vehicle } from './body';
 import { mount } from './core';
 
 /** Where a jet is in its sortie. Idle: no pilot, at the base. Rearming: flying home (`until` -1), then at the base until `until`. */
@@ -152,7 +152,7 @@ export function sortie(m: Match, v: Vehicle) {
     if (v.until < 0) {
       if (toward(m, v, launchPoint(m, v.side))) Object.assign(v, { airborne: false, until: m.tick + ticksOf(t, t.jetRearmSeconds) });
     } else if (m.tick >= v.until) {
-      v.hp = specOf(t, v.kind).hp; // repaired with the rearm
+      v.hp = SPECS[v.kind].hp(t); // repaired with the rearm
       takeOff(m, v);
     }
   }
