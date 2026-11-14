@@ -2,6 +2,7 @@
 import type { Match } from '../index';
 import type { Soldier, Squad } from '../state';
 import type { VehicleRules } from './core';
+import { freshDrive } from './drive-route';
 import { groundMove, head, setsOff } from './ground';
 import { coax, goalOf, inReach } from './seats';
 
@@ -9,6 +10,7 @@ import { coax, goalOf, inReach } from './seats';
 const goal = (m: Match, sq: Squad, s: Soldier) => goalOf(m, sq, s);
 
 export const jeep: VehicleRules<'jeep'> = {
+  init: () => ({ drive: freshDrive() }),
   move: groundMove,
   goal,
   onGoal: (m, v, goal) => void (goal >= 0 && head(m, v, goal)), // with none it keeps going where it was

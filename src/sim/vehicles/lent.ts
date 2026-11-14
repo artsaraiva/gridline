@@ -6,15 +6,15 @@ import { dist2 } from '../geometry';
 import { rnd } from '../rng';
 import { membersOf, vehicleOf, type Soldier, type Squad } from '../state';
 import type { Vec2 } from '../types';
-import { crippled, DORMANT, fresh, live, SPECS, type Vehicle } from './body';
-import { mount, type VehicleRules } from './core';
+import { crippled, DORMANT, live, SPECS, type Vehicle } from './body';
+import { mount, renew, type VehicleRules } from './core';
 import { gunner, goalOf, seatGun, sideGun, startCrew } from './seats';
 
 /** #101: the Gunship's gun seat; the passenger seats follow it. */
 export const GUNSHIP_GUN = 1;
 
 /** #101: the Gunship `v` wakes fresh where it waits (its Side's launch point), in the air, heading along (fx, fy). #139: a drone or the Recon Plane wakes at `at`. */
-export const wake = (m: Match, v: Vehicle, fx: number, fy: number, at: Vec2 = v.slot) => Object.assign(v, fresh(m, v.side, v.kind, v.slot), { x: at.x, y: at.y, fx, fy, airborne: true, speed: SPECS[v.kind].openMps(m.tune) });
+export const wake = (m: Match, v: Vehicle, fx: number, fy: number, at: Vec2 = v.slot) => Object.assign(v, renew(m, v.side, v.kind, v.slot), { x: at.x, y: at.y, fx, fy, airborne: true, speed: SPECS[v.kind].openMps(m.tune) });
 /** #101: the Gunship `v` home off the map: asleep again until its next call. #139: so a drone that has hit or been shot down, and the Recon Plane after its pass. */
 export const sleep = (v: Vehicle) => Object.assign(v, { deadAt: DORMANT, airborne: false, speed: 0 });
 
@@ -39,10 +39,11 @@ export function gunshipOnReturn(m: Match, sq: Squad, s: Soldier): boolean {
 }
 
 /** #139: a drone or the Recon Plane: nobody aboard, and it moves only as its Asset flies it; in both Sides' sky all the way. */
-export const lent: VehicleRules<'drone' | 'recon'> = { inSky: () => true };
+export const lent: VehicleRules<'drone'> & VehicleRules<'recon'> = { init: () => ({}), inSky: () => true };
 
 /** #101: the Gunship: as a lent body, and its seats for Soldiers coming back. */
 export const gunship: VehicleRules<'gunship'> = {
+  init: () => ({}),
   seatFor: (_m, v, s) => (s.crew ? GUNSHIP_GUN : v.seats.indexOf(-1, GUNSHIP_GUN + 1)), // its gunner or a passenger; nobody takes the pilot's seat
   onReturn: { order: 3, take: gunshipOnReturn }, // after a jet's pilot and a helicopter's crew
   wantsOut: () => false, // its Asset puts each one out (assets/gunship.ts)

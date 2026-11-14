@@ -14,7 +14,7 @@ import { see } from '../memory';
 import { ticksOf, vehicleOf, type Mix, type Soldier, type Squad } from '../state';
 import { SIDES, type SideId, type SimEvent, type Tune, type Vec2, type VehicleKind, type VehicleView } from '../types';
 import { aa } from './aa';
-import { air, crippled, DORMANT, flies, flown, fresh, held, high, live, riders, SPECS, wreck, type Round, type Vehicle } from './body';
+import { air, crippled, DORMANT, flies, flown, fresh, held, high, live, riders, SPECS, wreck, type OwnOf, type Round, type Vehicle, type VehicleOf } from './body';
 import { helicopter } from './helicopter';
 import { JOBS } from './helicopter-jobs';
 import { jet, SORTIE } from './jet';
@@ -30,33 +30,35 @@ const squared = (r: number) => r * r;
  * without one takes no part in what it asks.
  */
 export interface VehicleRules<K extends VehicleKind> {
+  /** The record a fresh vehicle of the kind starts with beside its body (`renew`). */
+  init(m: Match): OwnOf<K>;
   /** Its tick in the vehicle phase (`drive`) with `halted` true while it stands for a dismount: drive, fly or fly a sortie. None for a lent body: its Asset flies it. */
-  move?(m: Match, v: Vehicle, halted: boolean): void;
+  move?(m: Match, v: VehicleOf<K>, halted: boolean): void;
   /** Where its driver takes it: the Capture Point its driver picks as it takes the wheel and at each of its Squad's thinks (#107 the tank's, #110 the AA's and the jet's), -1 = none. */
-  goal?(m: Match, sq: Squad, s: Soldier, v: Vehicle): number;
+  goal?(m: Match, sq: Squad, s: Soldier, v: VehicleOf<K>): number;
   /** What its driver does with the `goal` it picked at its Squad's think (#123 a ground vehicle takes a route there); unset, it heads there. */
-  onGoal?(m: Match, v: Vehicle, goal: number): void;
+  onGoal?(m: Match, v: VehicleOf<K>, goal: number): void;
   /** #131: at its pilot's Squad think, what it does: a helicopter's job. An EMP Strike's hold keeps it to the one it has (#143). */
-  job?(m: Match, v: Vehicle): void;
+  job?(m: Match, v: VehicleOf<K>): void;
   /** The seat `s` takes as it mounts (#129 a helicopter's crew the seat they were sent for, #101 the Gunship's gunner its gun); unset, the first free one. */
-  seatFor?(m: Match, v: Vehicle, s: Soldier): number;
+  seatFor?(m: Match, v: VehicleOf<K>, s: Soldier): number;
   /** What happens as its driver's seat fills (`wait`: the tick its driver's wait for others ends): #107 a ground vehicle's driver takes the wheel and sets off for its goal, #110 a jet takes off. */
-  onDriver?(m: Match, sq: Squad, s: Soldier, v: Vehicle, wait: number): void;
+  onDriver?(m: Match, sq: Squad, s: Soldier, v: VehicleOf<K>, wait: number): void;
   /** #107 #110: a Soldier on foot walks up to it at its Squad's think and climbs in alone (`board`): the tank, the AA. */
   boardsOnFoot?: true;
   /** #122: it carries a Squad (`decideRide`): the jeep, #109 the helicopter. */
   rides?: {
     /** Whether `v` fits a ride for `sq`'s foot leader `L` to `p` beyond the shared checks (`fitsRide`): within reach of `L`, and what its kind asks. */
-    fits(m: Match, sq: Squad, L: Soldier, v: Vehicle, p: Vec2, fetched: boolean): boolean;
+    fits(m: Match, sq: Squad, L: Soldier, v: VehicleOf<K>, p: Vec2, fetched: boolean): boolean;
     /** #131: the Squad it flew to fetch, -1 = none: that Squad takes it first. */
-    fetching?(v: Vehicle): number;
+    fetching?(v: VehicleOf<K>): number;
     /** #131: a Squad's claim on it ends any fetch. */
-    claimed?(v: Vehicle): void;
+    claimed?(v: VehicleOf<K>): void;
   };
   /** A Soldier coming back from the dead may take a seat here (#110 a jet's pilot, #129 a helicopter's crew, #101 the Gunship's seats), offered in `order`: true when it did. */
   onReturn?: { order: number; take(m: Match, sq: Squad, s: Soldier): boolean };
   /** Its leaving rule at a rider's think (`ride`); unset, the shared passenger rule (`passengers`). */
-  wantsOut?(m: Match, sq: Squad, s: Soldier, v: Vehicle): boolean;
+  wantsOut?(m: Match, sq: Squad, s: Soldier, v: VehicleOf<K>): boolean;
   /** How its gun ranks what its eyes see (`look`): #107 the tank's main gun, #110 the AA's. */
   rank?: {
     /** How far the gun reaches. */
@@ -64,16 +66,16 @@ export interface VehicleRules<K extends VehicleKind> {
     /** #110: its eyes also see the air class all round out to that range, over walls (one as high as a jet only over the Play Area). */
     sky?: true;
     /** Where `e`, `d2` square metres off, ranks as its target: lower first, the nearest within a rank; undefined, not its target. */
-    of(m: Match, v: Vehicle, e: Soldier | Vehicle, d2: number): number | undefined;
+    of(m: Match, v: VehicleOf<K>, e: Soldier | Vehicle, d2: number): number | undefined;
   };
   /** What `s` aboard fires this tick (`seatFire`), by combat's shot model: the coax or MG (#107 #108), a side gun (#129 #101), #110 the jet's cannon or the AA's bursts. */
-  seatFire?(m: Match, s: Soldier, v: Vehicle, shots: Shots): Shot | null;
+  seatFire?(m: Match, s: Soldier, v: VehicleOf<K>, shots: Shots): Shot | null;
   /** #107: its own gun, in the gun pass (`mainGuns`): it lays on its eyes' target, then fires once laid and reloaded. */
-  gun?: { lay(m: Match, v: Vehicle): void; fire(m: Match, v: Vehicle): void };
+  gun?: { lay(m: Match, v: VehicleOf<K>): void; fire(m: Match, v: VehicleOf<K>): void };
   /** #110: its missile's lock, in the lock pass (`lockMissiles`), with a crew aboard: what it holds in its sights (`lockOn`). */
-  lock?(m: Match, v: Vehicle): void;
+  lock?(m: Match, v: VehicleOf<K>): void;
   /** In both Sides' sky, so every view carries it: #110 a jet over the Play Area, #101 #139 a lent body all the way. */
-  inSky?(m: Match, v: Vehicle): boolean;
+  inSky?(m: Match, v: VehicleOf<K>): boolean;
 }
 
 /** A shot decided from the pre-fire state; combat applies every shot of the tick together afterwards. */
@@ -99,9 +101,11 @@ export interface Shots {
 
 let table: { [K in VehicleKind]: VehicleRules<K> } | undefined;
 /** #183: the kind table, built on first use, so a kind module imported before this one (as a test may) never meets it half loaded (#142). */
-const kinds = () => (table ??= { tank, jeep, helicopter, jet, aa, gunship, drone: lent, recon: lent });
+const kinds = (): { [K in VehicleKind]: VehicleRules<K> } => (table ??= { tank, jeep, helicopter, jet, aa, gunship, drone: lent, recon: lent });
 /** #183: the rules of `kind`. */
 export const rulesOf = <K extends VehicleKind>(kind: K): VehicleRules<K> => kinds()[kind];
+/** #183: a fresh vehicle of `kind` in `slot` for `side`: its body (`fresh`) and its kind's own record (`init`). */
+export const renew = <K extends VehicleKind>(m: Match, side: SideId, kind: K, slot: Vec2) => ({ ...fresh(m, side, kind, slot), ...rulesOf(kind).init(m) });
 let offers: NonNullable<VehicleRules<VehicleKind>['onReturn']>[] | undefined;
 /** #183: the seats a Soldier coming back is offered, in their order. */
 const onReturnOffers = () => (offers ??= [...new Set(Object.values(kinds()).flatMap((r: VehicleRules<VehicleKind>) => (r.onReturn ? [r.onReturn] : [])))].sort((a, b) => a.order - b.order));
@@ -113,13 +117,13 @@ const onReturnOffers = () => (offers ??= [...new Set(Object.values(kinds()).flat
  * (`countOf`); each waits in its own slot or helipad, and one past them in the Side's row (`rowSlot`).
  */
 export function newVehicles(m: Match): Vehicle[] {
-  const standing = (side: SideId, kind: VehicleKind, at: Vec2, point: number) => ({ ...fresh(m, side, kind, { x: at.x, y: at.y }), point, rounds: [] as Round[], missiles: [] as AirMissile[] });
+  const standing = (side: SideId, kind: VehicleKind, at: Vec2, point: number) => ({ ...renew(m, side, kind, { x: at.x, y: at.y }), point, rounds: [] as Round[], missiles: [] as AirMissile[] });
   const nextInRow: Record<SideId, number> = { nato: 0, pact: 0 };
   const atHqs = (kinds: VehicleKind[]) =>
     SIDES.flatMap((side) => kinds.flatMap((kind) => Array.from({ length: countOf(m, side, kind) }, (_, i) => standing(side, kind, high({ kind }) ? launchPoint(m, side) : (slotsOf(m, side, kind)[i] ?? rowSlot(m, side, nextInRow[side]++)), -1))));
   const atPoints = m.tune.pointJeeps ? m.points.flatMap((p, i) => (m.map.points[i]!.vehicles ?? []).map((u) => ({ ...standing(p.owner ?? 'nato', u.kind, u, i), ...(!p.owner && { deadAt: DORMANT }) }))) : [];
   const gunships = [...atHqs(['gunship']), ...atHqs(['drone', 'recon'])].map((g) => ({ ...g, deadAt: DORMANT })); // #101: after those, asleep until its Asset is called; #139 then each Side's drone and Recon Plane, likewise
-  return [...atHqs(['tank', 'jeep', 'helicopter']), ...atPoints, ...atHqs(['jet', 'aa']), ...gunships].map((v, i) => ({ ...v, id: m.soldiers.length + i }));
+  return [...atHqs(['tank', 'jeep', 'helicopter']), ...atPoints, ...atHqs(['jet', 'aa']), ...gunships].map((v, i) => ({ ...v, id: m.soldiers.length + i }) as Vehicle); // each with its kind's record: `renew`
 }
 
 /** #154: the map's slots of `kind` for `side` (a helicopter's are its helipads). */
@@ -313,10 +317,10 @@ export function drive(m: Match) {
     const side = v.point < 0 ? v.side : m.points[v.point]!.owner;
     if (!live(v)) {
       if (flown(v)) continue; // #101 #139: only its Asset's next call brings it back
-      if (side && (v.deadAt === DORMANT || side !== v.side || m.tick - v.deadAt >= t.vehicleRespawnSeconds * t.hz)) Object.assign(v, fresh(m, side, v.kind, v.slot));
+      if (side && (v.deadAt === DORMANT || side !== v.side || m.tick - v.deadAt >= t.vehicleRespawnSeconds * t.hz)) Object.assign(v, renew(m, side, v.kind, v.slot));
       continue;
     }
-    if (side && side !== v.side && v.seats.every((id) => id < 0) && dist2(v, v.slot) < 1) Object.assign(v, fresh(m, side, v.kind, v.slot));
+    if (side && side !== v.side && v.seats.every((id) => id < 0) && dist2(v, v.slot) < 1) Object.assign(v, renew(m, side, v.kind, v.slot));
     if (v.claim >= 0) {
       const walking = m.soldiers.filter((s) => s.boarding === v.id && !s.crew && s.state === 'alive' && s.vehicle < 0);
       if (!walking.length || m.tick >= v.claimUntil) { // everyone is in, or the wait is out: it leaves with whoever is aboard
@@ -497,11 +501,22 @@ export function vehicleViews(m: Match, side: SideId, seen: Set<number>): Vehicle
 
 export function hashVehicles(m: Match, mix: Mix) {
   for (const v of m.vehicles) {
-    for (const n of [v.x, v.y, v.fx, v.fy, v.speed, v.hp, v.lz?.x ?? 0, v.lz?.y ?? 0, v.wp?.x ?? 0, v.wp?.y ?? 0]) mix(Math.round(n * 1000));
-    for (const n of [+(v.side === 'nato'), ...v.seats, +v.parked, v.deadAt, v.goal, v.departAt, v.target, v.coax, v.nextFire, v.laid, v.movedAt, v.halt, +v.airborne, v.landedAt, v.claim, v.claimUntil, +!!v.lz, +!!v.wp, v.flareUntil, v.spoolUntil, JOBS.indexOf(v.job), v.fetch, +!!v.spot, v.spin, v.until, +v.drop, v.crashAt, SORTIE.indexOf(v.sortie), v.passes, v.bombs, v.prey, v.route, v.planAt, v.path.length, v.disabledUntil]) mix(n);
-    for (const p of v.path) for (const n of [p.x, p.y]) mix(Math.round(n * 1000));
+    // #183: the row the one-record Vehicle hashed, read off the body and its kind's record; a slot its kind has no field for holds what a fresh one held
+    const heli = 'heli' in v ? v.heli : undefined;
+    const sortie = 'sortie' in v ? v.sortie : undefined;
+    const lock = 'gun' in v ? { lock: v.gun.laid, nextFire: v.gun.nextFire } : 'missile' in v ? v.missile : { lock: -1, nextFire: 0 };
+    const drive = 'drive' in v ? v.drive : { route: -1, planAt: 0, path: [] };
+    const spot = heli ? heli.spot : (sortie?.at ?? null);
+    const until = heli?.until ?? ('burstUntil' in v ? v.burstUntil : (sortie?.until ?? -1));
+    for (const n of [v.x, v.y, v.fx, v.fy, v.speed, v.hp, heli?.lz?.x ?? 0, heli?.lz?.y ?? 0, heli?.wp?.x ?? 0, heli?.wp?.y ?? 0]) mix(Math.round(n * 1000));
+    for (const n of [
+      +(v.side === 'nato'), ...v.seats, +v.parked, v.deadAt, v.goal, v.departAt, v.target, v.coax, lock.nextFire, lock.lock, v.movedAt, v.halt, +v.airborne, heli?.landedAt ?? -1, v.claim, v.claimUntil,
+      +!!heli?.lz, +!!heli?.wp, heli?.flareUntil ?? -1, heli?.spoolUntil ?? -1, JOBS.indexOf(heli?.job ?? 'wait'), heli?.fetch ?? -1, +!!spot, heli?.spin ?? sortie?.turn ?? 1, until, +(heli?.hotDrop ?? sortie?.bomb ?? false),
+      heli?.crashAt ?? -1, SORTIE.indexOf(sortie?.stage ?? 'idle'), sortie?.passes ?? 0, sortie?.bombs ?? 0, sortie?.prey ?? -1, drive.route, drive.planAt, drive.path.length, v.disabledUntil,
+    ]) mix(n);
+    for (const p of drive.path) for (const n of [p.x, p.y]) mix(Math.round(n * 1000));
     hashMissiles(v, mix);
-    for (const n of [v.spot?.x ?? 0, v.spot?.y ?? 0]) mix(Math.round(n * 1000));
+    for (const n of [spot?.x ?? 0, spot?.y ?? 0]) mix(Math.round(n * 1000));
     for (const b of v.bias) mix(Math.round(b * 1000));
     mix(v.rounds.length);
     for (const r of v.rounds) for (const n of [Math.round(r.x0 * 1000), Math.round(r.y0 * 1000), Math.round(r.x * 1000), Math.round(r.y * 1000), r.launch, r.land, +!!r.bomb]) mix(n);

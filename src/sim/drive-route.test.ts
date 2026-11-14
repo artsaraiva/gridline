@@ -7,7 +7,7 @@ import { createMatch, stateHash, step, type Match } from './index';
 import { NO_TEMPO, NO_TRAITS, thinkOnId } from './test-tune';
 import { DEFAULT_TUNE } from './tune';
 import type { Tune, Vec2 } from './types';
-import { drivePoint, type Vehicle } from './vehicles';
+import { drivePoint, type Vehicle, type VehicleOf } from './vehicles';
 
 // Vehicle routes on the committed Kaltenbach bake: nobody sees anybody, so whatever a driver knows is what the test tells its Side.
 const HZ = DEFAULT_TUNE.hz;
@@ -18,7 +18,7 @@ function underWay(tune: Partial<Tune> = {}) {
   const m: Match = thinkOnId(createMatch({ seed: 10, map: KALTENBACH, tune: { ...QUIET, ...tune }, squadsPerSide: 4, commanderSide: 'nato' }));
   const far = (v: Vehicle) => v.goal >= 0 && v.speed > 0 && flowDist(m, driveFlow(m, 'nato', v.goal), v) > 300;
   for (let i = 0; i < 120 * HZ && !m.vehicles.some((v) => v.side === 'nato' && v.kind === 'tank' && far(v)); i++) step(m, []);
-  return { m, v: m.vehicles.find((v) => v.side === 'nato' && v.kind === 'tank' && far(v))! };
+  return { m, v: m.vehicles.find((v): v is VehicleOf<'tank'> => v.side === 'nato' && v.kind === 'tank' && far(v))! };
 }
 
 /** `v`'s road from where it stands, a spot every few cells. */
@@ -48,7 +48,7 @@ function openStretch(m: Match, v: Vehicle): Vec2 {
   return road(m, v).slice(12, -25).reduce((a, b) => (open(b) > open(a) ? b : a));
 }
 
-const offRoad = (m: Match, v: Vehicle) => v.path.filter((p) => !roadCell(m, p)).length;
+const offRoad = (m: Match, v: VehicleOf<'tank'>) => v.drive.path.filter((p) => !roadCell(m, p)).length;
 const roadCell = (m: Match, p: Vec2) => m.drive.nato.cost[cellIndex(m, p.x, p.y)] === 10;
 const arrives = (m: Match, v: Vehicle) => {
   const goal = v.goal;
@@ -60,17 +60,17 @@ describe('vehicle routes', () => {
   it('a driver with nothing known along its road takes the road, with no detour, at every think', () => {
     const { m, v } = underWay();
     expect(v).toBeDefined();
-    expect([v.route, v.path]).toEqual([ROAD, []]);
+    expect([v.drive.route, v.drive.path]).toEqual([ROAD, []]);
     const rng = m.rng;
     pickRoute(m, v);
-    expect([v.route, v.path, m.rng]).toEqual([ROAD, [], rng]);
+    expect([v.drive.route, v.drive.path, m.rng]).toEqual([ROAD, [], rng]);
   });
 
   it('drives past a lone enemy seen on the road ahead, and round a crowd of them through the fields, and still gets there', () => {
     const lone = underWay({ driveCaution: [1, 1] });
     enemySeenAt(lone.m, openStretch(lone.m, lone.v));
     pickRoute(lone.m, lone.v);
-    expect(lone.v.path.length).toBeGreaterThan(0);
+    expect(lone.v.drive.path.length).toBeGreaterThan(0);
 
     const { m, v } = underWay({ driveCaution: [1, 1], driveSeenS: 200 });
     const at = openStretch(m, v);
@@ -81,14 +81,14 @@ describe('vehicle routes', () => {
       const near = path.map((p) => 1 - ((p.x - at.x) ** 2 + (p.y - at.y) ** 2) / DEFAULT_TUNE.routeSeenRadiusM ** 2).filter((e) => e > 0);
       return near.reduce((n, e) => n + e, 0) / near.length;
     };
-    expect(exposed(v.path)).toBeLessThan(exposed(lone.v.path)); // within its reach, farther from it on the whole
-    for (let i = 1; i < v.path.length; i++) expect(Math.hypot(v.path[i]!.x - v.path[i - 1]!.x, v.path[i]!.y - v.path[i - 1]!.y)).toBeLessThan(3); // cell by cell
+    expect(exposed(v.drive.path)).toBeLessThan(exposed(lone.v.drive.path)); // within its reach, farther from it on the whole
+    for (let i = 1; i < v.drive.path.length; i++) expect(Math.hypot(v.drive.path[i]!.x - v.drive.path[i - 1]!.x, v.drive.path[i]!.y - v.drive.path[i - 1]!.y)).toBeLessThan(3); // cell by cell
     let off = 0;
-    for (let i = 0; i < 60 * HZ && v.path.length; i++) {
+    for (let i = 0; i < 60 * HZ && v.drive.path.length; i++) {
       step(m, []);
       if (!roadCell(m, v)) off++;
     }
-    expect(v.path).toEqual([]); // driven to its end ...
+    expect(v.drive.path).toEqual([]); // driven to its end ...
     expect(off).toBeGreaterThan(3 * HZ); // ... through the fields
     expect(arrives(m, v)).toBe(true);
   });
@@ -97,10 +97,10 @@ describe('vehicle routes', () => {
     const { m, v } = underWay({ driveSeenS: 200 });
     enemySeenAt(m, openStretch(m, v));
     pickRoute(m, v);
-    expect(v.path.length).toBeGreaterThan(0);
-    const [path, rng] = [[...v.path], m.rng];
+    expect(v.drive.path.length).toBeGreaterThan(0);
+    const [path, rng] = [[...v.drive.path], m.rng];
     pickRoute(m, v);
-    expect([v.path, m.rng]).toEqual([path, rng]);
+    expect([v.drive.path, m.rng]).toEqual([path, rng]);
   });
 
   it('an own Wreck on the road ahead is driven round; an enemy Wreck and an old one are not', () => {
@@ -109,7 +109,7 @@ describe('vehicle routes', () => {
     wreckAt(m, at, 'pact');
     m.wrecks.push({ side: 'nato', kind: 'tank', ...at, fx: 1, fy: 0, seen: false, tick: m.tick - (DEFAULT_TUNE.routeLossSeconds + 1) * HZ });
     pickRoute(m, v);
-    expect(v.path).toEqual([]);
+    expect(v.drive.path).toEqual([]);
     wreckAt(m, at);
     pickRoute(m, v);
     expect(offRoad(m, v)).toBeGreaterThan(15);
@@ -119,29 +119,30 @@ describe('vehicle routes', () => {
     const { m, v } = underWay({ driveSeenS: 200 });
     enemySeenAt(m, m.points[v.goal]!);
     pickRoute(m, v);
-    expect([v.route, v.path]).toEqual([ROAD, []]);
+    expect([v.drive.route, v.drive.path]).toEqual([ROAD, []]);
   });
 
   it('with danger known along its road to a point across the water, a fresh driver may take another crossing (Auental: Kaltenbach has one way over for a vehicle)', () => {
     // #156: the way round over the ford sits near the 120 s cap, and moves with the hedges each re-bake of Auental draws; this is about taking another crossing at all
     const m = createMatch({ seed: 1, map: bake('auental'), tune: { ...QUIET, driveSeenS: 1000, driveMaxDetourS: 240 }, squadsPerSide: 4, commanderSide: 'nato' });
-    const v = m.vehicles.find((o) => o.side === 'nato' && o.kind === 'tank')!;
+    const v = m.vehicles.find((o): o is VehicleOf<'tank'> => o.side === 'nato' && o.kind === 'tank')!;
     const p = m.points.findIndex((_, i) => across(m, i, v) && flowDist(m, driveFlow(m, 'nato', i), v) < Infinity);
-    Object.assign(v, { goal: p, route: -1 });
+    v.goal = p;
+    v.drive.route = -1;
     pickRoute(m, v);
-    expect(v.route).toBe(ROAD); // nothing known: the road's crossing
+    expect(v.drive.route).toBe(ROAD); // nothing known: the road's crossing
     const decks = m.map.crossings!;
     const roadDeck = decks.find((c) => c.kind !== 'footbridge' && roadPast(m, v, c))!;
     expect(roadDeck).toBeDefined();
     enemySeenAt(m, roadDeck);
-    v.route = -1;
+    v.drive.route = -1;
     pickRoute(m, v);
-    expect(v.route).toBeGreaterThanOrEqual(VIA);
-    expect(decks[v.route - VIA]).not.toBe(roadDeck);
-    expect(decks[v.route - VIA]!.kind).not.toBe('footbridge');
-    Object.assign(v, { x: decks[v.route - VIA]!.x, y: decks[v.route - VIA]!.y });
+    expect(v.drive.route).toBeGreaterThanOrEqual(VIA);
+    expect(decks[v.drive.route - VIA]).not.toBe(roadDeck);
+    expect(decks[v.drive.route - VIA]!.kind).not.toBe('footbridge');
+    Object.assign(v, { x: decks[v.drive.route - VIA]!.x, y: decks[v.drive.route - VIA]!.y });
     overCrossing(m, v);
-    expect(v.route).toBe(ROAD); // over the deck, the road's field leads on
+    expect(v.drive.route).toBe(ROAD); // over the deck, the road's field leads on
     expect(roadPast(m, v, roadDeck)).toBe(false);
   }, 30_000); // the real Auental bake: its drive fields take seconds to build
 
@@ -163,13 +164,13 @@ describe('vehicle routes', () => {
   it('the route, its detour, its next plan and a Wreck\'s tick are in the state hash', () => {
     const { m, v } = underWay();
     const h = stateHash(m);
-    v.route = VIA;
+    v.drive.route = VIA;
     const h1 = stateHash(m);
-    v.path = [{ x: 1, y: 2 }];
+    v.drive.path = [{ x: 1, y: 2 }];
     const h2 = stateHash(m);
-    v.path[0]!.y = 3;
+    v.drive.path[0]!.y = 3;
     const h2b = stateHash(m);
-    v.planAt = 7;
+    v.drive.planAt = 7;
     const h2c = stateHash(m);
     wreckAt(m, v);
     const h3 = stateHash(m);

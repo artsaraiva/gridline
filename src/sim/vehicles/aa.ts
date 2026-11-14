@@ -1,13 +1,14 @@
 // #110: the AA, a ground vehicle crewed alone like a tank: the Capture Point its driver lays back on (`aaPoint`), its eyes on the sky
 // and the gun's bursts at what they see (`aaRound`), and its lock-on missile.
 import type { Match } from '../index';
-import { lockOn } from '../air-missiles';
+import { freshLock, lockOn } from '../air-missiles';
 import { dist2, keystone } from '../geometry';
 import { between } from '../rng';
 import { ticksOf, vehicleOf, type Soldier } from '../state';
 import { enemyOf, type Vec2 } from '../types';
-import { crippled, flies, live, unmanned, type Vehicle } from './body';
+import { crippled, flies, live, unmanned, type Vehicle, type VehicleOf } from './body';
 import type { Shot, Shots, VehicleRules } from './core';
+import { freshDrive } from './drive-route';
 import { rifleChance } from './seats';
 import { groundMove, head, setsOff } from './ground';
 
@@ -46,18 +47,18 @@ export function aaPoint(m: Match, v: Vehicle): number {
  * round every `aaFireSeconds`, each followed by an `aaPauseSeconds` pause (seeded); a fresh target gets a fresh burst. A round on a
  * vehicle hits with `aaHitChance` for `aaRoundDamage`; on a Soldier it is the rifle shot model.
  */
-function aaRound(m: Match, s: Soldier, v: Vehicle, shots: Shots): Shot | null {
+function aaRound(m: Match, s: Soldier, v: VehicleOf<'aa'>, shots: Shots): Shot | null {
   const t = m.tune;
   const e = vehicleOf(m, v.target) ?? m.soldiers[v.coax];
   if (!e) {
-    v.until = -1;
+    v.burstUntil = -1;
     return null;
   }
   if (m.tick < s.nextFire) return null;
-  if (v.until < 0) v.until = m.tick + ticksOf(t, between(m, t.aaBurstSeconds));
-  else if (m.tick >= v.until) {
+  if (v.burstUntil < 0) v.burstUntil = m.tick + ticksOf(t, between(m, t.aaBurstSeconds));
+  else if (m.tick >= v.burstUntil) {
     s.nextFire = m.tick + ticksOf(t, between(m, t.aaPauseSeconds));
-    v.until = -1;
+    v.burstUntil = -1;
     return null;
   }
   const shot = 'kind' in e ? shots.roll(m, s, null, t.aaHitChance, t.aaFireSeconds, e) : shots.roll(m, s, e, rifleChance(m, e), t.aaFireSeconds);
@@ -67,6 +68,7 @@ function aaRound(m: Match, s: Soldier, v: Vehicle, shots: Shots): Shot | null {
 }
 
 export const aa: VehicleRules<'aa'> = {
+  init: () => ({ burstUntil: -1, missile: freshLock(), drive: freshDrive() }),
   move: groundMove,
   goal: (m, _sq, _s, v) => aaPoint(m, v), // lays back, whatever its Squad's goal
   onGoal: head, // with no rear point left it stops where it is
@@ -83,6 +85,6 @@ export const aa: VehicleRules<'aa'> = {
   /** It locks on its gun's target when that is in the air class. */
   lock(m, v) {
     const target = vehicleOf(m, v.target);
-    lockOn(m, v, target && flies(target) ? target.id : -1, m.tune.aaLockSeconds, m.tune.aaReloadSeconds);
+    lockOn(m, v, v.missile, target && flies(target) ? target.id : -1, m.tune.aaLockSeconds, m.tune.aaReloadSeconds);
   },
 };

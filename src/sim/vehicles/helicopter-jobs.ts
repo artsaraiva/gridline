@@ -11,7 +11,7 @@ import { membersOf, ticksOf, type Point, type Soldier, type Squad } from '../sta
 import type { Vec2 } from '../types';
 import { crippled, live, riders, SPECS, wreck, type Vehicle } from './body';
 import { fitsRide } from './core';
-import { plan } from './helicopter';
+import { plan, type Heli, type Helicopter } from './helicopter';
 import { getOut, jump, onPad, PILOT_SEAT } from './seats';
 
 const squared = (r: number) => r * r;
@@ -27,45 +27,47 @@ export type Job = (typeof JOBS)[number];
  * Zone by one of them. Support: with a gunner aboard, it circles a point with known enemies. Else Wait. Not while it hovers to land
  * (nor while an EMP holds it: the core skips its `job`).
  */
-export function decideJob(m: Match, v: Vehicle) {
+export function decideJob(m: Match, v: Helicopter) {
   const t = m.tune;
-  if (v.job === 'bail' || v.flareUntil >= 0) return;
+  if (v.heli.job === 'bail' || v.heli.flareUntil >= 0) return;
   const max = SPECS[v.kind].hp(t);
   const aboard = riders(m, v);
   const pax = aboard.filter((s) => !s.crew);
-  const set = (job: Job, o: Partial<Vehicle> = {}) => {
-    Object.assign(v, { job, fetch: -1, spot: null, drop: false, until: -1, ...o });
+  const set = (job: Job, o: Partial<Heli> = {}) => {
+    Object.assign(v.heli, { job, fetch: -1, spot: null, hotDrop: false, until: -1, ...o });
     if (v.airborne) plan(m, v);
   };
   if (crippled(m, v) && !onPad(v)) {
-    Object.assign(v, { job: 'bail', claim: -1, fetch: -1, spot: null, drop: false, crashAt: m.tick + (v.airborne ? ticksOf(t, t.crashSeconds) : 0) });
+    v.claim = -1;
+    Object.assign(v.heli, { job: 'bail', fetch: -1, spot: null, hotDrop: false, crashAt: m.tick + (v.airborne ? ticksOf(t, t.crashSeconds) : 0) });
     for (const s of aboard) v.airborne ? jump(m, s) : getOut(m, s, v);
     return;
   }
-  if (v.job === 'repair' ? v.hp < max : v.hp < t.heliRepairBelow * max) {
-    if (v.job !== 'repair') {
+  if (v.heli.job === 'repair' ? v.hp < max : v.hp < t.heliRepairBelow * max) {
+    if (v.heli.job !== 'repair') {
       if (v.airborne) for (const s of pax) jump(m, s);
-      set('repair', { claim: -1 });
+      v.claim = -1;
+      set('repair');
     }
     return;
   }
   if (pax.length || v.claim >= 0) {
-    if (v.job !== 'ferry') set('ferry');
+    if (v.heli.job !== 'ferry') set('ferry');
     return;
   }
   const calling = callers(m, v);
-  const waited = !v.airborne && !!v.spot && v.landedAt >= 0 && dist2(v, v.spot) < 1 && m.tick - v.landedAt >= Math.round(t.boardWaitSeconds * t.hz); // landed at its pickup and nobody claimed it in time: the fetch is dropped
-  if (v.job === 'ferry' && !waited && calling.some((c) => c.sq.id === v.fetch)) return;
+  const waited = !v.airborne && !!v.heli.spot && v.heli.landedAt >= 0 && dist2(v, v.heli.spot) < 1 && m.tick - v.heli.landedAt >= Math.round(t.boardWaitSeconds * t.hz); // landed at its pickup and nobody claimed it in time: the fetch is dropped
+  if (v.heli.job === 'ferry' && !waited && calling.some((c) => c.sq.id === v.heli.fetch)) return;
   if (calling.length) {
     const { sq, L } = calling[Math.max(0, pickWeighted(m, calling.map((c) => 1 / Math.max(50, Math.sqrt(dist2(c.L, v))))))]!; // the nearest likeliest
     return set('ferry', { fetch: sq.id, spot: landingZone(m, L, sideKnown(m, v.side), (p) => clearOfHq(m, v.side, p, 1)) });
   }
   if (v.seats[1]! >= 0 || v.seats[2]! >= 0) {
-    if (v.job === 'support' && v.spot && m.tick < v.until) return;
+    if (v.heli.job === 'support' && v.heli.spot && m.tick < v.heli.until) return;
     const p = supportPoint(m, v);
     if (p) return set('support', { spot: { x: p.x, y: p.y }, spin: spinFor(m, v), until: m.tick + ticksOf(t, between(m, t.commitSeconds)) });
   }
-  if (v.job !== 'wait') set('wait');
+  if (v.heli.job !== 'wait') set('wait');
 }
 
 /**
@@ -73,16 +75,16 @@ export function decideJob(m: Match, v: Vehicle) {
  * leader of each. A Squad `v` is fetching stays one; #154 one another piloted helicopter is flying to fetch is not (without a
  * pilot nobody thinks for it, so its `fetch` is stale).
  */
-export function callers(m: Match, v: Vehicle): { sq: Squad; L: Soldier }[] {
+export function callers(m: Match, v: Helicopter): { sq: Squad; L: Soldier }[] {
   const t = m.tune;
   return m.squads.flatMap((sq) => {
     const p = m.points[sq.goal];
     const alive = membersOf(m, sq).filter((s) => s.state === 'alive');
     const body = alive.filter((s) => !s.detached);
     const L = body[0];
-    if (!L || !p || sq.side !== v.side || sq.task !== 'point' || alive.some((s) => !s.crew && (s.boarding >= 0 || s.vehicle >= 0)) || m.vehicles.some((o) => o.claim === sq.id || (o !== v && live(o) && o.seats[PILOT_SEAT]! >= 0 && o.fetch === sq.id))) return [];
+    if (!L || !p || sq.side !== v.side || sq.task !== 'point' || alive.some((s) => !s.crew && (s.boarding >= 0 || s.vehicle >= 0)) || m.vehicles.some((o) => o.claim === sq.id || (o !== v && live(o) && o.seats[PILOT_SEAT]! >= 0 && o.kind === 'helicopter' && o.heli.fetch === sq.id))) return [];
     if (dist2(L, p) <= squared(sq.rideM) || (dist2(L, p) <= squared(t.heliFitM) && sq.route < 0)) return [];
-    return v.fetch === sq.id || !m.vehicles.some((o) => fitsRide(m, sq, body, L, o, p, false)) ? [{ sq, L }] : [];
+    return v.heli.fetch === sq.id || !m.vehicles.some((o) => fitsRide(m, sq, body, L, o, p, false)) ? [{ sq, L }] : [];
   });
 }
 
@@ -108,19 +110,22 @@ export function spinFor(m: Match, v: Vehicle): number {
 }
 
 /** #131: on its helipad under `heliRepairBelow` it repairs, with or without a pilot; and regains `heliRepairHpPerS` until full, then it is free for work. */
-export function repairOnPad(m: Match, v: Vehicle) {
+export function repairOnPad(m: Match, v: Helicopter) {
   const t = m.tune;
   const max = SPECS[v.kind].hp(t);
   if (!onPad(v)) return;
-  if (v.job !== 'repair' && v.hp < t.heliRepairBelow * max) Object.assign(v, { job: 'repair', claim: -1, fetch: -1, spot: null, drop: false, until: -1 });
-  if (v.job !== 'repair') return;
+  if (v.heli.job !== 'repair' && v.hp < t.heliRepairBelow * max) {
+    v.claim = -1;
+    Object.assign(v.heli, { job: 'repair', fetch: -1, spot: null, hotDrop: false, until: -1 });
+  }
+  if (v.heli.job !== 'repair') return;
   v.hp = Math.min(max, v.hp + t.heliRepairHpPerS / t.hz);
-  if (v.hp >= max) v.job = 'wait';
+  if (v.hp >= max) v.heli.job = 'wait';
 }
 
 /** #131: a helicopter bailed out of flies on as it was until `crashAt`, then hits the ground where it is: a Wreck, empty, nobody hurt. */
-export function glide(m: Match, v: Vehicle) {
-  if (m.tick >= v.crashAt) return wreck(m, v);
+export function glide(m: Match, v: Helicopter) {
+  if (m.tick >= v.heli.crashAt) return wreck(m, v);
   const at = clearOfHq(m, v.side, { x: v.x + (v.fx * v.speed) / m.tune.hz, y: v.y + (v.fy * v.speed) / m.tune.hz });
   Object.assign(v, { x: at.x, y: at.y, movedAt: m.tick });
 }
@@ -129,12 +134,12 @@ export function glide(m: Match, v: Vehicle) {
  * #131: one tick circling `c` at `orbitM` and `orbitMps`, the way round `spin` says. It steers toward the circle's tangent bent inward or outward by how far it
  * is off the circle (dot products and `Math.sqrt` only, no trig), at `heliMps` while still more than two circles out. A turn is by at most `heliTurnDegPerS`.
  */
-export function circle(m: Match, v: Vehicle, c: Vec2) {
+export function circle(m: Match, v: Helicopter, c: Vec2) {
   const t = m.tune;
   const [rx, ry] = [v.x - c.x, v.y - c.y];
   const r = Math.sqrt(rx * rx + ry * ry) || 1e-6;
   const off = Math.max(-3, Math.min(3, (t.orbitM - r) / t.orbitM)); // + inside the circle: bends outward
-  const [tx, ty] = [(-ry / r) * v.spin + (off * rx) / r, (rx / r) * v.spin + (off * ry) / r];
+  const [tx, ty] = [(-ry / r) * v.heli.spin + (off * rx) / r, (rx / r) * v.heli.spin + (off * ry) / r];
   const n = Math.sqrt(tx * tx + ty * ty); // at least 1: the tangent and the radius are at right angles
   const { fx, fy } = turnToward(v.fx, v.fy, tx / n, ty / n, t.heliTurnDegPerS, t.hz);
   const speed = approach(v.speed, r > 2 * t.orbitM ? t.heliMps : t.orbitMps, t.heliAccel, 1, t.hz);

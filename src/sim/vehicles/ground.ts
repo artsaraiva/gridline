@@ -7,27 +7,30 @@ import { dist2 } from '../geometry';
 import { cellIndex, openRun } from '../grid';
 import type { Soldier, Squad } from '../state';
 import type { Vec2 } from '../types';
-import { SPECS, type Vehicle } from './body';
+import { SPECS, type Ground, type VehicleOf } from './body';
 import type { VehicleRules } from './core';
 import { alongPath, overCrossing, pickRoute, routeFlow } from './drive-route';
 import { takeWheel } from './seats';
 
 /** #107 #108: a ground vehicle's tick in the vehicle phase: with a driver and a goal it drives once full or its driver's wait for others is out; else it stands. */
-export function groundMove(m: Match, v: Vehicle, halted: boolean) {
+export function groundMove(m: Match, v: Ground, halted: boolean) {
   if (v.seats[0]! >= 0 && v.goal >= 0 && (!v.seats.includes(-1) || m.tick >= v.departAt)) step(m, v, halted);
   else v.speed = 0; // no driver, or waiting to set off
 }
 
 /** #107: a ground kind's `onDriver`: its new driver takes the wheel (`takeWheel`), then picks its `goal` and the way there. */
-export const setsOff = (goal: (m: Match, sq: Squad, s: Soldier, v: Vehicle) => number): VehicleRules<'tank'>['onDriver'] => (m, sq, s, v, wait) => {
-  takeWheel(m, v, wait);
-  Object.assign(v, { goal: goal(m, sq, s, v), route: -1 });
-  pickRoute(m, v);
-};
+export const setsOff =
+  <K extends Ground['kind']>(goal: (m: Match, sq: Squad, s: Soldier, v: VehicleOf<K>) => number): NonNullable<VehicleRules<K>['onDriver']> =>
+  (m, sq, s, v, wait) => {
+    takeWheel(m, v, wait);
+    v.goal = goal(m, sq, s, v);
+    v.drive.route = -1;
+    pickRoute(m, v);
+  };
 
 /** #123: at its driver's think, a ground vehicle heads for `goal`: a new goal is a new way there. */
-export function head(m: Match, v: Vehicle, goal: number) {
-  if (goal !== v.goal) v.route = -1;
+export function head(m: Match, v: Ground, goal: number) {
+  if (goal !== v.goal) v.drive.route = -1;
   v.goal = goal;
   pickRoute(m, v);
 }
@@ -42,7 +45,7 @@ export function head(m: Match, v: Vehicle, goal: number) {
  * dead ahead. A turn it could not stop out of it does not make yet: it brakes straight on, and turns once slow enough. A step
  * that would still end on blocked ground is not taken: it stops there and keeps turning. Parked once there.
  */
-export function step(m: Match, v: Vehicle, halt: boolean) {
+export function step(m: Match, v: Ground, halt: boolean) {
   const t = m.tune;
   const g = m.drive[v.side];
   overCrossing(m, v);
@@ -103,7 +106,7 @@ export function step(m: Match, v: Vehicle, halt: boolean) {
   const near = mid?.safe ? mid : attempt(1)!;
   const on = near.safe ? near : move(v.fx, v.fy, 0); // it cannot turn that way yet: straight on, braking
   const a = near.safe ? near : on.safe && on.speed > 0 ? on : near; // stopped, it turns where it stands
-  if (!a.lands) v.path = []; // a detour it can't follow: back to its route
+  if (!a.lands) v.drive.path = []; // a detour it can't follow: back to its route
   v.speed = a.lands ? a.speed : 0;
   Object.assign(v, { fx: a.fx, fy: a.fy });
   if (v.speed > 0) Object.assign(v, { x: a.x, y: a.y, movedAt: m.tick });

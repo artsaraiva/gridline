@@ -204,7 +204,7 @@ describe('#109 the transport helicopter on Kaltenbach', () => {
       expect(Math.max(...off), `${h.side} by a dogleg`).toBeGreaterThan(0.05 * Math.hypot(b.x - a.x, b.y - a.y));
       expect(m.grid.cost[cellIndex(m, f.lz.x, f.lz.y)], `${h.side} sets down where a Soldier can stand`).toBeGreaterThan(0);
       expect((f.lift - f.landed) / HZ).toBeCloseTo(DEFAULT_TUNE.unloadSeconds + DEFAULT_TUNE.spoolSeconds, 0);
-      if (h.job === 'support') expect(h.airborne).toBe(true); // #131: with a gunner aboard and enemies known it now circles a point instead of going home
+      if (h.heli.job === 'support') expect(h.airborne).toBe(true); // #131: with a gunner aboard and enemies known it now circles a point instead of going home
       else expect(h).toMatchObject({ ...h.slot, airborne: false });
       expect(h.seats.slice(3)).toEqual([-1, -1, -1]);
       expect(f.seats.slice(3).every((id) => id < 0 || m.soldiers[id]!.vehicle !== h.id)).toBe(true); // its passengers got out

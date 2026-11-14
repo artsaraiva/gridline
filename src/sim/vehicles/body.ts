@@ -1,12 +1,15 @@
 // The Vehicle body every kind shares (#107, ADR 0005): its record, what each kind is (`SPECS`, #183) and the class predicates
 // read off it, a fresh one in its slot, its Wreck, and an EMP Strike's hold (#143).
 import type { Match } from '../index';
-import type { AirMissile } from '../air-missiles';
+import type { AirMissile, Lock } from '../air-missiles';
 import { enemyOf, type MapData, type SideId, type Tune, type Vec2, type VehicleKind } from '../types';
-import type { Job } from './helicopter-jobs';
+import type { Drive } from './drive-route';
+import type { Heli } from './helicopter';
 import type { Sortie } from './jet';
+import type { Gun } from './tank';
 
-export interface Vehicle {
+/** #183: what every Vehicle kind's body holds, each field one thing for every kind; what only one kind needs is in its own record (`Own`). */
+interface Body {
   id: number;
   side: SideId;
   kind: VehicleKind;
@@ -22,40 +25,39 @@ export interface Vehicle {
   deadAt: number; // tick it was destroyed, -1 = live, DORMANT = a point's slot that has never had one
   goal: number; // index of the Capture Point it drives to (its driver's), -1 = none
   departAt: number; // tick a fresh driver leaves with free seats
-  target: number; // main gun target id (Soldier or vehicle), -1 = none; #110 an AA's gun target (air first, else a light vehicle)
-  coax: number; // coax (or MG) target Soldier id, -1 = none; #110 an AA's infantry target
-  nextFire: number; // tick the main gun may fire again; #110 an AA's or a jet's missile, once locked and reloaded
-  rounds: Round[]; // main gun rounds in the air (they land even if it dies meanwhile)
-  laid: number; // the target the main gun last laid on, -1 = none; a new one costs the aim time; #110 the missile's lock
+  target: number; // what its turret is laid on: its gun's target id (Soldier or vehicle), -1 = none; #110 an AA's gun target (air first, else a light vehicle)
+  coax: number; // the infantry target of its second gun (the coax or MG), -1 = none; #110 an AA's infantry target
+  rounds: Round[]; // main gun rounds (#110 a jet's bombs) in the air (they land even if it dies meanwhile)
   bias: number[]; // its driver's seeded preference per Capture Point, drawn when the driver boards
   point: number; // #108 index of the Capture Point whose owner it appears for, -1 = an HQ slot
   movedAt: number; // #108 last tick it moved
   halt: number; // #108 tick it stopped for someone to get out, -1 = not stopping
-  airborne: boolean; // #109 a helicopter in the air
-  landedAt: number; // #109 tick a helicopter last touched down, -1 = not since it was fresh
+  airborne: boolean; // in the air: #109 a helicopter off the ground, #110 a jet off its base, #101 #139 a lent body while its Asset flies it
   claim: number; // #122 id of the Squad whose riders are walking to it, -1 = none
   claimUntil: number; // #122 tick the claim runs out
-  lz: Vec2 | null; // #124 a helicopter's Landing Zone for its trip out (kept after touchdown: its passengers get out there), null = none yet
-  wp: Vec2 | null; // #124 the waypoint of its dogleg still ahead, null = none (or passed)
-  flareUntil: number; // #124 tick it touches down after hovering over its Landing Zone or slot, -1 = not hovering
-  spoolUntil: number; // #124 tick its rotor is up and it lifts off, -1 = not spooling
-  job: Job; // #131 what a helicopter is doing, decided at its pilot's Squad think
-  fetch: number; // #131 id of the Squad it is flying to fetch, -1 = none
-  spot: Vec2 | null; // #131 the pickup Landing Zone it is bound for (fetching), or the centre it circles (Support, or over a hot goal)
-  spin: number; // #131 which way round it circles: 1 counter-clockwise (the centre on its left), -1 clockwise
-  until: number; // #131 tick its Support Commitment ends, or its orbit over a hot goal (-1 = not begun); #110 an AA's gun burst ends (-1 = none on)
-  drop: boolean; // #131 its riders jump over their Landing Zone (a hot goal) instead of landing; #110 a jet's pass drops a bomb
-  crashAt: number; // #131 tick a helicopter bailed out of hits the ground, -1 = not going down
-  sortie: Sortie; // #110 where a jet is in its sortie (`jet.ts`); a jet's `spot` is its pass's point, `until` the tick its turn or rearm ends, `spin` its turn's way round
-  passes: number; // #110 a jet's passes left in the sortie
-  route: number; // a ground vehicle's way to its goal (drive-route.ts): -1 not chosen, 0 by its road, 1 + c over crossing c first
-  planAt: number; // tick its driver may next plan a detour (drive-route.ts)
-  path: Vec2[]; // the cells still ahead of a detour round known danger (drive-route.ts), followed before the route; empty = none
-  bombs: number; // #110 a jet's bombs left in the sortie
-  prey: number; // #110 a jet's mark: the enemy its pass is aimed at, or the enemy jet it fights; -1 = none
   missiles: AirMissile[]; // #110 lock-on missiles it fired, in flight (they fly on if it dies)
   disabledUntil: number; // #143 the first tick an EMP Strike no longer holds it (`held`); 0 = never held
 }
+
+/** #183: each kind's own record beside the body, named for what it holds; a lent body has none (its state is its Asset's). */
+interface Own {
+  tank: { gun: Gun; drive: Drive };
+  jeep: { drive: Drive };
+  aa: { burstUntil: number; missile: Lock; drive: Drive }; // #110 `burstUntil`: the tick its gun's burst ends, -1 = none on
+  helicopter: { heli: Heli };
+  jet: { sortie: Sortie; missile: Lock };
+  gunship: object;
+  drone: object;
+  recon: object;
+}
+/** #183: the record of a vehicle of `kind` beside its body (its kind's `init`). */
+export type OwnOf<K extends VehicleKind> = Own[K];
+/** #183: a vehicle of kind `K` (of each kind, for a union): the body, and its kind's own record. */
+export type VehicleOf<K extends VehicleKind> = K extends VehicleKind ? Body & { kind: K } & Own[K] : never;
+/** A Vehicle of any kind. */
+export type Vehicle = VehicleOf<VehicleKind>;
+/** #107 #108 #110: a vehicle on the ground grid, driven by the shared drive step (ground.ts). */
+export type Ground = VehicleOf<'tank' | 'jeep' | 'aa'>;
 
 /** A main gun round: fired from (x0, y0) at tick `launch`, landing on (x, y) at tick `land`. */
 export interface Round {
@@ -163,13 +165,10 @@ export const crippled = (m: Match, v: Vehicle) => v.hp < SPECS[v.kind].hp(m.tune
 /** #109: the air layer: off the ground grid, eyes over walls. */
 export const air = (v: Vehicle) => SPECS[v.kind].layer === 'low';
 
-/** A vehicle as it stands fresh in its slot (#110: a jet's is the off-map base). */
-export const fresh = (m: Match, side: SideId, kind: VehicleKind, slot: Vec2) => ({
+/** A vehicle's body as it stands fresh in its slot (#110: a jet's is the off-map base); its kind's own record is its `init` (vehicles/core.ts `renew`). */
+export const fresh = <K extends VehicleKind>(m: Match, side: SideId, kind: K, slot: Vec2) => ({
   side, kind, ...slot, fx: side === 'nato' ? 1 : -1, fy: 0, speed: 0, hp: SPECS[kind].hp(m.tune), seats: Array<number>(SPECS[kind].seats).fill(-1), slot,
-  parked: true, deadAt: -1, goal: -1, departAt: 0, target: -1, coax: -1, nextFire: 0, laid: -1, bias: [] as number[], movedAt: m.tick, halt: -1,
-  airborne: false, landedAt: -1, claim: -1, claimUntil: 0, lz: null as Vec2 | null, wp: null as Vec2 | null, flareUntil: -1, spoolUntil: -1,
-  job: 'wait' as Job, fetch: -1, spot: null as Vec2 | null, spin: 1, until: -1, drop: false, crashAt: -1, sortie: 'idle' as Sortie, passes: 0, bombs: 0, prey: -1, route: -1, planAt: 0, path: [] as Vec2[],
-  disabledUntil: 0,
+  parked: true, deadAt: -1, goal: -1, departAt: 0, target: -1, coax: -1, bias: [] as number[], movedAt: m.tick, halt: -1, airborne: false, claim: -1, claimUntil: 0, disabledUntil: 0,
 });
 
 /** #143: an EMP Strike holds `v`: it neither moves (a helicopter hangs where it is in the air) nor fires, nor does a helicopter change its job. Its riders are untouched. */
