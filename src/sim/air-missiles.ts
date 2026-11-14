@@ -2,13 +2,12 @@
 // locks on a target it holds (`lockOn`), fires one once the lock is done, then reloads; the missile turns after its target, and
 // close on it hits with a seeded chance or flies on past until it is spent (`flyMissiles`).
 import type { Match } from './index';
-import { dist2, inHq } from './geometry';
-import { jetLock } from './vehicles/jet';
+import { dist2 } from './geometry';
 import { turnToward } from './momentum';
 import { rnd } from './rng';
 import { ticksOf, vehicleOf, type Mix } from './state';
 import type { SimEvent } from './types';
-import { flies, held, hurt, live, type Vehicle } from './vehicles';
+import { hurt, live, type Vehicle } from './vehicles';
 
 export interface AirMissile {
   x: number;
@@ -24,11 +23,11 @@ export interface AirMissile {
 const FUSE_M = 6;
 
 /**
- * `v` holds `prey` (a vehicle id, -1 = none) in its sights this tick. A new one starts a lock of `lockSeconds` (kept on `laid`
+ * `v` holds `prey` (a vehicle id, -1 = none) in its sights this tick (its kind's `lock`, in the lock pass: vehicles/core.ts `lockMissiles`). A new one starts a lock of `lockSeconds` (kept on `laid`
  * and `nextFire`, as a tank lays its main gun); once the lock is done and it has reloaded, one missile leaves at it, and the
  * next may `reloadSeconds` on.
  */
-function lockOn(m: Match, v: Vehicle, prey: number, lockSeconds: number, reloadSeconds: number) {
+export function lockOn(m: Match, v: Vehicle, prey: number, lockSeconds: number, reloadSeconds: number) {
   if (prey < 0) {
     v.laid = -1;
     return;
@@ -42,17 +41,6 @@ function lockOn(m: Match, v: Vehicle, prey: number, lockSeconds: number, reloadS
   const d = Math.sqrt(dist2(v, e)) || 1;
   v.missiles.push({ x: v.x, y: v.y, fx: (e.x - v.x) / d, fy: (e.y - v.y) / d, prey, launch: m.tick, missed: false });
   v.nextFire = m.tick + ticksOf(m.tune, reloadSeconds);
-}
-
-/** Each crewed AA locks on its gun's target when that is in the air class; each jet on the enemy jet it fights (`jetLock`). */
-export function launchMissiles(m: Match) {
-  const t = m.tune;
-  for (const v of m.vehicles) {
-    if (!live(v) || v.seats[0]! < 0 || held(m, v) || inHq(m, v.side, v)) continue; // nor out of its own HQ (combat.ts fire); #143 nor while an EMP holds it
-    const target = vehicleOf(m, v.target);
-    if (v.kind === 'aa') lockOn(m, v, target && flies(target) ? target.id : -1, t.aaLockSeconds, t.aaReloadSeconds);
-    else if (v.kind === 'jet') lockOn(m, v, jetLock(m, v), t.jetLockSeconds, t.jetReloadSeconds);
-  }
 }
 
 /** One tick of every missile in flight (a destroyed launcher's fly on): it turns after its live target and, at its fuse, hits or misses. */

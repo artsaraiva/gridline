@@ -7,16 +7,14 @@ import { reactAt } from '../ai/squad';
 import { between, rnd } from '../rng';
 import { blast } from '../assets/strike';
 import { die } from '../combat';
-import { cosDeg } from '../momentum';
-import { dist2, inHq, insidePolygon } from '../geometry';
-import { launchPoint } from '../assets/missile';
+import { dist2, inHq, insidePolygon, launchPoint } from '../geometry';
 import { hashMissiles, type AirMissile } from '../air-missiles';
 import { los, nearestWalkable } from '../grid';
 import { see } from '../memory';
 import { ticksOf, vehicleOf, type Mix, type Soldier, type Squad } from '../state';
-import { SIDES, type SideId, type SimEvent, type Vec2, type VehicleKind, type VehicleView } from '../types';
+import { SIDES, type SideId, type SimEvent, type Tune, type Vec2, type VehicleKind, type VehicleView } from '../types';
 import { aa } from './aa';
-import { air, crippled, DORMANT, flies, flown, fresh, held, high, live, riders, SPECS, unmanned, wreck, type Round, type Vehicle } from './body';
+import { air, crippled, DORMANT, flies, flown, fresh, held, high, live, riders, SPECS, wreck, type Round, type Vehicle } from './body';
 import { helicopter } from './helicopter';
 import { JOBS } from './helicopter-jobs';
 import { jet, SORTIE } from './jet';
@@ -59,6 +57,44 @@ export interface VehicleRules<K extends VehicleKind> {
   onReturn?: { order: number; take(m: Match, sq: Squad, s: Soldier): boolean };
   /** Its leaving rule at a rider's think (`ride`); unset, the shared passenger rule (`passengers`). */
   wantsOut?(m: Match, sq: Squad, s: Soldier, v: Vehicle): boolean;
+  /** How its gun ranks what its eyes see (`look`): #107 the tank's main gun, #110 the AA's. */
+  rank?: {
+    /** How far the gun reaches. */
+    range(t: Tune): number;
+    /** #110: its eyes also see the air class all round out to that range, over walls (one as high as a jet only over the Play Area). */
+    sky?: true;
+    /** Where `e`, `d2` square metres off, ranks as its target: lower first, the nearest within a rank; undefined, not its target. */
+    of(m: Match, v: Vehicle, e: Soldier | Vehicle, d2: number): number | undefined;
+  };
+  /** What `s` aboard fires this tick (`seatFire`), by combat's shot model: the coax or MG (#107 #108), a side gun (#129 #101), #110 the jet's cannon or the AA's bursts. */
+  seatFire?(m: Match, s: Soldier, v: Vehicle, shots: Shots): Shot | null;
+  /** #107: its own gun, in the gun pass (`mainGuns`): it lays on its eyes' target, then fires once laid and reloaded. */
+  gun?: { lay(m: Match, v: Vehicle): void; fire(m: Match, v: Vehicle): void };
+  /** #110: its missile's lock, in the lock pass (`lockMissiles`), with a crew aboard: what it holds in its sights (`lockOn`). */
+  lock?(m: Match, v: Vehicle): void;
+  /** In both Sides' sky, so every view carries it: #110 a jet over the Play Area, #101 #139 a lent body all the way. */
+  inSky?(m: Match, v: Vehicle): boolean;
+}
+
+/** A shot decided from the pre-fire state; combat applies every shot of the tick together afterwards. */
+export interface Shot {
+  shooter: Soldier;
+  target: Soldier | null; // suppressive fire may hit nobody
+  hit: boolean;
+  damage: number;
+  /** Suppressive fire: the aim point, and the enemies close enough to it to be suppressed. */
+  at?: Vec2;
+  near?: Soldier[];
+  /** #107: a Launcher's rocket, or #108 a rifle shot, at this vehicle. */
+  vehicle?: Vehicle;
+}
+
+/** #183: combat's shot model, handed to a kind's `seatFire`, so that no kind module imports combat.ts. */
+export interface Shots {
+  /** A shot by `s` at `target` (or at `vehicle`, a hit's damage the caller's to set) that hits with chance `p`; the next is due `every` seconds on, jittered. */
+  roll(m: Match, s: Soldier, target: Soldier | null, p: number, every: number, vehicle?: Vehicle): Shot;
+  /** Suppressive fire by `s` scattered up to `scatterM` round `aim`; the next is due `every` seconds on. */
+  rake(m: Match, s: Soldier, aim: Vec2, scatterM: number, every: number): Shot;
 }
 
 let table: { [K in VehicleKind]: VehicleRules<K> } | undefined;
@@ -303,14 +339,12 @@ export function drive(m: Match) {
 
 /**
  * Perception, for each vehicle with anyone aboard: one pair of eyes from the hull (the Soldier cone and line of sight at `vehicleVisionMul`
- * x `visionM`) on enemy Soldiers on foot and enemy vehicles; what it sees goes into the memory of every Squad with a rider aboard. A tank's
- * main gun takes an enemy tank first, then any other vehicle, then infantry, nearest within each, in range; the coax (#108: or a jeep's MG)
- * the nearest infantry in its range. #109: a helicopter's eyes see a full circle out to `airVisionM`, over walls (its door gun
- * fires as the MG); anyone's eyes see an airborne vehicle over walls. #110: a jet sees nothing, and only an AA sees one: the AA sees
- * a helicopter, or a jet over the Play Area, a full circle out to `aaRangeM` over walls, and lays its gun on a jet first, else
- * the nearest helicopter, else (#139) the nearest drone or Recon Plane, else the nearest jeep within `aaGroundRangeM` (its infantry target is its coax's); never on a tank.
- * #101: the Gunship is seen and fired on as a helicopter, over the Play Area only as a jet; its own riders look at nothing
- * (its Asset says what it sees, and its gunner's side gun picks its own target, as a helicopter's).
+ * x `visionM`) on enemy Soldiers on foot and enemy vehicles; what it sees goes into the memory of every Squad with a rider aboard. Its
+ * gun, if its kind has one that ranks targets (`rank`: #107 the tank's main gun, #110 the AA's), takes the best-ranked in range, the
+ * nearest within a rank; the coax (#108: or a jeep's MG) the nearest infantry in its range. #109: a helicopter's eyes see a full
+ * circle out to `airVisionM`, over walls (its door gun fires as the MG); anyone's eyes see an airborne vehicle over walls. #110: a jet
+ * sees nothing, and only eyes that see the sky (`rank.sky`: the AA's) see one, over the Play Area. #101: the Gunship's own riders look
+ * at nothing (its Asset says what it sees, and its gunner's side gun picks its own target, as a helicopter's).
  */
 export function look(m: Match, v: Vehicle) {
   const t = m.tune;
@@ -325,11 +359,13 @@ export function look(m: Match, v: Vehicle) {
     const cone = air(v) || (e.x - v.x) * v.fx + (e.y - v.y) * v.fy >= t.visionCos * Math.sqrt(d2);
     return d2 <= R * R && cone && !inHq(m, e.side, e) && (air(v) || !!e.airborne || !!e.chute || los(m, v, e));
   };
-  const aaSees = (u: Vehicle) => dist2(v, u) <= squared(t.aaRangeM) && !inHq(m, u.side, u) && (!high(u) || insidePolygon(m.map.playArea, u.x, u.y));
-  const range = v.kind === 'tank' ? t.tankRangeM : v.kind === 'aa' ? t.aaRangeM : 0;
+  const rank = rulesOf(v.kind).rank;
+  const range = rank?.range(t) ?? 0;
+  const skySees = (u: Vehicle) => dist2(v, u) <= squared(range) && !inHq(m, u.side, u) && (!high(u) || insidePolygon(m.map.playArea, u.x, u.y));
   let best: { id: number; rank: number; d2: number } | null = null;
-  const consider = (id: number, rank: number, d2: number) => {
-    if (d2 <= squared(range) && (!best || rank < best.rank || (rank === best.rank && d2 < best.d2))) best = { id, rank, d2 };
+  const consider = (e: Soldier | Vehicle, d2: number) => {
+    const r = rank?.of(m, v, e, d2);
+    if (r !== undefined && d2 <= squared(range) && (!best || r < best.rank || (r === best.rank && d2 < best.d2))) best = { id: e.id, rank: r, d2 };
   };
   let coaxD2 = squared(SPECS[v.kind].gunM(t));
   for (const e of m.soldiers) {
@@ -337,45 +373,23 @@ export function look(m: Match, v: Vehicle) {
     if (!m.sightings[v.side].some((o) => o.id === e.id && o.tick >= m.tick - 1)) e.uavUntil = -1; // #75, as for a Soldier's eyes
     for (const sq of squads) see(m, sq, e);
     const d2 = dist2(v, e);
-    if (v.kind === 'tank') consider(e.id, 2, d2);
+    consider(e, d2);
     if (d2 <= coaxD2) [v.coax, coaxD2] = [e.id, d2];
   }
   for (const u of m.vehicles) {
-    const aa = v.kind === 'aa' && flies(u);
-    if (u.side === v.side || !live(u) || (high(u) && !aa) || !(aa ? aaSees(u) : sees(u))) continue;
+    const sky = !!rank?.sky && flies(u);
+    if (u.side === v.side || !live(u) || (high(u) && !sky) || !(sky ? skySees(u) : sees(u))) continue;
     for (const sq of squads) see(m, sq, u);
-    const d2 = dist2(v, u);
-    if (v.kind === 'tank') consider(u.id, u.kind === 'tank' ? 0 : 1, d2);
-    else if (aa) consider(u.id, u.kind === 'jet' ? 0 : unmanned(u) ? 2 : 1, d2); // #139: a jet, then a helicopter (the Gunship is fired on as one), then a drone or the Recon Plane
-    else if (v.kind === 'aa' && u.kind === 'jeep' && d2 <= squared(t.aaGroundRangeM)) consider(u.id, 3, d2);
+    consider(u, dist2(v, u));
   }
   if (best || v.coax >= 0) for (const sq of squads) sq.lastSeen = m.tick;
   v.target = (best as { id: number } | null)?.id ?? -1;
 }
 
 /**
- * #129: the nearest enemy on foot a helicopter's gun in `seat` (1 left, 2 right) can fire at: within the gun's range and its
- * `gunArcDeg` arc centred on its beam (a dot product against the beam, no trig), outside its HQ. Null for any other seat.
- */
-export function sideGun(m: Match, v: Vehicle, seat: number): Soldier | null {
-  const t = m.tune;
-  const out = beam(v, seat);
-  if (!out) return null;
-  const cos = cosDeg(t.gunArcDeg / 2);
-  let best: Soldier | null = null;
-  let bestD2 = squared(SPECS[v.kind].gunM(t));
-  for (const e of m.soldiers) {
-    if (e.side === v.side || e.state !== 'alive' || e.vehicle >= 0 || inHq(m, e.side, e)) continue;
-    const d2 = dist2(v, e);
-    if (d2 <= bestD2 && (e.x - v.x) * out.x + (e.y - v.y) * out.y >= cos * Math.sqrt(d2)) [best, bestD2] = [e, d2];
-  }
-  return best;
-}
-
-/**
  * A Soldier on foot sees an enemy vehicle at `vehicleVisionMul` x its range, in its cone and line of sight, outside its HQ.
  * #108: the nearest jeep (#109: or helicopter) it sees closer than `withinD2` (metres squared), a rifle target, or null.
- * #109: an airborne one over walls. #110: never a jet (only an AA sees one; #101 nor the Gunship); an AA is seen, but no rifle target.
+ * #109: an airborne one over walls. #110: never a jet (only an AA sees one; #101 nor the Gunship); armour (a tank, an AA) is seen, but no rifle target.
  */
 export function seeVehicles(m: Match, s: Soldier, sq: Squad, withinD2: number): Vehicle | null {
   const t = m.tune;
@@ -386,7 +400,7 @@ export function seeVehicles(m: Match, s: Soldier, sq: Squad, withinD2: number): 
     const d2 = dist2(s, v);
     if (d2 > R * R || (v.x - s.x) * s.fx + (v.y - s.y) * s.fy < t.visionCos * Math.sqrt(d2) || inHq(m, v.side, v) || (!v.airborne && !los(m, s, v))) continue;
     see(m, sq, v);
-    if ((v.kind === 'jeep' || air(v)) && d2 < withinD2) [jeep, withinD2] = [v, d2];
+    if (!SPECS[v.kind].armour && d2 < withinD2) [jeep, withinD2] = [v, d2];
   }
   return jeep;
 }
@@ -395,33 +409,38 @@ export function seeVehicles(m: Match, s: Soldier, sq: Squad, withinD2: number): 
 export const targetOf = (m: Match, v: Vehicle): Vec2 | undefined => m.soldiers[v.target] ?? vehicleOf(m, v.target);
 
 /**
- * The combat phase: each driver whose main gun is due fires at its target in range, a round that flies to the target's spot
- * at `tankShellMps`; then every round due lands, a Strike-shaped impact hitting the enemy's vehicles in its kill radius:
- * `tankVsVehicleDamage` on a tank (#110 or an AA), anything lighter destroyed. No Commander is paid for what it kills. #110: a
+ * The combat phase: the gun pass, each kind's own gun in vehicle order (`gun`: #107 a tank's main gun fires a round that flies to
+ * its target's spot); then every round due lands, a Strike-shaped impact hitting the enemy's vehicles in its kill radius:
+ * `tankVsVehicleDamage` on armour (a tank, #110 an AA), anything lighter destroyed. No Commander is paid for what it kills. #110: a
  * jet's bombs land the same way, each a blast of its own (`jetBomb*`), friend or foe as a Strike's, never on the air.
  */
 export function mainGuns(m: Match, events: SimEvent[]) {
   const t = m.tune;
   for (const v of m.vehicles) {
-    if (v.kind !== 'tank') continue;
-    const e = targetOf(m, v);
-    if (e && v.target !== v.laid) { // laying the gun on a new target takes a seeded moment, so two tanks never trade the first round together
-      v.laid = v.target;
-      v.nextFire = Math.max(v.nextFire, m.tick + Math.round((t.tankAimSeconds[0] + rnd(m) * (t.tankAimSeconds[1] - t.tankAimSeconds[0])) * t.hz));
-    }
-    if (!live(v) || v.seats[0]! < 0 || !e || held(m, v) || m.tick < v.nextFire || dist2(v, e) > t.tankRangeM * t.tankRangeM || inHq(m, v.side, v)) continue; // nor out of its own HQ (combat.ts fire); #143 nor while an EMP holds it (its rounds in the air still land)
-    v.nextFire = m.tick + Math.round(t.tankFireSeconds * t.hz);
-    const flight = Math.max(1, Math.round((Math.sqrt(dist2(v, e)) / t.tankShellMps) * t.hz));
-    v.rounds.push({ x0: v.x, y0: v.y, x: e.x, y: e.y, launch: m.tick, land: m.tick + flight });
+    const gun = rulesOf(v.kind).gun;
+    if (!gun) continue;
+    gun.lay(m, v);
+    if (!held(m, v)) gun.fire(m, v); // #143: nor while an EMP holds it (its rounds in the air still land)
   }
   for (const v of m.vehicles)
     for (const r of v.rounds.filter((r) => r.land <= m.tick)) {
       events.push({ kind: 'impact', side: v.side, x: r.x, y: r.y, asset: r.bomb ? 'bomb' : 'tank', from: v.id });
       if (r.bomb) blast(m, v.side, r, { killM: t.jetBombKillM, woundM: t.jetBombWoundM, suppressM: t.jetBombSuppressM, suppression: 1 }, null, events, { damage: (u) => (u.airborne ? 0 : t.jetBombVehicleDamage) });
-      else blast(m, v.side, r, { killM: t.tankKillM, woundM: t.tankWoundM, suppressM: t.tankSuppressM, suppression: t.tankSuppression }, null, events, { damage: (u) => (u.kind === 'tank' || u.kind === 'aa' ? t.tankVsVehicleDamage : Infinity), foesOnly: true });
+      else blast(m, v.side, r, { killM: t.tankKillM, woundM: t.tankWoundM, suppressM: t.tankSuppressM, suppression: t.tankSuppression }, null, events, { damage: (u) => (SPECS[u.kind].armour ? t.tankVsVehicleDamage : Infinity), foesOnly: true });
       v.rounds.splice(v.rounds.indexOf(r), 1);
     }
 }
+
+/** #110: the lock pass: each crewed vehicle whose kind locks a missile on (`lock`), not out of its own HQ (combat.ts fire), nor while an EMP holds it (#143). */
+export function lockMissiles(m: Match) {
+  for (const v of m.vehicles) {
+    const lock = rulesOf(v.kind).lock;
+    if (lock && live(v) && v.seats[0]! >= 0 && !held(m, v) && !inHq(m, v.side, v)) lock(m, v);
+  }
+}
+
+/** #107: what `s` aboard `v` fires this tick: its kind's `seatFire`, by combat's shot model; nothing while an EMP holds `v` (#143). */
+export const seatFire = (m: Match, s: Soldier, v: Vehicle, shots: Shots): Shot | null => (held(m, v) ? null : (rulesOf(v.kind).seatFire?.(m, s, v, shots) ?? null));
 
 /** A Launcher is roster member 1 of its Squad. */
 export const isLauncher = (m: Match, s: Soldier) => m.squads[s.squad]!.members[1] === s.id;
@@ -464,7 +483,7 @@ export function vehicleViews(m: Match, side: SideId, seen: Set<number>): Vehicle
   };
   const views: VehicleView[] = [];
   for (const v of m.vehicles) {
-    const sky = (v.kind === 'jet' && v.airborne && insidePolygon(m.map.playArea, v.x, v.y)) || flown(v); // #110: a jet over the Play Area is in both Sides' sky; #101 the Gunship all the way (layers/gunship.ts draws it from its Asset), #139 a drone and the Recon Plane too
+    const sky = !!rulesOf(v.kind).inSky?.(m, v); // #110 #101 #139 (layers/gunship.ts draws the Gunship from its Asset)
     if (!live(v) || (v.side !== side && !seen.has(v.id) && !sky)) continue; // #119: an airborne helicopter too, only when spotted
     const base = { id: v.id, side: v.side, kind: v.kind, x: v.x, y: v.y, fx: v.fx, fy: v.fy, ...turret(v) };
     const rounds = v.rounds.map((r) => ({ from: { x: r.x0, y: r.y0 }, to: { x: r.x, y: r.y }, flight: (m.tick - r.launch) / (r.land - r.launch) }));

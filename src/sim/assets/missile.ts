@@ -3,36 +3,13 @@
 // it leaves at once from beyond the Play Area behind the caller's HQ and flies level and straight at the spot; the
 // flight is its warning, and it is in the sky, so both Sides' views carry it.
 import type { Match } from '../index';
-import { dist2, keystone } from '../geometry';
+import { dist2, keystone, launchPoint } from '../geometry';
 import type { Mix } from '../state';
-import type { SideId, Vec2 } from '../types';
+import type { SideId } from '../types';
 import { assetRadio, type Effect, type Kind } from './core';
 import { blast } from './strike';
 
 const CENTRE = { x: 0, y: 0 };
-/** The launch point sits this far beyond the Play Area edge. */
-const BEYOND_M = 1100;
-
-
-/** Where the ray from the map centre through `side`'s HQ leaves the Play Area, BEYOND_M further on. */
-export function launchPoint(m: Match, side: SideId): Vec2 {
-  const d = m.map.hqs[side];
-  const poly = m.map.playArea;
-  let far = 1; // the HQ itself, should the ray miss every edge
-  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-    const a = poly[j]!;
-    const ex = poly[i]!.x - a.x;
-    const ey = poly[i]!.y - a.y;
-    const denom = d.x * ey - d.y * ex;
-    if (denom === 0) continue;
-    const t = (a.x * ey - a.y * ex) / denom;
-    const u = (a.x * d.y - a.y * d.x) / denom;
-    if (u >= 0 && u <= 1 && t > far) far = t;
-  }
-  const len = Math.sqrt(d.x * d.x + d.y * d.y) || 1;
-  return { x: d.x * far + (d.x / len) * BEYOND_M, y: d.y * far + (d.y / len) * BEYOND_M };
-}
-
 /** Why `side` can't call a heavy Asset (this, #101 the Gunship) now: it needs every keystone Capture Point (#150); null when it may. */
 export function heavyGate(m: Match, side: SideId): string | null {
   if (!m.tune.missileGated) return null;

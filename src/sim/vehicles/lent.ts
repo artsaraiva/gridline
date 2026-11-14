@@ -8,7 +8,7 @@ import { membersOf, vehicleOf, type Soldier, type Squad } from '../state';
 import type { Vec2 } from '../types';
 import { crippled, DORMANT, fresh, live, SPECS, type Vehicle } from './body';
 import { mount, type VehicleRules } from './core';
-import { goalOf, startCrew } from './seats';
+import { gunner, goalOf, seatGun, sideGun, startCrew } from './seats';
 
 /** #101: the Gunship's gun seat; the passenger seats follow it. */
 export const GUNSHIP_GUN = 1;
@@ -38,12 +38,14 @@ export function gunshipOnReturn(m: Match, sq: Squad, s: Soldier): boolean {
   return true;
 }
 
-/** #139: a drone or the Recon Plane: nobody aboard, and it moves only as its Asset flies it, so it takes no part in the shared rules. */
-export const lent: VehicleRules<'drone' | 'recon'> = {};
+/** #139: a drone or the Recon Plane: nobody aboard, and it moves only as its Asset flies it; in both Sides' sky all the way. */
+export const lent: VehicleRules<'drone' | 'recon'> = { inSky: () => true };
 
 /** #101: the Gunship: as a lent body, and its seats for Soldiers coming back. */
 export const gunship: VehicleRules<'gunship'> = {
   seatFor: (_m, v, s) => (s.crew ? GUNSHIP_GUN : v.seats.indexOf(-1, GUNSHIP_GUN + 1)), // its gunner or a passenger; nobody takes the pilot's seat
   onReturn: { order: 3, take: gunshipOnReturn }, // after a jet's pilot and a helicopter's crew
   wantsOut: () => false, // its Asset puts each one out (assets/gunship.ts)
+  seatFire: (m, s, v, shots) => seatGun(m, s, v, gunner(v) === s.id ? sideGun(m, v, GUNSHIP_GUN) : undefined, shots), // its one gun is its gun seat's, the left
+  inSky: () => true, // all the way (layers/gunship.ts draws it from its Asset)
 };

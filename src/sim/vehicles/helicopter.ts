@@ -13,7 +13,7 @@ import { air, crippled, live, riders, type Vehicle } from './body';
 import { mount, type VehicleRules } from './core';
 import { dogleg, landingZone } from './flight';
 import { circle, decideJob, glide, repairOnPad, spinFor } from './helicopter-jobs';
-import { alight, CREW_SEATS, goalOf, inReach, jump, onPad, startCrew, stintOver, takeWheel } from './seats';
+import { alight, CREW_SEATS, goalOf, inReach, jump, onPad, seatGun, sideGun, startCrew, stintOver, takeWheel } from './seats';
 
 const squared = (r: number) => r * r;
 
@@ -198,4 +198,5 @@ export const helicopter: VehicleRules<'helicopter'> = {
   },
   onReturn: { order: 2, take: crewOnReturn }, // after a jet's pilot
   wantsOut,
+  seatFire: (m, s, v, shots) => seatGun(m, s, v, sideGun(m, v, v.seats.indexOf(s.id)), shots), // #129: a gun per side seat
 };

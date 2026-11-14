@@ -16,7 +16,7 @@
 // home. It is in the sky, so both Sides' views carry it; the enemy AA fires on it as on a helicopter: under a third of its hit
 // points it leaves early, at 0 it falls as a Wreck where it was and fires no more (shells already in the air still land).
 // Its path is stepped a tick at a time, turning by `turnToward`'s polynomial step (no trig).
-import { dist2, inHq } from '../geometry';
+import { dist2, inHq, launchPoint } from '../geometry';
 import { known, markable } from '../vehicles/jet';
 import { turnToward } from '../momentum';
 import { pickWeighted, rnd } from '../rng';
@@ -26,7 +26,7 @@ import { enemyOf, type SideId, type SimEvent, type Tune, type Vec2 } from '../ty
 import { bail, crippled, goalOf, jump, live, riders, sleep, wake, type Vehicle } from '../vehicles';
 import { shellBlast } from './barrage';
 import { assetRadio, type Effect, type Kind } from './core';
-import { heavyGate, launchPoint } from './missile';
+import { heavyGate } from './missile';
 import { blast } from './strike';
 
 const PHASES = ['inbound', 'station', 'leaving', 'down'] as const;

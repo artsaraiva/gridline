@@ -8,14 +8,15 @@
 import type { Match } from '../index';
 import { bestPoint } from '../ai/squad';
 import { assetContacts } from '../assets/core';
-import { launchPoint } from '../assets/missile';
-import { clearOfHq, dist2, inHq, insidePolygon } from '../geometry';
+import { clearOfHq, dist2, inHq, insidePolygon, launchPoint } from '../geometry';
 import { cosDeg, turnToward } from '../momentum';
 import { between, pickWeighted, rnd } from '../rng';
 import { membersOf, ticksOf, vehicleOf, type Soldier, type Squad } from '../state';
 import { enemyOf, type SideId, type Vec2 } from '../types';
+import { lockOn } from '../air-missiles';
 import { crippled, high, live, SPECS, type Vehicle } from './body';
-import { mount, type VehicleRules } from './core';
+import { mount, type Shot, type Shots, type VehicleRules } from './core';
+import { rifleChance } from './seats';
 
 /** Where a jet is in its sortie. Idle: no pilot, at the base. Rearming: flying home (`until` -1), then at the base until `until`. */
 export const SORTIE = ['idle', 'inbound', 'outbound', 'turning', 'rearming', 'dogfight'] as const;
@@ -297,4 +298,23 @@ export const jet: VehicleRules<'jet'> = {
   },
   onReturn: { order: 1, take: jetOnReturn }, // first: as BF4's deploy screen puts you in the air
   wantsOut: () => false, // its pilot never gets out
+  seatFire: cannon,
+  lock: (m, v) => lockOn(m, v, jetLock(m, v), m.tune.jetLockSeconds, m.tune.jetReloadSeconds), // on the enemy jet it fights
+  inSky: (m, v) => v.airborne && insidePolygon(m.map.playArea, v.x, v.y), // over the Play Area
 };
+
+/**
+ * #110: a jet's cannon in its strip, at what the Side knows (`jetTarget`): the rifle shot model, `jetVsVehicleDamage` a hit on a
+ * vehicle. With no Contact in the strip it rakes its mark's last known spot instead, as suppressive fire scattered `jetStripM`.
+ */
+function cannon(m: Match, s: Soldier, v: Vehicle, shots: Shots): Shot | null {
+  const t = m.tune;
+  if (m.tick < s.nextFire) return null;
+  const e = jetTarget(m, v);
+  if (!e) return v.sortie === 'inbound' && v.prey >= 0 && dist2(v, v.spot!) <= t.jetFireM * t.jetFireM ? shots.rake(m, s, v.spot!, t.jetStripM, t.jetFireSeconds) : null;
+  if ('kind' in e) {
+    const shot = shots.roll(m, s, null, t.hitChance, t.jetFireSeconds, e);
+    return { ...shot, damage: shot.hit ? (e.kind === 'jet' ? t.jetVsJetDamage : t.jetVsVehicleDamage) : 0 };
+  }
+  return shots.roll(m, s, e, rifleChance(m, e), t.jetFireSeconds);
+}

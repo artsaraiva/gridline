@@ -2,14 +2,15 @@
 import type { Match } from '../index';
 import { driveFlow } from '../ai/flow';
 import { bestPoint } from '../ai/squad';
-import { dist2 } from '../geometry';
+import { dist2, inHq } from '../geometry';
+import { rnd } from '../rng';
 import { sideKnown } from '../memory';
 import { vehicleOf, type Soldier, type Squad } from '../state';
 import type { Vec2 } from '../types';
 import { crippled, live, type Vehicle } from './body';
-import type { VehicleRules } from './core';
+import { targetOf, type VehicleRules } from './core';
 import { groundMove, head, setsOff } from './ground';
-import { goalOf } from './seats';
+import { coax, goalOf } from './seats';
 
 const squared = (r: number) => r * r;
 
@@ -38,4 +39,24 @@ export const tank: VehicleRules<'tank'> = {
   onDriver: setsOff(tankPoint),
   boardsOnFoot: true,
   wantsOut: (m, _sq, _s, v) => crippled(m, v), // its crew get out only under a third of its hit points
+  rank: { range: (t) => t.tankRangeM, of: (_m, _v, e) => ('kind' in e ? (e.kind === 'tank' ? 0 : 1) : 2) }, // an enemy tank first, then any other vehicle, then infantry
+  seatFire: coax,
+  gun: {
+    /** Laying the gun on a new target takes a seeded moment, so two tanks never trade the first round together. */
+    lay(m, v) {
+      const t = m.tune;
+      if (!targetOf(m, v) || v.target === v.laid) return;
+      v.laid = v.target;
+      v.nextFire = Math.max(v.nextFire, m.tick + Math.round((t.tankAimSeconds[0] + rnd(m) * (t.tankAimSeconds[1] - t.tankAimSeconds[0])) * t.hz));
+    },
+    /** Its driver fires once laid and reloaded at its target in range (not out of its own HQ: combat.ts fire): a round that flies to the target's spot at `tankShellMps`. */
+    fire(m, v) {
+      const t = m.tune;
+      const e = targetOf(m, v);
+      if (!live(v) || v.seats[0]! < 0 || !e || m.tick < v.nextFire || dist2(v, e) > t.tankRangeM * t.tankRangeM || inHq(m, v.side, v)) return;
+      v.nextFire = m.tick + Math.round(t.tankFireSeconds * t.hz);
+      const flight = Math.max(1, Math.round((Math.sqrt(dist2(v, e)) / t.tankShellMps) * t.hz));
+      v.rounds.push({ x0: v.x, y0: v.y, x: e.x, y: e.y, launch: m.tick, land: m.tick + flight });
+    },
+  },
 };

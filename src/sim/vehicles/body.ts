@@ -106,6 +106,7 @@ type VehicleSpec = {
   lent: boolean; // #101 #139: its Asset flies it, wakes it and puts it to sleep; the vehicle phase leaves it alone
   leavesWreck: boolean; // #139: a drone or the Recon Plane leaves none (too small to block a road or to mark the map)
   ridersBail: boolean; // #101: everyone aboard bails out as it is shot down, instead of dying with it
+  armour: boolean; // #107 #110: a tank's round only damages it (`tankVsVehicleDamage`), and rifles never fire on it; #108 anything lighter dies of a round and is a rifle target
 } & ({ layer: 'ground'; handling: { accel: Stat; turnDegPerS: Stat } } | { layer: 'low' | 'high'; handling?: never });
 
 /** #154: the map's vehicle slots of `kind` for a Side. */
@@ -116,35 +117,35 @@ const none = (): Vec2[] => [];
 export const SPECS: { [K in VehicleKind]: VehicleSpec } = {
   tank: {
     hp: (t) => t.tankHp, seats: 2, roadMps: (t) => t.tankRoadMps, openMps: (t) => t.tankOpenMps, gunSeconds: (t) => t.coaxFireSeconds, gunM: (t) => t.coaxRangeM,
-    handling: { accel: (t) => t.tankAccel, turnDegPerS: (t) => t.tankTurnDegPerS }, layer: 'ground', perSide: (t) => t.tanksPerSide, slots: slotted('tank'), lent: false, leavesWreck: true, ridersBail: false,
+    handling: { accel: (t) => t.tankAccel, turnDegPerS: (t) => t.tankTurnDegPerS }, layer: 'ground', perSide: (t) => t.tanksPerSide, slots: slotted('tank'), lent: false, leavesWreck: true, ridersBail: false, armour: true,
   },
   jeep: {
     hp: (t) => t.jeepHp, seats: 4, roadMps: (t) => t.jeepRoadMps, openMps: (t) => t.jeepOpenMps, gunSeconds: (t) => t.mgFireSeconds, gunM: (t) => t.mgRangeM,
-    handling: { accel: (t) => t.jeepAccel, turnDegPerS: (t) => t.jeepTurnDegPerS }, layer: 'ground', perSide: (t) => t.jeepsPerSide, slots: slotted('jeep'), lent: false, leavesWreck: true, ridersBail: false,
+    handling: { accel: (t) => t.jeepAccel, turnDegPerS: (t) => t.jeepTurnDegPerS }, layer: 'ground', perSide: (t) => t.jeepsPerSide, slots: slotted('jeep'), lent: false, leavesWreck: true, ridersBail: false, armour: false,
   },
   helicopter: {
     hp: (t) => t.heliHp, seats: 6, roadMps: (t) => t.heliMps, openMps: (t) => t.heliMps, gunSeconds: (t) => t.mgFireSeconds, gunM: (t) => t.mgRangeM,
-    layer: 'low', perSide: (t) => t.helisPerSide, slots: (map, side) => map.helipad?.[side] ?? [], lent: false, leavesWreck: true, ridersBail: false, // #109: its slots are its helipads
+    layer: 'low', perSide: (t) => t.helisPerSide, slots: (map, side) => map.helipad?.[side] ?? [], lent: false, leavesWreck: true, ridersBail: false, armour: false, // #109: its slots are its helipads
   },
   jet: {
     hp: (t) => t.jetHp, seats: 1, roadMps: (t) => t.jetMps, openMps: (t) => t.jetMps, gunSeconds: (t) => t.jetFireSeconds, gunM: () => 0,
-    layer: 'high', perSide: (t, map, side) => t.jetsPerSide ?? map.jets?.[side] ?? 0, slots: none, lent: false, leavesWreck: true, ridersBail: false, // #154: else the map's `jets`, at the off-map base
+    layer: 'high', perSide: (t, map, side) => t.jetsPerSide ?? map.jets?.[side] ?? 0, slots: none, lent: false, leavesWreck: true, ridersBail: false, armour: false, // #154: else the map's `jets`, at the off-map base
   },
   aa: {
     hp: (t) => t.aaHp, seats: 1, roadMps: (t) => t.aaRoadMps, openMps: (t) => t.aaOpenMps, gunSeconds: (t) => t.aaFireSeconds, gunM: (t) => t.aaGroundRangeM,
-    handling: { accel: (t) => t.tankAccel, turnDegPerS: (t) => t.tankTurnDegPerS }, layer: 'ground', perSide: (t) => t.aasPerSide, slots: slotted('aa'), lent: false, leavesWreck: true, ridersBail: false, // #110: an AA handles as a tank
+    handling: { accel: (t) => t.tankAccel, turnDegPerS: (t) => t.tankTurnDegPerS }, layer: 'ground', perSide: (t) => t.aasPerSide, slots: slotted('aa'), lent: false, leavesWreck: true, ridersBail: false, armour: true, // #110: an AA handles as a tank
   },
   gunship: { // #101: the pilot's seat stays empty (its Asset flies it), then the gun seat and four passengers; one a Side, whatever the map
     hp: (t) => t.gunshipHp, seats: 6, roadMps: (t) => t.gunshipSpeedMps, openMps: (t) => t.gunshipSpeedMps, gunSeconds: (t) => t.mgFireSeconds, gunM: (t) => t.gunshipRangeM,
-    layer: 'high', perSide: () => 1, slots: none, lent: true, leavesWreck: true, ridersBail: true,
+    layer: 'high', perSide: () => 1, slots: none, lent: true, leavesWreck: true, ridersBail: true, armour: false,
   },
   drone: { // #139: nobody aboard, no gun; one a Side
     hp: (t) => t.droneHp, seats: 0, roadMps: (t) => t.droneSpeedMps, openMps: (t) => t.droneSpeedMps, gunSeconds: () => 0, gunM: () => 0,
-    layer: 'high', perSide: () => 1, slots: none, lent: true, leavesWreck: false, ridersBail: false,
+    layer: 'high', perSide: () => 1, slots: none, lent: true, leavesWreck: false, ridersBail: false, armour: false,
   },
   recon: { // #139: likewise, the Recon Plane
     hp: (t) => t.reconHp, seats: 0, roadMps: (t) => t.reconSpeedMps, openMps: (t) => t.reconSpeedMps, gunSeconds: () => 0, gunM: () => 0,
-    layer: 'high', perSide: () => 1, slots: none, lent: true, leavesWreck: false, ridersBail: false,
+    layer: 'high', perSide: () => 1, slots: none, lent: true, leavesWreck: false, ridersBail: false, armour: false,
   },
 };
 
@@ -176,10 +177,10 @@ export const held = (m: Match, v: Vehicle) => m.tick < v.disabledUntil;
 /** #143: an EMP Strike holds `v` until the tick `until`; a second one over it holds it as long as the later says. */
 export const hold = (v: Vehicle, until: number) => void (v.disabledUntil = Math.max(v.disabledUntil, until));
 
-/** `v` is destroyed where it is: a Wreck, seen by the enemy only if they saw it in the last perception phase (#119: in the air too). #139: a drone or the Recon Plane leaves none (too small to block a road or to mark the map). */
+/** `v` is destroyed where it is: a Wreck, seen by the enemy only if they saw it in the last perception phase (#119: in the air too); #101 a lent body (the Gunship) falls in both Sides' sky. #139: a drone or the Recon Plane leaves none (too small to block a road or to mark the map). */
 export function wreck(m: Match, v: Vehicle) {
   if (!SPECS[v.kind].leavesWreck) return void Object.assign(v, { hp: 0, deadAt: m.tick, airborne: false });
-  const seen = v.kind === 'gunship' || m.sightings[enemyOf(v.side)].some((o) => o.id === v.id && o.tick >= m.tick - 1);
+  const seen = SPECS[v.kind].lent || m.sightings[enemyOf(v.side)].some((o) => o.id === v.id && o.tick >= m.tick - 1);
   m.wrecks.push({ side: v.side, kind: v.kind, x: v.x, y: v.y, fx: v.fx, fy: v.fy, seen, tick: m.tick });
   Object.assign(v, { hp: 0, deadAt: m.tick, target: -1, coax: -1, airborne: false });
 }
