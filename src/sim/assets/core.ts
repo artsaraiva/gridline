@@ -3,6 +3,7 @@
 // #101: a kind may take a second call while it works as a new spot for the same effect (`retask`: the Gunship's focus).
 import type { Match } from '../index';
 import { chord, inHq, insidePolygon, lineHits } from '../geometry';
+import { provideContacts } from '../contacts';
 import { gridRef } from '../grid-ref';
 import type { Mix } from '../state';
 import type { Soldier } from '../state';
@@ -180,6 +181,7 @@ export function assetEffects(m: Match, events: SimEvent[]) {
 export function assetContacts(m: Match, side: SideId): Soldier[] {
   return m.assets.effects.filter((e) => e.side === side).flatMap((e) => KINDS[e.asset]!.contacts?.(m, e) ?? []);
 }
+provideContacts(assetContacts); // #183: for the rules that aim at them without importing the Assets (contacts.ts)
 
 export function assetViews(m: Match, side: SideId): AssetView[] {
   const t = m.tune;

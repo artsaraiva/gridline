@@ -28,7 +28,7 @@ import { borrow, crippled, homeward, lost, paradrop, release, steer, type Vehicl
 import { shellBlast } from './barrage';
 import { assetRadio, type Effect, type Kind } from './core';
 import { heavyGate } from './missile';
-import { blast } from './strike';
+import { blast } from '../damage';
 
 const PHASES = ['inbound', 'station', 'leaving', 'down'] as const;
 

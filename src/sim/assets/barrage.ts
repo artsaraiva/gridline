@@ -8,7 +8,7 @@ import { rnd } from '../rng';
 import type { Mix } from '../state';
 import type { Tune, Vec2 } from '../types';
 import { assetRadio, type Kind } from './core';
-import { blast, type Blast } from './strike';
+import { blast, type Blast } from '../damage';
 
 /** One shell: where it lands, the tick it leaves and the tick it lands. #101: a Gunship's also where it left the aircraft. */
 export interface Shell {

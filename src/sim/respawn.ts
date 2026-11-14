@@ -4,10 +4,10 @@ import { resetSoldierAi } from './ai';
 import { insideCount } from './capture';
 import { canStand, dist2 } from './geometry';
 import { nearestWalkable } from './grid';
-import { footLeader, inSky, lastDeath, membersOf, vehicleOf, wiped, type Point, type Soldier, type Squad } from './state';
+import { footLeader, lastDeath, membersOf, vehicleOf, wiped, type Point, type Soldier, type Squad } from './state';
 import { rnd } from './rng';
 import { enemyOf, type SideId, type SimEvent, type Vec2 } from './types';
-import { boardOnReturn, leave } from './vehicles';
+import { boardOnReturn, inSky, leave } from './vehicles';
 import type { Effect } from './assets/core';
 import { beaconDenied, liveBeacon } from './assets/crate';
 

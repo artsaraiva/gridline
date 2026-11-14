@@ -5,8 +5,7 @@ import { TEST_FIELD } from '../src/maps/test-field';
 import { commanderView, createMatch, step, SIDES, type MapData, type MatchResult, type SideId, type Tune } from '../src/sim';
 import { DEFAULT_TUNE } from '../src/sim/tune';
 import { JOBS, type Job } from '../src/sim/vehicles/helicopter-jobs';
-import { live, PILOT_SEAT } from '../src/sim/vehicles';
-import { inSky } from '../src/sim/state';
+import { inSky, live, PILOT_SEAT } from '../src/sim/vehicles';
 
 /** Built on first use: Auental's terrain takes a moment to resample. */
 export const MAPS: Record<string, () => MapData> = { kaltenbach: () => KALTENBACH, auental: () => bake('auental'), river: () => RIVER_FIELD, test: () => TEST_FIELD };

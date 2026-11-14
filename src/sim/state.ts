@@ -142,8 +142,6 @@ export const membersOf = (m: Match, sq: Squad) => sq.members.map((id) => m.soldi
 export const footLeader = (alive: Soldier[]) => alive.find((s) => !s.detached && s.vehicle < 0) ?? alive[0];
 /** #107: the vehicle with id `id` (vehicle ids follow the Soldiers'), or undefined for a Soldier id or -1. */
 export const vehicleOf = (m: Match, id: number): Vehicle | undefined => (id >= m.soldiers.length ? m.vehicles[id - m.soldiers.length] : undefined);
-/** #110: `s` flies a jet, #101 or rides the Gunship: off at its base or high in the sky, never where its Squad leads, comes back or asks from. */
-export const inSky = (m: Match, s: Soldier) => vehicleOf(m, s.vehicle)?.kind === 'jet' || vehicleOf(m, s.vehicle)?.kind === 'gunship';
 export const wiped = (members: Soldier[]) => members.every((s) => s.state === 'dead');
 export const lastDeath = (members: Soldier[]) => Math.max(...members.map((s) => s.deadAt));
 

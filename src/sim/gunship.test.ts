@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { commanderEvents, commanderView, createMatch, stateHash, step, type Match } from './index';
-import { look, type Vehicle } from './vehicles';
+import { insidePolygon } from './geometry';
+import { crew, vehicle } from './test-scene';
+import { leave, type Vehicle } from './vehicles';
 import { DEFAULT_TUNE } from './tune';
 import type { Command, CommanderView, MapData, SimEvent, Tune, Vec2 } from './types';
 
@@ -235,7 +237,8 @@ describe('Gunship: the sortie', () => {
     for (const k of ['phaseAt', 'nextShot', 'vehicle', 'prey', 'turn', 'x', 'y'] as const) moves(() => (e[k]! += 1), () => (e[k]! -= 1), k);
     const v = body(m);
     for (const k of ['x', 'y', 'fx', 'fy', 'hp'] as const) moves(() => (v[k] += 0.01), () => (v[k] -= 0.01), `vehicle.${k}`);
-    moves(() => (v.seats[2] = 3), () => (v.seats[2] = -1), 'seat');
+    const was = { ...m.soldiers[3]! };
+    moves(() => crew(m, v, [3]), () => (leave(m, m.soldiers[3]!), Object.assign(m.soldiers[3]!, was)), 'seat'); // a passenger seat, and back on foot as it was
     moves(() => (e.phase = 'leaving'), () => (e.phase = 'station'), 'phase');
     moves(() => (e.from!.y += 1), () => (e.from!.y -= 1), 'from');
     moves(() => (e.shells![0]!.from!.x += 1), () => (e.shells![0]!.from!.x -= 1), 'shell from');
@@ -334,14 +337,12 @@ describe('Gunship: the enemy AA', () => {
   /** pact's AA crewed by pact's 11 at `at`. */
   const withAa = (at: Vec2, place: Record<number, Vec2> = {}, tune: Partial<Tune> = {}) => {
     const m = scene(place, tune, 1, 1);
-    const aa = m.vehicles.find((v) => v.kind === 'aa' && v.side === 'pact')!;
-    Object.assign(aa, { ...at, seats: [11] });
-    Object.assign(m.soldiers[11]!, { ...at, vehicle: aa.id });
+    const aa = crew(m, vehicle(m, 'aa', 'pact'), [11], at);
     return { m, aa };
   };
 
   it('fires on it as on a helicopter: under a third it leaves early (everyone aboard jumps), at 0 it falls as a Wreck both Sides see and fires no more; the cooldown stands', () => {
-    const { m, aa } = withAa({ x: 0, y: 0 }, { 6: { x: 0, y: -150 }, 7: { x: -60, y: -100 } }, { gunshipCooldownSeconds: 300, crewSpawnChance: 1 });
+    const { m, aa } = withAa({ x: 0, y: 0 }, { 6: { x: 0, y: -150 }, 7: { x: -60, y: -100 } }, { gunshipCooldownSeconds: 300, crewSpawnChance: 1, gunshipHp: 0.7 * DEFAULT_TUNE.gunshipHp }); // brought down within its station on any seed (six checked), not by the luck of one
     m.assets.readyAt.nato.gunship = 0;
     const run = toStation(m, HZ);
     const v = body(m);
@@ -369,16 +370,27 @@ describe('Gunship: the enemy AA', () => {
   });
 
   it('lays its gun on the Gunship before a jeep, as on a helicopter; never while the Gunship is off the Play Area', () => {
-    const { m, aa } = withAa({ x: 0, y: 0 }, {}, { jeepsPerSide: 1 });
-    toStation(m, HZ);
+    // pact's AA by the north edge, nato's empty jeep 40 m from it; the Gunship circles a focus by that edge, its circle swinging out
+    // past it. It never breaks off: the AA's hits are not what this is about
+    const { m, aa } = withAa({ x: 0, y: 300 }, {}, { jeepsPerSide: 1, gunshipHp: 1e9 });
+    Object.assign(vehicle(m, 'jeep'), { x: 40, y: 300 });
+    toStation(m, 0, { x: 0, y: 400 });
     const v: Vehicle = body(m);
-    const jeep = m.vehicles.find((u) => u.kind === 'jeep' && u.side === 'nato')!;
-    Object.assign(jeep, { x: 40, y: 0 });
-    look(m, aa);
-    expect(aa.target).toBe(v.id);
-    Object.assign(v, { x: -500, y: 0 });
-    Object.assign(aa, { x: -300, y: 0 });
-    look(m, aa);
-    expect(aa.target).not.toBe(v.id);
+    const out = (p: Vec2, by: number) => [-by, by].every((d) => !insidePolygon(m.map.playArea, p.x, p.y + d)); // over the edge by more than `by` metres
+    let laid = 0;
+    let beyond = 0;
+    for (let i = 0; i < 60 * HZ; i++) {
+      step(m, []);
+      if (gap(v, aa) > DEFAULT_TUNE.aaRangeM - 10) continue;
+      if (out(v, 10)) {
+        beyond++;
+        expect(aa.target, `tick ${m.tick}`).not.toBe(v.id);
+      } else if (!out(v, -10) && insidePolygon(m.map.playArea, v.x, v.y + 10)) {
+        laid++;
+        expect(aa.target, `tick ${m.tick}`).toBe(v.id); // before the jeep
+      }
+    }
+    expect(laid).toBeGreaterThan(0);
+    expect(beyond).toBeGreaterThan(0);
   });
 });
