@@ -31,6 +31,7 @@ test('Console loads, renders the map and chrome, and confirming an armed Asset r
 });
 
 test('#181: the Asset keypad: each key arms the cell in its place, held slots arm nothing, the readout names the cell, the Confirm row shows under it while armed', async ({ page }) => {
+  test.slow(); // every step waits on a drawn frame, and headless Chromium's software WebGL draws few while the other browsers run
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.setViewportSize({ width: 1366, height: 768 });
