@@ -2,13 +2,15 @@
 // Zone (#124), its crew and side guns (#129), and its jobs (#131: bail, repair, ferry, support, wait). What a Commander sees is read
 // off the view and the events; its trip (`lz`) and its job, which the view does not show, off its record.
 import { describe, expect, it } from 'vitest';
-import { commanderView, stateHash, step, type Match } from '../index';
+import { commanderView, step, type Match } from '../index';
 import { ticketsStart } from '../capture';
 import { insidePolygon } from '../geometry';
 import { DEFAULT_TUNE } from '../tune';
-import { crew, play, scene, square, vehicle, viewOf, type Logged } from '../test-scene';
+import { crew, hashes, play, scene, square, vehicle, viewOf, type Logged } from '../test-scene';
 import type { CommanderView, MapData, SimEvent, Tune, Vec2 } from '../types';
 import { dogleg } from './flight';
+import type { OwnOf } from './body';
+import type { Heli as HeliRecord } from './helicopter';
 import { boardOnReturn, type VehicleOf } from './index';
 
 type Heli = VehicleOf<'helicopter'>;
@@ -397,16 +399,6 @@ describe('#124 helicopter flight and Landing Zone', () => {
     expect(log[down - 1]!.airborne).toBe(true); // still airborne while it hovers
     expect(log.slice(down, up2).every((q) => q.speed === 0)).toBe(true);
     expect((up2 - down) / HZ).toBeCloseTo(T.unloadSeconds + T.spoolSeconds, 0);
-  });
-
-  it('the Landing Zone, waypoint, flare and spool timers are in the hash', () => {
-    const m = scene124();
-    const h = vehicle(m, 'helicopter');
-    for (const change of [() => (h.heli.lz = { x: 1, y: 2 }), () => (h.heli.wp = { x: 3, y: 4 }), () => (h.heli.flareUntil = 9), () => (h.heli.spoolUntil = 9)]) {
-      const before = stateHash(m);
-      change();
-      expect(stateHash(m)).not.toBe(before);
-    }
   });
 });
 
@@ -819,6 +811,28 @@ describe('#131 jobs', () => {
       }
       expect(views.every((v) => heliOf(v).seats![0] === -1 && !heliOf(v).airborne)).toBe(true);
       expect(seen(m, h)).toMatchObject({ x: h.slot.x, y: h.slot.y });
+    });
+  });
+});
+
+describe('#183 its hash', () => {
+  it('mixes every field of its record: its job, its trip and its timers', () => {
+    const m = helis();
+    const v = vehicle(m, 'helicopter');
+    hashes<keyof OwnOf<'helicopter'>>(m, { heli: () => (v.heli.fetch = 7) });
+    hashes<keyof HeliRecord>(m, {
+      job: () => (v.heli.job = 'support'),
+      fetch: () => (v.heli.fetch = 3),
+      spot: () => (v.heli.spot = { x: 1, y: 2 }),
+      spin: () => (v.heli.spin = -1),
+      until: () => (v.heli.until = 99),
+      hotDrop: () => (v.heli.hotDrop = true),
+      lz: () => (v.heli.lz = { x: 1, y: 2 }),
+      wp: () => (v.heli.wp = { x: 3, y: 4 }),
+      flareUntil: () => (v.heli.flareUntil = 9),
+      spoolUntil: () => (v.heli.spoolUntil = 9),
+      landedAt: () => (v.heli.landedAt = 9),
+      crashAt: () => (v.heli.crashAt = 99),
     });
   });
 });

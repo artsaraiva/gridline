@@ -12,10 +12,9 @@ import { see } from '../memory';
 import { ticksOf, vehicleOf, type Mix, type Soldier, type Squad } from '../state';
 import { SIDES, type SideId, type Tune, type Vec2, type VehicleKind, type VehicleView } from '../types';
 import { aa } from './aa';
-import { air, crippled, DORMANT, flies, flown, fresh, held, high, live, riders, SLOTS, SPECS, type LentKind, type OwnOf, type Round, type Slots, type Vehicle, type VehicleOf } from './body';
+import { air, crippled, DORMANT, flies, flown, fresh, held, high, live, riders, SLOTS, SPECS, type LentKind, type OwnOf, type Round, type Vehicle, type VehicleOf } from './body';
 import { helicopter } from './helicopter';
-import { JOBS } from './helicopter-jobs';
-import { jet, SORTIE } from './jet';
+import { jet } from './jet';
 import { jeep } from './jeep';
 import { gunship, lent, sleep, wake } from './lent';
 import { tank } from './tank';
@@ -74,6 +73,8 @@ export interface VehicleRules<K extends VehicleKind> {
   lock?(m: Match, v: VehicleOf<K>): void;
   /** In both Sides' sky, so every view carries it: #110 a jet over the Play Area, #101 #139 a lent body all the way. */
   inSky?(m: Match, v: VehicleOf<K>): boolean;
+  /** Mixes its own record into `stateHash`, every field of it (`hashVehicles` mixes the body); none for a lent body, whose state is its Asset's. */
+  hash(v: VehicleOf<K>, mix: Mix): void;
 }
 
 /** A shot decided from the pre-fire state; combat applies every shot of the tick together afterwards. */
@@ -478,25 +479,16 @@ export function vehicleViews(m: Match, side: SideId, seen: Set<number>): Vehicle
   return views;
 }
 
+/** Each vehicle's body, then its kind's own record (its kind's `hash`), then every Wreck. */
 export function hashVehicles(m: Match, mix: Mix) {
   for (const v of m.vehicles) {
-    // #183: the row the one-record Vehicle hashed, read off the body and its kind's record; a slot its kind has no field for holds what a fresh one held
-    const { gun, missile, heli, sortie, burstUntil, drive = { route: -1, planAt: 0, path: [] } }: Slots = v;
-    const aim = gun ? { on: gun.laid, nextFire: gun.nextFire } : missile ? { on: missile.lock, nextFire: missile.nextFire } : { on: -1, nextFire: 0 }; // the old `laid` and `nextFire`: a tank's gun, else an AA's or a jet's missile lock
-    const spot = heli ? heli.spot : (sortie?.at ?? null);
-    const until = heli?.until ?? burstUntil ?? sortie?.until ?? -1;
-    for (const n of [v.x, v.y, v.fx, v.fy, v.speed, v.hp, heli?.lz?.x ?? 0, heli?.lz?.y ?? 0, heli?.wp?.x ?? 0, heli?.wp?.y ?? 0]) mix(Math.round(n * 1000));
-    for (const n of [
-      +(v.side === 'nato'), ...v.seats, +v.parked, v.deadAt, v.goal, v.departAt, v.target, v.coax, aim.nextFire, aim.on, v.movedAt, v.halt, +v.airborne, heli?.landedAt ?? -1, v.claim, v.claimUntil,
-      +!!heli?.lz, +!!heli?.wp, heli?.flareUntil ?? -1, heli?.spoolUntil ?? -1, JOBS.indexOf(heli?.job ?? 'wait'), heli?.fetch ?? -1, +!!spot, heli?.spin ?? sortie?.turn ?? 1, until, +(heli?.hotDrop ?? sortie?.bomb ?? false),
-      heli?.crashAt ?? -1, SORTIE.indexOf(sortie?.stage ?? 'idle'), sortie?.passes ?? 0, sortie?.bombs ?? 0, sortie?.prey ?? -1, drive.route, drive.planAt, drive.path.length, v.disabledUntil,
-    ]) mix(n);
-    for (const p of drive.path) for (const n of [p.x, p.y]) mix(Math.round(n * 1000));
-    hashMissiles(v, mix);
-    for (const n of [spot?.x ?? 0, spot?.y ?? 0]) mix(Math.round(n * 1000));
+    for (const n of [v.x, v.y, v.fx, v.fy, v.speed, v.hp]) mix(Math.round(n * 1000));
+    for (const n of [+(v.side === 'nato'), ...v.seats, +v.parked, v.deadAt, v.goal, v.departAt, v.target, v.coax, v.movedAt, v.halt, +v.airborne, v.claim, v.claimUntil, v.disabledUntil, v.bias.length]) mix(n);
     for (const b of v.bias) mix(Math.round(b * 1000));
+    hashMissiles(v, mix);
     mix(v.rounds.length);
     for (const r of v.rounds) for (const n of [Math.round(r.x0 * 1000), Math.round(r.y0 * 1000), Math.round(r.x * 1000), Math.round(r.y * 1000), r.launch, r.land, +!!r.bomb]) mix(n);
+    rulesOf(v.kind).hash(v, mix);
   }
   mix(m.wrecks.length);
   for (const w of m.wrecks) for (const n of [Math.round(w.x * 1000), Math.round(w.y * 1000), +w.seen, w.tick]) mix(n);

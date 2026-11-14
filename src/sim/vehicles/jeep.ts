@@ -2,7 +2,7 @@
 import type { Match } from '../index';
 import type { Soldier, Squad } from '../state';
 import type { VehicleRules } from './core';
-import { freshDrive } from './drive-route';
+import { freshDrive, hashDrive } from './drive-route';
 import { groundMove, head, setsOff } from './ground';
 import { coax, goalOf, inReach } from './seats';
 
@@ -17,4 +17,5 @@ export const jeep: VehicleRules<'jeep'> = {
   onDriver: setsOff(goal),
   rides: { fits: (m, _sq, L, v) => inReach(m, L, v) },
   seatFire: coax, // #108: its gunner's MG
+  hash: (v, mix) => hashDrive(v.drive, mix),
 };

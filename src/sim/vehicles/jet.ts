@@ -13,8 +13,8 @@ import { cosDeg, turnToward } from '../momentum';
 import { between, pickWeighted, rnd } from '../rng';
 import { membersOf, ticksOf, vehicleOf, type Soldier, type Squad } from '../state';
 import { enemyOf, type SideId, type Vec2 } from '../types';
-import { freshLock, lockOn } from '../air-missiles';
-import { crippled, high, live, SPECS, type Vehicle, type VehicleOf } from './body';
+import { freshLock, hashLock, lockOn } from '../air-missiles';
+import { crippled, high, live, mixSpot, SPECS, type Vehicle, type VehicleOf } from './body';
 import { mount, type Shot, type Shots, type VehicleRules } from './core';
 import { rifleChance } from './seats';
 
@@ -326,6 +326,11 @@ export const jet: VehicleRules<'jet'> = {
   seatFire: cannon,
   lock: (m, v) => lockOn(m, v, v.missile, jetLock(m, v), m.tune.jetLockSeconds, m.tune.jetReloadSeconds), // on the enemy jet it fights
   inSky: (m, v) => v.airborne && insidePolygon(m.map.playArea, v.x, v.y), // over the Play Area
+  hash({ sortie: s, missile }, mix) {
+    for (const n of [SORTIE.indexOf(s.stage), s.passes, s.bombs, s.prey, s.turn, s.until, +s.bomb]) mix(n);
+    mixSpot(mix, s.at);
+    hashLock(missile, mix);
+  },
 };
 
 /**

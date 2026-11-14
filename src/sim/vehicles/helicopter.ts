@@ -9,10 +9,10 @@ import { approach, BRAKE_RESERVE, stopSpeed, turnToward } from '../momentum';
 import { rnd } from '../rng';
 import { membersOf, ticksOf, type Soldier, type Squad } from '../state';
 import { enemyOf, type Vec2 } from '../types';
-import { air, crippled, live, riders, type Vehicle, type VehicleOf } from './body';
+import { air, crippled, live, mixSpot, riders, type Vehicle, type VehicleOf } from './body';
 import { mount, type VehicleRules } from './core';
 import { dogleg, landingZone } from './flight';
-import { circle, decideJob, glide, repairOnPad, spinFor, type Job } from './helicopter-jobs';
+import { circle, decideJob, glide, JOBS, repairOnPad, spinFor, type Job } from './helicopter-jobs';
 import { alight, CREW_SEATS, goalOf, inReach, jump, onPad, seatGun, sideGun, startCrew, stintOver, takeWheel } from './seats';
 
 const squared = (r: number) => r * r;
@@ -229,4 +229,8 @@ export const helicopter: VehicleRules<'helicopter'> = {
   onReturn: { order: 2, take: crewOnReturn }, // after a jet's pilot
   wantsOut,
   seatFire: (m, s, v, shots) => seatGun(m, s, v, sideGun(m, v, v.seats.indexOf(s.id)), shots), // #129: a gun per side seat
+  hash({ heli: h }, mix) {
+    for (const n of [JOBS.indexOf(h.job), h.fetch, h.spin, h.until, +h.hotDrop, h.flareUntil, h.spoolUntil, h.landedAt, h.crashAt]) mix(n);
+    for (const p of [h.spot, h.lz, h.wp]) mixSpot(mix, p);
+  },
 };

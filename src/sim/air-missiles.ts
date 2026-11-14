@@ -16,6 +16,11 @@ export interface Lock {
   nextFire: number;
 }
 export const freshLock = (): Lock => ({ lock: -1, nextFire: 0 });
+/** #183: mixes a launcher's lock into `stateHash` (the AA's and the jet's `hash`). */
+export function hashLock(l: Lock, mix: Mix) {
+  mix(l.lock);
+  mix(l.nextFire);
+}
 
 export interface AirMissile {
   x: number;

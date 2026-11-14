@@ -9,7 +9,7 @@ import { vehicleOf, type Soldier, type Squad } from '../state';
 import type { Vec2 } from '../types';
 import { crippled, live, type VehicleOf } from './body';
 import { targetOf, type VehicleRules } from './core';
-import { freshDrive } from './drive-route';
+import { freshDrive, hashDrive } from './drive-route';
 import { groundMove, head, setsOff } from './ground';
 import { coax, goalOf } from './seats';
 
@@ -66,5 +66,9 @@ export const tank: VehicleRules<'tank'> = {
       const flight = Math.max(1, Math.round((Math.sqrt(dist2(v, e)) / t.tankShellMps) * t.hz));
       v.rounds.push({ x0: v.x, y0: v.y, x: e.x, y: e.y, launch: m.tick, land: m.tick + flight });
     },
+  },
+  hash(v, mix) {
+    for (const n of [v.gun.laid, v.gun.nextFire]) mix(n);
+    hashDrive(v.drive, mix);
   },
 };

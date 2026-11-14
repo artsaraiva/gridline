@@ -2,7 +2,8 @@
 // turns it on (`scene`), Soldiers placed as a map script would place them, and crewed vehicles seated by the rules' own way in
 // (`crew`, through `mount`), so that no test writes a vehicle's seats. Tests read what a Commander sees (`viewOf`, `play`) and the
 // events; a kind's decisions the view does not show are read at its module's interface.
-import { commanderView, createMatch, step, type Match } from './index';
+import { expect } from 'vitest';
+import { commanderView, createMatch, stateHash, step, type Match } from './index';
 import type { Soldier } from './state';
 import { NO_TEMPO, NO_TRAITS, thinkOnId } from './test-tune';
 import { DEFAULT_TUNE } from './tune';
@@ -62,6 +63,15 @@ export function crew<V extends Vehicle>(m: Match, v: V, ids: (number | [number, 
 
 /** `side`'s Commander's view of the live vehicle `id` (its hit points and seats only for its own Side), undefined while they do not see it. */
 export const viewOf = (m: Match, id: number, side: SideId = 'nato'): VehicleView | undefined => commanderView(m, side).vehicles?.find((v) => v.id === id && !v.wreck);
+
+/** Each of `changes` moves `m`'s `stateHash`: the state it changes is hashed. Typed by the fields it covers (`F`), so that a new field fails the typecheck until its test changes it too. */
+export function hashes<F extends string>(m: Match, changes: Record<F, () => unknown>) {
+  for (const [field, change] of Object.entries<() => unknown>(changes)) {
+    const h = stateHash(m);
+    change();
+    expect(stateHash(m), field).not.toBe(h);
+  }
+}
 
 /** An event and the tick it happened on. */
 export type Logged = SimEvent & { tick: number };
