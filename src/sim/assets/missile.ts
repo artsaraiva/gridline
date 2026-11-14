@@ -7,7 +7,7 @@ import { dist2, keystone, launchPoint } from '../geometry';
 import type { Mix } from '../state';
 import type { SideId } from '../types';
 import { assetRadio, type Effect, type Kind } from './core';
-import { blast } from './strike';
+import { blast } from '../damage';
 
 const CENTRE = { x: 0, y: 0 };
 /** Why `side` can't call a heavy Asset (this, #101 the Gunship) now: it needs every keystone Capture Point (#150); null when it may. */

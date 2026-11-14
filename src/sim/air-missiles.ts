@@ -7,7 +7,8 @@ import { turnToward } from './momentum';
 import { rnd } from './rng';
 import { ticksOf, vehicleOf, type Mix } from './state';
 import type { SimEvent } from './types';
-import { hurt, live, type Vehicle } from './vehicles';
+import { hurt } from './damage';
+import { live, type Vehicle } from './vehicles/body';
 
 /** #110: a lock-on launcher's lock (the AA's, the jet's): the vehicle it holds in its sights (-1 = none; a new one costs the lock time), and the tick its missile is locked and reloaded. */
 export interface Lock {

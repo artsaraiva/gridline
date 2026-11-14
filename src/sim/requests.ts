@@ -7,7 +7,8 @@ import type { Match } from './index';
 import type { Effect } from './assets/core';
 import { dist2 } from './geometry';
 import { gridCentre, gridRef } from './grid-ref';
-import { elite, inSky, membersOf, vehicleOf, wiped, type Mix, type Squad } from './state';
+import { elite, membersOf, vehicleOf, wiped, type Mix, type Squad } from './state';
+import { inSky } from './vehicles';
 import type { AssetKind, RequestKind, SideId, SimEvent, SquadView, Vec2 } from './types';
 
 /** An open Request: the Asset it asks for, the centre of the grid square it names, and the tick it expires. */
