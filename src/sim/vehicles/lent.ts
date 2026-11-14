@@ -60,7 +60,7 @@ export function gunshipOnReturn(m: Match, sq: Squad, s: Soldier, v?: Vehicle): b
 }
 
 /** #139: a drone or the Recon Plane: nobody aboard, and it moves only as its Asset flies it; in both Sides' sky all the way. */
-export const lent: VehicleRules<'drone'> & VehicleRules<'recon'> = { init: () => ({}), inSky: () => true };
+export const lent: VehicleRules<'drone'> & VehicleRules<'recon'> = { init: () => ({}), inSky: () => true, hash: () => {} };
 
 /** #101: the Gunship: as a lent body, and its seats for Soldiers coming back. */
 export const gunship: VehicleRules<'gunship'> = {
@@ -70,4 +70,5 @@ export const gunship: VehicleRules<'gunship'> = {
   wantsOut: () => false, // its riders leave only as its Asset flies it (`paradrop`, `homeward`)
   seatFire: (m, s, v, shots) => seatGun(m, s, v, gunner(v) === s.id ? sideGun(m, v, GUNSHIP_GUN) : undefined, shots), // its one gun is its gun seat's, the left
   inSky: () => true, // all the way (layers/gunship.ts draws it from its Asset)
+  hash: () => {}, // its state is its Asset's (assets/gunship.ts hashes it)
 };

@@ -5,9 +5,10 @@ import { describe, expect, it } from 'vitest';
 import { commanderView, createMatch, stateHash, step, type Match } from './index';
 import { ticketsStart } from './capture';
 import { DEFAULT_TUNE } from './tune';
-import { crew, field, play, scene, vehicle, viewOf } from './test-scene';
+import { crew, field, hashes, play, scene, vehicle, viewOf } from './test-scene';
 import type { CommanderView, Tune } from './types';
-import { leave } from './vehicles';
+import { leave, type Vehicle } from './vehicles';
+import { SLOTS } from './vehicles/body';
 
 const HZ = DEFAULT_TUNE.hz;
 
@@ -163,42 +164,44 @@ describe('#107 views, slots and the hash', () => {
     ]);
   });
 
-  it('hashes every vehicle field, every Wreck and who rides where', () => {
-    const m = tanks({ tune: { helisPerSide: 1, jetsPerSide: 1 } }); // #183: a helicopter's and a jet's records too
-    const moves = (change: (m: Match) => void) => {
-      const h = stateHash(m);
-      change(m);
-      expect(stateHash(m)).not.toBe(h);
-    };
-    moves((m) => (m.vehicles[0]!.x += 1));
-    moves((m) => (m.vehicles[0]!.hp -= 35));
-    moves((m) => crew(m, m.vehicles[0]!, [0])); // its seat, and the Soldier's vehicle
-    moves((m) => (m.soldiers[1]!.vehicle = 4));
-    moves((m) => (m.soldiers[1]!.rockets -= 1));
-    moves((m) => (m.vehicles[1]!.target = 0));
-    moves((m) => m.wrecks.push({ side: 'nato', kind: 'tank', x: 1, y: 2, fx: 1, fy: 0, seen: false, tick: 0 }));
-    // #131 helicopter jobs
-    const heli = () => vehicle(m, 'helicopter');
-    moves(() => (heli().heli.job = 'support'));
-    moves(() => (heli().heli.fetch = 3));
-    moves(() => (heli().heli.spot = { x: 1, y: 2 }));
-    moves(() => (heli().heli.spin = -1));
-    moves(() => (heli().heli.until = 99));
-    moves(() => (heli().heli.hotDrop = true));
-    moves(() => (heli().heli.crashAt = 99));
-    // #110 the jet's sortie
-    const jet = () => vehicle(m, 'jet');
-    moves(() => (jet().sortie.stage = 'turning'));
-    moves(() => (jet().sortie.passes = 3));
-    moves(() => (jet().sortie.bombs = 1));
-    moves(() => (jet().sortie.prey = 2));
-    moves((m) => m.vehicles[0]!.missiles.push({ x: 1, y: 2, fx: 1, fy: 0, prey: 3, launch: 0, missed: false }));
-    moves((m) => m.vehicles[0]!.rounds.push({ x0: 0, y0: 0, x: 1, y: 2, launch: 0, land: 9, bomb: true }));
-    // #129 crew and #130 parachute, per Soldier
-    moves((m) => (m.soldiers[0]!.crew = true));
-    moves((m) => (m.soldiers[0]!.crewUntil = 99));
-    moves((m) => (m.soldiers[0]!.crewSeat = 2));
-    moves((m) => (m.soldiers[0]!.chute = { t0: 1, t1: 9, x0: 0, y0: 0, x1: 5, y1: 5 }));
+  it('hashes the body: every field but what a vehicle is given at the start (its id, kind, slot and point); every Wreck, and who rides where', () => {
+    const m = tanks();
+    const v = vehicle(m, 'tank');
+    // #183: each kind's record is its kind's to hash (vehicles/tank.test.ts, jeep, aa, helicopter, jet)
+    hashes<Exclude<keyof Vehicle, keyof typeof SLOTS | 'id' | 'kind' | 'slot' | 'point'>>(m, {
+      side: () => (v.side = 'pact'),
+      x: () => (v.x += 1),
+      y: () => (v.y += 1),
+      fx: () => (v.fx = 0.6),
+      fy: () => (v.fy = 0.8),
+      speed: () => (v.speed = 3),
+      hp: () => (v.hp -= 35),
+      seats: () => crew(m, v, [0]), // its seat, and the Soldier's vehicle
+      parked: () => (v.parked = !v.parked),
+      deadAt: () => (v.deadAt = 5),
+      goal: () => (v.goal = 1),
+      departAt: () => (v.departAt = 9),
+      target: () => (v.target = 2),
+      coax: () => (v.coax = 3),
+      rounds: () => v.rounds.push({ x0: 0, y0: 0, x: 1, y: 2, launch: 0, land: 9, bomb: true }),
+      bias: () => v.bias.push(0.5),
+      movedAt: () => (v.movedAt += 1),
+      halt: () => (v.halt = 3),
+      airborne: () => (v.airborne = !v.airborne),
+      claim: () => (v.claim = 1),
+      claimUntil: () => (v.claimUntil = 9),
+      missiles: () => v.missiles.push({ x: 1, y: 2, fx: 1, fy: 0, prey: 3, launch: 0, missed: false }),
+      disabledUntil: () => (v.disabledUntil = 99),
+    });
+    hashes(m, {
+      wreck: () => m.wrecks.push({ side: 'nato', kind: 'tank', x: 1, y: 2, fx: 1, fy: 0, seen: false, tick: 0 }),
+      vehicle: () => (m.soldiers[1]!.vehicle = 4),
+      rockets: () => (m.soldiers[1]!.rockets -= 1),
+      crew: () => (m.soldiers[0]!.crew = true), // #129 crew and #130 parachute, per Soldier
+      crewUntil: () => (m.soldiers[0]!.crewUntil = 99),
+      crewSeat: () => (m.soldiers[0]!.crewSeat = 2),
+      chute: () => (m.soldiers[0]!.chute = { t0: 1, t1: 9, x0: 0, y0: 0, x1: 5, y1: 5 }),
+    });
   });
 
   it('hashes the dismount stop, when it last moved, and each passenger\'s way out', () => {

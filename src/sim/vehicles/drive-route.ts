@@ -6,6 +6,7 @@ import { dist2 } from '../geometry';
 import { cellCentre, cellIndex } from '../grid';
 import { sideKnown } from '../memory';
 import { rnd } from '../rng';
+import type { Mix } from '../state';
 import type { Vec2, VehicleKind } from '../types';
 import { live, SPECS, type Ground, type Vehicle } from './body';
 
@@ -16,6 +17,11 @@ export interface Drive {
   path: Vec2[];
 }
 export const freshDrive = (): Drive => ({ route: -1, planAt: 0, path: [] });
+/** #183: mixes a ground vehicle's way into `stateHash` (the tank's, the jeep's and the AA's `hash`). */
+export function hashDrive(d: Drive, mix: Mix) {
+  for (const n of [d.route, d.planAt, d.path.length]) mix(n);
+  for (const p of d.path) for (const n of [p.x, p.y]) mix(Math.round(n * 1000));
+}
 export const ROAD = 0;
 export const VIA = 1;
 

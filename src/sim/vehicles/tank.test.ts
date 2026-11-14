@@ -3,9 +3,10 @@
 import { describe, expect, it } from 'vitest';
 import { step } from '../index';
 import { DEFAULT_TUNE } from '../tune';
-import { crew, play, scene, vehicle, viewOf } from '../test-scene';
+import { crew, hashes, play, scene, vehicle, viewOf } from '../test-scene';
 import type { Tune } from '../types';
-import { tank } from './tank';
+import type { OwnOf } from './body';
+import { tank, type Gun } from './tank';
 
 const HZ = DEFAULT_TUNE.hz;
 
@@ -71,5 +72,14 @@ describe('#107 where its driver takes it', () => {
       else foes.forEach((o) => sq.memory.push({ id: o.id, x: p.x, y: p.y, tick: m.tick, source: 'seen' }));
       expect(tank.goal!(m, sq, s, v)).not.toBe(goal);
     }
+  });
+});
+
+describe('#183 its hash', () => {
+  it('mixes every field of its record: its gun, and its way (drive-route.test.ts)', () => {
+    const m = tanks();
+    const v = vehicle(m, 'tank');
+    hashes<keyof OwnOf<'tank'>>(m, { gun: () => (v.gun.laid = 3), drive: () => (v.drive.route = 1) });
+    hashes<keyof Gun>(m, { laid: () => (v.gun.laid = 2), nextFire: () => (v.gun.nextFire = 99) });
   });
 });

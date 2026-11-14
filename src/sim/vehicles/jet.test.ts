@@ -2,10 +2,11 @@
 // knows, dogfights, and #154 more than one a Side.
 import { describe, expect, it } from 'vitest';
 import { step, type Match } from '../index';
-import { jetTarget } from './jet';
+import type { OwnOf } from './body';
+import { jetTarget, type Sortie } from './jet';
 import { leave, type VehicleOf } from './index';
 import { DEFAULT_TUNE } from '../tune';
-import { scene as baseScene, vehicle, viewOf } from '../test-scene';
+import { hashes, scene as baseScene, vehicle, viewOf } from '../test-scene';
 import type { SimEvent, Tune } from '../types';
 
 type Jet = VehicleOf<'jet'>;
@@ -124,5 +125,23 @@ describe('#154 more than one jet a Side', () => {
     const nato = jets.filter((v) => v.side === 'nato');
     expect(nato.map((v) => v.sortie.stage)).toEqual(['dogfight', 'dogfight']);
     expect(new Set(nato.map((v) => v.sortie.prey)).size).toBe(2);
+  });
+});
+
+describe('#183 its hash', () => {
+  it('mixes every field of its record: its sortie, and its missile\'s lock (aa.test.ts)', () => {
+    const m = scene();
+    const v = vehicle(m, 'jet');
+    hashes<keyof OwnOf<'jet'>>(m, { sortie: () => (v.sortie.passes = 7), missile: () => (v.missile.lock = 5) });
+    hashes<keyof Sortie>(m, {
+      stage: () => (v.sortie.stage = 'turning'),
+      passes: () => (v.sortie.passes = 3),
+      bombs: () => (v.sortie.bombs = 1),
+      prey: () => (v.sortie.prey = 2),
+      at: () => (v.sortie.at = { x: 1, y: 2 }),
+      turn: () => (v.sortie.turn = -1),
+      until: () => (v.sortie.until = 99),
+      bomb: () => (v.sortie.bomb = !v.sortie.bomb),
+    });
   });
 });

@@ -4,7 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { commanderView, step } from '../index';
 import { ticketsStart } from '../capture';
 import { DEFAULT_TUNE } from '../tune';
-import { crew, play, scene, vehicle, viewOf, type Logged } from '../test-scene';
+import { crew, hashes, play, scene, vehicle, viewOf, type Logged } from '../test-scene';
+import type { OwnOf } from './body';
 import type { CommanderView, Tune } from '../types';
 
 const HZ = DEFAULT_TUNE.hz;
@@ -111,5 +112,13 @@ describe('#108 the jeep fights and dies', () => {
     expect(m.tickets.nato).toBe(ticketsStart(m) - 4);
     expect(viewOf(m, 9)).toBeUndefined();
     expect(commanderView(m, 'nato').vehicles).toContainEqual(expect.objectContaining({ kind: 'jeep', wreck: true }));
+  });
+});
+
+describe('#183 its hash', () => {
+  it('mixes every field of its record: its way (drive-route.test.ts)', () => {
+    const m = scene({ tune: { jeepsPerSide: 1 } });
+    const v = vehicle(m, 'jeep');
+    hashes<keyof OwnOf<'jeep'>>(m, { drive: () => (v.drive.route = 1) });
   });
 });

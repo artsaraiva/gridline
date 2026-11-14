@@ -3,7 +3,9 @@
 import { describe, expect, it } from 'vitest';
 import { commanderView, step, type Match } from '../index';
 import { DEFAULT_TUNE } from '../tune';
-import { crew, scene, vehicle, viewOf } from '../test-scene';
+import { crew, hashes, scene, vehicle, viewOf } from '../test-scene';
+import type { Lock } from '../air-missiles';
+import type { OwnOf } from './body';
 import { aa } from './aa';
 import { leave, type Vehicle } from './index';
 
@@ -64,5 +66,14 @@ describe('#110 the AA on a jet', () => {
     expect(m.soldiers[1]!.state).toBe('dead');
     expect(m.tickets.nato).toBe(tickets - 1);
     expect(commanderView(m, 'nato').vehicles).toContainEqual(expect.objectContaining({ side: 'nato', kind: 'jet', wreck: true }));
+  });
+});
+
+describe('#183 its hash', () => {
+  it('mixes every field of its record: its burst, its missile\'s lock, and its way (drive-route.test.ts)', () => {
+    const m = scene({ tune: { aasPerSide: 1 } });
+    const v = vehicle(m, 'aa');
+    hashes<keyof OwnOf<'aa'>>(m, { burstUntil: () => (v.burstUntil = 9), missile: () => (v.missile.lock = 3), drive: () => (v.drive.route = 1) });
+    hashes<keyof Lock>(m, { lock: () => (v.missile.lock = 2), nextFire: () => (v.missile.nextFire = 99) }); // the jet's lock is the same record
   });
 });
