@@ -916,21 +916,28 @@ function beaconEvents(): [number, SimEvent][] {
   ];
 }
 
-// #143 EMP STRIKE: nato's EMP is called a second into its chapter on the ground east of the Contacts, where an enemy tank drives
-// in, an enemy AA stands and the enemy jeep waits, all in sight: the missile leaves the HQ and flies level at `empSpeedMps` (the
-// close zoom opens on its edge-glued icon) and bursts over the spot (a flash, no crater). The three vehicles in its ring are held
-// for `empSeconds`: the tank stops dead, sparks crackle on all three and a bolt sits by each dimmed icon; then the tank drives
-// on. FEINT: a dummy paratrooper comes down under its canopy north of Alpha, and once it is down its firecrackers go off every
-// `feintBurstSeconds`, a faint pulse each on its own Console. The numbers are the Simulation's.
+// #143 EMP STRIKE: nato's EMP is called a second into its chapter on the ground north of Alpha, where an enemy tank drives in from
+// the west and an enemy AA stands, both in sight, and nato's own AA waits in the ring too (the Commander's mistake): the missile
+// leaves the HQ and flies level at `empSpeedMps` and bursts over the spot (a flash, no crater). All three are held for `empSeconds`:
+// the tank stops dead, sparks crackle on each and a bolt sits by each dimmed icon; then the tank drives on. The radio counts the
+// two enemies. FEINT: a dummy paratrooper comes down under its canopy south-west of Alpha, and once it is down its firecrackers go
+// off every `feintBurstSeconds`, a faint pulse each on its own Console. Both play inside the close zoom's frame, left of the review
+// panel. The numbers are the Simulation's.
 const KALTENBACH_GRID = { cols: 13, rows: 13, squareM: 960 / 13, letters: 'ABCDEFGHIJKLM' };
 const EMP_AT = chapterAt('EMP Strike');
-const EMP = { call: EMP_AT + 1, from: HQ, to: { x: 40, y: 20 } };
+const EMP = { call: EMP_AT + 1, from: HQ, to: { x: -50, y: 26 } };
 const EMP_FLIGHT = Math.hypot(EMP.to.x - EMP.from.x, EMP.to.y - EMP.from.y) / G.empSpeedMps;
 const EMP_BURST = EMP.call + EMP_FLIGHT;
 const EMP_HOLD: Span = [EMP_BURST, EMP_BURST + G.empSeconds];
-const EMP_TANK_PATH: Key[] = [[EMP_AT, -14, 74], [EMP_BURST, 14, 46], [EMP_HOLD[1], 14, 46], [EMP_HOLD[1] + 8, 62, 4]]; // driving in, held where the burst finds it, then on
+const EMP_TANK_PATH: Key[] = [[EMP_AT, -126, 76], [EMP_BURST, -78, 40], [EMP_HOLD[1], -78, 40], [EMP_HOLD[1] + 8, -44, 22]]; // driving in, held where the burst finds it, then on
+/** The tank's heading as it drives in, which it keeps while it is held. */
+const EMP_TANK_IN = (() => {
+  const [[, x0, y0], [, x1, y1]] = EMP_TANK_PATH as [Key, Key];
+  const d = Math.hypot(x1 - x0, y1 - y0);
+  return { fx: (x1 - x0) / d, fy: (y1 - y0) / d };
+})();
 const FEINT_AT = chapterAt('Feint');
-const FEINT = { call: FEINT_AT + 1, at: { x: -40, y: 120 } };
+const FEINT = { call: FEINT_AT + 1, at: { x: -120, y: -10 } };
 const FEINT_FALL = G.supplyFallSeconds;
 const FEINT_TOTAL = FEINT_FALL + G.feintSeconds;
 
@@ -941,16 +948,16 @@ function empAt(t: number): EffectView[] {
   return [{ asset: 'emp', ...EMP.to, radius: G.empRadiusM, left: total - s, total, side: 'nato', from: EMP.from, flight: Math.min(1, s / EMP_FLIGHT), impactIn: Math.max(0, EMP_FLIGHT - s), ...(s >= EMP_FLIGHT && { burst: s - EMP_FLIGHT }) }];
 }
 
-/** The enemy tank and AA by the EMP's spot, in sight through its chapter. */
+/** The enemy tank and AA by the EMP's spot, in sight through its chapter (ids past the AA chapter's). */
 function empVehicles(t: number): VehicleView[] {
   if (t < EMP_AT || t >= FEINT_AT) return [];
   const p = at(EMP_TANK_PATH, t);
   const ahead = at(EMP_TANK_PATH, t + 0.5);
   const d = Math.hypot(ahead.x - p.x, ahead.y - p.y);
-  const hull = d > 0.01 ? { fx: (ahead.x - p.x) / d, fy: (ahead.y - p.y) / d } : { fx: 0.71, fy: -0.71 };
+  const hull = d > 0.01 ? { fx: (ahead.x - p.x) / d, fy: (ahead.y - p.y) / d } : EMP_TANK_IN;
   return [
-    { id: 50, side: 'pact', kind: 'tank', ...p, ...hull, tx: -0.9, ty: -0.44 },
-    { id: 51, side: 'pact', kind: 'aa', x: 66, y: 0, fx: -0.95, fy: 0.3, tx: -0.8, ty: 0.6 },
+    { id: 50, side: 'pact', kind: 'tank', ...p, ...hull, tx: hull.fx, ty: hull.fy },
+    { id: 51, side: 'pact', kind: 'aa', x: -96, y: 20, fx: 0.95, fy: 0.3, tx: 0.8, ty: 0.6 },
   ];
 }
 
@@ -974,7 +981,7 @@ function denialEvents(): [number, SimEvent][] {
   const line = (t: number, text: string, at: Vec2): [number, SimEvent] => [t, { kind: 'radio', side: 'nato', squad: null, type: 'asset', text, grid: gridRef(KALTENBACH_GRID, at), priority: 1 }];
   return [
     line(EMP.call, 'EMP away', EMP.to),
-    line(EMP_BURST, 'EMP effective, 3 vehicles', EMP.to),
+    line(EMP_BURST, 'EMP effective, 2 vehicles', EMP.to), // the enemy's: nato's own AA is not counted
     line(FEINT.call, 'Decoy inbound', FEINT.at),
     line(FEINT.call + FEINT_FALL, 'Decoy active', FEINT.at),
   ];

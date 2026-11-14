@@ -532,27 +532,27 @@ describe('#142 Redeploy Beacon chapter', () => {
 
 describe('#143 EMP Strike and Feint chapters', () => {
   const call = chapter('EMP Strike'); // a second into the chapter
-  const flight = Math.hypot(40 + 415, 20) / DEFAULT_TUNE.empSpeedMps;
+  const flight = Math.hypot(-50 + 415, 26) / DEFAULT_TUNE.empSpeedMps;
   const emp = (t: number) => viewAt(t).effects!.find((e) => e.asset === 'emp');
   const held = (t: number) => viewAt(t).vehicles!.filter((v) => v.disabled).map((v) => `${v.side} ${v.kind}`).sort();
   const asset = (a: number, b: number) => eventsBetween(a, b).flatMap((e) => (e.kind === 'radio' && e.type === 'asset' ? [e.text] : []));
 
-  it('the EMP leaves the HQ ("EMP away"), flies level at the spot and bursts over it ("EMP effective, 3 vehicles"), its ring staying 12 s', () => {
+  it('the EMP leaves the HQ ("EMP away"), flies level at the spot and bursts over it ("EMP effective, 2 vehicles"), its ring staying 12 s', () => {
     expect(emp(call - 0.5)).toBeUndefined();
-    expect(emp(call + 2)).toMatchObject({ side: 'nato', from: { x: -415, y: 0 }, x: 40, y: 20, radius: 60 });
+    expect(emp(call + 2)).toMatchObject({ side: 'nato', from: { x: -415, y: 0 }, x: -50, y: 26, radius: 60 });
     expect(emp(call + 2)!.impactIn).toBeCloseTo(flight - 2);
     expect(emp(call + 2)!.burst).toBeUndefined();
     expect(emp(call + flight + 0.25)).toMatchObject({ flight: 1, impactIn: 0 });
     expect(emp(call + flight + 0.25)!.burst).toBeCloseTo(0.25);
     expect(emp(call + flight + 11.5)).toBeTruthy();
     expect(emp(call + flight + 12.5)).toBeUndefined();
-    expect(asset(call - 1, call + flight + 1)).toEqual(['EMP away', 'EMP effective, 3 vehicles']);
+    expect(asset(call - 1, call + flight + 1)).toEqual(['EMP away', 'EMP effective, 2 vehicles']);
   });
 
-  it('holds the three vehicles in its ring for 12 s from the burst, none outside it: the tank stops dead, then drives on', () => {
+  it('holds the three vehicles in its ring for 12 s from the burst, nato\'s own AA among them, none outside it: the tank stops dead, then drives on', () => {
     expect(held(call + flight - 0.5)).toEqual([]);
-    expect(held(call + flight + 0.5)).toEqual(['pact aa', 'pact jeep', 'pact tank']);
-    expect(held(call + flight + 11.5)).toEqual(['pact aa', 'pact jeep', 'pact tank']);
+    expect(held(call + flight + 0.5)).toEqual(['nato aa', 'pact aa', 'pact tank']);
+    expect(held(call + flight + 11.5)).toEqual(['nato aa', 'pact aa', 'pact tank']);
     expect(held(call + flight + 12.5)).toEqual([]);
     const tank = (t: number) => viewAt(t).vehicles!.find((v) => v.id === 50)!;
     expect(tank(call + flight + 1)).toMatchObject({ x: tank(call + flight + 11).x, y: tank(call + flight + 11).y });
@@ -563,7 +563,7 @@ describe('#143 EMP Strike and Feint chapters', () => {
     const at = chapter('Feint');
     const feint = (t: number) => viewAt(t).effects!.find((e) => e.asset === 'feint');
     expect(feint(at - 0.5)).toBeUndefined();
-    expect(feint(at + 2)).toMatchObject({ side: 'nato', x: -40, y: 120, radius: 10, landsIn: 3, fall: 5 });
+    expect(feint(at + 2)).toMatchObject({ side: 'nato', x: -120, y: -10, radius: 10, landsIn: 3, fall: 5 });
     expect(feint(at + 2)!.burst).toBeUndefined();
     expect(feint(at + 5.5)).toMatchObject({ landsIn: 0, burst: 0.5 });
     expect(feint(at + 7.5)!.burst).toBeCloseTo(0.5);
