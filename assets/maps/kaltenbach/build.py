@@ -67,6 +67,7 @@ def river_dxdy(y):
 CROSSINGS = [("NF", "ford", river_x(FORD_Y), FORD_Y, FORD_HW), ("NB", "footbridge", river_x(FOOT_Y), FOOT_Y, FOOT_HW),
              ("C", "bridge", 0.0, 0.0, BRIDGE_HW), ("SB", "footbridge", river_x(-FOOT_Y), -FOOT_Y, FOOT_HW),
              ("SF", "ford", river_x(-FORD_Y), -FORD_Y, FORD_HW)]
+CENTRE_FIGHT = {"C"}  # #156: the centre bridge is the centre's own fight: Squads never avoid it as dangerous
 
 
 # ---------------------------------------------------------------- terrain math
@@ -549,7 +550,8 @@ def meta():
         "points": [{"id": i, "name": i, "x": x, "y": y, "radius": POINT_RADIUS, "owner": o,
                     **({"vehicles": [{"kind": k, "x": r2(vx), "y": r2(vy)} for k, vx, vy in POINT_VEHICLES[i]]} if i in POINT_VEHICLES else {})}
                    for i, x, y, o in POINTS],
-        "crossings": [{"id": i, "kind": k, "x": r2(x), "y": r2(y), "halfWidth": hw} for i, k, x, y, hw in CROSSINGS],
+        "crossings": [{"id": i, "kind": k, "x": r2(x), "y": r2(y), "halfWidth": hw, **({"centreFight": True} if i in CENTRE_FIGHT else {})}
+                      for i, k, x, y, hw in CROSSINGS],
         "vehicleSlots": {side: hq_vehicles(side, nets) for side, nets in VEHICLE_SLOTS.items()},
         "helipad": {side: [{"x": r2(x), "y": r2(y)}] for side, (x, y) in HELIPADS.items()},
         "jets": {side: 1 for side in HQS},

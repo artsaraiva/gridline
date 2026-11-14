@@ -3,7 +3,7 @@ import { RIVER_FIELD } from '../maps/river-field';
 import { commanderView, createMatch, gridRef, stateHash, step, type Match } from './index';
 import { DEFAULT_TUNE } from './tune';
 import { NO_TEMPO, NO_TRAITS, thinkOnId } from './test-tune';
-import type { CommanderView, MapData, Rect, SimEvent, Tune } from './types';
+import type { CommanderView, Crossing, MapData, Rect, SimEvent, Tune } from './types';
 
 const HZ = DEFAULT_TUNE.hz;
 
@@ -87,9 +87,9 @@ describe('routes over the river', () => {
   });
 
   // Two Squads of 2 a Side. nato Squad 0 (ids 0, 1) runs into the enemy at the footbridge; Squad 1 (ids 2, 3) decides its
-  // route from the HQ a second later. `kind` sets what kind of crossing N is (C becomes a footbridge when N is the bridge).
-  const atTheFootbridge = (place: Record<number, Placement>, tune: Partial<Tune>, kind: 'footbridge' | 'bridge' = 'footbridge') => {
-    const map = { ...toE, crossings: toE.crossings!.map((c) => (c.id === 'N' ? { ...c, kind } : c.id === 'C' ? { ...c, kind: 'footbridge' as const } : c)) };
+  // route from the HQ a second later. `n` changes crossing N: its kind, or marks it the centre's own fight (#156).
+  const atTheFootbridge = (place: Record<number, Placement>, tune: Partial<Tune>, n: Partial<Crossing> = {}) => {
+    const map = { ...toE, crossings: toE.crossings!.map((c) => (c.id === 'N' ? { ...c, ...n } : c)) };
     const m = scene({ map, place, tune: { routeJitterM: 0, spread: 0, squadSize: 2, ...tune }, squads: 2 });
     return play(m, HZ + 1).nato[HZ]!.squads[1]!.route;
   };
@@ -124,9 +124,14 @@ describe('routes over the river', () => {
     expect(play(m, HZ + 1).nato[HZ]!.squads[1]!.route).toBe('C');
   });
 
-  it('the centre bridge takes no danger penalties', () => {
-    expect(atTheFootbridge(seen, { hp: 1e9 }, 'bridge')).toBe('N');
-    expect(atTheFootbridge(lost, killed, 'bridge')).toBe('N');
+  it('#156: a crossing marked the centre\'s own fight takes no danger penalties', () => {
+    expect(atTheFootbridge(seen, { hp: 1e9 }, { centreFight: true })).toBe('N');
+    expect(atTheFootbridge(lost, killed, { centreFight: true })).toBe('N');
+  });
+
+  it('#156: a bridge not so marked takes danger penalties as any other crossing does', () => {
+    expect(atTheFootbridge(seen, { hp: 1e9 }, { kind: 'bridge' })).toBe('C');
+    expect(atTheFootbridge(lost, killed, { kind: 'bridge' })).toBe('C');
   });
 
   it('#151: a Squad on its point\'s bank takes no route', () => {
