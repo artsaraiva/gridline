@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { commanderView, createMatch, stateHash, step, type Match } from './index';
 import { DEFAULT_TUNE } from './tune';
 import type { Command, CommanderView, MapData, SimEvent, Tune, Vec2 } from './types';
+import type { VehicleOf } from './vehicles';
 
 const HZ = DEFAULT_TUNE.hz;
 
@@ -174,14 +175,14 @@ describe('EMP Strike: the air', () => {
 
   it('a helicopter in the ring hangs where it is in the air, then flies on with the job it had', () => {
     const m = scene({}, { helisPerSide: 1 });
-    const heli = m.vehicles.find((v) => v.kind === 'helicopter' && v.side === 'pact')!;
+    const heli = m.vehicles.find((v) => v.kind === 'helicopter' && v.side === 'pact') as VehicleOf<'helicopter'>;
     const track: { x: number; speed: number; airborne: boolean; job: string }[] = [];
     play(m, FLIGHT, CENTRE);
     Object.assign(heli, { x: 0, y: 20, fx: 1, fy: 0, speed: DEFAULT_TUNE.heliMps, airborne: true, seats: [8, -1, -1, -1, -1, -1] }); // flying east with its pilot as the burst comes, to the Squad that claimed it at its HQ
     Object.assign(m.soldiers[8]!, { x: 0, y: 20, vehicle: heli.id });
     for (let i = 0; i < 16 * HZ; i++) {
       step(m, []);
-      track.push({ x: heli.x, speed: heli.speed, airborne: heli.airborne, job: heli.job });
+      track.push({ x: heli.x, speed: heli.speed, airborne: heli.airborne, job: heli.heli.job });
     }
     const job = track[0]!.job; // its pilot's think on the burst tick, before the burst, gave it the job
     expect(job).toBe('ferry');

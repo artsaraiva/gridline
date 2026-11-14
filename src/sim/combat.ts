@@ -1,32 +1,18 @@
 // Fire, Wounding, revive and bleed-out, suppression; a death settles what the enemy Commander's Assets earn (#72 #75).
-// #107: Soldiers aboard a vehicle fire only its guns (the coax here, the main gun in vehicles/core.ts) and take no fire; a
-// Launcher's rockets hit vehicles. #108: rifles hit a jeep like a Soldier in the open; its gunner fires the MG as the coax.
-// #110: a jet's pilot fires its cannon as the coax, an AA's occupant its gun in bursts; lock-on missiles in air-missiles.ts.
-// #101: the Gunship's gunner fires its left side gun as a helicopter's.
+// #107: Soldiers aboard a vehicle fire only its guns (each seat's by its kind's `seatFire`, handed the shot model here; the main
+// gun in vehicles/core.ts) and take no fire; a Launcher's rockets hit vehicles. #108: rifles hit a jeep like a Soldier in the open.
+// #110: lock-on missiles in air-missiles.ts.
 import type { Match } from './index';
 import { logDeath, resetSoldierAi } from './ai';
 import { isDummy } from './assets/crate';
 import { dist2, inHq } from './geometry';
 import { cellAt, COVER, wallLos } from './grid';
-import { flyMissiles, launchMissiles } from './air-missiles';
-import { between, rnd } from './rng';
+import { flyMissiles } from './air-missiles';
+import { rnd } from './rng';
 import { award } from './score';
-import { membersOf, ticksOf, vehicleOf, type Soldier } from './state';
+import { membersOf, vehicleOf, type Soldier } from './state';
 import { enemyOf, type SimEvent, type Vec2 } from './types';
-import { jetTarget } from './vehicles/jet';
-import { gunner, held, hurt, isLauncher, leave, mainGuns, rocketTarget, sideGun, SPECS, type Vehicle } from './vehicles';
-
-interface Shot {
-  shooter: Soldier;
-  target: Soldier | null; // suppressive fire may hit nobody
-  hit: boolean;
-  damage: number;
-  /** Suppressive fire: the aim point, and the enemies close enough to it to be suppressed. */
-  at?: Vec2;
-  near?: Soldier[];
-  /** #107: a Launcher's rocket, or #108 a rifle shot, at this vehicle. */
-  vehicle?: Vehicle;
-}
+import { hurt, isLauncher, leave, lockMissiles, mainGuns, rocketTarget, seatFire, type Shot, type Shots, type Vehicle } from './vehicles';
 
 const hitMul = (m: Match, s: Soldier, e: Soldier) =>
   (1 - m.tune.suppressAccuracyLoss * s.suppression) * (cellAt(m, e.x, e.y) === COVER ? m.tune.coverHitMul : 1);
@@ -49,60 +35,6 @@ function rocket(m: Match, s: Soldier): Shot | null {
   s.rockets--;
   s.nextFire = m.tick + Math.round(t.rocketSeconds * t.hz);
   return { shooter: s, target: null, hit: true, damage: t.rocketDamage, vehicle: v };
-}
-
-/** #107: the gunner aboard fires the coax (#108: a jeep's MG, #109 a helicopter's side gun) at the vehicle's infantry target: the rifle shot model, faster and longer. */
-function coax(m: Match, s: Soldier, v: Vehicle): Shot | null {
-  const t = m.tune;
-  if (held(m, v)) return null; // #143: an EMP holds its guns too
-  if (v.kind === 'jet') return cannon(m, s, v);
-  if (v.kind === 'aa') return aaRound(m, s, v);
-  const gun = SPECS[v.kind];
-  const seat = v.seats.indexOf(s.id);
-  const e = v.kind === 'helicopter' || (v.kind === 'gunship' && gunner(v) === s.id) ? sideGun(m, v, seat) : gunner(v) === s.id ? m.soldiers[v.coax] : undefined; // #129: a helicopter's guns are its side seats; #101 the Gunship's one gun is seat 1's, its left
-  if (!e || e.state !== 'alive' || m.tick < s.nextFire || dist2(v, e) > gun.gunM(t) * gun.gunM(t)) return null;
-  return roll(m, s, e, t.hitChance * (cellAt(m, e.x, e.y) === COVER ? t.coverHitMul : 1), gun.gunSeconds(t));
-}
-
-/**
- * #110: a jet's cannon in its strip, at what the Side knows (`jetTarget`): the rifle shot model, `jetVsVehicleDamage` a hit on a
- * vehicle. With no Contact in the strip it rakes its mark's last known spot instead, as suppressive fire scattered `jetStripM`.
- */
-function cannon(m: Match, s: Soldier, v: Vehicle): Shot | null {
-  const t = m.tune;
-  if (m.tick < s.nextFire) return null;
-  const e = jetTarget(m, v);
-  if (!e) return v.sortie === 'inbound' && v.prey >= 0 && dist2(v, v.spot!) <= t.jetFireM * t.jetFireM ? rake(m, s, v.spot!, t.jetStripM, t.jetFireSeconds) : null;
-  if ('kind' in e) {
-    const shot = roll(m, s, null, t.hitChance, t.jetFireSeconds, e);
-    return { ...shot, damage: shot.hit ? (e.kind === 'jet' ? t.jetVsJetDamage : t.jetVsVehicleDamage) : 0 };
-  }
-  return roll(m, s, e, t.hitChance * (cellAt(m, e.x, e.y) === COVER ? t.coverHitMul : 1), t.jetFireSeconds);
-}
-
-/**
- * #110: an AA's gun, at its target (air first, else a jeep) or else its infantry target: bursts of `aaBurstSeconds` (seeded) of a
- * round every `aaFireSeconds`, each followed by an `aaPauseSeconds` pause (seeded); a fresh target gets a fresh burst. A round on a
- * vehicle hits with `aaHitChance` for `aaRoundDamage`; on a Soldier it is the rifle shot model.
- */
-function aaRound(m: Match, s: Soldier, v: Vehicle): Shot | null {
-  const t = m.tune;
-  const e = vehicleOf(m, v.target) ?? m.soldiers[v.coax];
-  if (!e) {
-    v.until = -1;
-    return null;
-  }
-  if (m.tick < s.nextFire) return null;
-  if (v.until < 0) v.until = m.tick + ticksOf(t, between(m, t.aaBurstSeconds));
-  else if (m.tick >= v.until) {
-    s.nextFire = m.tick + ticksOf(t, between(m, t.aaPauseSeconds));
-    v.until = -1;
-    return null;
-  }
-  const shot = 'kind' in e ? roll(m, s, null, t.aaHitChance, t.aaFireSeconds, e) : roll(m, s, e, t.hitChance * (cellAt(m, e.x, e.y) === COVER ? t.coverHitMul : 1), t.aaFireSeconds);
-  s.nextFire = m.tick + ticksOf(t, t.aaFireSeconds); // a steady cadence within the burst, not the rifle's jitter
-  if ('kind' in e) shot.damage = shot.hit ? t.aaRoundDamage : 0;
-  return shot;
 }
 
 /** Decides a shot from the pre-fire state; every shot of the tick is applied together afterwards. */
@@ -166,6 +98,9 @@ function rake(m: Match, s: Soldier, aim: Vec2, scatterM: number, every: number):
   return { ...roll(m, s, e, e ? t.hitChance * t.suppressiveHitMul * hitMul(m, s, e) : 0, every), at, near };
 }
 
+/** #183: the shot model a vehicle's seat fires by (vehicles/core.ts `seatFire`). */
+const SHOTS: Shots = { roll, rake };
+
 export function fire(m: Match, events: SimEvent[]) {
   const t = m.tune;
   const shots: Shot[] = [];
@@ -173,7 +108,7 @@ export function fire(m: Match, events: SimEvent[]) {
     if (s.state !== 'alive' || s.chute) continue; // #130: never fires on a parachute
     const v = vehicleOf(m, s.vehicle);
     if (inHq(m, s.side, v ?? s)) continue; // nobody fires out of its own HQ: the enemy can't fire back into it
-    const shot = v ? coax(m, s, v) : (rocket(m, s) ?? aim(m, s) ?? suppressive(m, s));
+    const shot = v ? seatFire(m, s, v, SHOTS) : (rocket(m, s) ?? aim(m, s) ?? suppressive(m, s)); // #107: aboard, it fires its seat's gun
     if (shot) shots.push(shot);
   }
   for (const { shooter, target: e, hit, damage, at, near, vehicle } of shots) {
@@ -201,7 +136,7 @@ export function fire(m: Match, events: SimEvent[]) {
     wound(m, e, events);
   }
   mainGuns(m, events); // #107
-  launchMissiles(m); // #110
+  lockMissiles(m); // #110
   flyMissiles(m, events);
 }
 

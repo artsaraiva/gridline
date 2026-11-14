@@ -6,6 +6,9 @@ import { insidePolygon } from './geometry';
 import { DEFAULT_TUNE } from './tune';
 import { NO_TEMPO, NO_TRAITS, thinkOnId } from './test-tune';
 import type { Command, CommanderView, MapData, SideId, SimEvent, Tune } from './types';
+import type { VehicleOf } from './vehicles';
+
+type Heli = VehicleOf<'helicopter'>;
 
 const HZ = DEFAULT_TUNE.hz;
 
@@ -251,7 +254,7 @@ describe('#107 the tank fights', () => {
   });
 
   it('hashes every vehicle field, every Wreck and who rides where', () => {
-    const m = scene({});
+    const m = scene({ tune: { helisPerSide: 1, jetsPerSide: 1 } }); // #183: a helicopter's and a jet's records too
     const moves = (change: (m: Match) => void) => {
       const h = stateHash(m);
       change(m);
@@ -265,18 +268,20 @@ describe('#107 the tank fights', () => {
     moves((m) => (m.vehicles[1]!.target = 0));
     moves((m) => m.wrecks.push({ side: 'nato', kind: 'tank', x: 1, y: 2, fx: 1, fy: 0, seen: false, tick: 0 }));
     // #131 helicopter jobs
-    moves((m) => (m.vehicles[0]!.job = 'support'));
-    moves((m) => (m.vehicles[0]!.fetch = 3));
-    moves((m) => (m.vehicles[0]!.spot = { x: 1, y: 2 }));
-    moves((m) => (m.vehicles[0]!.spin = -1));
-    moves((m) => (m.vehicles[0]!.until = 99));
-    moves((m) => (m.vehicles[0]!.drop = true));
-    moves((m) => (m.vehicles[0]!.crashAt = 99));
+    const heli = () => m.vehicles.find((v) => v.kind === 'helicopter')!;
+    moves(() => (heli().heli.job = 'support'));
+    moves(() => (heli().heli.fetch = 3));
+    moves(() => (heli().heli.spot = { x: 1, y: 2 }));
+    moves(() => (heli().heli.spin = -1));
+    moves(() => (heli().heli.until = 99));
+    moves(() => (heli().heli.hotDrop = true));
+    moves(() => (heli().heli.crashAt = 99));
     // #110 the jet's sortie
-    moves((m) => (m.vehicles[0]!.sortie = 'turning'));
-    moves((m) => (m.vehicles[0]!.passes = 3));
-    moves((m) => (m.vehicles[0]!.bombs = 1));
-    moves((m) => (m.vehicles[0]!.prey = 2));
+    const jet = () => m.vehicles.find((v) => v.kind === 'jet')!;
+    moves(() => (jet().sortie.stage = 'turning'));
+    moves(() => (jet().sortie.passes = 3));
+    moves(() => (jet().sortie.bombs = 1));
+    moves(() => (jet().sortie.prey = 2));
     moves((m) => m.vehicles[0]!.missiles.push({ x: 1, y: 2, fx: 1, fy: 0, prey: 3, launch: 0, missed: false }));
     moves((m) => m.vehicles[0]!.rounds.push({ x0: 0, y0: 0, x: 1, y: 2, launch: 0, land: 9, bomb: true }));
     // #129 crew and #130 parachute, per Soldier
@@ -845,7 +850,7 @@ describe('#124 helicopter flight and Landing Zone', () => {
   };
   /** The helicopter's state every tick for `seconds`. */
   function flight(m: Match, seconds: number) {
-    const h = m.vehicles[0]!;
+    const h = m.vehicles[0] as Heli;
     const log: { x: number; y: number; fx: number; fy: number; speed: number; airborne: boolean; tick: number }[] = [];
     for (let i = 0; i < seconds * HZ; i++) {
       step(m, []);
@@ -871,10 +876,10 @@ describe('#124 helicopter flight and Landing Zone', () => {
   it('each trip out and home is a dogleg, and the one home is not the one out', () => {
     const { h, log } = flight(scene124(), 90);
     const { out, back } = trips(log);
-    const outLen = Math.hypot(h.lz!.x - HQ.x, h.lz!.y - HQ.y);
-    expect(Math.abs(bulge(out, HQ, h.lz!))).toBeGreaterThan(0.05 * outLen); // it banks through a waypoint off the line (the turn cuts the corner)
-    expect(Math.abs(bulge(back, h.lz!, HQ))).toBeGreaterThan(0.05 * outLen);
-    const [p, q] = [farthest(out, HQ, h.lz!), farthest(back, h.lz!, HQ)];
+    const outLen = Math.hypot(h.heli.lz!.x - HQ.x, h.heli.lz!.y - HQ.y);
+    expect(Math.abs(bulge(out, HQ, h.heli.lz!))).toBeGreaterThan(0.05 * outLen); // it banks through a waypoint off the line (the turn cuts the corner)
+    expect(Math.abs(bulge(back, h.heli.lz!, HQ))).toBeGreaterThan(0.05 * outLen);
+    const [p, q] = [farthest(out, HQ, h.heli.lz!), farthest(back, h.heli.lz!, HQ)];
     expect(Math.hypot(p.x - q.x, p.y - q.y)).toBeGreaterThan(10);
   });
 
@@ -882,7 +887,7 @@ describe('#124 helicopter flight and Landing Zone', () => {
     const zones = [1, 2, 3, 4, 5, 6].map((seed) => {
       const m = scene124({ seed });
       flight(m, 45);
-      return m.vehicles[0]!.lz!;
+      return (m.vehicles[0] as Heli).heli.lz!;
     });
     for (const z of zones) {
       const d = Math.hypot(z.x - A.x, z.y - A.y);
@@ -897,7 +902,7 @@ describe('#124 helicopter flight and Landing Zone', () => {
       const m = scene124({ seed });
       m.squads[0]!.memory.push({ id: 4, x: A.x + 100, y: A.y, tick: 1e9, source: 'seen' }); // known east of A: it lands west (#129: the pilot goes first, so keep it fresh)
       flight(m, 45);
-      const z = m.vehicles[0]!.lz!;
+      const z = (m.vehicles[0] as Heli).heli.lz!;
       const cos = (A.x - z.x) / Math.hypot(z.x - A.x, z.y - A.y); // against straight away (west)
       expect(cos, `seed ${seed}`).toBeGreaterThanOrEqual(Math.cos(((DEFAULT_TUNE.lzSpreadDeg + 2.5) * Math.PI) / 180) - 0.01); // bearings are 5° apart: the away one is snapped to the nearest
     }
@@ -914,7 +919,7 @@ describe('#124 helicopter flight and Landing Zone', () => {
       m.rng = seed * 7919;
       m.squads[2]!.memory.push({ id: 6, x: A.x + 100, y: A.y, tick: 1e9, source: 'seen' }); // the Squad left behind knows an enemy east of A; the riders' own memory is empty
       flight(m, 45);
-      const z = m.vehicles[0]!.lz!;
+      const z = (m.vehicles[0] as Heli).heli.lz!;
       const cos = (A.x - z.x) / Math.hypot(z.x - A.x, z.y - A.y);
       expect(cos, `seed ${seed}`).toBeGreaterThanOrEqual(Math.cos(((DEFAULT_TUNE.lzSpreadDeg + 2.5) * Math.PI) / 180) - 0.01);
     }
@@ -949,19 +954,19 @@ describe('#124 helicopter flight and Landing Zone', () => {
 
   it('a trip shorter than doglegMinM flies straight', () => {
     const m = scene124({ map: { points: [{ id: 'A', name: 'A', x: -460, y: 0 }] }, tune: { lzM: [30, 30] } });
-    const h = m.vehicles[0]!;
+    const h = m.vehicles[0] as Heli;
     [0, 1, 2, 3].forEach((id, k) => (h.seats[k] = id) >= 0 && Object.assign(m.soldiers[id]!, { x: h.x, y: h.y, vehicle: h.id }));
     m.squads[0]!.order = { point: 0, hold: false, delayed: null, since: 0 };
     const { log } = flight(m, 20);
     const { out } = trips(log);
     expect(out.length).toBeGreaterThan(0);
-    expect(Math.abs(bulge(out, HQ, m.vehicles[0]!.lz!))).toBeLessThan(0.5);
+    expect(Math.abs(bulge(out, HQ, (m.vehicles[0] as Heli).heli.lz!))).toBeLessThan(0.5);
   });
 
   it('a goal changed in flight draws a fresh Landing Zone: it sets down by the new point and its riders get out there, once', () => {
     const B = { x: 300, y: -250 };
     const m = scene124({ map: { points: [{ id: 'A', name: 'A', ...A }, { id: 'B', name: 'B', ...B }] }, tune: { rockets: 0 } }); // the pact's Launcher (Soldier 5, parked far off) would rocket the airborne helicopter without line of sight (`rocketTarget`: airborne vehicles need none, `rocketRangeM` applies regardless of `visionM: 0`); #131: below half its hit points it would drop its riders and fly home to repair, and this test is about the Landing Zone
-    const h = m.vehicles[0]!;
+    const h = m.vehicles[0] as Heli;
     [0, 1, 2, 3].forEach((id, k) => (h.seats[k] = id) >= 0 && Object.assign(m.soldiers[id]!, { x: h.x, y: h.y, vehicle: h.id }));
     m.squads[0]!.order = { point: 0, hold: false, delayed: null, since: 0 };
     flight(m, 15);
@@ -1001,7 +1006,7 @@ describe('#124 helicopter flight and Landing Zone', () => {
     const { down, up2 } = trips(log);
     let hover = down;
     while (log[hover - 1]!.speed === 0 && log[hover - 1]!.airborne) hover--;
-    expect(Math.hypot(log[down]!.x - h.lz!.x, log[down]!.y - h.lz!.y)).toBeLessThan(1e-6);
+    expect(Math.hypot(log[down]!.x - h.heli.lz!.x, log[down]!.y - h.heli.lz!.y)).toBeLessThan(1e-6);
     expect((down - hover) / HZ).toBeCloseTo(DEFAULT_TUNE.flareSeconds, 0);
     expect(log[down - 1]!.airborne).toBe(true); // still airborne while it hovers
     expect(log.slice(down, up2).every((q) => q.speed === 0)).toBe(true);
@@ -1010,8 +1015,8 @@ describe('#124 helicopter flight and Landing Zone', () => {
 
   it('the Landing Zone, waypoint, flare and spool timers are in the hash', () => {
     const m = scene124();
-    const h = m.vehicles[0]!;
-    for (const change of [() => (h.lz = { x: 1, y: 2 }), () => (h.wp = { x: 3, y: 4 }), () => (h.flareUntil = 9), () => (h.spoolUntil = 9)]) {
+    const h = m.vehicles[0] as Heli;
+    for (const change of [() => (h.heli.lz = { x: 1, y: 2 }), () => (h.heli.wp = { x: 3, y: 4 }), () => (h.heli.flareUntil = 9), () => (h.heli.spoolUntil = 9)]) {
       const before = stateHash(m);
       change();
       expect(stateHash(m)).not.toBe(before);

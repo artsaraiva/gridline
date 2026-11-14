@@ -3,7 +3,9 @@ import { createMatch, step, type Match } from './index';
 import { DEFAULT_TUNE } from './tune';
 import { NO_TEMPO, NO_TRAITS, thinkOnId } from './test-tune';
 import type { SimEvent, Tune, Vec2 } from './types';
-import type { Vehicle } from './vehicles';
+import type { Vehicle, VehicleOf } from './vehicles';
+
+type Heli = VehicleOf<'helicopter'>;
 
 // #131: what a piloted helicopter does: bail, repair, ferry (pickup, hot drop), support, wait.
 const T = DEFAULT_TUNE;
@@ -33,7 +35,7 @@ function scene(points: Vec2[], tune: Partial<Tune> = {}, seed = 1): Match {
   for (const sq of m.squads) sq.rideM = 1e6;
   return m;
 }
-const heliOf = (m: Match) => m.vehicles.find((v) => v.side === 'nato' && v.kind === 'helicopter')!;
+const heliOf = (m: Match) => m.vehicles.find((v): v is Heli => v.side === 'nato' && v.kind === 'helicopter')!;
 const dist = (a: Vec2, b: Vec2) => Math.hypot(a.x - b.x, a.y - b.y);
 
 /** `seats` aboard `h` (pilot, left gun, right gun, three passengers; -1 empty), the first three crew, at `at` if given (then airborne, heading east). */
@@ -95,7 +97,7 @@ describe('#131 repair', () => {
     expect(h.hp - hp0).toBeCloseTo(5 * T.heliRepairHpPerS, 0);
     run(m, 30);
     expect(h.hp).toBe(T.heliHp);
-    expect(h.job).not.toBe('repair');
+    expect(h.heli.job).not.toBe('repair');
   });
 });
 
@@ -111,18 +113,18 @@ describe('#131 ferry', () => {
     return { m, h };
   }
   /** Plays it out, noting when Squad 1 first climbs in, where the helicopter first sets down after that, when its riders first jump, and who fired from it. */
-  function trip(m: Match, h: Vehicle, hot: boolean) {
+  function trip(m: Match, h: Heli, hot: boolean) {
     const log = { fetch: -1, pickup: null as Vec2 | null, boarded: -1, down: null as Vec2 | null, jumped: -1, over: Infinity, orbit: [] as number[], circled: false, fired: new Set<number>() };
     const riders = m.soldiers.filter((s) => s.squad === 1);
     for (let i = 0; i < 240 * HZ; i++) {
       if (hot) know(m, 1, { x: P.x + 20, y: 30 });
       for (const e of step(m, [])) if (e.kind === 'shot' && e.side === 'nato' && m.soldiers[e.from]!.vehicle === h.id) log.fired.add(e.from);
-      if (h.fetch === 1) log.fetch = m.tick;
+      if (h.heli.fetch === 1) log.fetch = m.tick;
       if (log.boarded < 0 && riders.some((s) => s.vehicle === h.id)) log.boarded = m.tick;
-      if (log.boarded >= 0 && !log.down && !h.airborne && h.landedAt >= log.boarded && dist(h, h.slot) > 50) log.down = { x: h.x, y: h.y };
-      if (log.boarded < 0 && !log.pickup && !h.airborne && h.landedAt > 0 && dist(h, h.slot) > 50) log.pickup = { x: h.x, y: h.y };
-      if (log.jumped < 0 && riders.some((s) => s.chute)) [log.jumped, log.over] = [m.tick, h.airborne && h.lz ? dist(h, h.lz) : Infinity];
-      if (h.drop && h.until >= 0) log.circled = true; // its orbit has begun
+      if (log.boarded >= 0 && !log.down && !h.airborne && h.heli.landedAt >= log.boarded && dist(h, h.slot) > 50) log.down = { x: h.x, y: h.y };
+      if (log.boarded < 0 && !log.pickup && !h.airborne && h.heli.landedAt > 0 && dist(h, h.slot) > 50) log.pickup = { x: h.x, y: h.y };
+      if (log.jumped < 0 && riders.some((s) => s.chute)) [log.jumped, log.over] = [m.tick, h.airborne && h.heli.lz ? dist(h, h.heli.lz) : Infinity];
+      if (h.heli.hotDrop && h.heli.until >= 0) log.circled = true; // its orbit has begun
       if (log.boarded >= 0 && log.jumped < 0 && h.airborne) log.orbit.push(dist(h, P) - T.orbitM);
     }
     return log;
@@ -187,7 +189,7 @@ describe('#131 ferry pickup wait', () => {
     for (let i = 0; i < 200 * HZ && off < 0; i++) {
       squad.forEach((s, k) => Object.assign(s, spots[k]!)); // it stands there, calling
       step(m, []);
-      if (down < 0 && !h.airborne && h.landedAt > 0 && dist(h, h.slot) > 50) down = m.tick;
+      if (down < 0 && !h.airborne && h.heli.landedAt > 0 && dist(h, h.slot) > 50) down = m.tick;
       if (down >= 0 && h.airborne) off = m.tick;
     }
     expect(down).toBeGreaterThan(0);
@@ -202,7 +204,7 @@ describe('#154 two helicopters', () => {
     // Pilots: Soldier 1 (Squad 0) in helicopter 16, Soldier 5 (Squad 1) in 17. Squad 0 calls from just past boardM of the HQ,
     // Squad 1 from far up the field; both stand there all along
     const m = scene([P], { helisPerSide: 2 });
-    const [a, b] = m.vehicles.filter((v) => v.side === 'nato' && v.kind === 'helicopter') as [Vehicle, Vehicle];
+    const [a, b] = m.vehicles.filter((v) => v.side === 'nato' && v.kind === 'helicopter') as [Heli, Heli];
     load(m, a, [1, -1, -1, -1, -1, -1]);
     load(m, b, [5, -1, -1, -1, -1, -1]);
     for (const sq of m.squads.slice(0, 2)) sq.rideM = 100;
@@ -212,7 +214,7 @@ describe('#154 two helicopters', () => {
     for (let i = 0; i < 10 * HZ; i++) {
       callers.forEach((s, k) => Object.assign(s, spots[k]!));
       step(m, []);
-      [a, b].forEach((h, k) => fetched[k]! < 0 && (fetched[k] = h.fetch));
+      [a, b].forEach((h, k) => fetched[k]! < 0 && (fetched[k] = h.heli.fetch));
     }
     expect(fetched.sort()).toEqual([0, 1]);
   });

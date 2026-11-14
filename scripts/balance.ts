@@ -83,11 +83,11 @@ export function balance(o: { seeds: number; squads: number; map: MapData; tune?:
       if (m.tick <= OPENING_S * tune.hz)
         for (const side of SIDES) aboard[side] = Math.max(aboard[side], m.soldiers.filter((s) => s.side === side && s.state === 'alive' && s.vehicle >= 0 && !inSky(m, s)).length);
       for (const v of m.vehicles) {
-        if (v.kind === 'helicopter' && v.goal >= 0 && v.lz && v.lz !== lastZone.get(v.id)) zones.push({ side: v.side, goal: m.points[v.goal]!.id, x: v.lz.x, y: v.lz.y });
-        if (v.kind === 'helicopter') lastZone.set(v.id, v.lz);
+        if (v.kind === 'helicopter' && v.goal >= 0 && v.heli.lz && v.heli.lz !== lastZone.get(v.id)) zones.push({ side: v.side, goal: m.points[v.goal]!.id, x: v.heli.lz.x, y: v.heli.lz.y });
+        if (v.kind === 'helicopter') lastZone.set(v.id, v.heli.lz);
         if (v.kind === 'helicopter' && live(v)) {
-          jobSeconds[v.side][v.job] += 1 / tune.hz;
-          if (v.job === 'wait' && v.seats[PILOT_SEAT]! < 0) unpiloted[v.side] += 1 / tune.hz;
+          jobSeconds[v.side][v.heli.job] += 1 / tune.hz;
+          if (v.heli.job === 'wait' && v.seats[PILOT_SEAT]! < 0) unpiloted[v.side] += 1 / tune.hz;
           if (v.seats.some((id) => id >= 0 && !m.soldiers[id]!.crew)) carried[v.side] = true;
         }
         const rider = v.kind === 'helicopter' && !boarded.has(v.id) ? v.seats.find((id) => id >= 0) : undefined;

@@ -9,13 +9,38 @@ import { approach, BRAKE_RESERVE, stopSpeed, turnToward } from '../momentum';
 import { rnd } from '../rng';
 import { membersOf, ticksOf, type Soldier, type Squad } from '../state';
 import { enemyOf, type Vec2 } from '../types';
-import { air, crippled, live, riders, type Vehicle } from './body';
-import { mount } from './core';
+import { air, crippled, live, riders, type Vehicle, type VehicleOf } from './body';
+import { mount, type VehicleRules } from './core';
 import { dogleg, landingZone } from './flight';
-import { circle, spinFor } from './helicopter-jobs';
-import { CREW_SEATS, goalOf, jump, onPad, startCrew } from './seats';
+import { circle, decideJob, glide, repairOnPad, spinFor, type Job } from './helicopter-jobs';
+import { alight, CREW_SEATS, goalOf, inReach, jump, onPad, seatGun, sideGun, startCrew, stintOver, takeWheel } from './seats';
 
 const squared = (r: number) => r * r;
+
+/**
+ * #109 #124 #131: what a helicopter is doing and where: its `job` (decided at its pilot's Squad think), the Squad it is flying to
+ * `fetch` (-1 = none), the `spot` it is bound for (fetching, the pickup Landing Zone) or circles (Support, or over a hot goal), which
+ * way it circles (`spin`: 1 counter-clockwise, the centre on its left; -1 clockwise), the tick its Support Commitment or its orbit
+ * over a hot goal ends (`until`, -1 = not begun), whether its riders jump over their Landing Zone (`hotDrop`: a hot goal) instead of
+ * it landing, its Landing Zone for the trip out (`lz`, kept after touchdown: its passengers get out there) and the dogleg's waypoint
+ * still ahead (`wp`), the ticks its hover ends in a touchdown (`flareUntil`) and its rotor is up to lift off (`spoolUntil`), the tick
+ * it last touched down (`landedAt`), and the tick it hits the ground once bailed out of (`crashAt`); -1 = none for each tick.
+ */
+export interface Heli {
+  job: Job;
+  fetch: number;
+  spot: Vec2 | null;
+  spin: number;
+  until: number;
+  hotDrop: boolean;
+  lz: Vec2 | null;
+  wp: Vec2 | null;
+  flareUntil: number;
+  spoolUntil: number;
+  landedAt: number;
+  crashAt: number;
+}
+export type Helicopter = VehicleOf<'helicopter'>;
 
 /** The first empty pilot or gun seat of `v` that none of `crew` (aboard or on their way to `v`) holds. */
 const freeCrewSeat = (v: Vehicle, crew: Soldier[]) => CREW_SEATS.find((k) => v.seats[k]! < 0 && !crew.some((o) => o.crewSeat === k && (o.vehicle === v.id || o.boarding === v.id)));
@@ -61,6 +86,18 @@ export function decideCrew(m: Match, sq: Squad, body: Soldier[], L: Soldier) {
   }
 }
 
+/**
+ * #109 #129 #131: its leaving rule. Its passengers leave it under repair (in the air by parachute, `decideJob`) while its crew stay at
+ * their seats; nobody gets out in the air; its crew only once their stint is over (`stintOver`); its passengers by the shared rule
+ * (`alight`), at its Landing Zone and never by drive distance (it flies straight to their majority's goal).
+ */
+function wantsOut(m: Match, sq: Squad, s: Soldier, v: Helicopter): boolean {
+  if (v.heli.job === 'repair' && !s.crew) return true;
+  if (v.airborne) return false;
+  if (s.crew) return stintOver(m, s, v);
+  return alight(m, sq, s, v, () => !!v.heli.lz && dist2(v, v.heli.lz) < 1, false);
+}
+
 /** #109: the passengers' majority goal (the pilot's breaks a tie), -1 = none aboard with a Capture Point: home. */
 function ferryGoal(m: Match, v: Vehicle): number {
   const goals = v.seats.map((id) => {
@@ -73,24 +110,24 @@ function ferryGoal(m: Match, v: Vehicle): number {
 }
 
 /** #131: where a helicopter is bound for: the pickup Landing Zone it is fetching to, the point it supports, else its passengers' Landing Zone, else home. */
-const bound = (v: Vehicle): Vec2 => ((v.job === 'ferry' && v.fetch >= 0) || v.job === 'support' ? v.spot : null) ?? (v.goal >= 0 && v.lz ? v.lz : v.slot);
+const bound = (v: Helicopter): Vec2 => ((v.heli.job === 'ferry' && v.heli.fetch >= 0) || v.heli.job === 'support' ? v.heli.spot : null) ?? (v.goal >= 0 && v.heli.lz ? v.heli.lz : v.slot);
 
 /**
  * #124, as it lifts off: the trip. Going out, a Landing Zone for the passengers' goal (`landingZone`: away from the enemies its
  * riders' Squads know); out or home, a dogleg waypoint (`dogleg`) that keeps off enemy-held points and known enemies. #131: with a
  * known enemy within `lzThreatM` of the goal (any friendly Squad's) it is a hot goal: its riders jump over the Landing Zone, after circling the point first if a gunner is aboard.
  */
-export function plan(m: Match, v: Vehicle) {
+export function plan(m: Match, v: Helicopter) {
   const known = sideKnown(m, v.side); // #133: any friendly Squad's eyes
   const threats = [...m.points.filter((p) => p.owner === enemyOf(v.side)).map((p) => ({ x: p.x, y: p.y, r: p.radius })), ...known.map((e) => ({ x: e.x, y: e.y, r: 0 }))];
   if (v.goal >= 0) {
     const p = m.points[v.goal]!;
-    v.lz = landingZone(m, p, known, (q) => clearOfHq(m, v.side, q, 1));
+    v.heli.lz = landingZone(m, p, known, (q) => clearOfHq(m, v.side, q, 1));
     const hot = sideKnown(m, v.side).some((e) => e.source !== 'marked' && dist2(e, p) <= squared(m.tune.lzThreatM)); // #131: any friendly Squad's eyes; #136: not a Mark, a guess is no reason to jump (it still turns the Landing Zone away)
     const circles = hot && (v.seats[1]! >= 0 || v.seats[2]! >= 0); // with no gunner, circling is pointless (#128): the riders still jump
-    Object.assign(v, { spot: circles ? { x: p.x, y: p.y } : null, drop: hot, until: -1, ...(circles && { spin: spinFor(m, v) }) });
+    Object.assign(v.heli, { spot: circles ? { x: p.x, y: p.y } : null, hotDrop: hot, until: -1, ...(circles && { spin: spinFor(m, v) }) });
   }
-  v.wp = dogleg(m, v, bound(v), threats);
+  v.heli.wp = dogleg(m, v, bound(v), threats);
 }
 
 /**
@@ -101,21 +138,21 @@ export function plan(m: Match, v: Vehicle) {
  * Landing Zone kept from the last trip would hold it down and empty every Squad that climbs in). #131: its job sends it elsewhere
  * (`bound`): a pickup it waits at for the Squad it came for, or a point to circle. Airborne, see `cruise`.
  */
-export function fly(m: Match, v: Vehicle) {
+export function fly(m: Match, v: Helicopter) {
   const t = m.tune;
   const goal = ferryGoal(m, v);
   if (goal !== v.goal) {
     v.goal = goal;
-    if (goal >= 0) v.lz = null; // emptied (-1), it keeps the last one: its passengers got out there
-    if (v.airborne && v.flareUntil < 0) plan(m, v);
+    if (goal >= 0) v.heli.lz = null; // emptied (-1), it keeps the last one: its passengers got out there
+    if (v.airborne && v.heli.flareUntil < 0) plan(m, v);
   }
   if (v.airborne) return cruise(m, v);
-  const there = v.spot && bound(v) === v.spot ? dist2(v, v.spot) < 1 : v.goal >= 0 ? !!v.lz && dist2(v, v.lz) < 1 : dist2(v, v.slot) < 1e-4;
-  const held = (v.landedAt >= 0 && m.tick - v.landedAt < Math.round(t.unloadSeconds * t.hz)) || (v.seats.includes(-1) && m.tick < v.departAt);
-  if (there || held) return void (v.spoolUntil = -1);
-  if (v.spoolUntil < 0) v.spoolUntil = m.tick + Math.round(t.spoolSeconds * t.hz);
-  if (m.tick < v.spoolUntil) return;
-  v.spoolUntil = -1;
+  const there = v.heli.spot && bound(v) === v.heli.spot ? dist2(v, v.heli.spot) < 1 : v.goal >= 0 ? !!v.heli.lz && dist2(v, v.heli.lz) < 1 : dist2(v, v.slot) < 1e-4;
+  const held = (v.heli.landedAt >= 0 && m.tick - v.heli.landedAt < Math.round(t.unloadSeconds * t.hz)) || (v.seats.includes(-1) && m.tick < v.departAt);
+  if (there || held) return void (v.heli.spoolUntil = -1);
+  if (v.heli.spoolUntil < 0) v.heli.spoolUntil = m.tick + Math.round(t.spoolSeconds * t.hz);
+  if (m.tick < v.heli.spoolUntil) return;
+  v.heli.spoolUntil = -1;
   plan(m, v);
   Object.assign(v, { airborne: true, parked: false });
 }
@@ -128,30 +165,33 @@ export function fly(m: Match, v: Vehicle) {
  * #131: past its waypoint, Support circles its point, and a hot goal's helicopter circles it for `orbitSeconds` once within a quarter of
  * `orbitM` past its circle (`circle`); after the hover over a hot goal's Landing Zone the riders jump instead of it landing.
  */
-function cruise(m: Match, v: Vehicle) {
+function cruise(m: Match, v: Helicopter) {
   const t = m.tune;
-  if (v.flareUntil >= 0) {
+  if (v.heli.flareUntil >= 0) {
     v.speed = approach(v.speed, 0, t.heliAccel, 1, t.hz); // the last of the braking
-    if (m.tick < v.flareUntil) return;
-    if (!v.drop) return void Object.assign(v, { airborne: false, parked: true, landedAt: m.tick, flareUntil: -1 });
+    if (m.tick < v.heli.flareUntil) return;
+    if (!v.heli.hotDrop) {
+      Object.assign(v, { airborne: false, parked: true });
+      return void Object.assign(v.heli, { landedAt: m.tick, flareUntil: -1 });
+    }
     for (const s of riders(m, v)) if (!s.crew) jump(m, s); // over the Landing Zone
-    Object.assign(v, { flareUntil: -1, drop: false, spot: null });
+    Object.assign(v.heli, { flareUntil: -1, hotDrop: false, spot: null });
     return;
   }
-  if (v.drop && v.spot && !v.wp && v.until >= 0 && m.tick >= v.until) v.spot = null; // the orbit is over
-  if (v.spot && !v.wp && (v.job === 'support' || (v.drop && (v.until >= 0 || dist2(v, v.spot) <= squared(1.25 * t.orbitM))))) {
-    if (v.drop && v.until < 0) v.until = m.tick + ticksOf(t, t.orbitSeconds);
-    return circle(m, v, v.spot);
+  if (v.heli.hotDrop && v.heli.spot && !v.heli.wp && v.heli.until >= 0 && m.tick >= v.heli.until) v.heli.spot = null; // the orbit is over
+  if (v.heli.spot && !v.heli.wp && (v.heli.job === 'support' || (v.heli.hotDrop && (v.heli.until >= 0 || dist2(v, v.heli.spot) <= squared(1.25 * t.orbitM))))) {
+    if (v.heli.hotDrop && v.heli.until < 0) v.heli.until = m.tick + ticksOf(t, t.orbitSeconds);
+    return circle(m, v, v.heli.spot);
   }
   const to = bound(v);
-  let aim = v.wp ?? to;
+  let aim = v.heli.wp ?? to;
   let d = Math.sqrt(dist2(v, aim));
-  if (v.wp && d <= Math.max(2, v.speed)) {
-    v.wp = null;
+  if (v.heli.wp && d <= Math.max(2, v.speed)) {
+    v.heli.wp = null;
     aim = to;
     d = Math.sqrt(dist2(v, aim));
   }
-  const left = d + (v.wp ? Math.sqrt(dist2(v.wp, to)) : 0);
+  const left = d + (v.heli.wp ? Math.sqrt(dist2(v.heli.wp, to)) : 0);
   let { fx, fy } = v;
   let want = 0;
   if (d >= 0.01) {
@@ -161,7 +201,32 @@ function cruise(m: Match, v: Vehicle) {
     want = Math.min(t.heliMps * (t.turnSpeedMin + (1 - t.turnSpeedMin) * align), stopSpeed(left, t.heliAccel, 1, BRAKE_RESERVE));
   }
   const speed = approach(v.speed, want, t.heliAccel, 1, t.hz); // braking no harder than speeding up
-  const arrived = !v.wp && (d < 0.01 || speed / t.hz >= d);
+  const arrived = !v.heli.wp && (d < 0.01 || speed / t.hz >= d);
   const at = arrived ? aim : clearOfHq(m, v.side, { x: v.x + (fx * speed) / t.hz, y: v.y + (fy * speed) / t.hz });
-  Object.assign(v, { x: at.x, y: at.y, fx, fy, speed, movedAt: m.tick, ...(arrived && { flareUntil: m.tick + ticksOf(t, t.flareSeconds) }) });
+  Object.assign(v, { x: at.x, y: at.y, fx, fy, speed, movedAt: m.tick });
+  if (arrived) v.heli.flareUntil = m.tick + ticksOf(t, t.flareSeconds);
 }
+
+export const helicopter: VehicleRules<'helicopter'> = {
+  init: () => ({ heli: { job: 'wait', fetch: -1, spot: null, spin: 1, until: -1, hotDrop: false, lz: null, wp: null, flareUntil: -1, spoolUntil: -1, landedAt: -1, crashAt: -1 } }),
+  /** #109 #131: bailed out of, it glides on to its crash; piloted, it flies (not while it stands for a dismount); on its helipad it repairs. */
+  move(m, v, halted) {
+    if (v.heli.job === 'bail') glide(m, v);
+    else if (!halted && v.seats[0]! >= 0) fly(m, v);
+    repairOnPad(m, v);
+  },
+  job: decideJob,
+  seatFor: (_m, v, s) => (s.crew ? s.crewSeat : [3, 4, 5, 1, 2].find((k) => v.seats[k]! < 0)!), // #129: its crew take the seat they were sent for (pilot, then guns); riders fill the passenger seats first
+  onDriver: (m, _sq, _s, v, wait) => void takeWheel(m, v, wait), // its pilot picks no goal: `fly` ferries the passengers'
+  rides: {
+    /** #122 #129 #131: not while it repairs, with its pilot aboard or on the way, and only for a goal beyond `heliFitM` or across the river; a helicopter fetching the Squad fits from where it landed on its pickup Landing Zone, not only within reach. */
+    fits: (m, sq, L, v, p, fetched) =>
+      v.heli.job !== 'repair' && (inReach(m, L, v) || (fetched && v.heli.fetch === sq.id && !!v.heli.spot && dist2(v, v.heli.spot) < 1)) && (v.seats[0]! >= 0 || m.soldiers.some((s) => s.crew && s.boarding === v.id)) &&
+      (dist2(L, p) > squared(m.tune.heliFitM) || sq.route >= 0),
+    fetching: (v) => v.heli.fetch,
+    claimed: (v) => void (v.heli.fetch = -1),
+  },
+  onReturn: crewOnReturn,
+  wantsOut,
+  seatFire: (m, s, v, shots) => seatGun(m, s, v, sideGun(m, v, v.seats.indexOf(s.id)), shots), // #129: a gun per side seat
+};

@@ -1,12 +1,15 @@
 // Getting in and out of a Vehicle (#107 #108): the seats (who holds which, the free ones, #129 a helicopter's pad and the side
-// each gun seat sits out to), the Capture Point a rider is heading for, a crew stint's start (#129), getting out on foot, the
-// parachute jump and its descent (#130), and leaving a seat for good.
+// each gun seat sits out to), the Capture Point a rider is heading for, a driver taking the wheel, a crew stint's start (#129),
+// the shared passenger rule (`alight`), getting out on foot, the parachute jump and its descent (#130), and leaving a seat for good.
 import type { Match } from '../index';
-import { canStand, dist2 } from '../geometry';
-import { nearestWalkable } from '../grid';
+import { driveFlow, flowDist } from '../ai/flow';
+import { canStand, dist2, inHq } from '../geometry';
+import { cellAt, COVER, nearestWalkable } from '../grid';
+import { cosDeg } from '../momentum';
 import { rnd } from '../rng';
 import { footLeader, membersOf, ticksOf, vehicleOf, type Soldier, type Squad } from '../state';
-import { air, riders, type Vehicle } from './body';
+import { air, riders, SPECS, type Vehicle } from './body';
+import type { Shot, Shots } from './core';
 
 const squared = (r: number) => r * r;
 
@@ -24,11 +27,77 @@ export const GUN_OUT_M = 2;
 /** The unit vector straight out from the helicopter's `seat` side (1 left, 2 right; the field's y runs up, so left of east is +y), null for the other seats. */
 export const beam = (v: Vehicle, seat: number) => (seat === 1 ? { x: -v.fy, y: v.fx } : seat === 2 ? { x: v.fy, y: -v.fx } : null);
 
+/**
+ * #129: the nearest enemy on foot a helicopter's gun in `seat` (1 left, 2 right) can fire at: within the gun's range and its
+ * `gunArcDeg` arc centred on its beam (a dot product against the beam, no trig), outside its HQ. Null for any other seat.
+ */
+export function sideGun(m: Match, v: Vehicle, seat: number): Soldier | null {
+  const t = m.tune;
+  const out = beam(v, seat);
+  if (!out) return null;
+  const cos = cosDeg(t.gunArcDeg / 2);
+  let best: Soldier | null = null;
+  let bestD2 = squared(SPECS[v.kind].gunM(t));
+  for (const e of m.soldiers) {
+    if (e.side === v.side || e.state !== 'alive' || e.vehicle >= 0 || inHq(m, e.side, e)) continue;
+    const d2 = dist2(v, e);
+    if (d2 <= bestD2 && (e.x - v.x) * out.x + (e.y - v.y) * out.y >= cos * Math.sqrt(d2)) [best, bestD2] = [e, d2];
+  }
+  return best;
+}
+
+/** A rifle-model shot's chance on `e` from a vehicle: `hitChance`, less in cover. */
+export const rifleChance = (m: Match, e: Soldier) => m.tune.hitChance * (cellAt(m, e.x, e.y) === COVER ? m.tune.coverHitMul : 1);
+
+/** #107: a gun seat's shot (the coax, #108 the MG, #129 a side gun) at `e`: the rifle shot model, the gun's own range and cadence (`SPECS`). */
+export function seatGun(m: Match, s: Soldier, v: Vehicle, e: Soldier | null | undefined, shots: Shots): Shot | null {
+  const gun = SPECS[v.kind];
+  if (!e || e.state !== 'alive' || m.tick < s.nextFire || dist2(v, e) > gun.gunM(m.tune) * gun.gunM(m.tune)) return null;
+  return shots.roll(m, s, e, rifleChance(m, e), gun.gunSeconds(m.tune));
+}
+
+/** #107: the gunner's coax (#108 the MG): seat 1 fires at the vehicle's infantry target. */
+export const coax = (m: Match, s: Soldier, v: Vehicle, shots: Shots) => seatGun(m, s, v, gunner(v) === s.id ? m.soldiers[v.coax] : undefined, shots);
+
 /** The Capture Point `s` is heading for: its own when Detached, else its Squad's; -1 when that is not a Capture Point. */
 export const goalOf = (m: Match, sq: Squad, s: Soldier) => (s.detached && s.goal >= 0 ? s.goal : sq.task === 'point' ? sq.goal : -1);
 
+/** #122: `L` is within `boardM` of `v`: a Squad led from there may ride it. */
+export const inReach = (m: Match, L: Soldier, v: Vehicle) => dist2(L, v) <= squared(m.tune.boardM);
+
+/** A driver takes the wheel of `v`: it draws its own preference per Capture Point (seeded, kept for the drive), has no goal yet, and starts the wait for others at `wait` (#122: unless a Squad's claim set it). */
+export const takeWheel = (m: Match, v: Vehicle, wait: number) =>
+  Object.assign(v, { goal: -1, bias: m.points.map(() => (rnd(m) * 2 - 1) * m.tune.tankGoalBias), parked: true, ...(v.claim < 0 && { departAt: wait }) });
+
+/** #129: crew `s` may leave `v`: its stint over, on the helipad, no claimed Squad boarding and no passenger aboard (never a pilotless helicopter with riders). */
+export const stintOver = (m: Match, s: Soldier, v: Vehicle) => m.tick >= s.crewUntil && onPad(v) && v.claim < 0 && riders(m, v).every((o) => o.crew);
+
 /** Starts `s`'s crew stint in `seat`, Detached from its Squad's goals; `boarding` is the vehicle it is walking to, or -1. */
 export const startCrew = (s: Soldier, crewSeat: number, boarding: number) => Object.assign(s, { crew: true, crewSeat, boarding, detached: true, goal: -1, commitUntil: 0 });
+
+/**
+ * The shared passenger rule (#27, #108), at think: a transport empties at its goal (`arrived`: #108 at the end of its drive, #109
+ * on its Landing Zone). A passenger, not its driver, also gets out once it has stood still `stillSeconds` (waiting to set off is
+ * not standing still), within `dismountM` of its own Capture Point, or (`byDrive`, on the ground) once its drive distance to that
+ * point has grown for `awaySeconds`.
+ */
+export function alight(m: Match, sq: Squad, s: Soldier, v: Vehicle, arrived: () => boolean, byDrive: boolean): boolean {
+  const t = m.tune;
+  if (v.goal >= 0 && arrived()) return true;
+  if (v.seats[0] === s.id) return false;
+  if (m.tick - Math.max(v.movedAt, v.departAt) >= t.stillSeconds * t.hz) return true;
+  const own = goalOf(m, sq, s);
+  const p = m.points[own];
+  if (!p) return false;
+  if (dist2(v, p) <= squared(t.dismountM)) return true;
+  if (!byDrive) return false;
+  const d = flowDist(m, driveFlow(m, v.side, own), v);
+  if (d === Infinity) return false;
+  if (s.away >= 0 && d > s.away) s.awaySince = s.awaySince < 0 ? m.tick : s.awaySince;
+  else if (d < s.away) s.awaySince = -1;
+  s.away = d;
+  return s.awaySince >= 0 && m.tick - s.awaySince >= t.awaySeconds * t.hz;
+}
 
 /** Out of its seat on foot; Detached when away from the Squad. */
 export function getOut(m: Match, s: Soldier, v: Vehicle) {

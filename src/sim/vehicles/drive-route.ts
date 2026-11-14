@@ -7,14 +7,22 @@ import { cellCentre, cellIndex } from '../grid';
 import { sideKnown } from '../memory';
 import { rnd } from '../rng';
 import type { Vec2, VehicleKind } from '../types';
-import { live, SPECS, type Vehicle } from './body';
+import { live, SPECS, type Ground, type Vehicle } from './body';
 
-/** `Vehicle.route`: -1 not chosen yet (it drives its road), its road, or `VIA + c` over crossing `c` first. */
+/** #107 #123: a ground vehicle's way to its goal: `route` -1 not chosen yet (it drives its road), its road (`ROAD`), or `VIA + c` over crossing `c` first; `planAt` the tick its driver may next plan a detour; `path` the cells still ahead of a detour round known danger, followed before the route (empty = none). */
+export interface Drive {
+  route: number;
+  planAt: number;
+  path: Vec2[];
+}
+export const freshDrive = (): Drive => ({ route: -1, planAt: 0, path: [] });
 export const ROAD = 0;
 export const VIA = 1;
 
 /** A kind that drives on the ground grid (the tank, the jeep, the AA). */
 const ground = (kind: VehicleKind) => SPECS[kind].layer === 'ground';
+/** A vehicle on the ground grid, so with a `drive`. */
+const onGround = (v: Vehicle): v is Ground => ground(v.kind);
 
 /** A route's line is walked `STEP` flow cells at a time (never over a deck unseen) and sampled every `HOP` of those: 16 m on 2 m cells, well inside the danger radii. */
 const STEP = 2;
@@ -39,25 +47,26 @@ let heat = new Float64Array(0);
 const touched: number[] = [];
 
 /** The flow field `v`'s route follows this tick. */
-export const routeFlow = (m: Match, v: Vehicle): Flow => (v.route >= VIA ? crossingDriveFlow(m, v.side, v.route - VIA) : driveFlow(m, v.side, v.goal));
+export const routeFlow = (m: Match, v: Ground): Flow => (v.drive.route >= VIA ? crossingDriveFlow(m, v.side, v.drive.route - VIA) : driveFlow(m, v.side, v.goal));
 
 /** Over its route's crossing, the last few metres to the middle of the deck: from there the road's own field leads on to the goal. */
-export function overCrossing(m: Match, v: Vehicle) {
-  if (v.route >= VIA && flowDist(m, routeFlow(m, v), v) <= 3 * m.tune.cellM) v.route = ROAD;
+export function overCrossing(m: Match, v: Ground) {
+  if (v.drive.route >= VIA && flowDist(m, routeFlow(m, v), v) <= 3 * m.tune.cellM) v.drive.route = ROAD;
 }
 
 /**
  * On a detour, the cell `n` ahead on it (the last, with fewer left), having dropped the ones reached: those within a cell of
  * the hull, and those a few cells on that it has a straight line to (`seen`), so it rounds a corner and does not cut it. Null with no detour.
  */
-export function alongPath(m: Match, v: Vehicle, n: number, seen: (p: Vec2) => boolean): Vec2 | null {
-  const within = (i: number, r: number) => dist2(v, v.path[i]!) < r * r;
-  for (let i = Math.min(5, v.path.length - 1); i >= 0; i--)
-    if (within(i, m.tune.cellM) || (within(i, 2.5 * m.tune.cellM) && seen(v.path[i]!))) {
-      v.path.splice(0, i + 1);
+export function alongPath(m: Match, v: Ground, n: number, seen: (p: Vec2) => boolean): Vec2 | null {
+  const path = v.drive.path;
+  const within = (i: number, r: number) => dist2(v, path[i]!) < r * r;
+  for (let i = Math.min(5, path.length - 1); i >= 0; i--)
+    if (within(i, m.tune.cellM) || (within(i, 2.5 * m.tune.cellM) && seen(path[i]!))) {
+      path.splice(0, i + 1);
       break;
     }
-  return v.path[Math.min(n, v.path.length) - 1] ?? null;
+  return path[Math.min(n, path.length) - 1] ?? null;
 }
 
 /**
@@ -66,7 +75,7 @@ export function alongPath(m: Match, v: Vehicle, n: number, seen: (p: Vec2) => bo
  * there is no going round it); `most` samples are enough for a detour's look ahead. Null when it leads nowhere, or when past its crossing's deck the road turns back over another:
  * that crossing is no way to this goal.
  */
-function line(m: Match, v: Vehicle, route: number, most = Infinity): { secs: number; pts: Vec2[] } | null {
+function line(m: Match, v: Ground, route: number, most = Infinity): { secs: number; pts: Vec2[] } | null {
   const g = m.drive[v.side];
   const goal = m.points[v.goal]!;
   const [roadMps, openMps] = [SPECS[v.kind].roadMps(m.tune), SPECS[v.kind].openMps(m.tune)];
@@ -115,26 +124,26 @@ const hot = (p: Vec2, at: Spot[]) => at.reduce((n, s) => n + (dist2(s, p) < s.r 
  * At its driver's think: `v`'s way to `v.goal`. With a fresh goal it picks its crossing (`pickCrossing`); then, not already on
  * a detour, it plans one when danger lies near ahead on its route (`detour`).
  */
-export function pickRoute(m: Match, v: Vehicle) {
-  if (v.goal < 0) return void Object.assign(v, { route: -1, path: [] });
-  if (v.route >= 0 && (v.path.length || m.tick < v.planAt || v.parked)) return;
+export function pickRoute(m: Match, v: Ground) {
+  if (v.goal < 0) return void Object.assign(v.drive, { route: -1, path: [] });
+  if (v.drive.route >= 0 && (v.drive.path.length || m.tick < v.drive.planAt || v.parked)) return;
   const at = spots(m, v);
-  if (v.route < 0) {
-    v.path = [];
+  if (v.drive.route < 0) {
+    v.drive.path = [];
     pickCrossing(m, v, at);
   }
   if (at.length) detour(m, v, at);
 }
 
 /**
- * Sets `v.route` for a fresh goal: its road, unless the goal is across the water and danger is known along that road. Then each
+ * Sets `v.drive.route` for a fresh goal: its road, unless the goal is across the water and danger is known along that road. Then each
  * crossing a vehicle can take is scored in seconds: the drive over it, plus the danger known along it, `driveMateS` per other
  * friendly vehicle taking it to the same point, plus seeded jitter; crossings more than `driveMaxDetourS` slower than the road's
  * are dropped. The road's fields are the only ones built until then, so a quiet match never pays for the others.
  */
-function pickCrossing(m: Match, v: Vehicle, at: Spot[]) {
+function pickCrossing(m: Match, v: Ground, at: Spot[]) {
   const t = m.tune;
-  v.route = ROAD;
+  v.drive.route = ROAD;
   const road = line(m, v, ROAD);
   // ponytail: chosen once per goal; a driver already on its way to a crossing that turns dangerous only detours round it (`detour`). Re-pick here if armour keeps dying at one bridge
   if (!road || !road.pts.some((p) => hot(p, at)) || !across(m, v.goal, v)) return;
@@ -143,30 +152,30 @@ function pickCrossing(m: Match, v: Vehicle, at: Spot[]) {
     const l = c.kind === 'footbridge' ? null : line(m, v, VIA + i);
     if (!l || l.secs > road.secs + t.driveMaxDetourS) return;
     const r = l.secs < road.secs + 2 ? ROAD : VIA + i; // the crossing the road takes anyway
-    const mates = m.vehicles.filter((o) => o !== v && o.side === v.side && ground(o.kind) && live(o) && o.seats[0]! >= 0 && o.goal === v.goal && Math.max(o.route, ROAD) === r).length;
+    const mates = m.vehicles.filter((o) => o !== v && o.side === v.side && onGround(o) && live(o) && o.seats[0]! >= 0 && o.goal === v.goal && Math.max(o.drive.route, ROAD) === r).length;
     const score = l.secs + at.reduce((n, s) => n + (l.pts.some((p) => dist2(s, p) < s.r * s.r) ? s.s : 0), 0) + t.driveMateS * mates + t.driveJitterS * (rnd(m) * 2 - 1);
-    if (score < best) [best, v.route] = [score, r];
+    if (score < best) [best, v.drive.route] = [score, r];
   });
 }
 
 /**
- * Sets `v.path` when danger lies within `NEAR` samples ahead on its route: the cheapest way over the drive grid from where it
+ * Sets `v.drive.path` when danger lies within `NEAR` samples ahead on its route: the cheapest way over the drive grid from where it
  * stands to the route `GAP` samples past the last of that danger. A cell costs its drive cost (so the road still pulls) plus, per
  * dangerous place it lies within reach of, what `s` seconds of road driving spread over that place's width come to (most at
  * its middle, nothing at its rim: a wide berth is worth more than a narrow one), times the driver's seeded caution: a lone rifleman is driven past, a Wreck or a crowd is driven round, through the fields if need be.
  * A* with the flow fields' step costs, at most `SEARCH` cells: no way found, no detour. Either way the driver plans no more for
- * `PLAN_SECONDS` (`v.planAt`).
+ * `PLAN_SECONDS` (`v.drive.planAt`).
  */
-function detour(m: Match, v: Vehicle, at: Spot[]) {
+function detour(m: Match, v: Ground, at: Spot[]) {
   const t = m.tune;
-  const l = line(m, v, Math.max(v.route, ROAD), NEAR + 8 * GAP);
+  const l = line(m, v, Math.max(v.drive.route, ROAD), NEAR + 8 * GAP);
   if (!l) return;
   const first = l.pts.findIndex((p) => hot(p, at));
   if (first < 0 || first > NEAR) return;
   let last = first;
   for (let i = first + 1; i < l.pts.length && i - last <= GAP; i++) if (hot(l.pts[i]!, at)) last = i;
   const to = l.pts[Math.min(l.pts.length - 1, last + GAP)]!;
-  v.planAt = m.tick + Math.round(PLAN_SECONDS * t.hz);
+  v.drive.planAt = m.tick + Math.round(PLAN_SECONDS * t.hz);
   const g = m.drive[v.side];
   const { cols, rows } = g;
   const caution = t.driveCaution[0] + rnd(m) * (t.driveCaution[1] - t.driveCaution[0]);
@@ -218,7 +227,7 @@ function detour(m: Match, v: Vehicle, at: Spot[]) {
     if (k === goal) {
       const path: Vec2[] = [];
       for (let c = goal; c !== start; c = from[c]!) path.push(cellCentre(m, c));
-      v.path = path.reverse();
+      v.drive.path = path.reverse();
       return;
     }
     const i = k % cols;

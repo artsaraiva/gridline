@@ -79,3 +79,25 @@ export function clearOfHq(m: Match, side: SideId, p: Vec2, margin = 0): Vec2 {
 /** The Play Area boundary, walls, water and the enemy HQ are walls to a Soldier. */
 export const canStand = (m: Match, s: Soldier, p: Vec2) =>
   insidePolygon(m.map.playArea, p.x, p.y) && walkCost(m, p.x, p.y) > 0 && !inHq(m, enemyOf(s.side), p);
+
+/** #99: the launch point sits this far beyond the Play Area edge. */
+const BEYOND_M = 1100;
+
+/** #99: `side`'s launch point, where the ray from the map centre through its HQ leaves the Play Area, BEYOND_M further on (#110 its jets' off-map base, #101 where its Gunship flies from). */
+export function launchPoint(m: Match, side: SideId): Vec2 {
+  const d = m.map.hqs[side];
+  const poly = m.map.playArea;
+  let far = 1; // the HQ itself, should the ray miss every edge
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[j]!;
+    const ex = poly[i]!.x - a.x;
+    const ey = poly[i]!.y - a.y;
+    const denom = d.x * ey - d.y * ex;
+    if (denom === 0) continue;
+    const t = (a.x * ey - a.y * ex) / denom;
+    const u = (a.x * d.y - a.y * d.x) / denom;
+    if (u >= 0 && u <= 1 && t > far) far = t;
+  }
+  const len = Math.sqrt(d.x * d.x + d.y * d.y) || 1;
+  return { x: d.x * far + (d.x / len) * BEYOND_M, y: d.y * far + (d.y / len) * BEYOND_M };
+}
