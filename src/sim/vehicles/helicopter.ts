@@ -12,7 +12,7 @@ import { enemyOf, type Vec2 } from '../types';
 import { air, crippled, live, riders, type Vehicle } from './body';
 import { mount, type VehicleRules } from './core';
 import { dogleg, landingZone } from './flight';
-import { circle, glide, repairOnPad, spinFor } from './helicopter-jobs';
+import { circle, decideJob, glide, repairOnPad, spinFor } from './helicopter-jobs';
 import { CREW_SEATS, goalOf, jump, onPad, startCrew } from './seats';
 
 const squared = (r: number) => r * r;
@@ -173,4 +173,5 @@ export const helicopter: VehicleRules<'helicopter'> = {
     else if (!halted && v.seats[0]! >= 0) fly(m, v);
     repairOnPad(m, v);
   },
+  job: decideJob,
 };

@@ -3,7 +3,7 @@
 // rules are in its module (aa.ts, helicopter.ts, jet.ts, lent.ts), the ground drive step in ground.ts.
 import type { Match } from '../index';
 import { driveFlow, flowDist } from '../ai/flow';
-import { bestPoint, reactAt } from '../ai/squad';
+import { reactAt } from '../ai/squad';
 import { between, rnd } from '../rng';
 import { blast } from '../assets/strike';
 import { die } from '../combat';
@@ -12,14 +12,14 @@ import { dist2, inHq, insidePolygon } from '../geometry';
 import { launchPoint } from '../assets/missile';
 import { hashMissiles, type AirMissile } from '../air-missiles';
 import { los, nearestWalkable } from '../grid';
-import { see, sideKnown } from '../memory';
+import { see } from '../memory';
 import { ticksOf, vehicleOf, type Mix, type Soldier, type Squad } from '../state';
 import { SIDES, type SideId, type SimEvent, type Vec2, type VehicleKind, type VehicleView } from '../types';
-import { aa, aaPoint } from './aa';
+import { aa } from './aa';
 import { air, crippled, DORMANT, flies, flown, fresh, held, high, live, riders, SPECS, unmanned, wreck, type Round, type Vehicle } from './body';
 import { pickRoute } from './drive-route';
 import { crewOnReturn, helicopter } from './helicopter';
-import { decideJob, JOBS } from './helicopter-jobs';
+import { JOBS } from './helicopter-jobs';
 import { jet, jetOnReturn, jetPoint, SORTIE, takeOff } from './jet';
 import { jeep } from './jeep';
 import { GUNSHIP_GUN, gunshipOnReturn, lent } from './lent';
@@ -35,6 +35,12 @@ const squared = (r: number) => r * r;
 export interface VehicleRules<K extends VehicleKind> {
   /** Its tick in the vehicle phase (`drive`) with `halted` true while it stands for a dismount: drive, fly or fly a sortie. None for a lent body: its Asset flies it. */
   move?(m: Match, v: Vehicle, halted: boolean): void;
+  /** Where its driver takes it: the Capture Point its driver picks as it takes the wheel and at each of its Squad's thinks (#107 the tank's, #110 the AA's and the jet's), -1 = none. */
+  goal?(m: Match, sq: Squad, s: Soldier, v: Vehicle): number;
+  /** What its driver does with the `goal` it picked at its Squad's think (#123 a ground vehicle takes a route there); unset, it heads there. */
+  onGoal?(m: Match, v: Vehicle, goal: number): void;
+  /** #131: at its pilot's Squad think, what it does: a helicopter's job. An EMP Strike's hold keeps it to the one it has (#143). */
+  job?(m: Match, v: Vehicle): void;
 }
 
 let table: { [K in VehicleKind]: VehicleRules<K> } | undefined;
@@ -204,51 +210,31 @@ export function boardStep(m: Match, s: Soldier): Vehicle | null {
   return v;
 }
 
-/**
- * The Capture Point a driver takes its vehicle to: scored like its Squad's choice (the Order's bonus as ever) but by drive
- * distance from the vehicle, with its own seeded preference, stickiness to where it is going, and the crowd penalty for each
- * other friendly vehicle already going there; its Squad's goal pulls no harder than any point. A Detached driver keeps its own,
- * and #108 a transport's driver always drives to its own goal. #110: an AA's driver lays back (`aaPoint`). Exported for tests.
- */
-export function drivePoint(m: Match, sq: Squad, s: Soldier, v: Vehicle): number {
-  if (v.kind === 'aa') return aaPoint(m, v);
-  if (v.kind !== 'tank' || (s.detached && s.goal >= 0)) return goalOf(m, sq, s);
-  const t = m.tune;
-  const others = (i: number) => m.vehicles.filter((o) => o !== v && o.side === v.side && live(o) && o.seats[0]! >= 0 && o.goal === i).length;
-  // a tank driver thinks twice about a point where the enemy tanks its Side knows outnumber the friendly ones going, or where its Side just lost one
-  const there = (i: number, o: Vec2) => dist2(o, m.points[i]!) < squared(m.points[i]!.radius + t.threatenedM);
-  const foes = sideKnown(m, v.side).filter((s) => s.source === 'seen' && vehicleOf(m, s.id)?.kind === 'tank');
-  const lost = m.wrecks.filter((w) => w.side === v.side && w.kind === 'tank' && m.tick - w.tick < t.routeLossSeconds * t.hz);
-  const wary = (i: number) => t.tankOutgunnedPenalty * Math.max(0, foes.filter((s) => there(i, s)).length - others(i) - 1) + t.tankWreckPenalty * lost.filter((w) => there(i, w)).length;
-  const bias = v.bias.map((b, i) => b + (i === v.goal ? t.stickiness : 0) - t.crowdPenalty * others(i) - (sq.task === 'point' && sq.goal === i ? t.stickiness : 0) - wary(i));
-  return bestPoint(m, sq, v, 0, { flow: (i) => driveFlow(m, v.side, i), bias });
-}
+/** Where `s` drives `v` (its kind's `goal`, -1 = none). Exported for tests. */
+export const drivePoint = (m: Match, sq: Squad, s: Soldier, v: Vehicle): number => rulesOf(v.kind).goal?.(m, sq, s, v) ?? -1;
 
 /**
- * At its Squad's think, a Soldier aboard: the driver keeps the vehicle on its own Capture Point (the Squad's, or its own
- * when it boarded Detached; Retreat and Resupply ignore it). One who wants out (`wantsOut`) gets out once the vehicle has stood
+ * At its Squad's think, a Soldier aboard: the driver picks where it takes the vehicle (its kind's `goal`; Retreat and Resupply
+ * ignore it) and #131 a helicopter's pilot its job. One who wants out (`wantsOut`) gets out once the vehicle has stood
  * `dismountStopSeconds`, stopping it for that first; Detached when away from the Squad. #110: a jet's pilot picks the point of its
  * next pass, and never gets out.
  */
 export function ride(m: Match, sq: Squad, s: Soldier) {
   const t = m.tune;
   const v = vehicleOf(m, s.vehicle)!;
-  if (v.kind === 'jet') {
-    v.goal = jetPoint(m, sq, v);
-    return;
-  }
-  if (v.seats[0] === s.id && air(v)) {
-    decideJob(m, v); // #131
-    if (s.vehicle < 0) return; // the pilot bailed out
-  }
-  if (v.seats[0] === s.id && !air(v)) {
-    const goal = drivePoint(m, sq, s, v);
-    if (goal >= 0 || v.kind === 'aa') {
-      if (goal !== v.goal) v.route = -1; // a new goal, a new way there
-      v.goal = goal; // #110: an AA with no rear point left stops where it is
-      pickRoute(m, v);
+  const rules = rulesOf(v.kind);
+  if (v.seats[0] === s.id) {
+    if (rules.job && !held(m, v)) { // #143: an EMP holds it to its job, as to its place
+      rules.job(m, v);
+      if (s.vehicle < 0) return; // the pilot bailed out
+    }
+    if (rules.goal) {
+      const goal = rules.goal(m, sq, s, v);
+      if (rules.onGoal) rules.onGoal(m, v, goal);
+      else v.goal = goal;
     }
   }
+  if (v.kind === 'jet') return;
   if (!wantsOut(m, sq, s, v)) return;
   if (v.airborne) return jump(m, s);
   if (m.tick - v.movedAt < Math.round(t.dismountStopSeconds * t.hz)) {

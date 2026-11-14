@@ -290,4 +290,5 @@ export const jet: VehicleRules<'jet'> = {
   move(m, v) {
     if (v.seats[0]! >= 0) sortie(m, v);
   },
+  goal: (m, sq, _s, v) => jetPoint(m, sq, v), // the point of its next pass
 };

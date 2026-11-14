@@ -7,12 +7,19 @@ import { dist2 } from '../geometry';
 import { cellIndex, openRun } from '../grid';
 import type { Vec2 } from '../types';
 import { SPECS, type Vehicle } from './body';
-import { alongPath, overCrossing, routeFlow } from './drive-route';
+import { alongPath, overCrossing, pickRoute, routeFlow } from './drive-route';
 
 /** #107 #108: a ground vehicle's tick in the vehicle phase: with a driver and a goal it drives once full or its driver's wait for others is out; else it stands. */
 export function groundMove(m: Match, v: Vehicle, halted: boolean) {
   if (v.seats[0]! >= 0 && v.goal >= 0 && (!v.seats.includes(-1) || m.tick >= v.departAt)) step(m, v, halted);
   else v.speed = 0; // no driver, or waiting to set off
+}
+
+/** #123: at its driver's think, a ground vehicle heads for `goal`: a new goal is a new way there. */
+export function head(m: Match, v: Vehicle, goal: number) {
+  if (goal !== v.goal) v.route = -1;
+  v.goal = goal;
+  pickRoute(m, v);
 }
 
 /**

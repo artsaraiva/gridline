@@ -9,7 +9,7 @@ import { sideKnown } from '../memory';
 import { turnToward, approach } from '../momentum';
 import { membersOf, ticksOf, type Point, type Soldier, type Squad } from '../state';
 import type { Vec2 } from '../types';
-import { crippled, held, live, riders, SPECS, wreck, type Vehicle } from './body';
+import { crippled, live, riders, SPECS, wreck, type Vehicle } from './body';
 import { fitsRide } from './core';
 import { plan } from './helicopter';
 import { getOut, jump, onPad, PILOT_SEAT } from './seats';
@@ -24,11 +24,12 @@ export type Job = (typeof JOBS)[number];
  * #131, at its pilot's Squad think, the first job that applies: Bail (under a third of its hit points, off its pad): everyone aboard,
  * crew too, jumps, and it glides on for `crashSeconds` (`glide`). Repair (under `heliRepairBelow`, and then until full): its passengers
  * jump where they are, it flies home. Ferry: carrying passengers, or a Squad on foot calls it (`callers`): it flies to a pickup Landing
- * Zone by one of them. Support: with a gunner aboard, it circles a point with known enemies. Else Wait. Not while it hovers to land.
+ * Zone by one of them. Support: with a gunner aboard, it circles a point with known enemies. Else Wait. Not while it hovers to land
+ * (nor while an EMP holds it: the core skips its `job`).
  */
 export function decideJob(m: Match, v: Vehicle) {
   const t = m.tune;
-  if (v.job === 'bail' || v.flareUntil >= 0 || held(m, v)) return; // #143: an EMP holds it to its job, as to its place
+  if (v.job === 'bail' || v.flareUntil >= 0) return;
   const max = SPECS[v.kind].hp(t);
   const aboard = riders(m, v);
   const pax = aboard.filter((s) => !s.crew);
