@@ -80,6 +80,7 @@ export interface Vehicle {
   bombs: number; // #110 a jet's bombs left in the sortie
   prey: number; // #110 a jet's mark: the enemy its pass is aimed at, or the enemy jet it fights; -1 = none
   missiles: AirMissile[]; // #110 lock-on missiles it fired, in flight (they fly on if it dies)
+  disabledUntil: number; // #143 the first tick an EMP Strike no longer holds it (`held`); 0 = never held
 }
 
 /** A main gun round: fired from (x0, y0) at tick `launch`, landing on (x, y) at tick `land`. */
@@ -162,7 +163,13 @@ const fresh = (m: Match, side: SideId, kind: VehicleKind, slot: Vec2) => ({
   parked: true, deadAt: -1, goal: -1, departAt: 0, target: -1, coax: -1, nextFire: 0, laid: -1, bias: [] as number[], movedAt: m.tick, halt: -1,
   airborne: false, landedAt: -1, claim: -1, claimUntil: 0, lz: null as Vec2 | null, wp: null as Vec2 | null, flareUntil: -1, spoolUntil: -1,
   job: 'wait' as Job, fetch: -1, spot: null as Vec2 | null, spin: 1, until: -1, drop: false, crashAt: -1, sortie: 'idle' as Sortie, passes: 0, bombs: 0, prey: -1, route: -1, planAt: 0, path: [] as Vec2[],
+  disabledUntil: 0,
 });
+
+/** #143: an EMP Strike holds `v`: it neither moves (a helicopter hangs where it is in the air) nor fires, nor does a helicopter change its job. Its riders are untouched. */
+export const held = (m: Match, v: Vehicle) => m.tick < v.disabledUntil;
+/** #143: an EMP Strike holds `v` until the tick `until`; a second one over it holds it as long as the later says. */
+export const hold = (v: Vehicle, until: number) => void (v.disabledUntil = Math.max(v.disabledUntil, until));
 
 /**
  * The first fresh vehicles (#154: map data). Each Side's HQ tanks, jeeps (#108) and helicopters (#109), then the vehicles each
@@ -628,7 +635,8 @@ export function drive(m: Match) {
       if (v.seats[0]! >= 0) sortie(m, v); // #110
     } else if (flown(v)) {
       // #101 #139: its Asset flies it
-    } else if (air(v)) {
+    } else if (held(m, v)) v.speed = 0; // #143: momentum to zero where it is, a helicopter in the air too
+    else if (air(v)) {
       if (v.job === 'bail') glide(m, v);
       else if (!halted && v.seats[0]! >= 0) fly(m, v);
       repairOnPad(m, v);
@@ -944,7 +952,7 @@ export function mainGuns(m: Match, events: SimEvent[]) {
       v.laid = v.target;
       v.nextFire = Math.max(v.nextFire, m.tick + Math.round((t.tankAimSeconds[0] + rnd(m) * (t.tankAimSeconds[1] - t.tankAimSeconds[0])) * t.hz));
     }
-    if (!live(v) || v.seats[0]! < 0 || !e || m.tick < v.nextFire || dist2(v, e) > t.tankRangeM * t.tankRangeM || inHq(m, v.side, v)) continue; // nor out of its own HQ (combat.ts fire)
+    if (!live(v) || v.seats[0]! < 0 || !e || held(m, v) || m.tick < v.nextFire || dist2(v, e) > t.tankRangeM * t.tankRangeM || inHq(m, v.side, v)) continue; // nor out of its own HQ (combat.ts fire); #143 nor while an EMP holds it (its rounds in the air still land)
     v.nextFire = m.tick + Math.round(t.tankFireSeconds * t.hz);
     const flight = Math.max(1, Math.round((Math.sqrt(dist2(v, e)) / t.tankShellMps) * t.hz));
     v.rounds.push({ x0: v.x, y0: v.y, x: e.x, y: e.y, launch: m.tick, land: m.tick + flight });
@@ -1020,7 +1028,7 @@ export function vehicleViews(m: Match, side: SideId, seen: Set<number>): Vehicle
     const base = { id: v.id, side: v.side, kind: v.kind, x: v.x, y: v.y, fx: v.fx, fy: v.fy, ...turret(v) };
     const rounds = v.rounds.map((r) => ({ from: { x: r.x0, y: r.y0 }, to: { x: r.x, y: r.y }, flight: (m.tick - r.launch) / (r.land - r.launch) }));
     const missiles = v.missiles.map(({ x, y, fx, fy }) => ({ x, y, fx, fy }));
-    views.push({ ...base, ...(v.side === side && { hp: v.hp / specOf(m.tune, v.kind).hp, seats: [...v.seats] }), ...(rounds.length && { rounds }), ...(missiles.length && { missiles }), ...(v.seats.every((id) => id < 0) && { empty: true }), ...(v.airborne && { airborne: true }) });
+    views.push({ ...base, ...(v.side === side && { hp: v.hp / specOf(m.tune, v.kind).hp, seats: [...v.seats] }), ...(rounds.length && { rounds }), ...(missiles.length && { missiles }), ...(v.seats.every((id) => id < 0) && { empty: true }), ...(v.airborne && { airborne: true }), ...(held(m, v) && { disabled: true as const }) });
   }
   for (const w of m.wrecks)
     if (w.side === side || w.seen) views.push({ id: -1, side: w.side, kind: w.kind, x: w.x, y: w.y, fx: w.fx, fy: w.fy, tx: w.fx, ty: w.fy, wreck: true });
@@ -1030,7 +1038,7 @@ export function vehicleViews(m: Match, side: SideId, seen: Set<number>): Vehicle
 export function hashVehicles(m: Match, mix: Mix) {
   for (const v of m.vehicles) {
     for (const n of [v.x, v.y, v.fx, v.fy, v.speed, v.hp, v.lz?.x ?? 0, v.lz?.y ?? 0, v.wp?.x ?? 0, v.wp?.y ?? 0]) mix(Math.round(n * 1000));
-    for (const n of [+(v.side === 'nato'), ...v.seats, +v.parked, v.deadAt, v.goal, v.departAt, v.target, v.coax, v.nextFire, v.laid, v.movedAt, v.halt, +v.airborne, v.landedAt, v.claim, v.claimUntil, +!!v.lz, +!!v.wp, v.flareUntil, v.spoolUntil, JOBS.indexOf(v.job), v.fetch, +!!v.spot, v.spin, v.until, +v.drop, v.crashAt, SORTIE.indexOf(v.sortie), v.passes, v.bombs, v.prey, v.route, v.planAt, v.path.length]) mix(n);
+    for (const n of [+(v.side === 'nato'), ...v.seats, +v.parked, v.deadAt, v.goal, v.departAt, v.target, v.coax, v.nextFire, v.laid, v.movedAt, v.halt, +v.airborne, v.landedAt, v.claim, v.claimUntil, +!!v.lz, +!!v.wp, v.flareUntil, v.spoolUntil, JOBS.indexOf(v.job), v.fetch, +!!v.spot, v.spin, v.until, +v.drop, v.crashAt, SORTIE.indexOf(v.sortie), v.passes, v.bombs, v.prey, v.route, v.planAt, v.path.length, v.disabledUntil]) mix(n);
     for (const p of v.path) for (const n of [p.x, p.y]) mix(Math.round(n * 1000));
     hashMissiles(v, mix);
     for (const n of [v.spot?.x ?? 0, v.spot?.y ?? 0]) mix(Math.round(n * 1000));

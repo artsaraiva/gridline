@@ -19,6 +19,9 @@ const inView = (t: Tune, s: Soldier, p: Vec2, d2: number) => d2 <= t.visionM * t
 /** #142: `s` sees the spot `p` on the ground: within `visionM`, inside its vision cone and in line of sight. */
 export const sees = (m: Match, s: Soldier, p: Vec2): boolean => inView(m.tune, s, p, dist2(s, p)) && los(m, s, p);
 
+/** #142 #143: a living Soldier on foot, not on a parachute, sees the spot `p`: a Soldier's own eyes on a thing on the ground (a Redeploy Beacon, a Feint's dummy). */
+export const looksAt = (m: Match, s: Soldier, p: Vec2): boolean => s.state === 'alive' && s.vehicle < 0 && !s.chute && sees(m, s, p);
+
 /**
  * Sees every living enemy inside the vision cone and range, in line of sight, and not in its own HQ; each goes into
  * the Squad's memory and the Side's sightings. Engages and turns to the nearest (#108: a jeep is a rifle target too).

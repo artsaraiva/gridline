@@ -83,7 +83,7 @@ export function createMatch(opts: {
   };
   for (const side of SIDES) {
     for (let q = 0; q < opts.squadsPerSide; q++) {
-      const squad: Squad = { id: m.squads.length, side, members: [], goal: -1, lastSeen: -1e9, lastHit: -1e9, memory: [], order: null, pending: null, request: null, requestNext: 0, taking: -1, takingSince: 0, pointPref: map.points.map(() => (rnd(m) * 2 - 1) * tune.squadGoalBias), aggression: rnd(m) * 2 - 1, commitUntil: 0, thinkInterval: between(m, tune.thinkIntervalSeconds), nextThink: 0, rideM: 0, ...newSquadAi() };
+      const squad: Squad = { id: m.squads.length, side, members: [], goal: -1, lastSeen: -1e9, lastHit: -1e9, memory: [], dud: [], order: null, pending: null, request: null, requestNext: 0, taking: -1, takingSince: 0, pointPref: map.points.map(() => (rnd(m) * 2 - 1) * tune.squadGoalBias), aggression: rnd(m) * 2 - 1, commitUntil: 0, thinkInterval: between(m, tune.thinkIntervalSeconds), nextThink: 0, rideM: 0, ...newSquadAi() };
       const first = Math.round(squad.thinkInterval * tune.hz);
       squad.nextThink = Math.floor(rnd(m) * first); // #121: opens somewhere in its first interval
       m.squads.push(squad);

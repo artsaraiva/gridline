@@ -2,7 +2,7 @@
 // Confirm button beside the target ring, and the Asset hotkeys. Rows read ready, cooling, active or armed from the view
 // and targeting. #142: an untargeted Asset (Rapid Deploy) arms straight to its Confirm row, and its time at work is on its row.
 import { gridRef } from '../../sim/grid-ref';
-import { BEACON_ICON, CREEP_ICON, DRONE_ICON, GUNSHIP_ICON, MISSILE_ICON, RAPID_ICON, RECON_ICON, SMOKE_ICON } from './icons';
+import { BEACON_ICON, CREEP_ICON, DRONE_ICON, EMP_ICON, FEINT_ICON, GUNSHIP_ICON, MISSILE_ICON, RAPID_ICON, RECON_ICON, SMOKE_ICON } from './icons';
 import type { AssetKind, CommanderView, Vec2 } from '../../sim/types';
 import { FOCUS_MARK_PX } from '../layers/effects';
 import { pxToWorld, toScreen } from '../renderer';
@@ -23,6 +23,8 @@ const ROWS: { key: string; asset: AssetKind; name: string; icon: string }[] = [
   { key: 'O', asset: 'recon', name: 'Recon Plane', icon: icon(RECON_ICON) },
   { key: 'P', asset: 'beacon', name: 'Redeploy Beacon', icon: icon(BEACON_ICON) }, // #142: at the end of the row until #147 lays it out for 13
   { key: 'A', asset: 'rapid', name: 'Rapid Deploy', icon: icon(RAPID_ICON) },
+  { key: 'S', asset: 'emp', name: 'EMP Strike', icon: icon(EMP_ICON) }, // #143: the twelfth and thirteenth
+  { key: 'D', asset: 'feint', name: 'Feint', icon: icon(FEINT_ICON) },
 ];
 
 const box = document.getElementById('assets')!;

@@ -8,7 +8,7 @@ export { think } from './squad';
 export { walk } from './soldier';
 export { logDeath, type Death } from './routes';
 
-type SquadAi = Omit<Squad, 'id' | 'side' | 'members' | 'goal' | 'lastSeen' | 'lastHit' | 'memory' | 'order' | 'pending' | 'request' | 'requestNext' | 'taking' | 'takingSince' | 'pointPref' | 'aggression' | 'commitUntil' | 'thinkInterval' | 'nextThink' | 'rideM'>;
+type SquadAi = Omit<Squad, 'id' | 'side' | 'members' | 'goal' | 'lastSeen' | 'lastHit' | 'memory' | 'dud' | 'order' | 'pending' | 'request' | 'requestNext' | 'taking' | 'takingSince' | 'pointPref' | 'aggression' | 'commitUntil' | 'thinkInterval' | 'nextThink' | 'rideM'>;
 type SoldierAi = Pick<Soldier, 'ammo' | 'lastTarget' | 'dest' | 'path' | 'cover' | 'chaseUntil' | 'role' | 'regroup' | 'strayUntil' | 'slot' | 'blocked' | 'detached' | 'goal' | 'commitUntil' | 'boarding' | 'climbAt' | 'crew' | 'crewUntil' | 'crewSeat'>;
 
 export const newSquadAi = (): SquadAi => ({

@@ -1,5 +1,5 @@
-// Where the Supply Drop crates are (#142: and the Redeploy Beacons). Kept apart from supply.ts and beacon.ts so the Squad AI and
-// respawn.ts can ask without importing the Asset core (a cycle).
+// Where the Supply Drop crates are (#142: and the Redeploy Beacons, #143 the Feints' dummies). Kept apart from supply.ts and
+// beacon.ts so the Squad AI and respawn.ts (#143: and memory.ts) can ask without importing the Asset core (a cycle).
 import type { Match } from '../index';
 import { insideCount } from '../capture';
 import { dist2 } from '../geometry';
@@ -27,3 +27,12 @@ export const liveBeacon = (m: Match, side: Effect['side']): Effect | null =>
 
 /** #142: a living enemy Soldier stands within `beaconDenyM` of the beacon, so it is silent (counted as a Capture Point counts). */
 export const beaconDenied = (m: Match, e: Effect) => insideCount(m, { x: e.x, y: e.y, radius: m.tune.beaconDenyM }, enemyOf(e.side)) > 0;
+
+/** #143: how long a Feint's dummy fakes gunfire once it has landed. */
+export const feintTicks = (m: Match) => Math.round(m.tune.feintSeconds * m.tune.hz);
+
+/** #143: `id` is a Feint dummy's, as a shooter: dummies number on after every Soldier and vehicle, one for each dropped. */
+export const isDummy = (m: Match, id: number) => id >= m.soldiers.length + m.vehicles.length;
+
+/** #143: the Feint at work whose dummy has id `id`, if any. */
+export const dummyOf = (m: Match, id: number): Effect | undefined => (isDummy(m, id) ? m.assets.effects.find((e) => e.asset === 'feint' && e.dummy === id) : undefined);
