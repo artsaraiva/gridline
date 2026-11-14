@@ -10,9 +10,9 @@ import { rnd } from '../rng';
 import { membersOf, ticksOf, type Soldier, type Squad } from '../state';
 import { enemyOf, type Vec2 } from '../types';
 import { air, crippled, live, riders, type Vehicle } from './body';
-import { mount } from './core';
+import { mount, type VehicleRules } from './core';
 import { dogleg, landingZone } from './flight';
-import { circle, spinFor } from './helicopter-jobs';
+import { circle, glide, repairOnPad, spinFor } from './helicopter-jobs';
 import { CREW_SEATS, goalOf, jump, onPad, startCrew } from './seats';
 
 const squared = (r: number) => r * r;
@@ -165,3 +165,12 @@ function cruise(m: Match, v: Vehicle) {
   const at = arrived ? aim : clearOfHq(m, v.side, { x: v.x + (fx * speed) / t.hz, y: v.y + (fy * speed) / t.hz });
   Object.assign(v, { x: at.x, y: at.y, fx, fy, speed, movedAt: m.tick, ...(arrived && { flareUntil: m.tick + ticksOf(t, t.flareSeconds) }) });
 }
+
+export const helicopter: VehicleRules<'helicopter'> = {
+  /** #109 #131: bailed out of, it glides on to its crash; piloted, it flies (not while it stands for a dismount); on its helipad it repairs. */
+  move(m, v, halted) {
+    if (v.job === 'bail') glide(m, v);
+    else if (!halted && v.seats[0]! >= 0) fly(m, v);
+    repairOnPad(m, v);
+  },
+};

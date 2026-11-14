@@ -15,17 +15,33 @@ import { los, nearestWalkable } from '../grid';
 import { see, sideKnown } from '../memory';
 import { ticksOf, vehicleOf, type Mix, type Soldier, type Squad } from '../state';
 import { SIDES, type SideId, type SimEvent, type Vec2, type VehicleKind, type VehicleView } from '../types';
-import { aaPoint } from './aa';
+import { aa, aaPoint } from './aa';
 import { air, crippled, DORMANT, flies, flown, fresh, held, high, live, riders, SPECS, unmanned, wreck, type Round, type Vehicle } from './body';
 import { pickRoute } from './drive-route';
-import { step } from './ground';
-import { crewOnReturn, fly } from './helicopter';
-import { decideJob, glide, JOBS, repairOnPad } from './helicopter-jobs';
-import { jetOnReturn, jetPoint, SORTIE, sortie, takeOff } from './jet';
-import { GUNSHIP_GUN, gunshipOnReturn } from './lent';
+import { crewOnReturn, helicopter } from './helicopter';
+import { decideJob, JOBS } from './helicopter-jobs';
+import { jet, jetOnReturn, jetPoint, SORTIE, takeOff } from './jet';
+import { jeep } from './jeep';
+import { GUNSHIP_GUN, gunshipOnReturn, lent } from './lent';
+import { tank } from './tank';
 import { bail, beam, descend, freeSeats, getOut, goalOf, GUN_OUT_M, jump, onPad } from './seats';
 
 const squared = (r: number) => r * r;
+
+/**
+ * #183: a Vehicle kind's own rules, one entry of the kind table. Each hook answers a question the shared rules ask; a kind
+ * without one takes no part in what it asks.
+ */
+export interface VehicleRules<K extends VehicleKind> {
+  /** Its tick in the vehicle phase (`drive`) with `halted` true while it stands for a dismount: drive, fly or fly a sortie. None for a lent body: its Asset flies it. */
+  move?(m: Match, v: Vehicle, halted: boolean): void;
+}
+
+let table: { [K in VehicleKind]: VehicleRules<K> } | undefined;
+/** #183: the kind table, built on first use, so a kind module imported before this one (as a test may) never meets it half loaded (#142). */
+const kinds = () => (table ??= { tank, jeep, helicopter, jet, aa, gunship: lent, drone: lent, recon: lent });
+/** #183: the rules of `kind`. */
+export const rulesOf = <K extends VehicleKind>(kind: K): VehicleRules<K> => kinds()[kind];
 
 /**
  * The first fresh vehicles (#154: map data). Each Side's HQ tanks, jeeps (#108) and helicopters (#109), then the vehicles each
@@ -44,14 +60,10 @@ export function newVehicles(m: Match): Vehicle[] {
 }
 
 /** #154: the map's slots of `kind` for `side` (a helicopter's are its helipads). */
-const slotsOf = (m: Match, side: SideId, kind: VehicleKind): Vec2[] => (kind === 'helicopter' ? (m.map.helipad?.[side] ?? []) : (m.map.vehicleSlots?.[side] ?? []).filter((s) => s.kind === kind));
+const slotsOf = (m: Match, side: SideId, kind: VehicleKind): Vec2[] => SPECS[kind].slots(m.map, side);
 
-/** #154: a Side's count of `kind`: the tune's number, else the map's (its slots of that kind, or its `jets`). */
-function countOf(m: Match, side: SideId, kind: VehicleKind): number {
-  const t = m.tune;
-  const n = SPECS[kind].perSide(t);
-  return n ?? (kind === 'jet' ? (m.map.jets?.[side] ?? 0) : slotsOf(m, side, kind).length);
-}
+/** #154: a Side's count of `kind`: the tune's number, else the map's (its slots of that kind, or a jet's `jets`). */
+const countOf = (m: Match, side: SideId, kind: VehicleKind): number => SPECS[kind].perSide(m.tune, m.map, side) ?? slotsOf(m, side, kind).length;
 
 /** #154: spot `n` of a Side's row, for a vehicle the map has no slot for: 9 m apart toward the field past its last slot, or from the drivable ground nearest the HQ when it lists none. */
 function rowSlot(m: Match, side: SideId, n: number): Vec2 {
@@ -281,9 +293,10 @@ function wantsOut(m: Match, sq: Squad, s: Soldier, v: Vehicle): boolean {
 /**
  * The vehicle phase, after the Soldiers walk: fresh vehicles in empty slots `vehicleRespawnSeconds` after the last one died
  * (#108: a point's for its owner, at once when the point first has one or has changed hands; #154 so does a live one with
- * nobody aboard standing in its slot, so a captured point never keeps the enemy's parked vehicle), then every one with a driver
- * drives (#109: or flies, #110 a jet its sortie) unless it stands for a dismount (long enough for everyone who wants out to have thought once); its
- * riders ride along.
+ * nobody aboard standing in its slot, so a captured point never keeps the enemy's parked vehicle), then each takes its kind's
+ * tick (`move`: a ground vehicle with a driver drives, #109 a helicopter flies, #110 a jet flies its sortie; #101 #139 its Asset
+ * flies a lent body) unless an EMP Strike holds it (#143); a halt for a dismount lasts long enough for everyone who wants out
+ * to have thought once. Its riders ride along.
  */
 export function drive(m: Match) {
   const t = m.tune;
@@ -306,18 +319,8 @@ export function drive(m: Match) {
     if (v.halt >= 0 && v.speed > 0) v.halt = m.tick; // the stop counts from when it has come to a stop
     const halted = v.halt >= 0 && m.tick - v.halt < Math.round((t.dismountStopSeconds + t.thinkIntervalSeconds[1] * (1 + t.thinkJitter)) * t.hz);
     if (!halted) v.halt = -1;
-    const full = !v.seats.includes(-1);
-    if (v.kind === 'jet') {
-      if (v.seats[0]! >= 0) sortie(m, v); // #110
-    } else if (flown(v)) {
-      // #101 #139: its Asset flies it
-    } else if (held(m, v)) v.speed = 0; // #143: momentum to zero where it is, a helicopter in the air too
-    else if (air(v)) {
-      if (v.job === 'bail') glide(m, v);
-      else if (!halted && v.seats[0]! >= 0) fly(m, v);
-      repairOnPad(m, v);
-    } else if (v.seats[0]! >= 0 && v.goal >= 0 && (full || m.tick >= v.departAt)) step(m, v, halted);
-    else v.speed = 0; // no driver, or waiting to set off
+    if (held(m, v)) v.speed = 0; // #143: momentum to zero where it is, a helicopter in the air too (no kind an EMP reaches flies higher)
+    else rulesOf(v.kind).move?.(m, v, halted);
     v.seats.forEach((id, k) => {
       const s = m.soldiers[id];
       const out = air(v) ? beam(v, k) : null; // #129: a gun seat's Soldier sits out to its side

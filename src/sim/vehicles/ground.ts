@@ -1,5 +1,5 @@
-// #123: a ground vehicle's drive step (the tank, the jeep and the AA): along its route's flow field or its detour
-// (drive-route.ts), with momentum.
+// #123: a ground vehicle's tick in the vehicle phase (`groundMove`, the tank's, the jeep's and the AA's) and its drive step:
+// along its route's flow field or its detour (drive-route.ts), with momentum.
 import type { Match } from '../index';
 import { driveFlow, flowDist, flowLook } from '../ai/flow';
 import { approach, BRAKE_RESERVE, cosDeg, stopSpeed, turnToward } from '../momentum';
@@ -8,6 +8,12 @@ import { cellIndex, openRun } from '../grid';
 import type { Vec2 } from '../types';
 import { SPECS, type Vehicle } from './body';
 import { alongPath, overCrossing, routeFlow } from './drive-route';
+
+/** #107 #108: a ground vehicle's tick in the vehicle phase: with a driver and a goal it drives once full or its driver's wait for others is out; else it stands. */
+export function groundMove(m: Match, v: Vehicle, halted: boolean) {
+  if (v.seats[0]! >= 0 && v.goal >= 0 && (!v.seats.includes(-1) || m.tick >= v.departAt)) step(m, v, halted);
+  else v.speed = 0; // no driver, or waiting to set off
+}
 
 /**
  * #123: one tick along the drive flow field. The hull steers toward the way ahead by at most its class's turn rate, easing

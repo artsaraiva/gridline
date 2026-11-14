@@ -15,7 +15,7 @@ import { between, pickWeighted, rnd } from '../rng';
 import { membersOf, ticksOf, vehicleOf, type Soldier, type Squad } from '../state';
 import { enemyOf, type SideId, type Vec2 } from '../types';
 import { crippled, high, live, SPECS, type Vehicle } from './body';
-import { mount } from './core';
+import { mount, type VehicleRules } from './core';
 
 /** Where a jet is in its sortie. Idle: no pilot, at the base. Rearming: flying home (`until` -1), then at the base until `until`. */
 export const SORTIE = ['idle', 'inbound', 'outbound', 'turning', 'rearming', 'dogfight'] as const;
@@ -284,3 +284,10 @@ export function jetTarget(m: Match, v: Vehicle): Soldier | Vehicle | null {
   }
   return best;
 }
+
+export const jet: VehicleRules<'jet'> = {
+  /** #110: a piloted jet flies its sortie; without a pilot it waits at the base. */
+  move(m, v) {
+    if (v.seats[0]! >= 0) sortie(m, v);
+  },
+};

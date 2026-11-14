@@ -2,7 +2,7 @@
 // read off it, a fresh one in its slot, its Wreck, and an EMP Strike's hold (#143).
 import type { Match } from '../index';
 import type { AirMissile } from '../air-missiles';
-import { enemyOf, type SideId, type Tune, type Vec2, type VehicleKind } from '../types';
+import { enemyOf, type MapData, type SideId, type Tune, type Vec2, type VehicleKind } from '../types';
 import type { Job } from './helicopter-jobs';
 import type { Sortie } from './jet';
 
@@ -101,45 +101,50 @@ type VehicleSpec = {
   openMps: Stat;
   gunSeconds: Stat; // the second seat's gun (the tank's coax, the jeep's MG, #109 the door gun, #110 the jet's cannon and the AA's burst)
   gunM: Stat;
-  perSide: (t: Tune) => number | null; // #154: each Side's count, null = the map's (`countOf`)
+  perSide: (t: Tune, map: MapData, side: SideId) => number | null; // #154: each Side's count, null = one per slot the map gives it (`slots`)
+  slots: (map: MapData, side: SideId) => Vec2[]; // #154: where the map puts a Side's ones; none for an aircraft at the off-map base
   lent: boolean; // #101 #139: its Asset flies it, wakes it and puts it to sleep; the vehicle phase leaves it alone
   leavesWreck: boolean; // #139: a drone or the Recon Plane leaves none (too small to block a road or to mark the map)
   ridersBail: boolean; // #101: everyone aboard bails out as it is shot down, instead of dying with it
 } & ({ layer: 'ground'; handling: { accel: Stat; turnDegPerS: Stat } } | { layer: 'low' | 'high'; handling?: never });
 
+/** #154: the map's vehicle slots of `kind` for a Side. */
+const slotted = (kind: VehicleKind) => (map: MapData, side: SideId): Vec2[] => (map.vehicleSlots?.[side] ?? []).filter((s) => s.kind === kind);
+const none = (): Vec2[] => [];
+
 /** #183: what each Vehicle kind is, one row a kind; the class predicates below read it. A new kind fails the typecheck until it has a row, a ground kind until it has its handling. */
 export const SPECS: { [K in VehicleKind]: VehicleSpec } = {
   tank: {
     hp: (t) => t.tankHp, seats: 2, roadMps: (t) => t.tankRoadMps, openMps: (t) => t.tankOpenMps, gunSeconds: (t) => t.coaxFireSeconds, gunM: (t) => t.coaxRangeM,
-    handling: { accel: (t) => t.tankAccel, turnDegPerS: (t) => t.tankTurnDegPerS }, layer: 'ground', perSide: (t) => t.tanksPerSide, lent: false, leavesWreck: true, ridersBail: false,
+    handling: { accel: (t) => t.tankAccel, turnDegPerS: (t) => t.tankTurnDegPerS }, layer: 'ground', perSide: (t) => t.tanksPerSide, slots: slotted('tank'), lent: false, leavesWreck: true, ridersBail: false,
   },
   jeep: {
     hp: (t) => t.jeepHp, seats: 4, roadMps: (t) => t.jeepRoadMps, openMps: (t) => t.jeepOpenMps, gunSeconds: (t) => t.mgFireSeconds, gunM: (t) => t.mgRangeM,
-    handling: { accel: (t) => t.jeepAccel, turnDegPerS: (t) => t.jeepTurnDegPerS }, layer: 'ground', perSide: (t) => t.jeepsPerSide, lent: false, leavesWreck: true, ridersBail: false,
+    handling: { accel: (t) => t.jeepAccel, turnDegPerS: (t) => t.jeepTurnDegPerS }, layer: 'ground', perSide: (t) => t.jeepsPerSide, slots: slotted('jeep'), lent: false, leavesWreck: true, ridersBail: false,
   },
   helicopter: {
     hp: (t) => t.heliHp, seats: 6, roadMps: (t) => t.heliMps, openMps: (t) => t.heliMps, gunSeconds: (t) => t.mgFireSeconds, gunM: (t) => t.mgRangeM,
-    layer: 'low', perSide: (t) => t.helisPerSide, lent: false, leavesWreck: true, ridersBail: false,
+    layer: 'low', perSide: (t) => t.helisPerSide, slots: (map, side) => map.helipad?.[side] ?? [], lent: false, leavesWreck: true, ridersBail: false, // #109: its slots are its helipads
   },
   jet: {
     hp: (t) => t.jetHp, seats: 1, roadMps: (t) => t.jetMps, openMps: (t) => t.jetMps, gunSeconds: (t) => t.jetFireSeconds, gunM: () => 0,
-    layer: 'high', perSide: (t) => t.jetsPerSide, lent: false, leavesWreck: true, ridersBail: false,
+    layer: 'high', perSide: (t, map, side) => t.jetsPerSide ?? map.jets?.[side] ?? 0, slots: none, lent: false, leavesWreck: true, ridersBail: false, // #154: else the map's `jets`, at the off-map base
   },
   aa: {
     hp: (t) => t.aaHp, seats: 1, roadMps: (t) => t.aaRoadMps, openMps: (t) => t.aaOpenMps, gunSeconds: (t) => t.aaFireSeconds, gunM: (t) => t.aaGroundRangeM,
-    handling: { accel: (t) => t.tankAccel, turnDegPerS: (t) => t.tankTurnDegPerS }, layer: 'ground', perSide: (t) => t.aasPerSide, lent: false, leavesWreck: true, ridersBail: false, // #110: an AA handles as a tank
+    handling: { accel: (t) => t.tankAccel, turnDegPerS: (t) => t.tankTurnDegPerS }, layer: 'ground', perSide: (t) => t.aasPerSide, slots: slotted('aa'), lent: false, leavesWreck: true, ridersBail: false, // #110: an AA handles as a tank
   },
   gunship: { // #101: the pilot's seat stays empty (its Asset flies it), then the gun seat and four passengers; one a Side, whatever the map
     hp: (t) => t.gunshipHp, seats: 6, roadMps: (t) => t.gunshipSpeedMps, openMps: (t) => t.gunshipSpeedMps, gunSeconds: (t) => t.mgFireSeconds, gunM: (t) => t.gunshipRangeM,
-    layer: 'high', perSide: () => 1, lent: true, leavesWreck: true, ridersBail: true,
+    layer: 'high', perSide: () => 1, slots: none, lent: true, leavesWreck: true, ridersBail: true,
   },
   drone: { // #139: nobody aboard, no gun; one a Side
     hp: (t) => t.droneHp, seats: 0, roadMps: (t) => t.droneSpeedMps, openMps: (t) => t.droneSpeedMps, gunSeconds: () => 0, gunM: () => 0,
-    layer: 'high', perSide: () => 1, lent: true, leavesWreck: false, ridersBail: false,
+    layer: 'high', perSide: () => 1, slots: none, lent: true, leavesWreck: false, ridersBail: false,
   },
   recon: { // #139: likewise, the Recon Plane
     hp: (t) => t.reconHp, seats: 0, roadMps: (t) => t.reconSpeedMps, openMps: (t) => t.reconSpeedMps, gunSeconds: () => 0, gunM: () => 0,
-    layer: 'high', perSide: () => 1, lent: true, leavesWreck: false, ridersBail: false,
+    layer: 'high', perSide: () => 1, slots: none, lent: true, leavesWreck: false, ridersBail: false,
   },
 };
 

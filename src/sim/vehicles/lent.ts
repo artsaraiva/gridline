@@ -7,7 +7,7 @@ import { rnd } from '../rng';
 import { membersOf, vehicleOf, type Soldier, type Squad } from '../state';
 import type { Vec2 } from '../types';
 import { crippled, DORMANT, fresh, live, SPECS, type Vehicle } from './body';
-import { mount } from './core';
+import { mount, type VehicleRules } from './core';
 import { goalOf, startCrew } from './seats';
 
 /** #101: the Gunship's gun seat; the passenger seats follow it. */
@@ -37,3 +37,6 @@ export function gunshipOnReturn(m: Match, sq: Squad, s: Soldier): boolean {
   mount(m, v, s, sq);
   return true;
 }
+
+/** #101 #139: a lent body moves only as its Asset flies it, so it takes no tick of its own. */
+export const lent: VehicleRules<'gunship' | 'drone' | 'recon'> = {};
