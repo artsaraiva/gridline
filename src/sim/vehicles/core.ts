@@ -14,7 +14,7 @@ import { see } from '../memory';
 import { ticksOf, vehicleOf, type Mix, type Soldier, type Squad } from '../state';
 import { SIDES, type SideId, type SimEvent, type Tune, type Vec2, type VehicleKind, type VehicleView } from '../types';
 import { aa } from './aa';
-import { air, crippled, DORMANT, flies, flown, fresh, held, high, live, riders, SPECS, wreck, type LentKind, type OwnOf, type Round, type Vehicle, type VehicleOf } from './body';
+import { air, crippled, DORMANT, flies, flown, fresh, held, high, live, riders, SLOTS, SPECS, wreck, type LentKind, type OwnOf, type Round, type Slots, type Vehicle, type VehicleOf } from './body';
 import { helicopter } from './helicopter';
 import { JOBS } from './helicopter-jobs';
 import { jet, SORTIE } from './jet';
@@ -104,8 +104,8 @@ let table: { [K in VehicleKind]: VehicleRules<K> } | undefined;
 const kinds = (): { [K in VehicleKind]: VehicleRules<K> } => (table ??= { tank, jeep, helicopter, jet, aa, gunship, drone: lent, recon: lent });
 /** #183: the rules of `kind`. */
 export const rulesOf = <K extends VehicleKind>(kind: K): VehicleRules<K> => kinds()[kind];
-/** #183: a fresh vehicle of `kind` in `slot` for `side`: its body (`fresh`) and its kind's own record (`init`). */
-export const renew = <K extends VehicleKind>(m: Match, side: SideId, kind: K, slot: Vec2) => ({ ...fresh(m, side, kind, slot), ...rulesOf(kind).init(m) });
+/** #183: a fresh vehicle of `kind` in `slot` for `side`: its body (`fresh`) and its kind's own record (`init`) in its slots, every other kind's empty (`SLOTS`: one object shape for every vehicle). */
+export const renew = <K extends VehicleKind>(m: Match, side: SideId, kind: K, slot: Vec2) => ({ ...fresh(m, side, kind, slot), ...SLOTS, ...rulesOf(kind).init(m) });
 let offers: NonNullable<VehicleRules<VehicleKind>['onReturn']>[] | undefined;
 /** #183: the seats a Soldier coming back is offered, in their order. */
 const onReturnOffers = () => (offers ??= [...new Set(Object.values(kinds()).flatMap((r: VehicleRules<VehicleKind>) => (r.onReturn ? [r.onReturn] : [])))].sort((a, b) => a.order - b.order));
@@ -517,15 +517,13 @@ export function vehicleViews(m: Match, side: SideId, seen: Set<number>): Vehicle
 export function hashVehicles(m: Match, mix: Mix) {
   for (const v of m.vehicles) {
     // #183: the row the one-record Vehicle hashed, read off the body and its kind's record; a slot its kind has no field for holds what a fresh one held
-    const heli = 'heli' in v ? v.heli : undefined;
-    const sortie = 'sortie' in v ? v.sortie : undefined;
-    const lock = 'gun' in v ? { lock: v.gun.laid, nextFire: v.gun.nextFire } : 'missile' in v ? v.missile : { lock: -1, nextFire: 0 };
-    const drive = 'drive' in v ? v.drive : { route: -1, planAt: 0, path: [] };
+    const { gun, missile, heli, sortie, burstUntil, drive = { route: -1, planAt: 0, path: [] } }: Slots = v;
+    const aim = gun ? { on: gun.laid, nextFire: gun.nextFire } : missile ? { on: missile.lock, nextFire: missile.nextFire } : { on: -1, nextFire: 0 }; // the old `laid` and `nextFire`: a tank's gun, else an AA's or a jet's missile lock
     const spot = heli ? heli.spot : (sortie?.at ?? null);
-    const until = heli?.until ?? ('burstUntil' in v ? v.burstUntil : (sortie?.until ?? -1));
+    const until = heli?.until ?? burstUntil ?? sortie?.until ?? -1;
     for (const n of [v.x, v.y, v.fx, v.fy, v.speed, v.hp, heli?.lz?.x ?? 0, heli?.lz?.y ?? 0, heli?.wp?.x ?? 0, heli?.wp?.y ?? 0]) mix(Math.round(n * 1000));
     for (const n of [
-      +(v.side === 'nato'), ...v.seats, +v.parked, v.deadAt, v.goal, v.departAt, v.target, v.coax, lock.nextFire, lock.lock, v.movedAt, v.halt, +v.airborne, heli?.landedAt ?? -1, v.claim, v.claimUntil,
+      +(v.side === 'nato'), ...v.seats, +v.parked, v.deadAt, v.goal, v.departAt, v.target, v.coax, aim.nextFire, aim.on, v.movedAt, v.halt, +v.airborne, heli?.landedAt ?? -1, v.claim, v.claimUntil,
       +!!heli?.lz, +!!heli?.wp, heli?.flareUntil ?? -1, heli?.spoolUntil ?? -1, JOBS.indexOf(heli?.job ?? 'wait'), heli?.fetch ?? -1, +!!spot, heli?.spin ?? sortie?.turn ?? 1, until, +(heli?.hotDrop ?? sortie?.bomb ?? false),
       heli?.crashAt ?? -1, SORTIE.indexOf(sortie?.stage ?? 'idle'), sortie?.passes ?? 0, sortie?.bombs ?? 0, sortie?.prey ?? -1, drive.route, drive.planAt, drive.path.length, v.disabledUntil,
     ]) mix(n);
