@@ -1,10 +1,10 @@
-// #101 #139: the bodies Assets fly with no pilot: the Gunship, the Drone Strike's drone and the Recon Plane. Their Asset wakes
-// each and puts it to sleep (assets/gunship.ts, drone.ts, recon.ts); a Soldier coming back may take a Gunship seat
-// (`gunshipOnReturn`).
+// #101 #139: the bodies Assets fly with no pilot: the Gunship, the Drone Strike's drone and the Recon Plane. Their Asset
+// borrows each through the lend interface (core.ts: `borrow` wakes it, `release` puts it to sleep; assets/gunship.ts, drone.ts,
+// recon.ts); a Soldier coming back may take a seat in the Gunship on station (`gunshipOnReturn`).
 import type { Match } from '../index';
 import { dist2 } from '../geometry';
 import { rnd } from '../rng';
-import { membersOf, vehicleOf, type Soldier, type Squad } from '../state';
+import { membersOf, type Soldier, type Squad } from '../state';
 import type { Vec2 } from '../types';
 import { crippled, DORMANT, live, SPECS, type Vehicle } from './body';
 import { mount, renew, type VehicleRules } from './core';
@@ -19,14 +19,13 @@ export const wake = (m: Match, v: Vehicle, fx: number, fy: number, at: Vec2 = v.
 export const sleep = (v: Vehicle) => Object.assign(v, { deadAt: DORMANT, airborne: false, speed: 0 });
 
 /**
- * #101: a Soldier coming back takes a seat in its Side's Gunship on station: by `crewSpawnChance` its empty gun seat (as a
- * helicopter's crew: never the Squad Leader, none while a member of its Squad crews), else by `paradropChance` a free passenger
- * seat when the aircraft is nearer the Soldier's goal than where it came back (it jumps as it passes the goal: assets/gunship.ts). True when it did.
+ * #101: a Soldier coming back takes a seat in its Side's Gunship on station (`v`, the body its Asset flies: respawn.ts finds it):
+ * by `crewSpawnChance` its empty gun seat (as a helicopter's crew: never the Squad Leader, none while a member of its Squad crews),
+ * else by `paradropChance` a free passenger seat when the aircraft is nearer the Soldier's goal than where it came back (it jumps
+ * as it passes the goal: assets/gunship.ts). True when it did.
  */
-export function gunshipOnReturn(m: Match, sq: Squad, s: Soldier): boolean {
-  const e = m.assets.effects.find((o) => o.asset === 'gunship' && o.side === s.side && o.phase === 'station');
-  const v = vehicleOf(m, e?.vehicle ?? -1);
-  if (!e || !v || !live(v) || crippled(m, v)) return false;
+export function gunshipOnReturn(m: Match, sq: Squad, s: Soldier, v?: Vehicle): boolean {
+  if (!v || !live(v) || crippled(m, v)) return false;
   if (v.seats[GUNSHIP_GUN]! < 0 && s.id !== sq.members[0] && !membersOf(m, sq).some((o) => o.crew && o.state === 'alive') && rnd(m) < m.tune.crewSpawnChance) {
     startCrew(s, GUNSHIP_GUN, -1);
     mount(m, v, s, sq);

@@ -56,6 +56,8 @@ export type OwnOf<K extends VehicleKind> = Own[K];
 export type VehicleOf<K extends VehicleKind> = K extends VehicleKind ? Body & { kind: K } & Own[K] : never;
 /** A Vehicle of any kind. */
 export type Vehicle = VehicleOf<VehicleKind>;
+/** #101 #139: a kind its Asset flies (`SPECS.lent`), through the lend interface (vehicles/core.ts `borrow`). */
+export type LentKind = 'gunship' | 'drone' | 'recon';
 /** #107 #108 #110: a vehicle on the ground grid, driven by the shared drive step (ground.ts). */
 export type Ground = VehicleOf<'tank' | 'jeep' | 'aa'>;
 

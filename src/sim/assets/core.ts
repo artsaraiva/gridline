@@ -20,7 +20,7 @@ import { recon } from './recon';
 import { scan } from './scan';
 import { smoke } from './smoke';
 import { supply } from './supply';
-import { live, sleep, type Vehicle } from '../vehicles';
+import { lost, release, type Vehicle } from '../vehicles';
 
 /** One called Asset at work. `until` is the first tick it no longer works. */
 export interface Effect {
@@ -115,8 +115,8 @@ export const inTheAir = (m: Match, side: SideId, asset: 'drone' | 'recon') => (m
  * effect is 'down' and stays `barrageContactSeconds` more for the Console to show the fall, and the radio says `line`.
  */
 export function shotDown(m: Match, e: Effect, v: Vehicle, line: string, events: SimEvent[]): boolean {
-  if (live(v)) return false;
-  sleep(v);
+  if (!lost(v)) return false;
+  release(v);
   Object.assign(e, { phase: 'down', phaseAt: m.tick, until: m.tick + Math.round(m.tune.barrageContactSeconds * m.tune.hz) });
   assetRadio(m, e, line, events);
   return true;

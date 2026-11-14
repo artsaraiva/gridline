@@ -8,7 +8,7 @@
 import { dist2, inHq, insidePolygon } from '../geometry';
 import { see } from '../memory';
 import { vehicleOf, type Mix } from '../state';
-import { high, live, sleep, wake } from '../vehicles';
+import { borrow, high, live, release, steer } from '../vehicles';
 import { assetRadio, inTheAir, shotDown, type Kind } from './core';
 
 /** The pass starts and ends this far outside the Play Area: about a second and a half of flight, so it is at speed and on line as it crosses the edge. */
@@ -27,7 +27,7 @@ export const recon: Kind = {
   start(m, e) {
     const t = m.tune;
     const d = Math.sqrt(dist2(e.from!, e.to!));
-    const v = wake(m, m.vehicles.find((o) => o.kind === 'recon' && o.side === e.side)!, (e.to!.x - e.from!.x) / d, (e.to!.y - e.from!.y) / d, e.from!);
+    const v = borrow(m, e.side, 'recon', e.from!, { fx: (e.to!.x - e.from!.x) / d, fy: (e.to!.y - e.from!.y) / d });
     Object.assign(e, { vehicle: v.id, phase: 'inbound', phaseAt: m.tick, launch: m.tick, land: m.tick + Math.max(1, Math.round((d / t.reconSpeedMps) * t.hz)), found: [] });
     e.until = e.land! + 1;
   },
@@ -38,12 +38,12 @@ export const recon: Kind = {
     const v = vehicleOf(m, e.vehicle!)!;
     if (shotDown(m, e, v, 'Recon lost', events)) return; // the reveal stops here
     if (m.tick >= e.land!) {
-      sleep(v);
+      release(v);
       const n = e.found!.length;
       return assetRadio(m, e, `Recon pass complete, ${n ? `${n} hostile${n > 1 ? 's' : ''}` : 'no contacts'}`, events);
     }
     const k = (m.tick - e.launch!) / (e.land! - e.launch!);
-    Object.assign(v, { x: e.from!.x + (e.to!.x - e.from!.x) * k, y: e.from!.y + (e.to!.y - e.from!.y) * k, movedAt: m.tick });
+    steer(m, v, { x: e.from!.x + (e.to!.x - e.from!.x) * k, y: e.from!.y + (e.to!.y - e.from!.y) * k });
     if (!insidePolygon(m.map.playArea, v.x, v.y)) return;
     const r2 = t.reconStripM * t.reconStripM;
     const under = (o: { x: number; y: number; side: typeof e.side }) => o.side !== e.side && dist2(o, v) <= r2 && !inHq(m, o.side, o);

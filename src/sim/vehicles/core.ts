@@ -14,12 +14,12 @@ import { see } from '../memory';
 import { ticksOf, vehicleOf, type Mix, type Soldier, type Squad } from '../state';
 import { SIDES, type SideId, type SimEvent, type Tune, type Vec2, type VehicleKind, type VehicleView } from '../types';
 import { aa } from './aa';
-import { air, crippled, DORMANT, flies, flown, fresh, held, high, live, riders, SPECS, wreck, type OwnOf, type Round, type Vehicle, type VehicleOf } from './body';
+import { air, crippled, DORMANT, flies, flown, fresh, held, high, live, riders, SPECS, wreck, type LentKind, type OwnOf, type Round, type Vehicle, type VehicleOf } from './body';
 import { helicopter } from './helicopter';
 import { JOBS } from './helicopter-jobs';
 import { jet, SORTIE } from './jet';
 import { jeep } from './jeep';
-import { gunship, lent } from './lent';
+import { gunship, lent, sleep, wake } from './lent';
 import { tank } from './tank';
 import { alight, bail, beam, descend, freeSeats, getOut, goalOf, GUN_OUT_M, jump, stintOver } from './seats';
 
@@ -55,8 +55,8 @@ export interface VehicleRules<K extends VehicleKind> {
     /** #131: a Squad's claim on it ends any fetch. */
     claimed?(v: VehicleOf<K>): void;
   };
-  /** A Soldier coming back from the dead may take a seat here (#110 a jet's pilot, #129 a helicopter's crew, #101 the Gunship's seats), offered in `order`: true when it did. */
-  onReturn?: { order: number; take(m: Match, sq: Squad, s: Soldier): boolean };
+  /** A Soldier coming back from the dead may take a seat here (#110 a jet's pilot, #129 a helicopter's crew, #101 the seats of the lent body on station, `onStation`), offered in `order`: true when it did. */
+  onReturn?: { order: number; take(m: Match, sq: Squad, s: Soldier, onStation?: Vehicle): boolean };
   /** Its leaving rule at a rider's think (`ride`); unset, the shared passenger rule (`passengers`). */
   wantsOut?(m: Match, sq: Squad, s: Soldier, v: VehicleOf<K>): boolean;
   /** How its gun ranks what its eyes see (`look`): #107 the tank's main gun, #110 the AA's. */
@@ -189,10 +189,11 @@ export function mount(m: Match, v: Vehicle, s: Soldier, sq: Squad) {
  * A Soldier coming back from the dead (Squad Respawn or Redeploy) takes a seat if one waits for it: first the seats the kinds
  * offer (`onReturn`: #110 a jet's pilot, #129 a helicopter's crew, #101 then the Gunship's), else in the Squad Leader's vehicle
  * while the leader rides one, else as the driver of a friendly ground vehicle with nobody driving (fit to fight: a third of its
- * hit points or more). True when it did. #109: never into a helicopter in the air.
+ * hit points or more). True when it did. #109: never into a helicopter in the air. #101: `onStation`, the Side's Gunship on station
+ * (its Asset's effect says so: respawn.ts reads it), whose seats come after a jet's and a helicopter's crew.
  */
-export function boardOnReturn(m: Match, sq: Squad, s: Soldier): boolean {
-  if (onReturnOffers().some((o) => o.take(m, sq, s))) return true;
+export function boardOnReturn(m: Match, sq: Squad, s: Soldier, onStation?: Vehicle): boolean {
+  if (onReturnOffers().some((o) => o.take(m, sq, s, onStation))) return true;
   const lead = m.soldiers[sq.members[0]!]!;
   const mine = lead.state === 'alive' ? vehicleOf(m, lead.vehicle) : undefined;
   const v = mine && freeSeats(mine) > 0 && !mine.airborne ? mine : m.vehicles.find((o) => o.side === s.side && live(o) && !o.airborne && SPECS[o.kind].layer === 'ground' && o.seats[0] === -1 && !crippled(m, o));
@@ -260,6 +261,20 @@ export function boardStep(m: Match, s: Soldier): Vehicle | null {
   }
   return v;
 }
+
+/**
+ * #101 #139 #183: the lend interface, the one way an Asset touches the aircraft it flies (`SPECS.lent`: the Gunship, the drone,
+ * the Recon Plane). It borrows its Side's body as it is called, steers it each tick, learns when it is lost (shot down: `hurt`
+ * left a Wreck, or none for a small aircraft) and releases it home, asleep until the next call.
+ */
+export const borrow = (m: Match, side: SideId, kind: LentKind, at: Vec2, heading: { fx: number; fy: number }): Vehicle =>
+  wake(m, m.vehicles.find((o) => o.kind === kind && o.side === side)!, heading.fx, heading.fy, at);
+/** Its Asset's flight this tick: `v` is at `at` (with `heading`, when it turns). */
+export const steer = (m: Match, v: Vehicle, at: Vec2, heading?: { fx: number; fy: number }) => void Object.assign(v, { x: at.x, y: at.y, ...heading, movedAt: m.tick });
+/** It was shot down. */
+export const lost = (v: Vehicle) => !live(v);
+/** It is home off the map (or fallen), asleep until its Asset's next call. */
+export const release = (v: Vehicle) => void sleep(v);
 
 /** Where `s` drives `v` (its kind's `goal`, -1 = none). Exported for tests. */
 export const drivePoint = (m: Match, sq: Squad, s: Soldier, v: Vehicle): number => rulesOf(v.kind).goal?.(m, sq, s, v) ?? -1;

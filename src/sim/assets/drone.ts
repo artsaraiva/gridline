@@ -6,7 +6,7 @@
 // falls where it was with no blast, and the cooldown stands. One a Side at a time.
 import { dist2 } from '../geometry';
 import { vehicleOf, type Mix } from '../state';
-import { sleep, wake } from '../vehicles';
+import { borrow, release, steer } from '../vehicles';
 import { assetRadio, inTheAir, shotDown, type Kind } from './core';
 import { blast } from './strike';
 
@@ -24,7 +24,7 @@ export const drone: Kind = {
     const t = m.tune;
     const from = { x: m.map.hqs[e.side].x, y: m.map.hqs[e.side].y };
     const d = Math.sqrt(dist2(from, e)) || 1;
-    const v = wake(m, m.vehicles.find((o) => o.kind === 'drone' && o.side === e.side)!, (e.x - from.x) / d, (e.y - from.y) / d, from);
+    const v = borrow(m, e.side, 'drone', from, { fx: (e.x - from.x) / d, fy: (e.y - from.y) / d });
     Object.assign(e, { from, vehicle: v.id, phase: 'inbound', phaseAt: m.tick, launch: m.tick, land: m.tick + Math.max(1, Math.round((d / t.droneSpeedMps) * t.hz)) });
     e.until = e.land! + Math.round(t.barrageContactSeconds * t.hz);
   },
@@ -36,10 +36,10 @@ export const drone: Kind = {
     if (shotDown(m, e, v, 'Drone lost', events)) return; // it falls where it was, with no blast
     if (m.tick < e.land!) {
       const k = (m.tick - e.launch!) / (e.land! - e.launch!);
-      return void Object.assign(v, { x: e.from!.x + (e.x - e.from!.x) * k, y: e.from!.y + (e.y - e.from!.y) * k, movedAt: m.tick });
+      return steer(m, v, { x: e.from!.x + (e.x - e.from!.x) * k, y: e.from!.y + (e.y - e.from!.y) * k });
     }
     e.told = true;
-    sleep(v);
+    release(v);
     events.push({ kind: 'impact', side: e.side, x: e.x, y: e.y, asset: 'drone' });
     assetRadio(m, e, 'Splash', events);
     // The spec's 50 "kills a jeep, half a tank", but a jeep has 60 hit points: a jeep is destroyed outright, as by a tank's round

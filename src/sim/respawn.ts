@@ -4,12 +4,15 @@ import { resetSoldierAi } from './ai';
 import { insideCount } from './capture';
 import { canStand, dist2 } from './geometry';
 import { nearestWalkable } from './grid';
-import { footLeader, inSky, lastDeath, membersOf, wiped, type Point, type Soldier, type Squad } from './state';
+import { footLeader, inSky, lastDeath, membersOf, vehicleOf, wiped, type Point, type Soldier, type Squad } from './state';
 import { rnd } from './rng';
 import { enemyOf, type SideId, type SimEvent, type Vec2 } from './types';
 import { boardOnReturn, leave } from './vehicles';
 import type { Effect } from './assets/core';
 import { beaconDenied, liveBeacon } from './assets/crate';
+
+/** #101: `side`'s Gunship on station, if it has one: a Soldier coming back may take a seat in it (`boardOnReturn`). Its Asset's effect is read here, so no vehicle module reads one. */
+const onStation = (m: Match, side: SideId) => vehicleOf(m, m.assets.effects.find((e) => e.asset === 'gunship' && e.side === side && e.phase === 'station')?.vehicle ?? -1);
 
 function bringBack(m: Match, s: Soldier, at: Vec2) {
   leave(m, s);
@@ -96,7 +99,7 @@ export function returnToFight(m: Match, events: SimEvent[]) {
       for (const s of members) {
         const spot = { x: at.x + s.ox, y: at.y + s.oy };
         bringBack(m, s, canStand(m, s, spot) ? spot : at);
-        boardOnReturn(m, sq, s); // #107: or in a vehicle with a free seat for it
+        boardOnReturn(m, sq, s, onStation(m, s.side)); // #107: or in a vehicle with a free seat for it
       }
       events.push({ kind: 'redeploy', side: sq.side, squad: sq.id, x: at.x, y: at.y });
       continue;
@@ -109,7 +112,7 @@ export function returnToFight(m: Match, events: SimEvent[]) {
       home ??= nearestWalkable(m, redeployPoint(m, sq) ?? spawnSpot(m, sq.side)); // drawn once, and only when someone comes back
       const behind = leader ? { x: leader.x - leader.fx * t.respawnBehindM, y: leader.y - leader.fy * t.respawnBehindM } : home;
       bringBack(m, s, canStand(m, s, behind) ? behind : home);
-      boardOnReturn(m, sq, s);
+      boardOnReturn(m, sq, s, onStation(m, s.side));
       events.push({ kind: 'respawn', side: s.side, id: s.id, x: s.x, y: s.y });
     }
   }
