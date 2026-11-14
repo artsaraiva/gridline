@@ -1,7 +1,7 @@
 // #107: the tank, the tracer for the shared Vehicle rules: crewed by its driver (who fires the main gun) and a gunner on the coax.
 import type { Match } from '../index';
 import { driveFlow } from '../ai/flow';
-import { bestPoint } from '../ai/squad';
+import { bestPoint } from '../ai/choose';
 import { dist2, inHq } from '../geometry';
 import { rnd } from '../rng';
 import { sideKnown } from '../memory';

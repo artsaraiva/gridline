@@ -2,11 +2,13 @@
 import type { Match } from '../index';
 import { rnd } from '../rng';
 import type { Mix, Soldier, Squad } from '../state';
+import { resetSoldierAi } from './reset';
 import { hashDeaths } from './routes';
 
 export { think } from './squad';
 export { walk } from './soldier';
 export { logDeath, type Death } from './routes';
+export { resetSoldierAi } from './reset';
 
 type SquadAi = Omit<Squad, 'id' | 'side' | 'members' | 'goal' | 'lastSeen' | 'lastHit' | 'memory' | 'dud' | 'order' | 'pending' | 'request' | 'requestNext' | 'taking' | 'takingSince' | 'pointPref' | 'aggression' | 'commitUntil' | 'thinkInterval' | 'nextThink' | 'rideM'>;
 type SoldierAi = Pick<Soldier, 'ammo' | 'lastTarget' | 'dest' | 'path' | 'cover' | 'chaseUntil' | 'role' | 'regroup' | 'strayUntil' | 'slot' | 'blocked' | 'detached' | 'goal' | 'commitUntil' | 'boarding' | 'climbAt' | 'crew' | 'crewUntil' | 'crewSeat'>;
@@ -18,10 +20,6 @@ export const newSquadAi = (): SquadAi => ({
 /** A fresh Soldier's AI state; `slot` is seeded, so a new Soldier draws once from the Match RNG. */
 export const newSoldierAi = (m: Match): SoldierAi => ({ ...resetSoldierAi(m), slot: 0.7 + 0.7 * rnd(m), blocked: 0 });
 
-/** What a Soldier forgets when Wounded or brought back. */
-export const resetSoldierAi = (m: Match) => ({
-  ammo: m.tune.ammo, lastTarget: -1, dest: null, path: [], cover: null, chaseUntil: 0, role: null, regroup: false, strayUntil: 0, detached: false, goal: -1, commitUntil: 0, boarding: -1, climbAt: 0, crew: false, crewUntil: -1, crewSeat: -1,
-});
 
 const MODE = { travel: 0, bound: 1, hold: 2, fallback: 3 };
 const TASK = { none: 0, point: 1, retreat: 2, resupply: 3 };

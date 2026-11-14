@@ -6,8 +6,8 @@
 // `jetTurnSeconds` turn; then home to rearm and repair `jetRearmSeconds`. An enemy jet in the air near it is fought first
 // (`dogfight`: chase, cannon, lock-on missile). Never into the enemy HQ circle's air. Only the AA and the enemy jet hurt it.
 import type { Match } from '../index';
-import { bestPoint } from '../ai/squad';
-import { assetContacts } from '../assets/core';
+import { bestPoint } from '../ai/choose';
+import { contactsOf } from '../contacts';
 import { clearOfHq, dist2, inHq, insidePolygon, launchPoint } from '../geometry';
 import { cosDeg, turnToward } from '../momentum';
 import { between, pickWeighted, rnd } from '../rng';
@@ -93,7 +93,7 @@ const home = (v: Jet) => Object.assign(v.sortie, { stage: 'rearming', until: -1,
 /** Where the Side knows its enemies: each one's last seen spot (its sightings, kept `lkpSeconds`), and its Assets' Contacts where they are. */
 export function known(m: Match, side: SideId): Map<number, Vec2> {
   const spots = new Map(m.sightings[side].map((s) => [s.id, { x: s.x, y: s.y }]));
-  for (const s of assetContacts(m, side)) spots.set(s.id, { x: s.x, y: s.y });
+  for (const s of contactsOf(m, side)) spots.set(s.id, { x: s.x, y: s.y });
   return spots;
 }
 
@@ -296,7 +296,7 @@ export function jetTarget(m: Match, v: Jet): Soldier | Vehicle | null {
   if (v.sortie.stage !== 'inbound' || !v.sortie.at) return null;
   const left = Math.sqrt(dist2(v, v.sortie.at));
   if (left > t.jetFireM) return null;
-  const seen = new Set([...m.sightings[v.side].filter((s) => s.tick === m.tick).map((s) => s.id), ...assetContacts(m, v.side).map((s) => s.id)]);
+  const seen = new Set([...m.sightings[v.side].filter((s) => s.tick === m.tick).map((s) => s.id), ...contactsOf(m, v.side).map((s) => s.id)]);
   let best: Soldier | Vehicle | null = null;
   let bestAlong = left + t.jetStripM;
   for (const id of seen) {

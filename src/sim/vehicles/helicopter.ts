@@ -2,7 +2,7 @@
 // (`plan`, #124), and its flight on the ground (`fly`) and in the air (`cruise`). Its jobs are in helicopter-jobs.ts, its Landing
 // Zones and doglegs in flight.ts.
 import type { Match } from '../index';
-import { reactAt } from '../ai/squad';
+import { reactAt } from '../ai/choose';
 import { clearOfHq, dist2 } from '../geometry';
 import { sideKnown } from '../memory';
 import { approach, BRAKE_RESERVE, stopSpeed, turnToward } from '../momentum';

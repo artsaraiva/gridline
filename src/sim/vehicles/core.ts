@@ -3,25 +3,23 @@
 // rules are in its module (aa.ts, helicopter.ts, jet.ts, lent.ts), the ground drive step in ground.ts.
 import type { Match } from '../index';
 import { driveFlow, flowDist } from '../ai/flow';
-import { reactAt } from '../ai/squad';
+import { reactAt } from '../ai/choose';
 import { between, rnd } from '../rng';
-import { blast } from '../assets/strike';
-import { die } from '../combat';
 import { dist2, inHq, insidePolygon, launchPoint } from '../geometry';
 import { hashMissiles, type AirMissile } from '../air-missiles';
 import { los, nearestWalkable } from '../grid';
 import { see } from '../memory';
 import { ticksOf, vehicleOf, type Mix, type Soldier, type Squad } from '../state';
-import { SIDES, type SideId, type SimEvent, type Tune, type Vec2, type VehicleKind, type VehicleView } from '../types';
+import { SIDES, type SideId, type Tune, type Vec2, type VehicleKind, type VehicleView } from '../types';
 import { aa } from './aa';
-import { air, crippled, DORMANT, flies, flown, fresh, held, high, live, riders, SLOTS, SPECS, wreck, type LentKind, type OwnOf, type Round, type Slots, type Vehicle, type VehicleOf } from './body';
+import { air, crippled, DORMANT, flies, flown, fresh, held, high, live, riders, SLOTS, SPECS, type LentKind, type OwnOf, type Round, type Slots, type Vehicle, type VehicleOf } from './body';
 import { helicopter } from './helicopter';
 import { JOBS } from './helicopter-jobs';
 import { jet, SORTIE } from './jet';
 import { jeep } from './jeep';
 import { gunship, lent, sleep, wake } from './lent';
 import { tank } from './tank';
-import { alight, bail, beam, descend, freeSeats, getOut, goalOf, GUN_OUT_M, jump, stintOver } from './seats';
+import { alight, beam, descend, freeSeats, getOut, goalOf, GUN_OUT_M, jump, stintOver } from './seats';
 
 const squared = (r: number) => r * r;
 
@@ -427,27 +425,14 @@ export function seeVehicles(m: Match, s: Soldier, sq: Squad, withinD2: number): 
 /** What `v`'s main gun is laid on: a Soldier or a vehicle, or undefined. */
 export const targetOf = (m: Match, v: Vehicle): Vec2 | undefined => m.soldiers[v.target] ?? vehicleOf(m, v.target);
 
-/**
- * The combat phase: the gun pass, each kind's own gun in vehicle order (`gun`: #107 a tank's main gun fires a round that flies to
- * its target's spot); then every round due lands, a Strike-shaped impact hitting the enemy's vehicles in its kill radius:
- * `tankVsVehicleDamage` on armour (a tank, #110 an AA), anything lighter destroyed. No Commander is paid for what it kills. #110: a
- * jet's bombs land the same way, each a blast of its own (`jetBomb*`), friend or foe as a Strike's, never on the air.
- */
-export function mainGuns(m: Match, events: SimEvent[]) {
-  const t = m.tune;
+/** #107: the gun pass of the combat phase (combat.ts `fire`): each kind's own gun in vehicle order (`gun`: a tank's main gun fires a round that flies to its target's spot, landing in combat.ts). */
+export function guns(m: Match) {
   for (const v of m.vehicles) {
     const gun = rulesOf(v.kind).gun;
     if (!gun) continue;
     gun.lay(m, v);
     if (!held(m, v)) gun.fire(m, v); // #143: nor while an EMP holds it (its rounds in the air still land)
   }
-  for (const v of m.vehicles)
-    for (const r of v.rounds.filter((r) => r.land <= m.tick)) {
-      events.push({ kind: 'impact', side: v.side, x: r.x, y: r.y, asset: r.bomb ? 'bomb' : 'tank', from: v.id });
-      if (r.bomb) blast(m, v.side, r, { killM: t.jetBombKillM, woundM: t.jetBombWoundM, suppressM: t.jetBombSuppressM, suppression: 1 }, null, events, { damage: (u) => (u.airborne ? 0 : t.jetBombVehicleDamage) });
-      else blast(m, v.side, r, { killM: t.tankKillM, woundM: t.tankWoundM, suppressM: t.tankSuppressM, suppression: t.tankSuppression }, null, events, { damage: (u) => (SPECS[u.kind].armour ? t.tankVsVehicleDamage : Infinity), foesOnly: true });
-      v.rounds.splice(v.rounds.indexOf(r), 1);
-    }
 }
 
 /** #110: the lock pass: each crewed vehicle whose kind locks a missile on (`lock`), not out of its own HQ (combat.ts fire), nor while an EMP holds it (#143). */
@@ -474,24 +459,6 @@ export function rocketTarget(m: Match, s: Soldier): Vehicle | null {
     [best, bestD2] = [v, d2];
   }
   return best;
-}
-
-/**
- * `damage` to `v` from Side `by`; at 0 hit points it is destroyed: every occupant dies outright (a Ticket each), and a Strike
- * (`cause`) of the enemy's scores them for that Commander at the shell tariff; it leaves a Wreck where it died (#109: a helicopter
- * falls in place), seen by the enemy only if they saw it in the last perception phase (#119: in the air too). #101: everyone
- * aboard the Gunship bails out instead, and both Sides see it fall (the sky rule).
- */
-export function hurt(m: Match, v: Vehicle, damage: number, by: SideId, cause: Soldier['cause'], events: SimEvent[]) {
-  if (!live(v)) return;
-  v.hp -= damage;
-  if (v.hp > 0) return;
-  if (SPECS[v.kind].ridersBail) bail(m, v);
-  for (const s of riders(m, v)) {
-    if (cause && by !== s.side) s.cause = cause;
-    die(m, s, events);
-  }
-  wreck(m, v);
 }
 
 export function vehicleViews(m: Match, side: SideId, seen: Set<number>): VehicleView[] {

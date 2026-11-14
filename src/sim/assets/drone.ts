@@ -8,7 +8,7 @@ import { dist2 } from '../geometry';
 import { vehicleOf, type Mix } from '../state';
 import { borrow, release, steer } from '../vehicles';
 import { assetRadio, inTheAir, shotDown, type Kind } from './core';
-import { blast } from './strike';
+import { blast } from '../damage';
 
 export const drone: Kind = {
   name: 'Drone Strike',
