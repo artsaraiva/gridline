@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { commanderView, createMatch, stateHash, step, type Match } from './index';
 import { DEFAULT_TUNE } from './tune';
 import type { Command, CommanderView, MapData, SimEvent, Tune, Vec2 } from './types';
+import { crew, vehicle } from './test-scene';
 
 const HZ = DEFAULT_TUNE.hz;
 
@@ -145,9 +146,7 @@ describe('Recon Plane: the enemy AA', () => {
     let downed = 0;
     for (let seed = 1; seed <= 10; seed++) {
       const m = scene({ 6: { x: 240, y: -400 }, 7: { x: 240, y: 400 } }, { aasPerSide: 1 }, seed);
-      const aa = m.vehicles.find((v) => v.kind === 'aa' && v.side === 'pact')!;
-      Object.assign(aa, { x: 300, y: 0, seats: [11] }); // 100 m off the line: it sees the aircraft, the aircraft never sees it
-      Object.assign(m.soldiers[11]!, { x: 300, y: 0, vehicle: aa.id });
+      crew(m, vehicle(m, 'aa', 'pact'), [11], { x: 300, y: 0 }); // 100 m off the line: it sees the aircraft, the aircraft never sees it
       const run = play(m, PASS + 3 * HZ);
       const lost = run.events.find((e) => e.kind === 'radio' && e.text === 'Recon lost')?.tick ?? -1;
       if (lost < 0) continue;

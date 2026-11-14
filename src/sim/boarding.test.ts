@@ -4,6 +4,7 @@ import { createMatch, step, type Match } from './index';
 import { DEFAULT_TUNE } from './tune';
 import { NO_TEMPO, NO_TRAITS, thinkOnId } from './test-tune';
 import type { MapData, Tune } from './types';
+import { crew } from './test-scene';
 
 // #122: a Squad decides to ride, claims one vehicle that fits, walks to it and climbs in one by one; tanks stay crewed by pairs.
 const HZ = DEFAULT_TUNE.hz;
@@ -117,8 +118,7 @@ describe('#122 which vehicle fits', () => {
   it('a full Squad and a piloted helicopter: three ride, the farthest walks Detached on the Squad\'s goal', () => {
     const m = scene({ helisPerSide: 1 }, { squads: 2, goal: -50 });
     const heli = m.vehicles.find((v) => v.side === 'nato')!;
-    heli.seats.splice(0, 3, 4, 5, 6); // Squad 1's Soldiers 4, 5 and 6 are its pilot and gunners: three passenger seats are left
-    for (const id of [4, 5, 6]) Object.assign(m.soldiers[id]!, { vehicle: heli.id, crew: true, crewUntil: 1e9, x: heli.x, y: heli.y });
+    crew(m, heli, [[4, 0], [5, 1], [6, 2]]); // Squad 1's Soldiers 4, 5 and 6 are its pilot and gunners: three passenger seats are left
     Object.assign(m.soldiers[3]!, { x: -530, y: 0 }); // the farthest
     let detached = false;
     for (let t = 0; t < 8 * HZ; t++) {

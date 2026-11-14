@@ -4,7 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { commanderView, createMatch, stateHash, step, type Match } from './index';
 import { DEFAULT_TUNE } from './tune';
 import type { Command, CommanderView, MapData, SimEvent, Tune, Vec2 } from './types';
-import type { VehicleOf } from './vehicles';
+import { crew, viewOf } from './test-scene';
+import { leave, type VehicleOf } from './vehicles';
 
 const HZ = DEFAULT_TUNE.hz;
 
@@ -25,7 +26,7 @@ const field: MapData = {
 /** nato Soldiers 0..5, pact 6..11, stood where placed (else at their HQ); nobody fires or walks. The EMP is ready at once. */
 function scene(place: Record<number, Vec2 & { fx?: number }> = {}, tune: Partial<Tune> = {}, seed = 1): Match {
   const t: Tune = { ...DEFAULT_TUNE, squadSize: 6, speedJitter: 0, spread: 0, fireRangeM: 0, walkSpeed: 0, empCooldownSeconds: 0, tanksPerSide: 0, jeepsPerSide: 0, helisPerSide: 0, jetsPerSide: 0, aasPerSide: 0, pointJeeps: false, crewSpawnChance: 0, ...tune };
-  const m = createMatch({ seed, map: field, tune: t, squadsPerSide: 1, commanderSide: 'nato' });
+  const m = createMatch({ seed, map: { ...field, points: [...field.points] }, tune: t, squadsPerSide: 1, commanderSide: 'nato' }); // its own points: a test may add one
   for (const [id, p] of Object.entries(place)) Object.assign(m.soldiers[Number(id)]!, p);
   return m;
 }
@@ -106,8 +107,8 @@ describe('EMP Strike: a tank in the ring', () => {
     m.points.push({ id: 'A', name: 'A', x: 200, y: 50, radius: DEFAULT_TUNE.captureRadius, owner: 'nato', progress: 0 });
     Object.assign(m.vehicles.find((v) => v.kind === 'tank' && v.side === 'nato')!, { hp: 0, deadAt: 0 }); // nato's own is out of it: back in 60 s, after the test (a held tank is a sitting duck)
     const tank = m.vehicles.find((v) => v.kind === 'tank' && v.side === 'pact')!;
-    Object.assign(tank, { x: -200, y: 50, fx: 1, fy: 0, seats: [6, 7], goal: 1 });
-    for (const id of [6, 7]) Object.assign(m.soldiers[id]!, { x: -200, y: 50, vehicle: tank.id });
+    crew(m, tank, [6, 7], { x: -200, y: 50 });
+    Object.assign(tank, { fx: 1, fy: 0, goal: 1 }); // facing east, for A
     return { m, tank };
   }
 
@@ -161,10 +162,9 @@ describe('EMP Strike: the air', () => {
     const m = scene({}, { aasPerSide: 1, jetsPerSide: 1 });
     const aa = m.vehicles.find((v) => v.kind === 'aa' && v.side === 'pact')!;
     const jet = m.vehicles.find((v) => v.kind === 'jet' && v.side === 'nato')!;
-    Object.assign(aa, { x: 20, y: 0, seats: [11] });
-    Object.assign(m.soldiers[11]!, { x: 20, y: 0, vehicle: aa.id });
+    crew(m, aa, [11], { x: 20, y: 0 });
     const burst = m.tick + FLIGHT;
-    const events = burstWith(m, () => Object.assign(jet, { x: 0, y: 30, fx: 1, fy: 0, airborne: true, seats: [-1] }), 18); // over the AA as the burst comes, and hanging there: nobody flies it
+    const events = burstWith(m, () => (leave(m, m.soldiers[jet.seats[0]!]!), Object.assign(jet, { x: 0, y: 30, fx: 1, fy: 0, airborne: true })), 18); // over the AA as the burst comes, and hanging there: its pilot is out, nobody flies it
     expect(jet.disabledUntil).toBe(0);
     const fire = (a: number, b: number) => events.filter((e) => e.tick >= a && e.tick < b && e.kind === 'shot' && e.from === 11).length;
     expect(fire(burst, burst + 12 * HZ)).toBe(0);
@@ -178,8 +178,8 @@ describe('EMP Strike: the air', () => {
     const heli = m.vehicles.find((v) => v.kind === 'helicopter' && v.side === 'pact') as VehicleOf<'helicopter'>;
     const track: { x: number; speed: number; airborne: boolean; job: string }[] = [];
     play(m, FLIGHT, CENTRE);
-    Object.assign(heli, { x: 0, y: 20, fx: 1, fy: 0, speed: DEFAULT_TUNE.heliMps, airborne: true, seats: [8, -1, -1, -1, -1, -1] }); // flying east with its pilot as the burst comes, to the Squad that claimed it at its HQ
-    Object.assign(m.soldiers[8]!, { x: 0, y: 20, vehicle: heli.id });
+    expect(viewOf(m, heli.id, 'pact')!.seats![0]).toBeGreaterThanOrEqual(0); // its crew and the Squad climbed in at its HQ
+    Object.assign(heli, { x: 0, y: 20, fx: 1, fy: 0, speed: DEFAULT_TUNE.heliMps, airborne: true }); // flying east with them as the burst comes
     for (let i = 0; i < 16 * HZ; i++) {
       step(m, []);
       track.push({ x: heli.x, speed: heli.speed, airborne: heli.airborne, job: heli.heli.job });
@@ -200,8 +200,7 @@ describe('EMP Strike: what it tells and shows', () => {
     const tank = m.vehicles.find((v) => v.kind === 'tank' && v.side === 'pact')!;
     const jeep = m.vehicles.find((v) => v.kind === 'jeep' && v.side === 'nato')!;
     Object.assign(tank, { x: 30, y: 0 });
-    Object.assign(jeep, { x: -10, y: 0, seats: [0, 2, -1, -1] });
-    for (const id of [0, 2]) Object.assign(m.soldiers[id]!, { x: -10, y: 0, vehicle: jeep.id });
+    crew(m, jeep, [0, 2], { x: -10, y: 0 });
     return { m, tank, jeep };
   }
 
@@ -211,8 +210,8 @@ describe('EMP Strike: what it tells and shows', () => {
     const jeep = m.vehicles.find((v) => v.kind === 'jeep' && v.side === 'nato')!;
     const spot = { x: -150, y: 150 };
     play(m, Math.round((Math.hypot(415 - 150, 150) / 60) * HZ), spot);
-    Object.assign(jeep, { x: -160, y: 150, fx: 1, fy: 0, speed: 9, goal: 0, movedAt: m.tick, seats: [0, 2, -1, -1] });
-    for (const id of [0, 2]) Object.assign(m.soldiers[id]!, { x: -160, y: 150, vehicle: jeep.id });
+    crew(m, jeep, [0, 2], { x: -160, y: 150 });
+    Object.assign(jeep, { fx: 1, fy: 0, speed: 9, goal: 0, movedAt: m.tick, departAt: m.tick }); // under way
     const views: CommanderView[] = [];
     for (let i = 0; i <= 12 * HZ; i++) {
       step(m, []);
