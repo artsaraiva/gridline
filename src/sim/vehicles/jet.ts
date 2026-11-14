@@ -321,7 +321,7 @@ export const jet: VehicleRules<'jet'> = {
     v.goal = jetPoint(m, sq, v);
     takeOff(m, v);
   },
-  onReturn: { order: 1, take: jetOnReturn }, // first: as BF4's deploy screen puts you in the air
+  onReturn: jetOnReturn,
   wantsOut: () => false, // its pilot never gets out
   seatFire: cannon,
   lock: (m, v) => lockOn(m, v, v.missile, jetLock(m, v), m.tune.jetLockSeconds, m.tune.jetReloadSeconds), // on the enemy jet it fights

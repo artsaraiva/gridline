@@ -66,7 +66,7 @@ export const lent: VehicleRules<'drone'> & VehicleRules<'recon'> = { init: () =>
 export const gunship: VehicleRules<'gunship'> = {
   init: () => ({}),
   seatFor: (_m, v, s) => (s.crew ? GUNSHIP_GUN : v.seats.indexOf(-1, GUNSHIP_GUN + 1)), // its gunner or a passenger; nobody takes the pilot's seat
-  onReturn: { order: 3, take: gunshipOnReturn }, // after a jet's pilot and a helicopter's crew
+  onReturn: gunshipOnReturn,
   wantsOut: () => false, // its riders leave only as its Asset flies it (`paradrop`, `homeward`)
   seatFire: (m, s, v, shots) => seatGun(m, s, v, gunner(v) === s.id ? sideGun(m, v, GUNSHIP_GUN) : undefined, shots), // its one gun is its gun seat's, the left
   inSky: () => true, // all the way (layers/gunship.ts draws it from its Asset)

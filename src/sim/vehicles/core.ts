@@ -55,8 +55,8 @@ export interface VehicleRules<K extends VehicleKind> {
     /** #131: a Squad's claim on it ends any fetch. */
     claimed?(v: VehicleOf<K>): void;
   };
-  /** A Soldier coming back from the dead may take a seat here (#110 a jet's pilot, #129 a helicopter's crew, #101 the seats of the lent body on station, `onStation`), offered in `order`: true when it did. */
-  onReturn?: { order: number; take(m: Match, sq: Squad, s: Soldier, onStation?: Vehicle): boolean };
+  /** A Soldier coming back from the dead may take a seat here (#110 a jet's pilot, #129 a helicopter's crew, #101 the seats of the lent body on station, `onStation`): true when it did. Only a kind in `RETURN_ORDER` has one, offered in that order. */
+  onReturn?: K extends ReturnKind ? (m: Match, sq: Squad, s: Soldier, onStation?: Vehicle) => boolean : never;
   /** Its leaving rule at a rider's think (`ride`); unset, the shared passenger rule (`passengers`). */
   wantsOut?(m: Match, sq: Squad, s: Soldier, v: VehicleOf<K>): boolean;
   /** How its gun ranks what its eyes see (`look`): #107 the tank's main gun, #110 the AA's. */
@@ -106,9 +106,17 @@ const kinds = (): { [K in VehicleKind]: VehicleRules<K> } => (table ??= { tank, 
 export const rulesOf = <K extends VehicleKind>(kind: K): VehicleRules<K> => kinds()[kind];
 /** #183: a fresh vehicle of `kind` in `slot` for `side`: its body (`fresh`) and its kind's own record (`init`) in its slots, every other kind's empty (`SLOTS`: one object shape for every vehicle). */
 export const renew = <K extends VehicleKind>(m: Match, side: SideId, kind: K, slot: Vec2) => ({ ...fresh(m, side, kind, slot), ...SLOTS, ...rulesOf(kind).init(m) });
-let offers: NonNullable<VehicleRules<VehicleKind>['onReturn']>[] | undefined;
+/**
+ * #183: the kinds whose seats a Soldier coming back is offered (`onReturn`), in the order `boardOnReturn` offers them: #110 a
+ * jet's pilot first, as BF4's deploy screen puts you in the air; #129 then a helicopter's crew; #101 then the Gunship's seats on
+ * station. A ground seat comes after them all. No other kind may have the hook.
+ */
+const RETURN_ORDER = ['jet', 'helicopter', 'gunship'] as const satisfies readonly VehicleKind[];
+/** #183: a kind that may seat a Soldier coming back (`RETURN_ORDER`). */
+type ReturnKind = (typeof RETURN_ORDER)[number];
+let offers: NonNullable<VehicleRules<ReturnKind>['onReturn']>[] | undefined;
 /** #183: the seats a Soldier coming back is offered, in their order. */
-const onReturnOffers = () => (offers ??= [...new Set(Object.values(kinds()).flatMap((r: VehicleRules<VehicleKind>) => (r.onReturn ? [r.onReturn] : [])))].sort((a, b) => a.order - b.order));
+const onReturnOffers = () => (offers ??= RETURN_ORDER.map((k) => rulesOf(k).onReturn!));
 
 /**
  * The first fresh vehicles (#154: map data). Each Side's HQ tanks, jeeps (#108) and helicopters (#109), then the vehicles each
@@ -187,13 +195,13 @@ export function mount(m: Match, v: Vehicle, s: Soldier, sq: Squad) {
 
 /**
  * A Soldier coming back from the dead (Squad Respawn or Redeploy) takes a seat if one waits for it: first the seats the kinds
- * offer (`onReturn`: #110 a jet's pilot, #129 a helicopter's crew, #101 then the Gunship's), else in the Squad Leader's vehicle
+ * offer (`onReturn`, in `RETURN_ORDER`: #110 a jet's pilot, #129 a helicopter's crew, #101 then the Gunship's), else in the Squad Leader's vehicle
  * while the leader rides one, else as the driver of a friendly ground vehicle with nobody driving (fit to fight: a third of its
  * hit points or more). True when it did. #109: never into a helicopter in the air. #101: `onStation`, the Side's Gunship on station
  * (its Asset's effect says so: respawn.ts reads it), whose seats come after a jet's and a helicopter's crew.
  */
 export function boardOnReturn(m: Match, sq: Squad, s: Soldier, onStation?: Vehicle): boolean {
-  if (onReturnOffers().some((o) => o.take(m, sq, s, onStation))) return true;
+  if (onReturnOffers().some((take) => take(m, sq, s, onStation))) return true;
   const lead = m.soldiers[sq.members[0]!]!;
   const mine = lead.state === 'alive' ? vehicleOf(m, lead.vehicle) : undefined;
   const v = mine && freeSeats(mine) > 0 && !mine.airborne ? mine : m.vehicles.find((o) => o.side === s.side && live(o) && !o.airborne && SPECS[o.kind].layer === 'ground' && o.seats[0] === -1 && !crippled(m, o));

@@ -226,7 +226,7 @@ export const helicopter: VehicleRules<'helicopter'> = {
     fetching: (v) => v.heli.fetch,
     claimed: (v) => void (v.heli.fetch = -1),
   },
-  onReturn: { order: 2, take: crewOnReturn }, // after a jet's pilot
+  onReturn: crewOnReturn,
   wantsOut,
   seatFire: (m, s, v, shots) => seatGun(m, s, v, sideGun(m, v, v.seats.indexOf(s.id)), shots), // #129: a gun per side seat
 };
