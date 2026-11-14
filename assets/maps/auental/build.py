@@ -1,11 +1,11 @@
-"""Auental, the 128 v 128 Conquest map (#150): terrain, the river Auer with its reservoir and seven crossings, roads, the
+"""Auental, the 128 v 128 Conquest map (#150): terrain, the river Auer with its reservoir and nine crossings, roads, the
 rail line, an HQ bulging out of each end, a landmark at each of the 12 Capture Points, the twin town, woods, fields and
 hedges, and what the war has left on them: shell holes, tank ruts, wrecks and burnt farms.
 Headless Blender script; it is the map's source of truth (ADR 0001, ADR 0002) and its outputs are committed.
 
 A 2.5 km valley from the layout session of 2026-11-10, baked on a 3 km square so that an HQ fits beyond each end of it
 (2026-11-12): NATO HQ west and Warsaw Pact HQ east, 12 Capture Points in three
-Lanes, a 20 m river crossing the line between the HQs north to south with 7 crossings (3 / 1 / 3), a reservoir behind a dam
+Lanes, a 20 m river crossing the line between the HQs north to south with 9 crossings (4 / 1 / 4), a reservoir behind a dam
 in a gorge filling the south edge, Hochwacht hill over the old bridge in the north. Points, HQs, crossings and the boundary
 match under a half turn about the map centre; the scenery around them is not mirrored.
 
@@ -79,7 +79,10 @@ PT = {i: (x, y) for i, x, y, _, _ in POINTS}
 KEYSTONE = ["E", "H"]  # the twin town: the Missile gate needs both halves
 CROSSINGS = [  # north to south, twins under the half turn; armour crosses at the bridges and, at half speed, the fords
     ("OLD", "bridge", -60.0, 1020.0, 4.0), ("NF", "ford", -190.0, 720.0, 6.5), ("RAIL", "footbridge", -165.0, 430.0, 1.5),
-    ("MAIN", "bridge", 0.0, 0.0, 4.0),
+    # #156: the twin town's flank, 140 m up and down the river from MAIN (on the river's centre line, river_x(±135)): near
+    # enough that the way between E and H over either stays within 150 m of the way over MAIN, far enough that MAIN's danger
+    # circles barely reach it
+    ("NTOWN", "footbridge", -35.46, 135.0, 1.5), ("MAIN", "bridge", 0.0, 0.0, 4.0), ("STOWN", "footbridge", 35.46, -135.0, 1.5),
     ("WEIR", "footbridge", 165.0, -430.0, 1.5), ("SF", "ford", 190.0, -720.0, 6.5), ("DAM", "bridge", 60.0, -1020.0, 4.0),
 ]
 # #154: each Side's vehicles, sized so about a third of a Side can ride out at the opening. HQ slots and helipads are metres
@@ -117,6 +120,9 @@ _RKD = _kd(_RIVER)
 
 def river_x(y):
     return float(np.interp(y, _RY, _RX))
+
+
+assert all(abs(river_x(y) - x) < 0.01 for _, _, x, y, _ in CROSSINGS), "every crossing sits on the river's centre line"
 
 
 def river_dxdy(y):
@@ -211,6 +217,18 @@ ROADS += [("track", t) for t in _HQ_TRACKS] + [("track", [(-x, -y) for x, y in t
 _STREETS = [[(-130, 40), (-120, 100), (-135, 160), (-190, 190)], [(-135, 160), (-85, 150), (-62, 90), (-55, 17)],
             [(-130, 40), (-105, -30), (-70, -90), (-20, -150)], [(-250, 160), (-245, 100), (-225, 50), (-215, -20), (-170, -80)]]
 ROADS += [("minor", st) for st in _STREETS] + [("minor", [(-x, -y) for x, y in st]) for st in _STREETS]
+# #156: footpaths from the town footbridges, so the houses leave a way through, and the way between E and H over either one
+# stays well within 150 m of the way over MAIN, for both Sides alike. Each starts 3 m in from its deck's end (NTOWN's deck runs
+# from (-51.3, 130.5) to (-19.6, 139.5)), so path and deck meet with no bank shrubs between them. Into the near half, twins:
+# NTOWN's west on along its deck over Unterau's river street and past the churchyard to E's street, STOWN's east past the
+# warehouses to H's.
+_TOWN_PATHS = [[(-120.7, 111.2), (-48.5, 131.3)]]
+ROADS += [("path", p) for p in _TOWN_PATHS] + [("path", [(-x, -y) for x, y in p]) for p in _TOWN_PATHS]
+# The far halves are not twins, so neither are their paths: from each footbridge one on to where the street toward it ends, and a
+# lane through the gardens toward the far square, STOWN's to the square at E itself, NTOWN's to Oberau's north street just short
+# of H's, north of its warehouse.
+ROADS += [("path", [(-22.5, 138.7), (20, 150)]), ("path", [(-22.5, 138.7), (105, 30)]),
+          ("path", [(22.5, -138.7), (-20, -150)]), ("path", [(22.5, -138.7), (-117, 24.5)])]
 index_roads(ROADS)
 _RAILKD = _kd([p for kind, pts in ROAD_PTS if kind == "rail" for p in pts])
 # the high-voltage line from the dam's substation out over the west edge; woods are felled under it

@@ -1,4 +1,4 @@
-import type { Hq, MapData, MapGrid, SideId } from '../sim/types';
+import type { Crossing, Hq, MapData, MapGrid, SideId } from '../sim/types';
 
 /**
  * Metadata a map bake writes next to its images and data grids (`public/maps/<id>/map.json`).
@@ -12,7 +12,7 @@ export interface BakedMap extends MapData {
   hqs: Record<SideId, Hq & { radius: number }>;
   /** `radius` is the per-point override (25 m by default); `owner` is the Side holding the point at the start. */
   points: (MapData['points'][number] & { radius: number; owner: SideId | null })[];
-  crossings: { id: string; kind: 'bridge' | 'footbridge' | 'ford'; x: number; y: number; halfWidth: number }[];
+  crossings: Crossing[];
   grid: MapGrid;
   /**
    * 1 m top-down data render, row-major, row 0 at the north edge, column 0 at the west edge.

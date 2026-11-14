@@ -670,11 +670,25 @@
    "halfWidth": 1.5
   },
   {
+   "id": "NTOWN",
+   "kind": "footbridge",
+   "x": -35.46,
+   "y": 135.0,
+   "halfWidth": 1.5
+  },
+  {
    "id": "MAIN",
    "kind": "bridge",
    "x": 0.0,
    "y": 0.0,
    "halfWidth": 4.0
+  },
+  {
+   "id": "STOWN",
+   "kind": "footbridge",
+   "x": 35.46,
+   "y": -135.0,
+   "halfWidth": 1.5
   },
   {
    "id": "WEIR",

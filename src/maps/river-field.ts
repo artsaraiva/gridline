@@ -2,7 +2,8 @@ import type { MapData } from '../sim/types';
 
 /**
  * Hand-written test map for route choice: a river runs north-south through the middle, crossed by a footbridge in the north,
- * the bridge in the centre and a ford in the south. Point A is on the nato bank, E on the pact bank, C on the bridge.
+ * the bridge in the centre and a ford in the south. Point A is on the nato bank, E on the pact bank, C on the bridge, which is
+ * the centre's own fight as Kaltenbach's is (#156).
  * From the nato HQ, E is 415 m over the footbridge, 441 m over the bridge and 617 m by the ford (A from the pact HQ likewise).
  */
 export const RIVER_FIELD: MapData = {
@@ -29,7 +30,7 @@ export const RIVER_FIELD: MapData = {
   water: [{ x0: -6, y0: -200, x1: 6, y1: 200 }],
   crossings: [
     { id: 'N', kind: 'footbridge', x: 0, y: 120, halfWidth: 2 },
-    { id: 'C', kind: 'bridge', x: 0, y: 0, halfWidth: 4 },
+    { id: 'C', kind: 'bridge', x: 0, y: 0, halfWidth: 4, centreFight: true },
     { id: 'S', kind: 'ford', x: 0, y: -120, halfWidth: 6 },
   ],
   cover: [

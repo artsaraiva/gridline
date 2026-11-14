@@ -34,7 +34,8 @@ export function hashDeaths(m: Match, mix: Mix) {
 /**
  * Sets `sq.route` for heading from `from` to point `p`. Each crossing's route is its length, plus `routeSeenM` per enemy the Side
  * saw (#143: or Feint dummy it heard) near it lately, `routeLossM` per own death near it lately and `routeMateM` per other own Squad taking it to the same point,
- * plus seeded jitter; routes more than `routeMaxDetourM` longer than the shortest are dropped. The `bridge` takes no danger.
+ * plus seeded jitter; routes more than `routeMaxDetourM` longer than the shortest are dropped. #156: a crossing marked
+ * `centreFight` takes no danger; every other one does, bridges included.
  * No route when the crossing makes no difference (the point is on this bank). #151: a route's length is the way to the middle of its
  * crossing's deck plus the point's own field from there.
  */
@@ -53,7 +54,7 @@ export function chooseRoute(m: Match, sq: Squad, from: Vec2, p: number) {
   let best = Infinity;
   crossings.forEach((c, i) => {
     if (!(lengths[i]! <= shortest + t.routeMaxDetourM)) return;
-    const danger = c.kind !== 'bridge';
+    const danger = !c.centreFight;
     const seen = new Set<number>();
     if (danger)
       for (const s of sideKnown(m, sq.side))

@@ -227,7 +227,8 @@
    "kind": "bridge",
    "x": 0.0,
    "y": 0.0,
-   "halfWidth": 4.0
+   "halfWidth": 4.0,
+   "centreFight": true
   },
   {
    "id": "SB",

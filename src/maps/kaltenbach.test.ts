@@ -74,6 +74,10 @@ describe('Kaltenbach map metadata', () => {
     expect(ys('footbridge')).toEqual([210, 210]);
   });
 
+  it('#156: marks the centre bridge, and it alone, as the centre\'s own fight', () => {
+    expect(map.crossings.filter((c) => c.centreFight).map((c) => c.id)).toEqual(['C']);
+  });
+
   it('lists a play-area mip chain from 8192 down to 1 px and the surroundings out to 2.88 km, all present', () => {
     expect(map.images.play[0]).toMatch(/8192/);
     expect(map.images.play).toContain('map_4096.webp');

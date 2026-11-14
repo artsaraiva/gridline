@@ -20,10 +20,11 @@ import { board, decideCrew, decideRide, ride } from '../vehicles';
 
 const sq2 = (r: number) => r * r;
 
-/** The landed friendly crate a resupplying Squad heads for (nearest its leader), or null: then it goes to the HQ. */
+/** The landed friendly crate a resupplying Squad heads for (nearest its leader), or null: then it goes to the HQ. #156: so too when the leader is past the crate's reach. */
 const crateOf = (m: Match, sq: Squad) => {
   const L = membersOf(m, sq).find((s) => s.state === 'alive');
-  return sq.task === 'resupply' && L ? nearestCrate(m, sq.side, L) : null;
+  const crate = sq.task === 'resupply' && L ? nearestCrate(m, sq.side, L) : null;
+  return crate && flowDist(m, crateFlow(m, crate), L!) < Infinity ? crate : null;
 };
 
 /** Where the Squad's task takes it, with the radius that counts as there; null = no task. */

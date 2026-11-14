@@ -52,7 +52,7 @@ export interface MapData {
   water?: Rect[];
   /**
    * #34: Where the water can be crossed: each opens the water within `halfWidth` north and south of (x, y), 30 m east and west
-   * (rivers run north-south). A ford is slow going. The `bridge` is the centre's own fight, never avoided as dangerous.
+   * (rivers run north-south). A ford is slow going. #156: one marked `centreFight` is never avoided as dangerous.
    */
   crossings?: Crossing[];
   /** #42: a baked map's terrain on cells; when present it replaces `walls`, `cover`, `water` and the box rule of `crossings`. */
@@ -95,6 +95,8 @@ export interface Crossing {
   x: number;
   y: number;
   halfWidth: number;
+  /** #156: the centre's own fight (Kaltenbach's centre bridge): Squads never avoid it as dangerous. Every other crossing takes danger. */
+  centreFight?: boolean;
 }
 
 export interface Tune {
