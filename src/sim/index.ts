@@ -35,7 +35,7 @@ export interface Match {
   points: Point[];
   grid: Grid;
   drive: Record<SideId, Grid>; // #107: each Side's ground-vehicle grid (the enemy HQ closed); see grid.ts driveGrid
-  vehicles: Vehicle[]; // #107: one per slot, reused through respawns; see vehicles.ts
+  vehicles: Vehicle[]; // #107: one per slot, reused through respawns; see vehicles/
   wrecks: Wreck[];
   tickets: Record<SideId, number>;
   pointLead: number; // nato points - pact points

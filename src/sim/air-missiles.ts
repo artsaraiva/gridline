@@ -3,7 +3,7 @@
 // close on it hits with a seeded chance or flies on past until it is spent (`flyMissiles`).
 import type { Match } from './index';
 import { dist2, inHq } from './geometry';
-import { jetLock } from './jet';
+import { jetLock } from './vehicles/jet';
 import { turnToward } from './momentum';
 import { rnd } from './rng';
 import { ticksOf, vehicleOf, type Mix } from './state';

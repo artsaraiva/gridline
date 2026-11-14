@@ -111,7 +111,7 @@ export function assetRadio(m: Match, e: Effect, text: string, events: SimEvent[]
 export const inTheAir = (m: Match, side: SideId, asset: 'drone' | 'recon') => (m.assets.effects.some((e) => e.asset === asset && e.side === side) ? 'in the air' : null);
 
 /**
- * #139: whether the enemy AA has shot down `v`, the aircraft `e` flies (vehicles.ts `hurt`). If so it sleeps where it fell, the
+ * #139: whether the enemy AA has shot down `v`, the aircraft `e` flies (vehicles/core.ts `hurt`). If so it sleeps where it fell, the
  * effect is 'down' and stays `barrageContactSeconds` more for the Console to show the fall, and the radio says `line`.
  */
 export function shotDown(m: Match, e: Effect, v: Vehicle, line: string, events: SimEvent[]): boolean {

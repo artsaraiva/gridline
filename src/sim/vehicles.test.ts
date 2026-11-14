@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { commanderView, createMatch, stateHash, step, type Match } from './index';
 import { ticketsStart } from './capture';
-import { dogleg } from './flight';
+import { dogleg } from './vehicles/flight';
 import { insidePolygon } from './geometry';
 import { DEFAULT_TUNE } from './tune';
 import { NO_TEMPO, NO_TRAITS, thinkOnId } from './test-tune';

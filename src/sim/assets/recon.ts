@@ -1,5 +1,5 @@
 // Recon Plane (#139): line recon beside the Scan UAV's loiter. Called with two taps, a point and a direction, and always
-// available. At the call its Side's Recon Plane (a vehicle with nobody aboard, vehicles.ts) wakes BEYOND_M outside the Play
+// available. At the call its Side's Recon Plane (a vehicle with nobody aboard, vehicles/lent.ts) wakes BEYOND_M outside the Play
 // Area on the line through the point, flies the line at `reconSpeedMps` and leaves BEYOND_M past the far edge. Every tick it
 // is over the Play Area, every enemy on foot and every enemy vehicle on the ground within `reconStripM` of it, outside their
 // own HQ, is seen by every friendly Squad, as the Scan UAV's are: a Contact for that tick, a Last Known Position after, and a

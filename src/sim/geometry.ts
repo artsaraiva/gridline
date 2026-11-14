@@ -68,6 +68,14 @@ export function chord(poly: Vec2[], at: Vec2, ux: number, uy: number, beyond = 0
 
 export const inHq = (m: Match, side: SideId, p: Vec2) => hqHolds(m.map.hqs[side], m.tune.hqRadius, p);
 
+/** `p` pushed out of the enemy HQ circle (a helicopter never enters it); `margin` metres past the rim. */
+export function clearOfHq(m: Match, side: SideId, p: Vec2, margin = 0): Vec2 {
+  const hq = m.map.hqs[enemyOf(side)];
+  const r = (hq.radius ?? m.tune.hqRadius) + margin;
+  const e2 = dist2(p, hq);
+  return e2 < r * r ? { x: hq.x + ((p.x - hq.x) * r) / Math.sqrt(e2), y: hq.y + ((p.y - hq.y) * r) / Math.sqrt(e2) } : p; // ponytail: slides round the rim; stalls only on a line through its exact centre
+}
+
 /** The Play Area boundary, walls, water and the enemy HQ are walls to a Soldier. */
 export const canStand = (m: Match, s: Soldier, p: Vec2) =>
   insidePolygon(m.map.playArea, p.x, p.y) && walkCost(m, p.x, p.y) > 0 && !inHq(m, enemyOf(s.side), p);

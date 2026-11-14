@@ -2,7 +2,7 @@
 // (the Cruise Missile's gate); the cooldown runs regardless, and losing one mid-sortie changes nothing. The call names its
 // focus: the spot it works over. While it is flying in or on station another call moves the focus (no new cooldown, whatever
 // the gate says), and it turns for the new one.
-// At the call its Side's Gunship vehicle (vehicles.ts) wakes at the missile's launch point, beyond the Play Area behind the
+// At the call its Side's Gunship vehicle (vehicles/lent.ts) wakes at the missile's launch point, beyond the Play Area behind the
 // caller's HQ, and flies level at `gunshipSpeedMps`, turning no faster than `gunshipTurnDegPerS`: wide arcs, never a sudden
 // about-face. It flies in at the focus and is on station once that is within `gunshipRangeM`, for `gunshipStationSeconds`.
 // There it flies as a jet's pilot would, slowly: at a mark drawn among the enemies on foot its Side knows (those within
@@ -12,12 +12,12 @@
 // `gunshipRangeM` of the ground under it are Contacts, and its cannon fires one shell every `gunshipShotSeconds` at the one
 // nearest (none in range: no shot): it leaves the aircraft, flies `gunshipShellFlightSeconds` and lands a Barrage shell's blast
 // within `gunshipScatterM` of where that enemy was. Soldiers coming back may take its gun seat or a passenger seat
-// (vehicles.ts `gunshipOnReturn`); each passenger jumps as it passes its goal, and everyone aboard bails out as it turns for
+// (vehicles/lent.ts `gunshipOnReturn`); each passenger jumps as it passes its goal, and everyone aboard bails out as it turns for
 // home. It is in the sky, so both Sides' views carry it; the enemy AA fires on it as on a helicopter: under a third of its hit
 // points it leaves early, at 0 it falls as a Wreck where it was and fires no more (shells already in the air still land).
 // Its path is stepped a tick at a time, turning by `turnToward`'s polynomial step (no trig).
 import { dist2, inHq } from '../geometry';
-import { known, markable } from '../jet';
+import { known, markable } from '../vehicles/jet';
 import { turnToward } from '../momentum';
 import { pickWeighted, rnd } from '../rng';
 import { ticksOf, vehicleOf, type Mix } from '../state';
@@ -169,7 +169,7 @@ export const gunship: Kind = {
     land(m, e, events);
     if (e.phase === 'down') return;
     const v = vehicleOf(m, e.vehicle!)!;
-    if (!live(v)) { // shot down: vehicles.ts `hurt` left the Wreck and bailed its riders out
+    if (!live(v)) { // shot down: vehicles/core.ts `hurt` left the Wreck and bailed its riders out
       Object.assign(e, { phase: 'down', phaseAt: m.tick, until: Math.max(m.tick, ...e.shells!.filter((s) => !s.done).map((s) => s.land)) + 1 });
       return;
     }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { bake, KALTENBACH } from '../../scripts/bakes';
 import { across, driveFlow, flowDist, flowLook } from './ai/flow';
-import { overCrossing, pickRoute, ROAD, VIA } from './drive-route';
+import { overCrossing, pickRoute, ROAD, VIA } from './vehicles/drive-route';
 import { cellIndex } from './grid';
 import { createMatch, stateHash, step, type Match } from './index';
 import { NO_TEMPO, NO_TRAITS, thinkOnId } from './test-tune';

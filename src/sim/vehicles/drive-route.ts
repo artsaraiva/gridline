@@ -1,19 +1,20 @@
 // Which way a ground vehicle's driver takes to its Capture Point: over which crossing, and off the road through the fields
 // round the danger its Side knows of.
-import type { Match } from './index';
-import { across, crossingDriveFlow, driveFlow, flowDist, flowLook, type Flow } from './ai/flow';
-import { dist2 } from './geometry';
-import { cellCentre, cellIndex } from './grid';
-import { sideKnown } from './memory';
-import { rnd } from './rng';
-import type { Vec2, VehicleKind } from './types';
-import { live, specOf, type Vehicle } from './vehicles';
+import type { Match } from '../index';
+import { across, crossingDriveFlow, driveFlow, flowDist, flowLook, type Flow } from '../ai/flow';
+import { dist2 } from '../geometry';
+import { cellCentre, cellIndex } from '../grid';
+import { sideKnown } from '../memory';
+import { rnd } from '../rng';
+import type { Vec2, VehicleKind } from '../types';
+import { live, SPECS, type Vehicle } from './body';
 
 /** `Vehicle.route`: -1 not chosen yet (it drives its road), its road, or `VIA + c` over crossing `c` first. */
 export const ROAD = 0;
 export const VIA = 1;
 
-export const GROUND: VehicleKind[] = ['tank', 'jeep', 'aa'];
+/** A kind that drives on the ground grid (the tank, the jeep, the AA). */
+const ground = (kind: VehicleKind) => SPECS[kind].layer === 'ground';
 
 /** A route's line is walked `STEP` flow cells at a time (never over a deck unseen) and sampled every `HOP` of those: 16 m on 2 m cells, well inside the danger radii. */
 const STEP = 2;
@@ -68,7 +69,7 @@ export function alongPath(m: Match, v: Vehicle, n: number, seen: (p: Vec2) => bo
 function line(m: Match, v: Vehicle, route: number, most = Infinity): { secs: number; pts: Vec2[] } | null {
   const g = m.drive[v.side];
   const goal = m.points[v.goal]!;
-  const { roadMps, openMps } = specOf(m.tune, v.kind);
+  const [roadMps, openMps] = [SPECS[v.kind].roadMps(m.tune), SPECS[v.kind].openMps(m.tune)];
   const end = goal.radius + m.tune.routeSeenRadiusM;
   const legs = route >= VIA ? [crossingDriveFlow(m, v.side, route - VIA), driveFlow(m, v.side, v.goal)] : [driveFlow(m, v.side, v.goal)];
   let p: Vec2 = v;
@@ -104,7 +105,7 @@ function spots(m: Match, v: Vehicle): Spot[] {
   return [
     ...sideKnown(m, v.side).filter((s) => s.source === 'seen' && recent(s.tick, t.routeSeenSeconds)).map((s) => ({ x: s.x, y: s.y, r: t.routeSeenRadiusM, s: t.driveSeenS })),
     ...m.deaths.filter((d) => d.side === v.side && recent(d.tick, t.routeLossSeconds)).map((d) => ({ x: d.x, y: d.y, r: t.routeLossRadiusM, s: t.driveLossS })),
-    ...m.wrecks.filter((w) => w.side === v.side && GROUND.includes(w.kind) && recent(w.tick, t.routeLossSeconds)).map((w) => ({ x: w.x, y: w.y, r: t.routeLossRadiusM, s: t.driveWreckS })),
+    ...m.wrecks.filter((w) => w.side === v.side && ground(w.kind) && recent(w.tick, t.routeLossSeconds)).map((w) => ({ x: w.x, y: w.y, r: t.routeLossRadiusM, s: t.driveWreckS })),
   ];
 }
 
@@ -142,7 +143,7 @@ function pickCrossing(m: Match, v: Vehicle, at: Spot[]) {
     const l = c.kind === 'footbridge' ? null : line(m, v, VIA + i);
     if (!l || l.secs > road.secs + t.driveMaxDetourS) return;
     const r = l.secs < road.secs + 2 ? ROAD : VIA + i; // the crossing the road takes anyway
-    const mates = m.vehicles.filter((o) => o !== v && o.side === v.side && GROUND.includes(o.kind) && live(o) && o.seats[0]! >= 0 && o.goal === v.goal && Math.max(o.route, ROAD) === r).length;
+    const mates = m.vehicles.filter((o) => o !== v && o.side === v.side && ground(o.kind) && live(o) && o.seats[0]! >= 0 && o.goal === v.goal && Math.max(o.route, ROAD) === r).length;
     const score = l.secs + at.reduce((n, s) => n + (l.pts.some((p) => dist2(s, p) < s.r * s.r) ? s.s : 0), 0) + t.driveMateS * mates + t.driveJitterS * (rnd(m) * 2 - 1);
     if (score < best) [best, v.route] = [score, r];
   });
@@ -169,7 +170,7 @@ function detour(m: Match, v: Vehicle, at: Spot[]) {
   const g = m.drive[v.side];
   const { cols, rows } = g;
   const caution = t.driveCaution[0] + rnd(m) * (t.driveCaution[1] - t.driveCaution[0]);
-  const perSecond = specOf(t, v.kind).roadMps * 5 * caution; // a road cell costs 10 and takes cellM / roadMps seconds; a place's seconds are spread over its 2 r of road: x its seconds / its radius
+  const perSecond = SPECS[v.kind].roadMps(t) * 5 * caution; // a road cell costs 10 and takes cellM / roadMps seconds; a place's seconds are spread over its 2 r of road: x its seconds / its radius
   const reach = Math.max(...at.map((s) => s.r));
   const span = Math.sqrt(dist2(v, to)) + 400; // ponytail: only danger this near the two ends weighs on the search; widen if detours start running into trouble farther out
   const close = at.filter((s) => dist2(s, v) < (span + reach) ** 2 && dist2(s, to) < (span + reach) ** 2).map((s) => ({ ...s, w: (1.5 * perSecond * s.s) / s.r })); // x 1.5: the fall-off below averages two thirds across the width

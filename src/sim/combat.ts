@@ -1,5 +1,5 @@
 // Fire, Wounding, revive and bleed-out, suppression; a death settles what the enemy Commander's Assets earn (#72 #75).
-// #107: Soldiers aboard a vehicle fire only its guns (the coax here, the main gun in vehicles.ts) and take no fire; a
+// #107: Soldiers aboard a vehicle fire only its guns (the coax here, the main gun in vehicles/core.ts) and take no fire; a
 // Launcher's rockets hit vehicles. #108: rifles hit a jeep like a Soldier in the open; its gunner fires the MG as the coax.
 // #110: a jet's pilot fires its cannon as the coax, an AA's occupant its gun in bursts; lock-on missiles in air-missiles.ts.
 // #101: the Gunship's gunner fires its left side gun as a helicopter's.
@@ -13,8 +13,8 @@ import { between, rnd } from './rng';
 import { award } from './score';
 import { membersOf, ticksOf, vehicleOf, type Soldier } from './state';
 import { enemyOf, type SimEvent, type Vec2 } from './types';
-import { jetTarget } from './jet';
-import { gunner, held, hurt, isLauncher, leave, mainGuns, rocketTarget, sideGun, specOf, type Vehicle } from './vehicles';
+import { jetTarget } from './vehicles/jet';
+import { gunner, held, hurt, isLauncher, leave, mainGuns, rocketTarget, sideGun, SPECS, type Vehicle } from './vehicles';
 
 interface Shot {
   shooter: Soldier;
@@ -57,11 +57,11 @@ function coax(m: Match, s: Soldier, v: Vehicle): Shot | null {
   if (held(m, v)) return null; // #143: an EMP holds its guns too
   if (v.kind === 'jet') return cannon(m, s, v);
   if (v.kind === 'aa') return aaRound(m, s, v);
-  const gun = specOf(t, v.kind);
+  const gun = SPECS[v.kind];
   const seat = v.seats.indexOf(s.id);
   const e = v.kind === 'helicopter' || (v.kind === 'gunship' && gunner(v) === s.id) ? sideGun(m, v, seat) : gunner(v) === s.id ? m.soldiers[v.coax] : undefined; // #129: a helicopter's guns are its side seats; #101 the Gunship's one gun is seat 1's, its left
-  if (!e || e.state !== 'alive' || m.tick < s.nextFire || dist2(v, e) > gun.gunM * gun.gunM) return null;
-  return roll(m, s, e, t.hitChance * (cellAt(m, e.x, e.y) === COVER ? t.coverHitMul : 1), gun.gunSeconds);
+  if (!e || e.state !== 'alive' || m.tick < s.nextFire || dist2(v, e) > gun.gunM(t) * gun.gunM(t)) return null;
+  return roll(m, s, e, t.hitChance * (cellAt(m, e.x, e.y) === COVER ? t.coverHitMul : 1), gun.gunSeconds(t));
 }
 
 /**
