@@ -29,8 +29,8 @@ export const PAD: PadCell[] = [
   { band: 1, key: 'A', category: 'Recon', name: 'Scan UAV', calls: 'scan' },
   { band: 1, key: 'S', category: 'Recon', name: 'Recon Plane', calls: 'recon' },
   { band: 1, key: 'D', category: 'Screen', name: 'Smoke Screen', calls: 'smoke' },
-  { band: 1, key: 'F', category: 'Denial', name: 'EMP Strike', calls: null }, // #143
-  { band: 1, key: 'G', category: 'Denial', name: 'Feint', calls: null }, // #143
+  { band: 1, key: 'F', category: 'Denial', name: 'EMP Strike', calls: 'emp' },
+  { band: 1, key: 'G', category: 'Denial', name: 'Feint', calls: 'feint' },
   { band: 2, key: 'Z', category: 'Support', name: 'Supply Drop', calls: 'supply' },
   { band: 2, key: 'X', category: 'Support', name: 'Redeploy Beacon', calls: 'beacon' },
   { band: 2, key: 'C', category: 'Support', name: 'Rapid Deploy', calls: 'rapid' },

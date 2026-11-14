@@ -46,7 +46,7 @@ function follow(kind: VehicleKind) {
   }, 100);
 }
 
-/** `?focus=barrage|scan|supply|gunship|smoke|creep|drone|recon|beacon` frames that Asset close up, `?focus=tank|jeep|helicopter|jet|aa` follows nato's vehicle of that class, `?focus=close` the cluster; anything else is the overview. */
+/** `?focus=barrage|scan|supply|gunship|smoke|creep|drone|recon|beacon|emp|feint` frames that Asset close up, `?focus=tank|jeep|helicopter|jet|aa` follows nato's vehicle of that class, `?focus=close` the cluster; anything else is the overview. */
 function applyFocus(focus: string | null) {
   if (focus === 'close') setClose();
   else if (VEHICLES.includes(focus as VehicleKind)) follow(focus as VehicleKind);
@@ -104,7 +104,7 @@ export async function startAssetReview(): Promise<() => void> {
 
   function callAll() {
     const up = (asset: AssetKind) => session.view?.effects?.some((e) => e.asset === asset && e.side === 'nato');
-    for (const { asset, at, to } of ASSETS) if (!['gunship', 'smoke', 'drone', 'recon'].includes(asset) || !up(asset)) host.send({ side: 'nato', kind: 'asset', asset, at, ...(to && { to }) });
+    for (const { asset, at, to } of ASSETS) if (!['gunship', 'smoke', 'drone', 'recon', 'emp', 'feint'].includes(asset) || !up(asset)) host.send({ side: 'nato', kind: 'asset', asset, at, ...(to && { to }) }); // #143: the EMP and the Feint outlast the cycle too
   }
   callAll();
   const interval = setInterval(callAll, CYCLE_SECONDS * 1000);

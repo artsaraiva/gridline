@@ -9,7 +9,7 @@ import { session } from '../session';
 import { targeting } from '../targeting';
 import { spriteMesh } from '../sprites/sheet';
 import { JEEP_SHEET, jeepPose } from '../sprites/jeep';
-import { vehicleIcon } from '../sprites/vehicle-icon';
+import { iconDim, vehicleIcon } from '../sprites/vehicle-icon';
 import { bar, merge, px, shade } from './symbols';
 
 const Z = { wreck: 0.44, shadow: 0.42, body: 0.46, icon: 0.93 };
@@ -78,7 +78,7 @@ export function drawJeeps(view: CommanderView, scale: number) {
       icon.scale.setScalar(scale);
       icon.rotation.z = Math.atan2(v.fy, v.fx) - Math.PI / 2;
       icon.top.rotation.z = Math.atan2(v.ty, v.tx) - Math.atan2(v.fy, v.fx);
-      icon.material.color.setHex(ICON_COLOR[role]);
+      icon.material.color.setHex(ICON_COLOR[role]).multiplyScalar(iconDim(v)); // #143: dimmed while an EMP holds it
     }
   }
   shadows.end();

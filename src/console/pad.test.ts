@@ -3,7 +3,7 @@ import type { AssetKind, AssetView, CommanderView, EffectView, PointView, SideId
 import { assetLook, atWork, callable, keystonesMissing, markCount, PAD, PAD_SIZE, ruler } from './pad';
 
 /** Every AssetKind: TypeScript fails this table when one is added or dropped, so a new Asset can't miss the pad. */
-const KINDS: Record<AssetKind, true> = { scan: true, supply: true, barrage: true, missile: true, gunship: true, smoke: true, creep: true, drone: true, recon: true, beacon: true, rapid: true };
+const KINDS: Record<AssetKind, true> = { scan: true, supply: true, barrage: true, missile: true, gunship: true, smoke: true, creep: true, drone: true, recon: true, beacon: true, rapid: true, emp: true, feint: true };
 
 describe('the Asset keypad (#181)', () => {
   it('gives every AssetKind exactly one cell', () => {
@@ -24,10 +24,10 @@ describe('the Asset keypad (#181)', () => {
     ]);
   });
 
-  it('puts each Asset on its key, Strikes light to heavy, the Mark on V, and holds F, G and B until EMP Strike, Feint and vehicle tasking ship', () => {
+  it('puts each Asset on its key, Strikes light to heavy, the Mark on V, and holds B until vehicle tasking ships', () => {
     expect(Object.fromEntries(PAD.map((c) => [c.key, c.calls]))).toEqual({
       Q: 'drone', W: 'barrage', E: 'creep', R: 'missile', T: 'gunship',
-      A: 'scan', S: 'recon', D: 'smoke', F: null, G: null,
+      A: 'scan', S: 'recon', D: 'smoke', F: 'emp', G: 'feint',
       Z: 'supply', X: 'beacon', C: 'rapid', V: 'mark', B: null,
     });
   });

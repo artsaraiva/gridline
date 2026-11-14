@@ -66,10 +66,11 @@ test('#181: the Asset keypad: each key arms the cell in its place, held slots ar
   await expect(armed).toHaveCount(0);
   await expect(confirmRow).toBeHidden();
 
-  // F, G and B are held for what has not shipped, W is cooling, M is the mixer's: none arms anything
-  for (const key of ['f', 'g', 'b', 'w', 'm']) await page.keyboard.press(key);
+  // B is held for vehicle tasking, which has not shipped; the Barrage, EMP Strike and Feint start the match cooling; M is the mixer's: none arms anything
+  for (const key of ['b', 'w', 'f', 'g', 'm']) await page.keyboard.press(key);
   await expect(armed).toHaveCount(0);
-  await expect(cell('F')).toHaveClass(/held/);
+  await expect(cell('B')).toHaveClass(/held/);
+  await expect(cell('F')).toHaveClass(/cooling/);
 
   // V is the Mark: no Confirm row; Esc leaves Mark mode
   await expect(cell('V').locator('.slot')).toHaveText(/^\d\/3$/);

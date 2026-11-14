@@ -9,7 +9,7 @@ import { sideKnown } from './memory';
 import { turnToward, approach } from './momentum';
 import { membersOf, ticksOf, type Point, type Soldier, type Squad } from './state';
 import type { Vec2 } from './types';
-import { clearOfHq, crippled, fitsRide, getOut, jump, live, onPad, PILOT_SEAT, plan, riders, specOf, wreck, type Vehicle } from './vehicles';
+import { clearOfHq, crippled, fitsRide, getOut, held, jump, live, onPad, PILOT_SEAT, plan, riders, specOf, wreck, type Vehicle } from './vehicles';
 
 const squared = (r: number) => r * r;
 
@@ -25,7 +25,7 @@ export type Job = (typeof JOBS)[number];
  */
 export function decideJob(m: Match, v: Vehicle) {
   const t = m.tune;
-  if (v.job === 'bail' || v.flareUntil >= 0) return;
+  if (v.job === 'bail' || v.flareUntil >= 0 || held(m, v)) return; // #143: an EMP holds it to its job, as to its place
   const max = specOf(t, v.kind).hp;
   const aboard = riders(m, v);
   const pax = aboard.filter((s) => !s.crew);

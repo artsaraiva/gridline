@@ -1,6 +1,7 @@
 // What each Side knows about the enemy. Each Squad acts on its own sighting memory, never shared; the Commander sees
 // the union of what the Side's Soldiers see (Contacts) and where they last saw it (Last Known Positions).
 import type { Match } from './index';
+import { dummyOf } from './assets/crate';
 import { vehicleOf, type Mix, type Soldier, type Squad } from './state';
 import { dist2 } from './geometry';
 import { SIDES, type LastKnownView, type SideId, type SimEvent } from './types';
@@ -51,7 +52,8 @@ export function see(m: Match, sq: Squad, e: { id: number; x: number; y: number }
  * it, hears where the shot came from. Suppressive fire has no target: the enemies it lands near (`suppressiveRadiusM`
  * of the aim point) hear it instead. A sighting from this tick's perception is not replaced by a heard one.
  * #107: a shot from a Soldier aboard is heard as its vehicle, the crew of a vehicle shot at hear it, and a main gun impact
- * is heard like a shot by the enemies near it (`tankSuppressM`).
+ * is heard like a shot by the enemies near it (`tankSuppressM`). #143: a Feint's dummy fires shots at nobody (`to` -1), heard
+ * as real fire from where it lies, except by the Squads that have seen it for what it is (`dud`).
  */
 export function hear(m: Match, events: SimEvent[]) {
   const t = m.tune;
@@ -59,18 +61,25 @@ export function hear(m: Match, events: SimEvent[]) {
     if (e.kind !== 'shot' && e.kind !== 'suppressive' && !(e.kind === 'impact' && e.from !== undefined)) continue;
     const from = e.kind === 'impact' ? e.from! : e.from;
     const gun = m.soldiers[from];
-    const shooter = vehicleOf(m, gun ? gun.vehicle : from) ?? gun!;
+    const dummy = dummyOf(m, from);
+    const shooter = dummy ? { id: from, x: dummy.x, y: dummy.y, side: dummy.side } : (vehicleOf(m, gun ? gun.vehicle : from) ?? gun!);
     const heard: Sighting = { id: shooter.id, x: shooter.x, y: shooter.y, tick: m.tick, source: 'heard' };
     const r = e.kind === 'impact' ? t.tankSuppressM : t.suppressiveRadiusM;
-    const hit = (s: Soldier) => (e.kind === 'shot' ? s.id === e.to || s.vehicle === e.to : s.state === 'alive' && dist2(s, e) <= r * r);
+    const hit = (s: Soldier) => (e.kind === 'shot' ? e.to >= 0 && (s.id === e.to || s.vehicle === e.to) : s.state === 'alive' && dist2(s, e) <= r * r);
     for (const sq of m.squads) {
-      if (sq.side === shooter.side) continue;
+      if (sq.side === shooter.side || sq.dud.includes(shooter.id)) continue;
       const near = (s: Soldier) => hit(s) || (s.state === 'alive' && dist2(s, shooter) <= t.hearM * t.hearM);
       if (!sq.members.some((id) => near(m.soldiers[id]!))) continue;
       if (sq.memory.some((o) => o.id === shooter.id && o.tick === m.tick)) continue;
       note(sq.memory, { ...heard });
     }
   }
+}
+
+/** #143: a Soldier of `sq` has seen the Feint dummy `id` for what it is: the Squad drops it from its memory and no longer hears it. */
+export function seeThrough(sq: Squad, id: number) {
+  if (!sq.dud.includes(id)) sq.dud.push(id);
+  sq.memory = sq.memory.filter((s) => s.id !== id);
 }
 
 /** Drops squad memory older than `memorySeconds` and Side sightings older than `lkpSeconds`. Runs at the start of perception. */
@@ -112,6 +121,7 @@ export function hashMemory(m: Match, mix: Mix) {
     }
   };
   for (const sq of m.squads) all(sq.memory);
+  for (const sq of m.squads) for (const n of [sq.dud.length, ...sq.dud]) mix(n); // #143
   all(m.sightings.nato);
   all(m.sightings.pact);
 }

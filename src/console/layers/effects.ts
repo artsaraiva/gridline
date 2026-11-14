@@ -6,6 +6,7 @@
 // Barrage) has a strip in place of the ring: a thin outlined rectangle, in the preview and until its last shell is down.
 // #139: the Recon Plane's preview strip runs right across the map; in the air it and the Drone Strike have only a label here.
 // #142: the Redeploy Beacon has only its label here too (layers/beacon.ts draws the case, lamp and deny ring); Rapid Deploy has no map effect.
+// #143: so do the EMP Strike (layers/emp.ts) and the Feint (layers/feint.ts).
 import * as THREE from 'three/webgpu';
 import { gridRef } from '../../sim/grid-ref';
 import type { CommanderView, Vec2 } from '../../sim/types';
@@ -19,7 +20,7 @@ import { css, dashedRing, fading, UNIT_PX } from './symbols';
 /** #101: how far the Gunship's focus mark reaches from its spot on screen (the Cruise Missile's target mark: a chevron unit). */
 export const FOCUS_MARK_PX = UNIT_PX;
 
-const NAME = { scan: 'Scan UAV', supply: 'Supply Drop', barrage: 'Barrage', missile: 'Missile', gunship: 'Gunship', smoke: 'Smoke Screen', creep: 'Creeping Barrage', drone: 'Drone Strike', recon: 'Recon Plane', beacon: 'Beacon', rapid: 'Rapid Deploy' };
+const NAME = { scan: 'Scan UAV', supply: 'Supply Drop', barrage: 'Barrage', missile: 'Missile', gunship: 'Gunship', smoke: 'Smoke Screen', creep: 'Creeping Barrage', drone: 'Drone Strike', recon: 'Recon Plane', beacon: 'Beacon', rapid: 'Rapid Deploy', emp: 'EMP Strike', feint: 'Feint' };
 const discGeometry = new THREE.CircleGeometry(1, 96);
 /** The Barrage ring turns this fast while it works, so an ongoing strike reads at a glance. */
 const RING_TURN_RAD_PER_S = 0.25;
@@ -120,6 +121,13 @@ export function drawEffects(view: CommanderView, now: number) {
       if (e.side !== view.side) continue;
       const time = e.landsIn ? `LANDS ${clock(Math.ceil(e.landsIn))}` : e.contested ? 'CONTESTED' : clock(Math.ceil(e.left));
       label(tags++, { x: e.x + 6, y: e.y + 6 }, 6, -18, `BEACON ${time}`, css(e.contested ? COLOR.hostile : COLOR.friendly));
+      continue;
+    }
+    if (e.asset === 'emp' || e.asset === 'feint') {
+      // #143: layers/emp.ts and layers/feint.ts draw them; here the label, to its own Commander: the EMP's by its mark, counting to the burst and then its hold, the dummy's by it, counting to its landing and then its noise
+      if (e.side !== view.side) continue;
+      if (e.asset === 'emp') label(tags++, e, FOCUS_MARK_PX + 4, -18, `EMP STRIKE ${e.burst === undefined ? `IMPACT ${clock(Math.ceil(e.impactIn ?? 0))}` : clock(Math.ceil(e.left))}`, css(COLOR.friendly));
+      else label(tags++, { x: e.x + 6, y: e.y + 6 }, 6, -18, `FEINT ${e.landsIn ? `LANDS ${clock(Math.ceil(e.landsIn))}` : clock(Math.ceil(e.left))}`, css(COLOR.friendly));
       continue;
     }
     if (e.asset === 'smoke' || e.asset === 'creep') {

@@ -5,6 +5,7 @@
 // #101: the Gunship's gunner fires its left side gun as a helicopter's.
 import type { Match } from './index';
 import { logDeath, resetSoldierAi } from './ai';
+import { isDummy } from './assets/crate';
 import { dist2, inHq } from './geometry';
 import { cellAt, COVER, wallLos } from './grid';
 import { flyMissiles, launchMissiles } from './air-missiles';
@@ -13,7 +14,7 @@ import { award } from './score';
 import { membersOf, ticksOf, vehicleOf, type Soldier } from './state';
 import { enemyOf, type SimEvent, type Vec2 } from './types';
 import { jetTarget } from './jet';
-import { gunner, hurt, isLauncher, leave, mainGuns, rocketTarget, sideGun, specOf, type Vehicle } from './vehicles';
+import { gunner, held, hurt, isLauncher, leave, mainGuns, rocketTarget, sideGun, specOf, type Vehicle } from './vehicles';
 
 interface Shot {
   shooter: Soldier;
@@ -53,6 +54,7 @@ function rocket(m: Match, s: Soldier): Shot | null {
 /** #107: the gunner aboard fires the coax (#108: a jeep's MG, #109 a helicopter's side gun) at the vehicle's infantry target: the rifle shot model, faster and longer. */
 function coax(m: Match, s: Soldier, v: Vehicle): Shot | null {
   const t = m.tune;
+  if (held(m, v)) return null; // #143: an EMP holds its guns too
   if (v.kind === 'jet') return cannon(m, s, v);
   if (v.kind === 'aa') return aaRound(m, s, v);
   const gun = specOf(t, v.kind);
@@ -116,7 +118,8 @@ function aim(m: Match, s: Soldier): Shot | null {
 
 /**
  * Suppressive fire, with no enemy in view: at the nearest Last Known Position (seen, not heard) its Squad has from the last `suppressiveSeconds`,
- * in range and line of sight. #136: or, with none and its Squad taking fire, at the nearest Mark, in range and line of sight. Scattered round it; enemies near the aim point are suppressed less than by aimed fire, and the
+ * in range and line of sight. #136: or, with none and its Squad taking fire, at the nearest Mark, in range and line of sight. #143: or, with neither
+ * and itself suppressed, at the nearest spot it heard fire from. Scattered round it; enemies near the aim point are suppressed less than by aimed fire, and the
  * nearest is hit at a fraction of the chance. Flankers and Soldiers short of ammo hold it.
  */
 function suppressive(m: Match, s: Soldier): Shot | null {
@@ -138,6 +141,15 @@ function suppressive(m: Match, s: Soldier): Shot | null {
       if (d2 >= best || d2 < 64) continue;
       best = d2;
       lkp = k;
+    }
+  // #143: suppressed with neither, at the nearest Feint dummy it hears going off. Only a dummy: its spec took this for the rule on all heard fire, but
+  // real fire heard from an unseen shooter draws none, so that a Mark is still the one way to send a Squad's fire at an enemy it cannot see (#136)
+  if (!lkp && s.suppression > t.suppressedAt)
+    for (const c of sq.memory) {
+      const d2 = dist2(c, s);
+      if (c.source !== 'heard' || !isDummy(m, c.id) || m.tick - c.tick > t.suppressiveSeconds * t.hz || d2 >= best || d2 < 64) continue;
+      best = d2;
+      lkp = c;
     }
   if (!lkp || !wallLos(m, s, lkp)) return null; // #138: suppressive fire has no target, so it crosses smoke
   return rake(m, s, lkp, t.suppressiveScatterM, t.fireSeconds);

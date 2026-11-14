@@ -1,5 +1,6 @@
 // Which crossing a Squad takes when the water is between it and its Capture Point.
 import type { Match } from '../index';
+import { isDummy } from '../assets/crate';
 import { dist2 } from '../geometry';
 import { sideKnown } from '../memory';
 import { rnd } from '../rng';
@@ -32,7 +33,7 @@ export function hashDeaths(m: Match, mix: Mix) {
 
 /**
  * Sets `sq.route` for heading from `from` to point `p`. Each crossing's route is its length, plus `routeSeenM` per enemy the Side
- * saw near it lately, `routeLossM` per own death near it lately and `routeMateM` per other own Squad taking it to the same point,
+ * saw (#143: or Feint dummy it heard) near it lately, `routeLossM` per own death near it lately and `routeMateM` per other own Squad taking it to the same point,
  * plus seeded jitter; routes more than `routeMaxDetourM` longer than the shortest are dropped. The `bridge` takes no danger.
  * No route when the crossing makes no difference (the point is on this bank). #151: a route's length is the way to the middle of its
  * crossing's deck plus the point's own field from there.
@@ -56,7 +57,7 @@ export function chooseRoute(m: Match, sq: Squad, from: Vec2, p: number) {
     const seen = new Set<number>();
     if (danger)
       for (const s of sideKnown(m, sq.side))
-        if (s.source === 'seen' && m.tick - s.tick < t.routeSeenSeconds * t.hz && near(s, c, t.routeSeenRadiusM)) seen.add(s.id);
+        if ((s.source === 'seen' || (s.source === 'heard' && isDummy(m, s.id))) && m.tick - s.tick < t.routeSeenSeconds * t.hz && near(s, c, t.routeSeenRadiusM)) seen.add(s.id); // #143: a Feint's dummy going off is skirted (its spec took heard fire for skirted already; real heard fire still is not)
     const lost = danger
       ? m.deaths.filter((d) => d.side === sq.side && m.tick - d.tick < t.routeLossSeconds * t.hz && near(d, c, t.routeLossRadiusM)).length
       : 0;

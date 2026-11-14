@@ -4,7 +4,7 @@
 // out of all of it (the wedge forms on the first on foot); each Soldier on foot may board one, each aboard may get out.
 import type { Match } from '../index';
 import { insideCount } from '../capture';
-import { nearestCrate } from '../assets/crate';
+import { isDummy, nearestCrate } from '../assets/crate';
 import { canStand, dist2 } from '../geometry';
 import { gridRef } from '../grid-ref';
 import { lineWalk, nearestWalkable } from '../grid';
@@ -68,8 +68,11 @@ export function setDest(m: Match, s: Soldier, d: { at: Vec2; path: Vec2[] } | Ve
   }
 }
 
-/** An enemy inside the point, or known to the Side (#133) near it. */
-const threatened = (m: Match, sq: Squad, p: Point) => insideCount(m, p, enemyOf(sq.side)) > 0 || sideKnown(m, sq.side).some((c) => dist2(c, p) < sq2(p.radius + m.tune.threatenedM));
+/**
+ * An enemy inside the point, or known to the Side (#133) near it. #143: never a Feint's dummy going off by it: the Feint does not move
+ * which point a Squad takes (its spec puts that out of scope; enemy Squads drawn to it are the lure of #149).
+ */
+const threatened = (m: Match, sq: Squad, p: Point) => insideCount(m, p, enemyOf(sq.side)) > 0 || sideKnown(m, sq.side).some((c) => !isDummy(m, c.id) && dist2(c, p) < sq2(p.radius + m.tune.threatenedM));
 
 /** #120: a self-chosen Commitment to `goal` still holds: not over, the point not its own Side's, no own point near `from` threatened. */
 function committed(m: Match, sq: Squad, goal: number, until: number, from: Vec2): boolean {

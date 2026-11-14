@@ -1,15 +1,16 @@
 // DEV-only Commander look review timeline (#69): a hand-written, deterministic script of CommanderViews and Events on
 // Kaltenbach coordinates, so the Console's readability treatments (#70 firing pulse, #71 selection and Squad Leader
 // markers), the Cruise Missile's marks (#99), the tank (#107: sprite, turret, Wreck, badge, main gun), the jeep (#108:
-// sprite, Wreck, badge, MG, dismount), the jet and the AA (#110: a pass, the AA's stream on a helicopter and a jet), the helicopter's jobs (#131: a pickup away from the HQ, a hot drop, Support, a repair trip home, a bail-out and crash) and the parachute jump (#130: a crippled helicopter's riders come down on a chevron that grows from 70% to full size) and the transport helicopter (#109: lift-off, flight, landing, unload, home; #124: dogleg, flare, Landing Zone) and the Gunship (#101: its route ring, orbit and shells, its gunner's bursts and a paratrooper; the enemy's under the AA's bursts, falling as a Wreck) and the line-shaped Assets (#138: the Smoke Screen's strip, shells and discs, the Creeping Barrage's march and dust line) and the Redeploy Beacon (#142: its fall, its blinking lamp, the deny ring while an enemy stands in it, a wiped Squad's tile "at beacon" and its Redeploy there; Rapid Deploy's row at work) and the Asset keypad (#181: ready, cooling, at work, gated on a keystone as it changes hands, a Request's corner) are judged on every
+// sprite, Wreck, badge, MG, dismount), the jet and the AA (#110: a pass, the AA's stream on a helicopter and a jet), the helicopter's jobs (#131: a pickup away from the HQ, a hot drop, Support, a repair trip home, a bail-out and crash) and the parachute jump (#130: a crippled helicopter's riders come down on a chevron that grows from 70% to full size) and the transport helicopter (#109: lift-off, flight, landing, unload, home; #124: dogleg, flare, Landing Zone) and the Gunship (#101: its route ring, orbit and shells, its gunner's bursts and a paratrooper; the enemy's under the AA's bursts, falling as a Wreck) and the line-shaped Assets (#138: the Smoke Screen's strip, shells and discs, the Creeping Barrage's march and dust line) and the Redeploy Beacon (#142: its fall, its blinking lamp, the deny ring while an enemy stands in it, a wiped Squad's tile "at beacon" and its Redeploy there; Rapid Deploy's row at work) and the Denial Assets (#143: the EMP Strike's flight, flash and crackle on the vehicles it holds; the Feint's dummy falling and pulsing) and the Asset keypad (#181: ready, cooling, at work, gated on a keystone as it changes hands, a Request's corner) are judged on every
 // Squad Leader state without a Simulation. `viewAt` and `eventsBetween` are pure.
+import { gridRef } from '../../sim/grid-ref';
 import { smokeDisc, smokeLife, STAGGER_SECONDS } from '../../sim/smoke';
 import { DEFAULT_TUNE } from '../../sim/tune';
 import type { AssetView, CommanderView, EffectView, FriendlyView, LastKnownView, MarkView, SideId, SimEvent, SoldierView, SquadView, Vec2, VehicleView } from '../../sim/types';
 
 /** The first twelve chapters end here; #131 adds the helicopter jobs after them. */
 const OLD_END = 192;
-export const LENGTH = 848;
+export const LENGTH = 904;
 
 /** Where each state starts, for scrubbing. */
 export const CHAPTERS = [
@@ -39,7 +40,9 @@ export const CHAPTERS = [
   { at: 740, title: 'Drone lost' },
   { at: 756, title: 'Recon Plane' },
   { at: 772, title: 'Redeploy Beacon' },
-  { at: 808, title: 'Asset keypad' },
+  { at: 808, title: 'EMP Strike' },
+  { at: 836, title: 'Feint' },
+  { at: 864, title: 'Asset keypad' },
 ];
 
 /** Centre of the overlapping Squads, for the close zoom preset. */
@@ -750,9 +753,9 @@ export function viewAt(t: number): CommanderView {
     points: pointsAt(t),
     tickets: { nato: 150, pact: 150 },
     result: null,
-    assets: [{ asset: 'missile', readyIn: t < MISSILE.at ? 0 : Math.max(0, MISSILE.at + DEFAULT_TUNE.missileCooldownSeconds - t), cooldown: DEFAULT_TUNE.missileCooldownSeconds, radius: DEFAULT_TUNE.missileSuppressM, ...keystoneGate(t) }, gunshipRow(t), ...lineRows(t), ...airRows(t), ...beaconRows(t), ...keypadRows(t)],
-    effects: [...missileAt(t), ...gunshipsAt(t), ...smokeAt(t), ...creepAt(t), ...droneAt(DRONE, 'nato', t), ...droneAt(DRONE_DOWN, 'pact', t), ...reconAt(t), ...beaconAt(t)],
-    vehicles: [...tanksAt(t), ...jeepsAt(t), ...helisAt(t), ...paraHeli(t), ...airAt(t), ...gunshipBodies(t)],
+    assets: [{ asset: 'missile', readyIn: t < MISSILE.at ? 0 : Math.max(0, MISSILE.at + DEFAULT_TUNE.missileCooldownSeconds - t), cooldown: DEFAULT_TUNE.missileCooldownSeconds, radius: DEFAULT_TUNE.missileSuppressM, ...keystoneGate(t) }, gunshipRow(t), ...lineRows(t), ...airRows(t), ...beaconRows(t), ...denialRows(t), ...keypadRows(t)],
+    effects: [...missileAt(t), ...gunshipsAt(t), ...smokeAt(t), ...creepAt(t), ...droneAt(DRONE, 'nato', t), ...droneAt(DRONE_DOWN, 'pact', t), ...reconAt(t), ...beaconAt(t), ...empAt(t), ...feintAt(t), ...supplyAt(t)],
+    vehicles: [...tanksAt(t), ...jeepsAt(t), ...helisAt(t), ...paraHeli(t), ...airAt(t), ...gunshipBodies(t), ...empVehicles(t)].map((v) => (heldByEmp(v, t) ? { ...v, disabled: true as const } : v)),
     marks: marksAt(t),
   };
 }
@@ -914,13 +917,93 @@ function beaconEvents(): [number, SimEvent][] {
   ];
 }
 
-// #181 ASSET KEYPAD: the pad's states. The Scan UAV, Supply Drop and Artillery Barrage join it, ready; Rapid Deploy is still at
-// work from the beacon chapter, the Creeping Barrage, Recon Plane and beacon cool down, and the Mark cell counts the Marks.
-// The Cruise Missile and the Gunship are gated on C, the keystone (the point nearest the centre): neutral, so its circle,
-// until the Pact takes it (its diamond); then Alpha takes it back and the gate lifts. Charlie asks for a Scan UAV on F6, so
-// its cell carries the amber corner. Armed is the reviewer's: a ready cell's key, or the Request button on Charlie's card.
+// #143 EMP STRIKE: nato's EMP is called a second into its chapter on the ground north of Alpha, where an enemy tank drives in from
+// the west and an enemy AA stands, both in sight, and nato's own AA waits in the ring too (the Commander's mistake): the missile
+// leaves the HQ and flies level at `empSpeedMps` and bursts over the spot (a flash, no crater). All three are held for `empSeconds`:
+// the tank stops dead, sparks crackle on each and a bolt sits by each dimmed icon; then the tank drives on. The radio counts the
+// two enemies. FEINT: a dummy paratrooper comes down under its canopy south-west of Alpha, and once it is down its firecrackers go
+// off every `feintBurstSeconds`, a faint pulse each on its own Console. Both play inside the close zoom's frame, left of the review
+// panel. The numbers are the Simulation's.
+const KALTENBACH_GRID = { cols: 13, rows: 13, squareM: 960 / 13, letters: 'ABCDEFGHIJKLM' };
+const EMP_AT = chapterAt('EMP Strike');
+const EMP = { call: EMP_AT + 1, from: HQ, to: { x: -50, y: 26 } };
+const EMP_FLIGHT = Math.hypot(EMP.to.x - EMP.from.x, EMP.to.y - EMP.from.y) / G.empSpeedMps;
+const EMP_BURST = EMP.call + EMP_FLIGHT;
+const EMP_HOLD: Span = [EMP_BURST, EMP_BURST + G.empSeconds];
+const EMP_TANK_PATH: Key[] = [[EMP_AT, -126, 76], [EMP_BURST, -78, 40], [EMP_HOLD[1], -78, 40], [EMP_HOLD[1] + 8, -44, 22]]; // driving in, held where the burst finds it, then on
+/** The tank's heading as it drives in, which it keeps while it is held. */
+const EMP_TANK_IN = (() => {
+  const [[, x0, y0], [, x1, y1]] = EMP_TANK_PATH as [Key, Key];
+  const d = Math.hypot(x1 - x0, y1 - y0);
+  return { fx: (x1 - x0) / d, fy: (y1 - y0) / d };
+})();
+const FEINT_AT = chapterAt('Feint');
+const FEINT = { call: FEINT_AT + 1, at: { x: -120, y: -10 } };
+const FEINT_FALL = G.supplyFallSeconds;
+const FEINT_TOTAL = FEINT_FALL + G.feintSeconds;
+
+function empAt(t: number): EffectView[] {
+  const s = t - EMP.call;
+  const total = EMP_FLIGHT + G.empSeconds;
+  if (s < 0 || s >= total) return [];
+  return [{ asset: 'emp', ...EMP.to, radius: G.empRadiusM, left: total - s, total, side: 'nato', from: EMP.from, flight: Math.min(1, s / EMP_FLIGHT), impactIn: Math.max(0, EMP_FLIGHT - s), ...(s >= EMP_FLIGHT && { burst: s - EMP_FLIGHT }) }];
+}
+
+/** The enemy tank and AA by the EMP's spot, in sight through its chapter (ids past the AA chapter's). */
+function empVehicles(t: number): VehicleView[] {
+  if (t < EMP_AT || t >= FEINT_AT) return [];
+  const p = at(EMP_TANK_PATH, t);
+  const ahead = at(EMP_TANK_PATH, t + 0.5);
+  const d = Math.hypot(ahead.x - p.x, ahead.y - p.y);
+  const hull = d > 0.01 ? { fx: (ahead.x - p.x) / d, fy: (ahead.y - p.y) / d } : EMP_TANK_IN;
+  return [
+    { id: 50, side: 'pact', kind: 'tank', ...p, ...hull, tx: hull.fx, ty: hull.fy },
+    { id: 51, side: 'pact', kind: 'aa', x: -96, y: 20, fx: 0.95, fy: 0.3, tx: 0.8, ty: 0.6 },
+  ];
+}
+
+/** The EMP holds every live vehicle on the ground (or a helicopter) within its ring, from the burst for `empSeconds`, as the Simulation does. */
+const heldByEmp = (v: VehicleView, t: number) => inSpan([EMP_HOLD], t) && !v.wreck && !['jet', 'gunship', 'drone', 'recon'].includes(v.kind) && Math.hypot(v.x - EMP.to.x, v.y - EMP.to.y) <= G.empRadiusM;
+
+function feintAt(t: number): EffectView[] {
+  const s = t - FEINT.call;
+  if (s < 0 || s >= FEINT_TOTAL) return [];
+  const since = s - FEINT_FALL;
+  return [{ asset: 'feint', ...FEINT.at, radius: G.feintRingM, left: FEINT_TOTAL - s, total: FEINT_TOTAL, landsIn: Math.max(0, -since), fall: FEINT_FALL, side: 'nato', ...(since >= 0 && { burst: since % G.feintBurstSeconds }) }];
+}
+
+/** #143: the two rows, each ready until its call. */
+const denialRows = (t: number): AssetView[] => [
+  { asset: 'emp', readyIn: t < EMP.call ? 0 : Math.max(0, EMP.call + G.empCooldownSeconds - t), cooldown: G.empCooldownSeconds, radius: G.empRadiusM },
+  { asset: 'feint', readyIn: t < FEINT.call ? 0 : Math.max(0, FEINT.call + G.feintCooldownSeconds - t), cooldown: G.feintCooldownSeconds, radius: G.feintRingM },
+];
+
+function denialEvents(): [number, SimEvent][] {
+  const line = (t: number, text: string, at: Vec2): [number, SimEvent] => [t, { kind: 'radio', side: 'nato', squad: null, type: 'asset', text, grid: gridRef(KALTENBACH_GRID, at), priority: 1 }];
+  return [
+    line(EMP.call, 'EMP away', EMP.to),
+    line(EMP_BURST, 'EMP effective, 2 vehicles', EMP.to), // the enemy's: nato's own AA is not counted
+    line(FEINT.call, 'Decoy inbound', FEINT.at),
+    line(FEINT.call + FEINT_FALL, 'Decoy active', FEINT.at),
+  ];
+}
+
+// #181 ASSET KEYPAD: the pad's states. The Scan UAV, Supply Drop and Artillery Barrage join it, ready; a second in, a Supply Drop
+// falls south of Alpha and works the whole chapter. The EMP Strike, Feint, beacon and Rapid Deploy cool down (the dummy and the
+// beacon still at work a few seconds), and the Mark cell counts the Marks. The Cruise Missile and the Gunship are gated on C,
+// the keystone (the point nearest the centre): neutral, so its circle, until the Pact takes it (its diamond); then Alpha takes
+// it back and the gate lifts. Charlie asks for a Scan UAV on F6, so its cell carries the amber corner. Armed is the
+// reviewer's: a ready cell's key, or the Request button on Charlie's card.
 const KEYPAD_AT = chapterAt('Asset keypad');
-const KEYPAD = { request: KEYPAD_AT + 2, taken: KEYPAD_AT + 12, retaken: KEYPAD_AT + 24, at: { x: -74, y: 74 } }; // `at`: the centre of F6
+const KEYPAD = { supply: KEYPAD_AT + 1, request: KEYPAD_AT + 2, taken: KEYPAD_AT + 12, retaken: KEYPAD_AT + 24, at: { x: -74, y: 74 }, crate: { x: -40, y: -36 } }; // `at`: the centre of F6
+const SUPPLY_TOTAL = G.supplyFallSeconds + G.supplyStaySeconds;
+
+/** The chapter's Supply Drop: the crate falls `supplyFallSeconds`, then stays. */
+function supplyAt(t: number): EffectView[] {
+  const s = t - KEYPAD.supply;
+  if (s < 0 || s >= SUPPLY_TOTAL) return [];
+  return [{ asset: 'supply', ...KEYPAD.crate, radius: G.supplyRadiusM, left: SUPPLY_TOTAL - s, total: SUPPLY_TOTAL, landsIn: Math.max(0, G.supplyFallSeconds - s), fall: G.supplyFallSeconds }];
+}
 
 /** The heavy Strikes' keystone gate (sim/assets/missile.ts `heavyGate`) while C is not nato's. */
 function keystoneGate(t: number): Pick<AssetView, 'off'> {
@@ -936,20 +1019,25 @@ function requestAt(squad: number, t: number): SquadView['request'] {
   return squad === 2 && s >= 0 && s < G.requestSeconds ? { asset: 'scan', at: KEYPAD.at, grid: 'F6', left: G.requestSeconds - s } : null;
 }
 
-/** The three Assets the earlier chapters leave out, ready from this chapter on. */
+/** The three Assets the earlier chapters leave out, from this chapter on: ready, the Supply Drop until its call. */
 const keypadRows = (t: number): AssetView[] =>
   t < KEYPAD_AT
     ? []
     : [
         { asset: 'scan', readyIn: 0, cooldown: G.scanCooldownSeconds, radius: G.scanRadiusM },
-        { asset: 'supply', readyIn: 0, cooldown: G.supplyCooldownSeconds, radius: G.supplyRadiusM },
+        { asset: 'supply', readyIn: t < KEYPAD.supply ? 0 : Math.max(0, KEYPAD.supply + G.supplyCooldownSeconds - t), cooldown: G.supplyCooldownSeconds, radius: G.supplyRadiusM },
         { asset: 'barrage', readyIn: 0, cooldown: G.barrageCooldownSeconds, radius: G.barrageSpreadM + G.barrageSuppressM },
       ];
 
-const keypadEvents = (): [number, SimEvent][] => [
-  [KEYPAD.request, { kind: 'radio', side: 'nato', squad: 2, type: 'request', text: 'requesting recon', grid: 'F6', priority: 1 }],
-  [KEYPAD.retaken, { kind: 'radio', side: 'nato', squad: 0, type: 'captured', text: 'Charlie captured', grid: 'G7', priority: 1 }],
-];
+function keypadEvents(): [number, SimEvent][] {
+  const crate = gridRef(KALTENBACH_GRID, KEYPAD.crate);
+  return [
+    [KEYPAD.supply, { kind: 'radio', side: 'nato', squad: null, type: 'asset', text: 'Supply Drop inbound', grid: crate, priority: 1 }],
+    [KEYPAD.supply + G.supplyFallSeconds, { kind: 'radio', side: 'nato', squad: null, type: 'asset', text: 'Supply Drop landed', grid: crate, priority: 1 }],
+    [KEYPAD.request, { kind: 'radio', side: 'nato', squad: 2, type: 'request', text: 'requesting recon', grid: 'F6', priority: 1 }],
+    [KEYPAD.retaken, { kind: 'radio', side: 'nato', squad: 0, type: 'captured', text: 'Charlie captured', grid: 'G7', priority: 1 }],
+  ];
+}
 
 /** Events with `t0 < time <= t1`, in time order: what crossed since the last frame while playing. */
 export function eventsBetween(t0: number, t1: number): SimEvent[] {
@@ -1052,4 +1140,4 @@ function orbitFire(): [number, SimEvent][] {
   return events;
 }
 
-const EVENTS: [number, SimEvent][] = [...casualties(), ...firefight(), ...strike(), ...gun(), ...mg(), ...sideGun(), ...orbitFire(), ...airFire(), ...gunshipEvents(), ...markEvents(), ...lineEvents(), ...airEvents(), ...beaconEvents(), ...keypadEvents()].sort((a, b) => a[0] - b[0]);
+const EVENTS: [number, SimEvent][] = [...casualties(), ...firefight(), ...strike(), ...gun(), ...mg(), ...sideGun(), ...orbitFire(), ...airFire(), ...gunshipEvents(), ...markEvents(), ...lineEvents(), ...airEvents(), ...beaconEvents(), ...denialEvents(), ...keypadEvents()].sort((a, b) => a[0] - b[0]);

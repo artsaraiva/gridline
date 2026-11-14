@@ -511,7 +511,7 @@ describe('#142 Redeploy Beacon chapter', () => {
     expect(beacon(at + 1)).toBeUndefined();
     expect(beacon(at + 3)).toMatchObject({ x: -100, y: 50, landsIn: 4, fall: 5, side: 'nato', radius: 30 });
     expect(beacon(at + 8)).toMatchObject({ landsIn: 0 });
-    const lines = eventsBetween(at, LENGTH).flatMap((e) => (e.kind === 'radio' && e.type === 'asset' ? [e.text] : []));
+    const lines = eventsBetween(at, chapter('EMP Strike') - 1).flatMap((e) => (e.kind === 'radio' && e.type === 'asset' ? [e.text] : []));
     expect(lines).toEqual(['Rapid deployment authorised', 'Beacon inbound', 'Beacon down']);
     const contested = Array.from({ length: 36 }, (_, s) => !!beacon(at + s + 0.5)?.contested);
     expect(contested.slice(0, 11).some(Boolean)).toBe(false);
@@ -536,14 +536,17 @@ describe('#181 Asset keypad chapter', () => {
   const look = (t: number, asset: AssetKind) => assetLook(asset, viewAt(t), false, '');
   const owner = (t: number) => viewAt(t).points.find((p) => p.id === 'C')!.owner;
 
-  it('walks the pad through its states: ready, cooling, at work (Rapid Deploy and the beacon, still from their chapter), and the Mark\'s count', () => {
+  it('walks the pad through its states: ready, cooling, at work (a Supply Drop called a second in; the dummy and the beacon still from theirs), and the Mark\'s count', () => {
     expect(viewAt(at - 1).assets!.some((a) => a.asset === 'scan')).toBe(false); // the earlier chapters leave the three out
-    for (const asset of ['scan', 'supply', 'barrage', 'drone', 'smoke'] as const) expect(look(at + 1, asset).state).toBe('ready');
-    for (const asset of ['creep', 'recon'] as const) expect(look(at + 1, asset).state).toBe('cooling');
-    expect(look(at + 1, 'rapid')).toMatchObject({ state: 'active', readout: 'UP 00:24' });
-    expect(look(at + 1, 'beacon')).toMatchObject({ state: 'active', readout: 'UP 01:00' });
-    expect(look(at + 30, 'rapid').state).toBe('cooling');
+    for (const asset of ['scan', 'supply', 'barrage', 'drone', 'creep', 'recon', 'smoke'] as const) expect(look(at + 0.5, asset).state, asset).toBe('ready');
+    for (const asset of ['emp', 'rapid'] as const) expect(look(at + 1.5, asset).state, asset).toBe('cooling');
+    expect(look(at + 1.5, 'supply')).toMatchObject({ state: 'active', readout: 'UP 01:05' });
+    expect(look(at + 1.5, 'feint')).toMatchObject({ state: 'active', readout: 'UP 00:07' });
+    expect(look(at + 1.5, 'beacon')).toMatchObject({ state: 'active', readout: 'UP 00:04' });
+    for (const asset of ['feint', 'beacon'] as const) expect(look(at + 10, asset).state, asset).toBe('cooling');
+    expect(look(at + 39, 'supply').state).toBe('active');
     expect(markCount(viewAt(at + 1))).toBe('2/3');
+    expect(eventsBetween(at, at + 7).flatMap((e) => (e.kind === 'radio' && e.type === 'asset' ? [e.text] : []))).toEqual(['Supply Drop inbound', 'Supply Drop landed']);
   });
 
   it('gates the Cruise Missile and the Gunship on C as it changes hands: a neutral circle, then the Pact\'s diamond, then held and ready', () => {
@@ -563,5 +566,46 @@ describe('#181 Asset keypad chapter', () => {
     expect(viewAt(at + 3).squads.find((q) => q.name === 'Charlie')!.request).toEqual({ asset: 'scan', at: { x: -74, y: 74 }, grid: 'F6', left: 29 });
     expect(look(at + 33, 'scan').request).toBeUndefined();
     expect(eventsBetween(at, at + 3)).toContainEqual({ kind: 'radio', side: 'nato', squad: 2, type: 'request', text: 'requesting recon', grid: 'F6', priority: 1 });
+  });
+});
+
+describe('#143 EMP Strike and Feint chapters', () => {
+  const call = chapter('EMP Strike'); // a second into the chapter
+  const flight = Math.hypot(-50 + 415, 26) / DEFAULT_TUNE.empSpeedMps;
+  const emp = (t: number) => viewAt(t).effects!.find((e) => e.asset === 'emp');
+  const held = (t: number) => viewAt(t).vehicles!.filter((v) => v.disabled).map((v) => `${v.side} ${v.kind}`).sort();
+  const asset = (a: number, b: number) => eventsBetween(a, b).flatMap((e) => (e.kind === 'radio' && e.type === 'asset' ? [e.text] : []));
+
+  it('the EMP leaves the HQ ("EMP away"), flies level at the spot and bursts over it ("EMP effective, 2 vehicles"), its ring staying 12 s', () => {
+    expect(emp(call - 0.5)).toBeUndefined();
+    expect(emp(call + 2)).toMatchObject({ side: 'nato', from: { x: -415, y: 0 }, x: -50, y: 26, radius: 60 });
+    expect(emp(call + 2)!.impactIn).toBeCloseTo(flight - 2);
+    expect(emp(call + 2)!.burst).toBeUndefined();
+    expect(emp(call + flight + 0.25)).toMatchObject({ flight: 1, impactIn: 0 });
+    expect(emp(call + flight + 0.25)!.burst).toBeCloseTo(0.25);
+    expect(emp(call + flight + 11.5)).toBeTruthy();
+    expect(emp(call + flight + 12.5)).toBeUndefined();
+    expect(asset(call - 1, call + flight + 1)).toEqual(['EMP away', 'EMP effective, 2 vehicles']);
+  });
+
+  it('holds the three vehicles in its ring for 12 s from the burst, nato\'s own AA among them, none outside it: the tank stops dead, then drives on', () => {
+    expect(held(call + flight - 0.5)).toEqual([]);
+    expect(held(call + flight + 0.5)).toEqual(['nato aa', 'pact aa', 'pact tank']);
+    expect(held(call + flight + 11.5)).toEqual(['nato aa', 'pact aa', 'pact tank']);
+    expect(held(call + flight + 12.5)).toEqual([]);
+    const tank = (t: number) => viewAt(t).vehicles!.find((v) => v.id === 50)!;
+    expect(tank(call + flight + 1)).toMatchObject({ x: tank(call + flight + 11).x, y: tank(call + flight + 11).y });
+    expect(tank(call + flight + 16).x).toBeGreaterThan(tank(call + flight + 11).x + 10);
+  });
+
+  it('the Feint\'s dummy falls 5 s ("Decoy inbound", "Decoy active"), then pulses every 2 s', () => {
+    const at = chapter('Feint');
+    const feint = (t: number) => viewAt(t).effects!.find((e) => e.asset === 'feint');
+    expect(feint(at - 0.5)).toBeUndefined();
+    expect(feint(at + 2)).toMatchObject({ side: 'nato', x: -120, y: -10, radius: 10, landsIn: 3, fall: 5 });
+    expect(feint(at + 2)!.burst).toBeUndefined();
+    expect(feint(at + 5.5)).toMatchObject({ landsIn: 0, burst: 0.5 });
+    expect(feint(at + 7.5)!.burst).toBeCloseTo(0.5);
+    expect(asset(at - 1, chapter('Asset keypad') - 1)).toEqual(['Decoy inbound', 'Decoy active']);
   });
 });

@@ -216,10 +216,6 @@ _Avoid_: Concealment, cover, obscurant
 The Screen that lays a wall of smoke along a line the Commander drew, with a start and a direction. While it stands, nobody on the ground sees through it or into it, from either Side; anything in the air sees through it, and suppressive fire still crosses it.
 _Avoid_: Smoke, smoke grenade, smokescreen
 
-**Denial**:
-An Asset that takes something from the enemy without killing, such as the EMP Strike (their vehicles) or the Feint (their certainty).
-_Avoid_: Disruption, debuff, electronic warfare
-
 **Support (Asset)**:
 An Asset that helps the Commander's own Squads, such as the Supply Drop, the Redeploy Beacon and Rapid Deploy.
 _Avoid_: Logistics, reinforcement
@@ -231,6 +227,18 @@ _Avoid_: Spawn beacon, rally point, forward spawn, squad beacon
 **Rapid Deploy**:
 The Asset with no target that, for a while, has every Squad of the Commander's side Squad Respawn and Redeploy in half the time.
 _Avoid_: Reinforce, fast respawn, reinforcements
+
+**Denial**:
+An Asset that stops the enemy doing something for a while, or fools it, and harms nobody.
+_Avoid_: Disruption, electronic warfare, debuff
+
+**EMP Strike**:
+The Denial Asset that sends a small missile from the Commander's own HQ to burst in the air over one chosen spot; every Vehicle near it, of either Side, is held for a while: it neither moves nor fires, a helicopter hanging where it is. The jet flies on, and Soldiers, aboard or on foot, are untouched.
+_Avoid_: EMP (alone), electromagnetic pulse, jammer, disable strike
+
+**Feint**:
+The Denial Asset that drops a dummy paratrooper at a chosen spot; once down, the firecrackers strapped to it go off like rifle fire for a while, and the enemy Squads that hear it act as under fire until one of their Soldiers sees it for what it is. The radio calls the dummy the decoy.
+_Avoid_: Decoy (for the Asset), lure (Squads walking to look, a later rule), noise maker
 
 **Standing action**:
 A Commander action with no cooldown and no Confirm, such as the Mark.

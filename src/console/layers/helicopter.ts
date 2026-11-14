@@ -13,7 +13,7 @@ import { targeting } from '../targeting';
 import { spriteMesh } from '../sprites/sheet';
 import { HELI_SHEET, HELI_WORLD_M, climb, helicopterPose } from '../sprites/helicopter';
 import { CRUISE_ALTITUDE_M } from '../sprites/missile';
-import { vehicleIcon } from '../sprites/vehicle-icon';
+import { iconDim, vehicleIcon } from '../sprites/vehicle-icon';
 import { bar, merge, px, shade } from './symbols';
 
 // Above the ground vehicles; in the air, above the missile's shadow and under its body
@@ -103,7 +103,7 @@ export function drawHelicopters(view: CommanderView, scale: number, now: number)
       icon.position.set(p.x, p.y, Z.icon);
       icon.scale.setScalar(scale);
       icon.rotation.z = Math.atan2(v.fy, v.fx) - Math.PI / 2;
-      icon.material.color.setHex(ICON_COLOR[role]);
+      icon.material.color.setHex(ICON_COLOR[role]).multiplyScalar(iconDim(v)); // #143: dimmed while an EMP holds it
     }
   }
   for (const id of altitudes.keys()) if (!seen.has(id)) altitudes.delete(id);

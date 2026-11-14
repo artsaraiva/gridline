@@ -508,6 +508,18 @@ export interface Tune {
   rapidCooldownSeconds: number; // from the call; it also starts the match on this cooldown
   rapidSeconds: number;
   rapidMul: number; // on `respawnSeconds` and `redeploySeconds` while it works
+
+  // #143 EMP Strike: a missile from the caller's HQ whose airburst holds the vehicles round it, enemy or friendly, for a while
+  empCooldownSeconds: number; // from the call; it also starts the match on this cooldown
+  empRadiusM: number; // every vehicle this near the burst is held (the jet, and anything else that flies as high, is not)
+  empSpeedMps: number;
+  empSeconds: number; // a held vehicle neither moves nor fires for this long after the burst
+
+  // #143 Feint (was #144): a dummy paratrooper whose firecrackers fake gunfire for the enemy Squads that hear it
+  feintCooldownSeconds: number; // from the call; it also starts the match on this cooldown
+  feintRingM: number; // the call's ring
+  feintSeconds: number; // it fakes gunfire this long after it lands (it falls for `supplyFallSeconds`)
+  feintBurstSeconds: number; // one burst this often, from its landing on
 }
 
 /** #55: what a Commander Score award is for. */
@@ -515,13 +527,13 @@ export type ScoreCategory = 'uav' | 'supply' | 'artillery' | 'orders';
 
 export type Command =
   | { tick: number; side: SideId; kind: 'order'; squad: number; point: string | null }
-  | { tick: number; side: SideId; kind: 'asset'; asset: 'scan' | 'supply' | 'barrage' | 'missile' | 'gunship' | 'smoke' | 'creep' | 'drone' | 'recon' | 'beacon' | 'rapid'; at?: Vec2; to?: Vec2 } // #138: `to` is a line-shaped Asset's second tap: its line runs from `at` towards it. #142: `at` is absent only for an untargeted Asset (Rapid Deploy)
+  | { tick: number; side: SideId; kind: 'asset'; asset: 'scan' | 'supply' | 'barrage' | 'missile' | 'gunship' | 'smoke' | 'creep' | 'drone' | 'recon' | 'beacon' | 'rapid' | 'emp' | 'feint'; at?: Vec2; to?: Vec2 } // #138: `to` is a line-shaped Asset's second tap: its line runs from `at` towards it. #142: `at` is absent only for an untargeted Asset (Rapid Deploy)
   /** #136: no `id` places a Mark at `at`; with `id` it renews that Mark, or clears it when `at` is null. */
   | { tick: number; side: SideId; kind: 'mark'; at: Vec2 | null; id?: number };
 
 export type AssetKind = Extract<Command, { kind: 'asset' }>['asset'];
 /** #99: what a Squad may Request: never a Cruise Missile (#58), #101 nor a Gunship, #138 nor a line-shaped Asset. */
-export type RequestKind = Exclude<AssetKind, 'missile' | 'gunship' | 'smoke' | 'creep' | 'drone' | 'recon' | 'beacon' | 'rapid'>; // #139: a Drone Strike answers a Barrage Request and a Recon Plane a Scan one (requests.ts); #142: Squads never Request a beacon or Rapid Deploy
+export type RequestKind = Exclude<AssetKind, 'missile' | 'gunship' | 'smoke' | 'creep' | 'drone' | 'recon' | 'beacon' | 'rapid' | 'emp' | 'feint'>; // #139: a Drone Strike answers a Barrage Request and a Recon Plane a Scan one (requests.ts); #142: Squads never Request a beacon or Rapid Deploy, #143 nor an EMP Strike or a Feint
 
 export interface MatchResult {
   winner: SideId | null; // null = draw
@@ -585,6 +597,9 @@ export interface VehicleView {
   missiles?: { x: number; y: number; fx: number; fy: number }[];
   /** Main gun rounds in the air (a tank's): from the muzzle spot to where each lands, `flight` 0..1 along. */
   rounds?: { from: Vec2; to: Vec2; flight: number }[];
+  // #143 EMP Strike
+  /** An EMP Strike holds it: it neither moves nor fires. Absent otherwise. */
+  disabled?: true;
 }
 
 /** A friendly Squad. New fields go in optional (`?`), so view literals in other tickets and tests still typecheck. */
@@ -743,6 +758,10 @@ export interface EffectView {
   // #142 Redeploy Beacon: a crate (`landsIn` and `fall` as the Supply Drop's) with `side`; in the enemy's view only while an enemy Soldier sees it. `radius` is its deny ring (`beaconDenyM`).
   /** A living enemy Soldier is inside the deny ring, so no Squad Redeploys there. Own view only; absent otherwise. */
   contested?: true;
+  // #143 EMP Strike: in the sky, so in both Sides' views, with `side`; `from` is the HQ it left, `flight` and `impactIn` as the missile's. `radius` is its ring (`empRadiusM`).
+  // #143 Feint: a dummy that falls as the Supply crate (`landsIn` and `fall`), with `side`; in the enemy's view while it falls (the sky rule), then only while an enemy Soldier sees it.
+  /** EMP Strike: seconds since its airburst, absent before. Feint: seconds since its last burst of fake fire, its own Console's pulse; absent before the first and in the enemy's view. */
+  burst?: number;
 }
 
 /** Things that happened this tick, on every Side; `commanderEvents` keeps the ones a Side's Console may show. */

@@ -9,7 +9,7 @@ import { session } from '../session';
 import { targeting } from '../targeting';
 import { aaPose, AA_SHEET } from '../sprites/aa';
 import { spriteMesh } from '../sprites/sheet';
-import { vehicleIcon } from '../sprites/vehicle-icon';
+import { iconDim, vehicleIcon } from '../sprites/vehicle-icon';
 import { bar, fading, merge, px, shade } from './symbols';
 
 const Z = { wreck: 0.44, shadow: 0.42, hull: 0.46, turret: 0.47, icon: 0.93 };
@@ -69,7 +69,7 @@ export function drawAas(view: CommanderView, scale: number) {
       icon.scale.setScalar(scale * ICON_SCALE);
       icon.hull.rotation.z = Math.atan2(v.fy, v.fx) - Math.PI / 2;
       icon.turret.rotation.z = Math.atan2(v.ty, v.tx) - Math.PI / 2;
-      for (const part of [icon.hull, icon.turret]) part.material.color.setHex(ICON_COLOR[role]);
+      for (const part of [icon.hull, icon.turret]) part.material.color.setHex(ICON_COLOR[role]).multiplyScalar(iconDim(v)); // #143: dimmed while an EMP holds it
     }
   }
   shadows.end();
