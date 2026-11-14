@@ -88,25 +88,27 @@ export const riders = (m: Match, v: Vehicle) => v.seats.filter((id) => id >= 0).
 /** A number a Vehicle kind reads off the Tune. */
 type Stat = (t: Tune) => number;
 
-/** #183: what a Vehicle kind is, one row of `SPECS`. */
-export interface Spec {
+/**
+ * #183: what a Vehicle kind is, one row of `SPECS`. Its `layer` is where it moves: `ground`, on the ground grid, steered by the
+ * shared drive step (ground.ts) with its `handling`; `low`, #109 the helicopter's air layer (off the grid, eyes over walls, seen
+ * over walls while airborne); `high`, #110 #101 #139 up where only an AA sees it and hurts it, and only over the Play Area. An
+ * aircraft flies by its own module's rules, so only a ground kind has (and must have) handling.
+ */
+type VehicleSpec = {
   hp: Stat;
   seats: number; // seat 0 drives (or pilots), seat 1 fires the second gun, any more ride
   roadMps: Stat;
   openMps: Stat;
   gunSeconds: Stat; // the second seat's gun (the tank's coax, the jeep's MG, #109 the door gun, #110 the jet's cannon and the AA's burst)
   gunM: Stat;
-  handling?: { accel: Stat; turnDegPerS: Stat }; // a ground kind's, in the shared drive step (ground.ts); the aircraft fly by their own module's rules
-  /** Where it moves: on the ground grid; `low`, #109 the helicopter's air layer (off the grid, eyes over walls, seen over walls while airborne); `high`, #110 #101 #139 up where only an AA sees it and hurts it, and only over the Play Area. */
-  layer: 'ground' | 'low' | 'high';
   perSide: (t: Tune) => number | null; // #154: each Side's count, null = the map's (`countOf`)
   lent: boolean; // #101 #139: its Asset flies it, wakes it and puts it to sleep; the vehicle phase leaves it alone
   leavesWreck: boolean; // #139: a drone or the Recon Plane leaves none (too small to block a road or to mark the map)
   ridersBail: boolean; // #101: everyone aboard bails out as it is shot down, instead of dying with it
-}
+} & ({ layer: 'ground'; handling: { accel: Stat; turnDegPerS: Stat } } | { layer: 'low' | 'high'; handling?: never });
 
-/** #183: what each Vehicle kind is, one row a kind; the class predicates below read it. A new kind fails the typecheck until it has a row. */
-export const SPECS: { [K in VehicleKind]: Spec } = {
+/** #183: what each Vehicle kind is, one row a kind; the class predicates below read it. A new kind fails the typecheck until it has a row, a ground kind until it has its handling. */
+export const SPECS: { [K in VehicleKind]: VehicleSpec } = {
   tank: {
     hp: (t) => t.tankHp, seats: 2, roadMps: (t) => t.tankRoadMps, openMps: (t) => t.tankOpenMps, gunSeconds: (t) => t.coaxFireSeconds, gunM: (t) => t.coaxRangeM,
     handling: { accel: (t) => t.tankAccel, turnDegPerS: (t) => t.tankTurnDegPerS }, layer: 'ground', perSide: (t) => t.tanksPerSide, lent: false, leavesWreck: true, ridersBail: false,

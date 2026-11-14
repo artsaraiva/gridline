@@ -1,5 +1,6 @@
-// Getting in and out of a Vehicle (#107 #108): the seats, the Capture Point a rider is heading for, a crew stint's start
-// (#129), getting out on foot, the parachute jump and its descent (#130), and leaving a seat for good.
+// Getting in and out of a Vehicle (#107 #108): the seats (who holds which, the free ones, #129 a helicopter's pad and the side
+// each gun seat sits out to), the Capture Point a rider is heading for, a crew stint's start (#129), getting out on foot, the
+// parachute jump and its descent (#130), and leaving a seat for good.
 import type { Match } from '../index';
 import { canStand, dist2 } from '../geometry';
 import { nearestWalkable } from '../grid';
@@ -9,10 +10,10 @@ import { air, riders, type Vehicle } from './body';
 
 const squared = (r: number) => r * r;
 
-/** Who fires a ground vehicle's second-seat gun: seat 1. #129: a helicopter has a gun per side instead (`sideGun`). */
 /** Helicopter seat indices: the pilot's, then the guns' (#129); the passenger seats follow. */
 export const PILOT_SEAT = 0;
 export const CREW_SEATS = [0, 1, 2];
+/** Who fires a ground vehicle's second-seat gun: seat 1. #129: a helicopter has a gun per side instead (`sideGun`). */
 export const gunner = (v: Vehicle) => v.seats[1]!;
 /** #129: standing on its helipad (its slot), down. */
 export const onPad = (v: Vehicle) => !v.airborne && dist2(v, v.slot) < 1;

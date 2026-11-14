@@ -13,7 +13,8 @@ import { live, SPECS, type Vehicle } from './body';
 export const ROAD = 0;
 export const VIA = 1;
 
-export const GROUND: VehicleKind[] = ['tank', 'jeep', 'aa'];
+/** A kind that drives on the ground grid (the tank, the jeep, the AA). */
+const ground = (kind: VehicleKind) => SPECS[kind].layer === 'ground';
 
 /** A route's line is walked `STEP` flow cells at a time (never over a deck unseen) and sampled every `HOP` of those: 16 m on 2 m cells, well inside the danger radii. */
 const STEP = 2;
@@ -104,7 +105,7 @@ function spots(m: Match, v: Vehicle): Spot[] {
   return [
     ...sideKnown(m, v.side).filter((s) => s.source === 'seen' && recent(s.tick, t.routeSeenSeconds)).map((s) => ({ x: s.x, y: s.y, r: t.routeSeenRadiusM, s: t.driveSeenS })),
     ...m.deaths.filter((d) => d.side === v.side && recent(d.tick, t.routeLossSeconds)).map((d) => ({ x: d.x, y: d.y, r: t.routeLossRadiusM, s: t.driveLossS })),
-    ...m.wrecks.filter((w) => w.side === v.side && GROUND.includes(w.kind) && recent(w.tick, t.routeLossSeconds)).map((w) => ({ x: w.x, y: w.y, r: t.routeLossRadiusM, s: t.driveWreckS })),
+    ...m.wrecks.filter((w) => w.side === v.side && ground(w.kind) && recent(w.tick, t.routeLossSeconds)).map((w) => ({ x: w.x, y: w.y, r: t.routeLossRadiusM, s: t.driveWreckS })),
   ];
 }
 
@@ -142,7 +143,7 @@ function pickCrossing(m: Match, v: Vehicle, at: Spot[]) {
     const l = c.kind === 'footbridge' ? null : line(m, v, VIA + i);
     if (!l || l.secs > road.secs + t.driveMaxDetourS) return;
     const r = l.secs < road.secs + 2 ? ROAD : VIA + i; // the crossing the road takes anyway
-    const mates = m.vehicles.filter((o) => o !== v && o.side === v.side && GROUND.includes(o.kind) && live(o) && o.seats[0]! >= 0 && o.goal === v.goal && Math.max(o.route, ROAD) === r).length;
+    const mates = m.vehicles.filter((o) => o !== v && o.side === v.side && ground(o.kind) && live(o) && o.seats[0]! >= 0 && o.goal === v.goal && Math.max(o.route, ROAD) === r).length;
     const score = l.secs + at.reduce((n, s) => n + (l.pts.some((p) => dist2(s, p) < s.r * s.r) ? s.s : 0), 0) + t.driveMateS * mates + t.driveJitterS * (rnd(m) * 2 - 1);
     if (score < best) [best, v.route] = [score, r];
   });

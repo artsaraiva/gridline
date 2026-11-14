@@ -18,7 +18,7 @@
 // rules, body.ts the Vehicle record and class data, seats.ts getting in and out, ground.ts the ground drive step (its route in
 // drive-route.ts); each kind's own rules sit in its module: aa.ts, helicopter.ts (its jobs in helicopter-jobs.ts, its Landing
 // Zones and doglegs in flight.ts), jet.ts, and lent.ts for the bodies Assets fly. `clearOfHq` is in geometry.ts.
-export { crippled, flies, held, high, hold, live, riders, SPECS, wreck, type Round, type Spec, type Vehicle, type Wreck } from './body';
+export { crippled, flies, held, high, hold, live, riders, SPECS, wreck, type Round, type Vehicle, type Wreck } from './body';
 export { board, boardOnReturn, boardStep, decideRide, drive, drivePoint, fitsRide, hashVehicles, hurt, isLauncher, look, mainGuns, mount, newVehicles, ride, rocketTarget, seeVehicles, sideGun, targetOf, vehicleViews } from './core';
 export { decideCrew, plan } from './helicopter';
 export { deployPilots } from './jet';

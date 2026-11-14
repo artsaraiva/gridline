@@ -29,7 +29,7 @@ export function step(m: Match, v: Vehicle, halt: boolean) {
   const k = cellIndex(m, v.x, v.y);
   const cost = (k >= 0 && g.cost[k]) || 20;
   const spec = SPECS[v.kind];
-  const handling = spec.handling!; // every ground kind has its handling
+  const handling = spec.handling!; // only ground kinds drive here, and SPECS' type gives every ground kind its handling
   const accel = handling.accel(t);
   const [roadMps, openMps] = [spec.roadMps(t), spec.openMps(t)];
   const open = (x: number, y: number) => {
