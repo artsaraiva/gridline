@@ -12,9 +12,10 @@
 // `gunshipRangeM` of the ground under it are Contacts, and its cannon fires one shell every `gunshipShotSeconds` at the one
 // nearest (none in range: no shot): it leaves the aircraft, flies `gunshipShellFlightSeconds` and lands a Barrage shell's blast
 // within `gunshipScatterM` of where that enemy was. Soldiers coming back may take its gun seat or a passenger seat
-// (vehicles/lent.ts `gunshipOnReturn`); each passenger jumps as it passes its goal (`paradrop`), and everyone aboard bails out as
-// it turns for home (`homeward`). It is in the sky, so both Sides' views carry it; the enemy AA fires on it as on a helicopter: under a third of its hit
-// points it leaves early, at 0 it falls as a Wreck where it was and fires no more (shells already in the air still land).
+// (vehicles/lent.ts `gunshipOnReturn`); each passenger jumps as it passes its goal (`paradrop`), and everyone aboard jumps as it
+// turns for home (`homeward`). It is in the sky, so both Sides' views carry it; the enemy AA fires on it as on a helicopter: under
+// a third of its hit points it leaves early, at 0 it falls as a Wreck where it was and fires no more (shells already in the air
+// still land).
 // Its path is stepped a tick at a time, turning by `turnToward`'s polynomial step (no trig).
 import { dist2, inHq, launchPoint } from '../geometry';
 import { known, markable } from '../vehicles/jet';

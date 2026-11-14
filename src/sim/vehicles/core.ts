@@ -109,7 +109,8 @@ export const renew = <K extends VehicleKind>(m: Match, side: SideId, kind: K, sl
 /**
  * #183: the kinds whose seats a Soldier coming back is offered (`onReturn`), in the order `boardOnReturn` offers them: #110 a
  * jet's pilot first, as BF4's deploy screen puts you in the air; #129 then a helicopter's crew; #101 then the Gunship's seats on
- * station. A ground seat comes after them all. No other kind may have the hook.
+ * station. A ground seat comes after them all. No other kind may have the hook (its type says so), and each of these must: one
+ * listed without it fails at the first return of any Match.
  */
 const RETURN_ORDER = ['jet', 'helicopter', 'gunship'] as const satisfies readonly VehicleKind[];
 /** #183: a kind that may seat a Soldier coming back (`RETURN_ORDER`). */
@@ -195,7 +196,7 @@ export function mount(m: Match, v: Vehicle, s: Soldier, sq: Squad) {
 
 /**
  * A Soldier coming back from the dead (Squad Respawn or Redeploy) takes a seat if one waits for it: first the seats the kinds
- * offer (`onReturn`, in `RETURN_ORDER`: #110 a jet's pilot, #129 a helicopter's crew, #101 then the Gunship's), else in the Squad Leader's vehicle
+ * offer (`onReturn`: #110 a jet's pilot, #129 a helicopter's crew, #101 then the Gunship's), else in the Squad Leader's vehicle
  * while the leader rides one, else as the driver of a friendly ground vehicle with nobody driving (fit to fight: a third of its
  * hit points or more). True when it did. #109: never into a helicopter in the air. #101: `onStation`, the Side's Gunship on station
  * (its Asset's effect says so: respawn.ts reads it), whose seats come after a jet's and a helicopter's crew.
