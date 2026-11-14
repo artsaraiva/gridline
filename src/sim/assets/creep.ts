@@ -8,7 +8,7 @@ import type { Mix } from '../state';
 import type { Tune } from '../types';
 import { flying, hashShells } from './barrage';
 import { assetRadio, type Kind } from './core';
-import { blast } from './strike';
+import { blast } from '../damage';
 
 /** How far to either side of the line a Soldier is in danger: a shell's scatter and its suppression beyond that. */
 const reach = (t: Tune) => t.creepScatterM + t.creepSuppressM;

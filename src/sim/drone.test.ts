@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { commanderView, createMatch, stateHash, step, type Match } from './index';
 import { DEFAULT_TUNE } from './tune';
 import type { Command, CommanderView, MapData, SimEvent, Tune, Vec2 } from './types';
+import { crew, vehicle } from './test-scene';
 
 const HZ = DEFAULT_TUNE.hz;
 
@@ -144,9 +145,7 @@ describe('Drone Strike: the enemy AA', () => {
   /** pact's AA crewed by pact's 11 at `at`. */
   function withAa(at: Vec2, seed = 1) {
     const m = scene({}, { aasPerSide: 1 }, seed);
-    const aa = m.vehicles.find((v) => v.kind === 'aa' && v.side === 'pact')!;
-    Object.assign(aa, { ...at, seats: [11] });
-    Object.assign(m.soldiers[11]!, { ...at, vehicle: aa.id });
+    crew(m, vehicle(m, 'aa', 'pact'), [11], at);
     return m;
   }
 
@@ -176,12 +175,8 @@ describe('Drone Strike: the enemy AA', () => {
 
   it('is its last choice in the air: a helicopter in range comes first', () => {
     const m = scene({}, { aasPerSide: 1, helisPerSide: 1 });
-    const aa = m.vehicles.find((v) => v.kind === 'aa' && v.side === 'pact')!;
-    Object.assign(aa, { x: 100, y: 0, seats: [11] });
-    Object.assign(m.soldiers[11]!, { x: 100, y: 0, vehicle: aa.id });
-    const heli = m.vehicles.find((v) => v.kind === 'helicopter' && v.side === 'nato')!;
-    Object.assign(heli, { x: 100, y: 250, airborne: true, seats: [0, -1, -1, -1, -1, -1] });
-    Object.assign(m.soldiers[0]!, { x: 100, y: 250, vehicle: heli.id });
+    const aa = crew(m, vehicle(m, 'aa', 'pact'), [11], { x: 100, y: 0 });
+    const heli = Object.assign(crew(m, vehicle(m, 'helicopter'), [[1, 0]], { x: 100, y: 250 }), { airborne: true }); // nato's 1 flies it
     play(m, 7 * HZ, CENTRE); // the drone is 100 m out, far nearer than the helicopter
     expect(aa.target).toBe(heli.id);
   });

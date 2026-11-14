@@ -1,14 +1,14 @@
 // #110: the AA, a ground vehicle crewed alone like a tank: the Capture Point its driver lays back on (`aaPoint`), its eyes on the sky
 // and the gun's bursts at what they see (`aaRound`), and its lock-on missile.
 import type { Match } from '../index';
-import { freshLock, lockOn } from '../air-missiles';
+import { freshLock, hashLock, lockOn } from '../air-missiles';
 import { dist2, keystone } from '../geometry';
 import { between } from '../rng';
 import { ticksOf, vehicleOf, type Soldier } from '../state';
 import { enemyOf, type Vec2 } from '../types';
 import { crippled, flies, live, unmanned, type Vehicle, type VehicleOf } from './body';
 import type { Shot, Shots, VehicleRules } from './core';
-import { freshDrive } from './drive-route';
+import { freshDrive, hashDrive } from './drive-route';
 import { rifleChance } from './seats';
 import { groundMove, head, setsOff } from './ground';
 
@@ -86,5 +86,10 @@ export const aa: VehicleRules<'aa'> = {
   lock(m, v) {
     const target = vehicleOf(m, v.target);
     lockOn(m, v, v.missile, target && flies(target) ? target.id : -1, m.tune.aaLockSeconds, m.tune.aaReloadSeconds);
+  },
+  hash(v, mix) {
+    mix(v.burstUntil);
+    hashLock(v.missile, mix);
+    hashDrive(v.drive, mix);
   },
 };

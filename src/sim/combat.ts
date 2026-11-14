@@ -1,18 +1,17 @@
-// Fire, Wounding, revive and bleed-out, suppression; a death settles what the enemy Commander's Assets earn (#72 #75).
-// #107: Soldiers aboard a vehicle fire only its guns (each seat's by its kind's `seatFire`, handed the shot model here; the main
-// gun in vehicles/core.ts) and take no fire; a Launcher's rockets hit vehicles. #108: rifles hit a jeep like a Soldier in the open.
+// Fire, revive and bleed-out, suppression (#72 #75); Wounding and death are damage.ts's. #107: Soldiers aboard a vehicle fire only its
+// guns (each seat's by its kind's `seatFire`, handed the shot model here; a kind's own gun in the gun pass, vehicles/core.ts `guns`)
+// and take no fire; the rounds land here; a Launcher's rockets hit vehicles. #108: rifles hit a jeep like a Soldier in the open.
 // #110: lock-on missiles in air-missiles.ts.
 import type { Match } from './index';
-import { logDeath, resetSoldierAi } from './ai';
 import { isDummy } from './assets/crate';
 import { dist2, inHq } from './geometry';
 import { cellAt, COVER, wallLos } from './grid';
 import { flyMissiles } from './air-missiles';
 import { rnd } from './rng';
-import { award } from './score';
+import { blast, die, hurt, wound } from './damage';
 import { membersOf, vehicleOf, type Soldier } from './state';
-import { enemyOf, type SimEvent, type Vec2 } from './types';
-import { hurt, isLauncher, leave, lockMissiles, mainGuns, rocketTarget, seatFire, type Shot, type Shots, type Vehicle } from './vehicles';
+import type { SimEvent, Vec2 } from './types';
+import { guns, isLauncher, lockMissiles, rocketTarget, seatFire, SPECS, type Shot, type Shots, type Vehicle } from './vehicles';
 
 const hitMul = (m: Match, s: Soldier, e: Soldier) =>
   (1 - m.tune.suppressAccuracyLoss * s.suppression) * (cellAt(m, e.x, e.y) === COVER ? m.tune.coverHitMul : 1);
@@ -135,33 +134,26 @@ export function fire(m: Match, events: SimEvent[]) {
     e.uavAssist ||= m.tick <= e.uavUntil; // #75: the downing shot fixes whether the UAV gets the assist
     wound(m, e, events);
   }
-  mainGuns(m, events); // #107
+  guns(m); // #107: the gun pass
+  land(m, events);
   lockMissiles(m); // #110
   flyMissiles(m, events);
 }
 
-/** Shot down: bleeding out, not dead. */
-export function wound(m: Match, e: Soldier, events: SimEvent[]) {
+/**
+ * #107: every round due lands, a Strike-shaped impact hitting the enemy's vehicles in its kill radius: `tankVsVehicleDamage` on armour
+ * (a tank, #110 an AA), anything lighter destroyed. No Commander is paid for what it kills. #110: a jet's bombs land the same way,
+ * each a blast of its own (`jetBomb*`), friend or foe as a Strike's, never on the air.
+ */
+function land(m: Match, events: SimEvent[]) {
   const t = m.tune;
-  Object.assign(e, { state: 'wounded', suppression: 0, target: -1, reviving: -1, revive: 0, bleed: t.bleedOutSeconds * t.hz, ...resetSoldierAi(m), ammo: e.ammo });
-  events.push({ kind: 'wounded', side: e.side, id: e.id, x: e.x, y: e.y });
-}
-
-const KILL = { barrage: 'Barrage kill', missile: 'Missile kill', gunship: 'Gunship kill', creep: 'Creeping Barrage kill', drone: 'Drone Strike kill' };
-
-export function die(m: Match, s: Soldier, events: SimEvent[]) {
-  leave(m, s); // #107
-  s.state = 'dead';
-  s.deadAt = m.tick;
-  for (const o of membersOf(m, m.squads[s.squad]!)) if (o.reviving === s.id) o.reviving = -1; // a reviver must not keep a job on the dead
-  m.tickets[s.side] = Math.max(0, m.tickets[s.side] - 1);
-  logDeath(m, { side: s.side, x: s.x, y: s.y, tick: m.tick });
-  events.push({ kind: 'death', side: s.side, id: s.id, x: s.x, y: s.y });
-  if (s.cause) award(m, enemyOf(s.side), 'artillery', m.tune.scoreArtilleryKill, KILL[s.cause], events); // #55 #99 #101: the enemy Commander's Strike
-  if (s.uavAssist) award(m, enemyOf(s.side), 'uav', m.tune.scoreUavAssist, 'UAV assist', events); // #75: and their Scan
-  s.cause = null;
-  s.uavAssist = false;
-  s.uavUntil = -1;
+  for (const v of m.vehicles)
+    for (const r of v.rounds.filter((r) => r.land <= m.tick)) {
+      events.push({ kind: 'impact', side: v.side, x: r.x, y: r.y, asset: r.bomb ? 'bomb' : 'tank', from: v.id });
+      if (r.bomb) blast(m, v.side, r, { killM: t.jetBombKillM, woundM: t.jetBombWoundM, suppressM: t.jetBombSuppressM, suppression: 1 }, null, events, { damage: (u) => (u.airborne ? 0 : t.jetBombVehicleDamage) });
+      else blast(m, v.side, r, { killM: t.tankKillM, woundM: t.tankWoundM, suppressM: t.tankSuppressM, suppression: t.tankSuppression }, null, events, { damage: (u) => (SPECS[u.kind].armour ? t.tankVsVehicleDamage : Infinity), foesOnly: true });
+      v.rounds.splice(v.rounds.indexOf(r), 1);
+    }
 }
 
 /**

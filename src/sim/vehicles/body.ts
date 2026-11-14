@@ -1,7 +1,9 @@
-// The Vehicle body every kind shares (#107, ADR 0005): its record, what each kind is (`SPECS`, #183) and the class predicates
-// read off it, a fresh one in its slot, its Wreck, and an EMP Strike's hold (#143).
+// The Vehicle body every kind shares (#107, ADR 0005): its record and each kind's own record beside it (#183), what each kind is
+// (`SPECS`) and the class predicates read off it, who rides in the sky (`inSky`), a fresh one in its slot, its Wreck, and an EMP
+// Strike's hold (#143).
 import type { Match } from '../index';
 import type { AirMissile, Lock } from '../air-missiles';
+import { vehicleOf, type Mix, type Soldier } from '../state';
 import { enemyOf, type MapData, type SideId, type Tune, type Vec2, type VehicleKind } from '../types';
 import type { Drive } from './drive-route';
 import type { Heli } from './helicopter';
@@ -54,8 +56,6 @@ interface Own {
 export type OwnOf<K extends VehicleKind> = Own[K];
 /** #183: the name of a slot some kind's record fills (`gun`, `drive`, `heli`, …). */
 type Slot = { [K in VehicleKind]: keyof Own[K] }[VehicleKind];
-/** #183: every kind's record slots, as any vehicle may hold them (empty where they are not its kind's). */
-export type Slots = { [P in Slot]?: Extract<Own[VehicleKind], Record<P, unknown>>[P] };
 /**
  * #183: every slot, empty. A vehicle carries all of them, its own filled by its kind's `init` (core.ts `renew`), so that every
  * vehicle has one object shape and the loops over `m.vehicles` read their fields at full speed: with a shape a kind, Auental's
@@ -171,6 +171,18 @@ export const flown = (v: { kind: VehicleKind }) => SPECS[v.kind].lent;
 export const flies = (v?: Vehicle) => !!v && SPECS[v.kind].layer !== 'ground';
 /** #110 #101 #139: up where only an AA sees it and hurts it, and only over the Play Area: a jet, the Gunship, a drone or the Recon Plane. */
 export const high = (v: { kind: VehicleKind }) => SPECS[v.kind].layer === 'high';
+
+/** #110: `s` flies a jet, #101 or rides the Gunship (anything `high`): off at its base or high in the sky, never where its Squad leads, comes back or asks from. */
+export const inSky = (m: Match, s: Soldier) => {
+  const v = vehicleOf(m, s.vehicle);
+  return !!v && high(v);
+};
+
+/** #183: mixes a spot, or that there is none, into `stateHash` (a kind's `hash`): its coordinates as `Math.round(v * 1000)`. */
+export const mixSpot = (mix: Mix, p: Vec2 | null) => {
+  mix(+!!p);
+  if (p) for (const n of [p.x, p.y]) mix(Math.round(n * 1000));
+};
 
 /** Under a third of its hit points: everyone gets out, nobody gets in. */
 export const crippled = (m: Match, v: Vehicle) => v.hp < SPECS[v.kind].hp(m.tune) / 3;

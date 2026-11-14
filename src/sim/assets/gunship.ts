@@ -27,7 +27,7 @@ import { bail, borrow, crippled, goalOf, jump, lost, release, riders, steer, typ
 import { shellBlast } from './barrage';
 import { assetRadio, type Effect, type Kind } from './core';
 import { heavyGate } from './missile';
-import { blast } from './strike';
+import { blast } from '../damage';
 
 const PHASES = ['inbound', 'station', 'leaving', 'down'] as const;
 
