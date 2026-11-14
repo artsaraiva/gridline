@@ -66,7 +66,7 @@ export const SLOTS: Record<Slot, undefined> = { gun: undefined, drive: undefined
 export type VehicleOf<K extends VehicleKind> = K extends VehicleKind ? Body & { kind: K } & { [P in Exclude<Slot, keyof Own[K]>]: undefined } & Own[K] : never;
 /** A Vehicle of any kind. */
 export type Vehicle = VehicleOf<VehicleKind>;
-/** #101 #139: a kind its Asset flies (`SPECS.lent`), through the lend interface (vehicles/core.ts `borrow`). */
+/** #101 #139: a kind its Asset flies (`SPECS.lent`), through the lend interface (vehicles/lent.ts `borrow`). */
 export type LentKind = 'gunship' | 'drone' | 'recon';
 /** #107 #108 #110: a vehicle on the ground grid, driven by the shared drive step (ground.ts). */
 export type Ground = VehicleOf<'tank' | 'jeep' | 'aa'>;

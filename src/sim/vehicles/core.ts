@@ -14,12 +14,12 @@ import { see } from '../memory';
 import { ticksOf, vehicleOf, type Mix, type Soldier, type Squad } from '../state';
 import { SIDES, type SideId, type SimEvent, type Tune, type Vec2, type VehicleKind, type VehicleView } from '../types';
 import { aa } from './aa';
-import { air, crippled, DORMANT, flies, flown, fresh, held, high, live, riders, SLOTS, SPECS, wreck, type LentKind, type OwnOf, type Round, type Slots, type Vehicle, type VehicleOf } from './body';
+import { air, crippled, DORMANT, flies, flown, fresh, held, high, live, riders, SLOTS, SPECS, wreck, type OwnOf, type Round, type Slots, type Vehicle, type VehicleOf } from './body';
 import { helicopter } from './helicopter';
 import { JOBS } from './helicopter-jobs';
 import { jet, SORTIE } from './jet';
 import { jeep } from './jeep';
-import { gunship, lent, sleep, wake } from './lent';
+import { gunship, lent } from './lent';
 import { tank } from './tank';
 import { alight, bail, beam, descend, freeSeats, getOut, goalOf, GUN_OUT_M, jump, stintOver } from './seats';
 
@@ -261,20 +261,6 @@ export function boardStep(m: Match, s: Soldier): Vehicle | null {
   }
   return v;
 }
-
-/**
- * #101 #139 #183: the lend interface, the one way an Asset touches the aircraft it flies (`SPECS.lent`: the Gunship, the drone,
- * the Recon Plane). It borrows its Side's body as it is called, steers it each tick, learns when it is lost (shot down: `hurt`
- * left a Wreck, or none for a small aircraft) and releases it home, asleep until the next call.
- */
-export const borrow = (m: Match, side: SideId, kind: LentKind, at: Vec2, heading: { fx: number; fy: number }): Vehicle =>
-  wake(m, m.vehicles.find((o) => o.kind === kind && o.side === side)!, heading.fx, heading.fy, at);
-/** Its Asset's flight this tick: `v` is at `at` (with `heading`, when it turns). */
-export const steer = (m: Match, v: Vehicle, at: Vec2, heading?: { fx: number; fy: number }) => void Object.assign(v, { x: at.x, y: at.y, ...heading, movedAt: m.tick });
-/** It was shot down. */
-export const lost = (v: Vehicle) => !live(v);
-/** It is home off the map (or fallen), asleep until its Asset's next call. */
-export const release = (v: Vehicle) => void sleep(v);
 
 /** Where `s` drives `v` (its kind's `goal`, -1 = none). Exported for tests. */
 export const drivePoint = (m: Match, sq: Squad, s: Soldier, v: Vehicle): number => rulesOf(v.kind).goal?.(m, sq, s, v) ?? -1;
