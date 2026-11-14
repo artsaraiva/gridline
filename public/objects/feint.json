@@ -1,0 +1,10 @@
+{
+  "frames": 10,
+  "framePx": 256,
+  "cols": 10,
+  "constants": {
+    "FEINT_SWING_FRAMES": 8,
+    "FEINT_WORLD_M": 8.0,
+    "FEINT_DUMMY_OFFSET_M": 1.016
+  }
+}

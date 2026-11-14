@@ -1,5 +1,6 @@
 // What a Commander sees: the CommanderView built from the Match.
 import { assetContacts, assetViews, effectViews } from './assets/core';
+import { isDummy } from './assets/crate';
 import { drainEvery, ticketsStart } from './capture';
 import type { Match } from './index';
 import { orderView } from './orders';
@@ -71,6 +72,7 @@ export function commanderView(m: Match, side: SideId): CommanderView {
  */
 export function commanderEvents(m: Match, side: SideId, events: SimEvent[]): SimEvent[] {
   return events.filter((e) => {
+    if (e.kind === 'shot' && isDummy(m, e.from)) return false; // #143: a Feint's fake fire is for enemy ears only; its own Console pulses the dummy from the view
     if (e.side === side) return true;
     if (e.kind === 'shot' || e.kind === 'suppressive') {
       const v = vehicleOf(m, m.soldiers[e.from]!.vehicle);

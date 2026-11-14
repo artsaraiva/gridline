@@ -11,6 +11,8 @@ import { barrage, type Shell } from './barrage';
 import { beacon } from './beacon';
 import { creep } from './creep';
 import { drone } from './drone';
+import { emp } from './emp';
+import { feint } from './feint';
 import { gunship } from './gunship';
 import { missile } from './missile';
 import { rapid } from './rapid';
@@ -42,12 +44,14 @@ export interface Effect {
   prey?: number; // ... the id of the enemy it flies at (-1: at its focus, `x` and `y`) ...
   turn?: number; // ... which way it turned this tick: 1 left, -1 right, 0 straight on ...
   out?: boolean; // ... and whether it is flying out from a spot too close inside its turn, to come back round onto it
-  found?: number[]; // #139 Recon Plane: the ids of the enemies it has revealed this pass
+  found?: number[]; // #139 Recon Plane: the ids of the enemies it has revealed this pass (#143: an EMP Strike's, the enemy vehicles it holds)
+  dummy?: number; // #143 Feint: its dummy's id as a shooter, after every Soldier's and vehicle's (crate.ts `dummyOf`)
 }
 
 export interface Assets {
   readyAt: Record<SideId, Partial<Record<AssetKind, number>>>; // first tick each Asset can be called
   effects: Effect[];
+  dummies: number; // #143: Feint dummies dropped so far, both Sides: each one's id is the next after every vehicle's
 }
 
 export interface Kind {
@@ -88,13 +92,13 @@ export interface Kind {
   untargeted?: true;
 }
 
-const KINDS: Partial<Record<AssetKind, Kind>> = { scan, supply, barrage, missile, gunship, smoke, creep, drone, recon, beacon, rapid };
-const ORDER: AssetKind[] = ['scan', 'supply', 'barrage', 'missile', 'gunship', 'smoke', 'creep', 'drone', 'recon', 'beacon', 'rapid'];
+const KINDS: Partial<Record<AssetKind, Kind>> = { scan, supply, barrage, missile, gunship, smoke, creep, drone, recon, beacon, rapid, emp, feint };
+const ORDER: AssetKind[] = ['scan', 'supply', 'barrage', 'missile', 'gunship', 'smoke', 'creep', 'drone', 'recon', 'beacon', 'rapid', 'emp', 'feint'];
 const kinds = () => ORDER.filter((k) => KINDS[k]);
 
 export function newAssets(t: Tune): Assets {
   const ready = () => Object.fromEntries(kinds().map((k) => [k, Math.round((KINDS[k]!.firstReadySeconds?.(t) ?? 0) * t.hz)]));
-  return { readyAt: { nato: ready(), pact: ready() }, effects: [] };
+  return { readyAt: { nato: ready(), pact: ready() }, effects: [], dummies: 0 };
 }
 
 /** A radio line on the Asset net, located at the effect's spot (#142: an untargeted Asset's has none). */
@@ -213,6 +217,7 @@ export function effectViews(m: Match, side: SideId): EffectView[] {
 
 export function hashAssets(m: Match, mix: Mix) {
   for (const side of SIDES) for (const k of kinds()) mix(m.assets.readyAt[side][k]!);
+  mix(m.assets.dummies); // #143
   mix(m.assets.effects.length);
   for (const e of m.assets.effects) {
     mix(SIDES.indexOf(e.side));

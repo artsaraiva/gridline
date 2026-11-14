@@ -9,7 +9,7 @@ import { session } from '../session';
 import { targeting } from '../targeting';
 import { spriteMesh } from '../sprites/sheet';
 import { roundStreak, TANK_SHEET, tankPose } from '../sprites/tank';
-import { vehicleIcon } from '../sprites/vehicle-icon';
+import { iconDim, vehicleIcon } from '../sprites/vehicle-icon';
 import { bar, fading, merge, px, shade, streak } from './symbols';
 
 const Z = { wreck: 0.44, shadow: 0.42, hull: 0.46, turret: 0.47, round: 0.6, icon: 0.93 };
@@ -83,7 +83,7 @@ export function drawTanks(view: CommanderView, scale: number) {
       icon.scale.setScalar(scale * ICON_SCALE);
       icon.hull.rotation.z = Math.atan2(v.fy, v.fx) - Math.PI / 2;
       icon.turret.rotation.z = Math.atan2(v.ty, v.tx) - Math.PI / 2;
-      for (const part of [icon.hull, icon.turret]) part.material.color.setHex(ICON_COLOR[role]);
+      for (const part of [icon.hull, icon.turret]) part.material.color.setHex(ICON_COLOR[role]).multiplyScalar(iconDim(v)); // #143: dimmed while an EMP holds it
     }
     for (const r of v.rounds ?? []) {
       const s = roundStreak(r);

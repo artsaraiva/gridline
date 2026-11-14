@@ -10,3 +10,10 @@ export function vehicleIcon(v: VehicleView, mySide: SideId, selected: number[] =
   if (v.seats?.some((id) => id >= 0 && selected.includes(id))) return 'selected';
   return v.empty ? 'empty' : v.side === mySide ? 'friendly' : 'hostile';
 }
+
+/**
+ * #143: the share of its colour a vehicle's tactical icon shows: dimmed toward black while an EMP Strike holds it (layers/emp.ts
+ * sets a bolt beside it), else in full. A darker colour dims the glowing icons and the flat ones alike, where opacity does not.
+ */
+export const iconDim = (v: VehicleView) => (v.disabled ? HELD_DIM : 1);
+const HELD_DIM = 0.35;

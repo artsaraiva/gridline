@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { VehicleView } from '../../sim/types';
-import { vehicleIcon } from './vehicle-icon';
+import { iconDim, vehicleIcon } from './vehicle-icon';
 
 const tank = (o: Partial<VehicleView> = {}): VehicleView => ({ id: 9, side: 'nato', kind: 'tank', x: 10, y: -4, fx: 1, fy: 0, tx: 1, ty: 0, ...o });
 
@@ -24,5 +24,11 @@ describe('vehicle icon', () => {
   it('colours a jeep by the same rule', () => {
     expect(vehicleIcon(tank({ kind: 'jeep', seats: [4, -1, -1, -1] }), 'nato', [4])).toBe('selected');
     expect(vehicleIcon(tank({ kind: 'jeep', wreck: true }), 'nato')).toBeNull();
+  });
+
+  it('dims the icon of a vehicle an EMP Strike holds, whoever\'s it is (#143)', () => {
+    expect(iconDim(tank())).toBe(1);
+    expect(iconDim(tank({ disabled: true }))).toBeLessThan(0.5);
+    expect(iconDim(tank({ side: 'pact', kind: 'aa', disabled: true }))).toBe(iconDim(tank({ disabled: true })));
   });
 });

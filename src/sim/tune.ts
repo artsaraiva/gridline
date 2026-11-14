@@ -411,4 +411,16 @@ export const DEFAULT_TUNE: Tune = {
   rapidCooldownSeconds: 180,
   rapidSeconds: 60,
   rapidMul: 0.5,
+
+  // #143 EMP Strike
+  empCooldownSeconds: 180,
+  empRadiusM: 60,
+  empSpeedMps: 60,
+  empSeconds: 12,
+
+  // #143 Feint (was #144)
+  feintCooldownSeconds: 120,
+  feintRingM: 10,
+  feintSeconds: 30,
+  feintBurstSeconds: 2,
 };

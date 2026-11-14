@@ -84,6 +84,7 @@ export interface Squad {
   lastSeen: number; // tick a member last saw an enemy
   lastHit: number; // tick a member was last shot at, or suppressive fire landed near one
   memory: Sighting[]; // this Squad's own sightings, one per enemy id; see memory.ts
+  dud: number[]; // #143 the ids of the Feint dummies its Soldiers have seen for what they are: it no longer hears them (memory.ts `seeThrough`)
   // #34 Squad AI
   task: 'none' | 'point' | 'retreat' | 'resupply'; // `goal` is its Capture Point (-1 = the HQ)
   mode: 'travel' | 'bound' | 'hold' | 'fallback';

@@ -1,6 +1,7 @@
 // Hand-drawn SVG line icons (1.6 px stroke) for the Assets.
 import type { AssetKind, VehicleKind } from '../../sim/types';
 import { DRONE_OUTLINE } from '../sprites/drone';
+import { FEINT_CANOPY, FEINT_FIGURE, FEINT_HEAD, FEINT_LINES } from '../sprites/feint';
 import { GUNSHIP_OUTLINE } from '../sprites/gunship';
 import { MISSILE_OUTLINE } from '../sprites/missile';
 import { RECON_OUTLINE } from '../sprites/recon';
@@ -25,6 +26,13 @@ export const BEACON_ICON = '<path d="M8.5 16.5h7v4.5h-7z"/><path d="M12 16.5V7.2
 /** #142: Rapid Deploy: a stopwatch with two chevrons running through it. */
 export const RAPID_ICON = '<circle cx="12" cy="13.5" r="7.8"/><path d="M12 3v2.2M9.8 3h4.4"/><path d="M8.4 10.5l3 3-3 3M12.6 10.5l3 3-3 3"/>';
 
+/** #143: the EMP Strike: a filled bolt between two arcs of its pulse. */
+export const EMP_ICON = '<path fill="currentColor" stroke-width="0.6" d="M13.6 2.5 6.6 13.2h5l-1.6 8.3 7.6-11h-5.1z"/><path d="M4.2 6.5a9.6 9.6 0 0 0 0 11M19.8 6.5a9.6 9.6 0 0 1 0 11"/>';
+/** A symbol outline (symbol units, y up) laid flat on the 24 px icon box, `size` px a unit. */
+const flat = (pts: [number, number][], size: number) => `M${pts.map(([x, y]) => `${(12 + x * size).toFixed(2)} ${(12 - y * size).toFixed(2)}`).join('L')}Z`;
+/** #143: the Feint: the map's icon, the dummy under its canopy, filled. */
+export const FEINT_ICON = `<path fill="currentColor" stroke-width="0.6" d="${flat(FEINT_CANOPY, 15)}${flat(FEINT_FIGURE, 15)}"/><circle cx="${12 + FEINT_HEAD.x * 15}" cy="${12 - FEINT_HEAD.y * 15}" r="${FEINT_HEAD.r * 15}" fill="currentColor" stroke-width="0.6"/><path d="${FEINT_LINES.map(([x0, y0, x1, y1]) => `M${12 + x0 * 15} ${12 - y0 * 15}L${12 + x1 * 15} ${12 - y1 * 15}`).join('')}"/>`;
+
 const PATHS: Record<AssetKind, string> = {
   scan: '<path d="M12 2.5v18.5M2.5 11l9.5-1.8 9.5 1.8M8.3 19.8h7.4"/><circle cx="12" cy="9.4" r="1.1" fill="currentColor"/>',
   supply: '<path d="M3.5 10a8.5 6.5 0 0 1 17 0Zm0 0 6.3 5.6m10.7-5.6-6.3 5.6M12 10v5.6"/><path d="M8.6 15.6h6.8v5.4H8.6z"/><path d="M8.6 18.3h6.8"/>',
@@ -37,6 +45,8 @@ const PATHS: Record<AssetKind, string> = {
   recon: RECON_ICON,
   beacon: BEACON_ICON,
   rapid: RAPID_ICON,
+  emp: EMP_ICON,
+  feint: FEINT_ICON,
 };
 
 /** #107: the Squad tile and card's badge for one member aboard a tank: a filled side-on hull, turret and gun. */

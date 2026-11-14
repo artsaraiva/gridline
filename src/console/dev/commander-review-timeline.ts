@@ -1,15 +1,16 @@
 // DEV-only Commander look review timeline (#69): a hand-written, deterministic script of CommanderViews and Events on
 // Kaltenbach coordinates, so the Console's readability treatments (#70 firing pulse, #71 selection and Squad Leader
 // markers), the Cruise Missile's marks (#99), the tank (#107: sprite, turret, Wreck, badge, main gun), the jeep (#108:
-// sprite, Wreck, badge, MG, dismount), the jet and the AA (#110: a pass, the AA's stream on a helicopter and a jet), the helicopter's jobs (#131: a pickup away from the HQ, a hot drop, Support, a repair trip home, a bail-out and crash) and the parachute jump (#130: a crippled helicopter's riders come down on a chevron that grows from 70% to full size) and the transport helicopter (#109: lift-off, flight, landing, unload, home; #124: dogleg, flare, Landing Zone) and the Gunship (#101: its route ring, orbit and shells, its gunner's bursts and a paratrooper; the enemy's under the AA's bursts, falling as a Wreck) and the line-shaped Assets (#138: the Smoke Screen's strip, shells and discs, the Creeping Barrage's march and dust line) and the Redeploy Beacon (#142: its fall, its blinking lamp, the deny ring while an enemy stands in it, a wiped Squad's tile "at beacon" and its Redeploy there; Rapid Deploy's row at work) are judged on every
+// sprite, Wreck, badge, MG, dismount), the jet and the AA (#110: a pass, the AA's stream on a helicopter and a jet), the helicopter's jobs (#131: a pickup away from the HQ, a hot drop, Support, a repair trip home, a bail-out and crash) and the parachute jump (#130: a crippled helicopter's riders come down on a chevron that grows from 70% to full size) and the transport helicopter (#109: lift-off, flight, landing, unload, home; #124: dogleg, flare, Landing Zone) and the Gunship (#101: its route ring, orbit and shells, its gunner's bursts and a paratrooper; the enemy's under the AA's bursts, falling as a Wreck) and the line-shaped Assets (#138: the Smoke Screen's strip, shells and discs, the Creeping Barrage's march and dust line) and the Redeploy Beacon (#142: its fall, its blinking lamp, the deny ring while an enemy stands in it, a wiped Squad's tile "at beacon" and its Redeploy there; Rapid Deploy's row at work) and the Denial Assets (#143: the EMP Strike's flight, flash and crackle on the vehicles it holds; the Feint's dummy falling and pulsing) are judged on every
 // Squad Leader state without a Simulation. `viewAt` and `eventsBetween` are pure.
+import { gridRef } from '../../sim/grid-ref';
 import { smokeDisc, smokeLife, STAGGER_SECONDS } from '../../sim/smoke';
 import { DEFAULT_TUNE } from '../../sim/tune';
 import type { AssetView, CommanderView, EffectView, FriendlyView, LastKnownView, MarkView, SideId, SimEvent, SoldierView, SquadView, Vec2, VehicleView } from '../../sim/types';
 
 /** The first twelve chapters end here; #131 adds the helicopter jobs after them. */
 const OLD_END = 192;
-export const LENGTH = 808;
+export const LENGTH = 864;
 
 /** Where each state starts, for scrubbing. */
 export const CHAPTERS = [
@@ -39,6 +40,8 @@ export const CHAPTERS = [
   { at: 740, title: 'Drone lost' },
   { at: 756, title: 'Recon Plane' },
   { at: 772, title: 'Redeploy Beacon' },
+  { at: 808, title: 'EMP Strike' },
+  { at: 836, title: 'Feint' },
 ];
 
 /** Centre of the overlapping Squads, for the close zoom preset. */
@@ -749,9 +752,9 @@ export function viewAt(t: number): CommanderView {
     points: POINTS,
     tickets: { nato: 150, pact: 150 },
     result: null,
-    assets: [{ asset: 'missile', readyIn: t < MISSILE.at ? 0 : Math.max(0, MISSILE.at + DEFAULT_TUNE.missileCooldownSeconds - t), cooldown: DEFAULT_TUNE.missileCooldownSeconds, radius: DEFAULT_TUNE.missileSuppressM }, gunshipRow(t), ...lineRows(t), ...airRows(t), ...beaconRows(t)],
-    effects: [...missileAt(t), ...gunshipsAt(t), ...smokeAt(t), ...creepAt(t), ...droneAt(DRONE, 'nato', t), ...droneAt(DRONE_DOWN, 'pact', t), ...reconAt(t), ...beaconAt(t)],
-    vehicles: [...tanksAt(t), ...jeepsAt(t), ...helisAt(t), ...paraHeli(t), ...airAt(t), ...gunshipBodies(t)],
+    assets: [{ asset: 'missile', readyIn: t < MISSILE.at ? 0 : Math.max(0, MISSILE.at + DEFAULT_TUNE.missileCooldownSeconds - t), cooldown: DEFAULT_TUNE.missileCooldownSeconds, radius: DEFAULT_TUNE.missileSuppressM }, gunshipRow(t), ...lineRows(t), ...airRows(t), ...beaconRows(t), ...denialRows(t)],
+    effects: [...missileAt(t), ...gunshipsAt(t), ...smokeAt(t), ...creepAt(t), ...droneAt(DRONE, 'nato', t), ...droneAt(DRONE_DOWN, 'pact', t), ...reconAt(t), ...beaconAt(t), ...empAt(t), ...feintAt(t)],
+    vehicles: [...tanksAt(t), ...jeepsAt(t), ...helisAt(t), ...paraHeli(t), ...airAt(t), ...gunshipBodies(t), ...empVehicles(t)].map((v) => (heldByEmp(v, t) ? { ...v, disabled: true as const } : v)),
     marks: marksAt(t),
   };
 }
@@ -913,6 +916,70 @@ function beaconEvents(): [number, SimEvent][] {
   ];
 }
 
+// #143 EMP STRIKE: nato's EMP is called a second into its chapter on the ground east of the Contacts, where an enemy tank drives
+// in, an enemy AA stands and the enemy jeep waits, all in sight: the missile leaves the HQ and flies level at `empSpeedMps` (the
+// close zoom opens on its edge-glued icon) and bursts over the spot (a flash, no crater). The three vehicles in its ring are held
+// for `empSeconds`: the tank stops dead, sparks crackle on all three and a bolt sits by each dimmed icon; then the tank drives
+// on. FEINT: a dummy paratrooper comes down under its canopy north of Alpha, and once it is down its firecrackers go off every
+// `feintBurstSeconds`, a faint pulse each on its own Console. The numbers are the Simulation's.
+const KALTENBACH_GRID = { cols: 13, rows: 13, squareM: 960 / 13, letters: 'ABCDEFGHIJKLM' };
+const EMP_AT = chapterAt('EMP Strike');
+const EMP = { call: EMP_AT + 1, from: HQ, to: { x: 40, y: 20 } };
+const EMP_FLIGHT = Math.hypot(EMP.to.x - EMP.from.x, EMP.to.y - EMP.from.y) / G.empSpeedMps;
+const EMP_BURST = EMP.call + EMP_FLIGHT;
+const EMP_HOLD: Span = [EMP_BURST, EMP_BURST + G.empSeconds];
+const EMP_TANK_PATH: Key[] = [[EMP_AT, -14, 74], [EMP_BURST, 14, 46], [EMP_HOLD[1], 14, 46], [EMP_HOLD[1] + 8, 62, 4]]; // driving in, held where the burst finds it, then on
+const FEINT_AT = chapterAt('Feint');
+const FEINT = { call: FEINT_AT + 1, at: { x: -40, y: 120 } };
+const FEINT_FALL = G.supplyFallSeconds;
+const FEINT_TOTAL = FEINT_FALL + G.feintSeconds;
+
+function empAt(t: number): EffectView[] {
+  const s = t - EMP.call;
+  const total = EMP_FLIGHT + G.empSeconds;
+  if (s < 0 || s >= total) return [];
+  return [{ asset: 'emp', ...EMP.to, radius: G.empRadiusM, left: total - s, total, side: 'nato', from: EMP.from, flight: Math.min(1, s / EMP_FLIGHT), impactIn: Math.max(0, EMP_FLIGHT - s), ...(s >= EMP_FLIGHT && { burst: s - EMP_FLIGHT }) }];
+}
+
+/** The enemy tank and AA by the EMP's spot, in sight through its chapter. */
+function empVehicles(t: number): VehicleView[] {
+  if (t < EMP_AT || t >= FEINT_AT) return [];
+  const p = at(EMP_TANK_PATH, t);
+  const ahead = at(EMP_TANK_PATH, t + 0.5);
+  const d = Math.hypot(ahead.x - p.x, ahead.y - p.y);
+  const hull = d > 0.01 ? { fx: (ahead.x - p.x) / d, fy: (ahead.y - p.y) / d } : { fx: 0.71, fy: -0.71 };
+  return [
+    { id: 50, side: 'pact', kind: 'tank', ...p, ...hull, tx: -0.9, ty: -0.44 },
+    { id: 51, side: 'pact', kind: 'aa', x: 66, y: 0, fx: -0.95, fy: 0.3, tx: -0.8, ty: 0.6 },
+  ];
+}
+
+/** The EMP holds every live vehicle on the ground (or a helicopter) within its ring, from the burst for `empSeconds`, as the Simulation does. */
+const heldByEmp = (v: VehicleView, t: number) => inSpan([EMP_HOLD], t) && !v.wreck && !['jet', 'gunship', 'drone', 'recon'].includes(v.kind) && Math.hypot(v.x - EMP.to.x, v.y - EMP.to.y) <= G.empRadiusM;
+
+function feintAt(t: number): EffectView[] {
+  const s = t - FEINT.call;
+  if (s < 0 || s >= FEINT_TOTAL) return [];
+  const since = s - FEINT_FALL;
+  return [{ asset: 'feint', ...FEINT.at, radius: G.feintRingM, left: FEINT_TOTAL - s, total: FEINT_TOTAL, landsIn: Math.max(0, -since), fall: FEINT_FALL, side: 'nato', ...(since >= 0 && { burst: since % G.feintBurstSeconds }) }];
+}
+
+/** #143: the two rows, each ready until its call. */
+const denialRows = (t: number): AssetView[] => [
+  { asset: 'emp', readyIn: t < EMP.call ? 0 : Math.max(0, EMP.call + G.empCooldownSeconds - t), cooldown: G.empCooldownSeconds, radius: G.empRadiusM },
+  { asset: 'feint', readyIn: t < FEINT.call ? 0 : Math.max(0, FEINT.call + G.feintCooldownSeconds - t), cooldown: G.feintCooldownSeconds, radius: G.feintRingM },
+];
+
+function denialEvents(): [number, SimEvent][] {
+  const line = (t: number, text: string, at: Vec2): [number, SimEvent] => [t, { kind: 'radio', side: 'nato', squad: null, type: 'asset', text, grid: gridRef(KALTENBACH_GRID, at), priority: 1 }];
+  return [
+    line(EMP.call, 'EMP away', EMP.to),
+    line(EMP_BURST, 'EMP effective, 3 vehicles', EMP.to),
+    line(FEINT.call, 'Decoy inbound', FEINT.at),
+    line(FEINT.call + FEINT_FALL, 'Decoy active', FEINT.at),
+  ];
+}
+
 /** Events with `t0 < time <= t1`, in time order: what crossed since the last frame while playing. */
 export function eventsBetween(t0: number, t1: number): SimEvent[] {
   return EVENTS.filter(([t]) => t > t0 && t <= t1).map(([, e]) => e);
@@ -1014,4 +1081,4 @@ function orbitFire(): [number, SimEvent][] {
   return events;
 }
 
-const EVENTS: [number, SimEvent][] = [...casualties(), ...firefight(), ...strike(), ...gun(), ...mg(), ...sideGun(), ...orbitFire(), ...airFire(), ...gunshipEvents(), ...markEvents(), ...lineEvents(), ...airEvents(), ...beaconEvents()].sort((a, b) => a[0] - b[0]);
+const EVENTS: [number, SimEvent][] = [...casualties(), ...firefight(), ...strike(), ...gun(), ...mg(), ...sideGun(), ...orbitFire(), ...airFire(), ...gunshipEvents(), ...markEvents(), ...lineEvents(), ...airEvents(), ...beaconEvents(), ...denialEvents()].sort((a, b) => a[0] - b[0]);

@@ -1,0 +1,10 @@
+{
+  "frames": 33,
+  "framePx": 128,
+  "cols": 16,
+  "constants": {
+    "EMP_HEADINGS": 16,
+    "EMP_FACTIONS": 2,
+    "EMP_WORLD_M": 3.2
+  }
+}

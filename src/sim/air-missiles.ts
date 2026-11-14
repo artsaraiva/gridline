@@ -8,7 +8,7 @@ import { turnToward } from './momentum';
 import { rnd } from './rng';
 import { ticksOf, vehicleOf, type Mix } from './state';
 import type { SimEvent } from './types';
-import { flies, hurt, live, type Vehicle } from './vehicles';
+import { flies, held, hurt, live, type Vehicle } from './vehicles';
 
 export interface AirMissile {
   x: number;
@@ -48,7 +48,7 @@ function lockOn(m: Match, v: Vehicle, prey: number, lockSeconds: number, reloadS
 export function launchMissiles(m: Match) {
   const t = m.tune;
   for (const v of m.vehicles) {
-    if (!live(v) || v.seats[0]! < 0 || inHq(m, v.side, v)) continue; // nor out of its own HQ (combat.ts fire)
+    if (!live(v) || v.seats[0]! < 0 || held(m, v) || inHq(m, v.side, v)) continue; // nor out of its own HQ (combat.ts fire); #143 nor while an EMP holds it
     const target = vehicleOf(m, v.target);
     if (v.kind === 'aa') lockOn(m, v, target && flies(target) ? target.id : -1, t.aaLockSeconds, t.aaReloadSeconds);
     else if (v.kind === 'jet') lockOn(m, v, jetLock(m, v), t.jetLockSeconds, t.jetReloadSeconds);
