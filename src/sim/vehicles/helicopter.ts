@@ -13,7 +13,7 @@ import { air, crippled, live, riders, type Vehicle } from './body';
 import { mount, type VehicleRules } from './core';
 import { dogleg, landingZone } from './flight';
 import { circle, decideJob, glide, repairOnPad, spinFor } from './helicopter-jobs';
-import { CREW_SEATS, goalOf, jump, onPad, startCrew } from './seats';
+import { alight, CREW_SEATS, goalOf, inReach, jump, onPad, startCrew, stintOver, takeWheel } from './seats';
 
 const squared = (r: number) => r * r;
 
@@ -59,6 +59,18 @@ export function decideCrew(m: Match, sq: Squad, body: Soldier[], L: Soldier) {
     Object.assign(s, { climbAt: 0, dest: null, path: [], cover: null, holdUntil: reactAt(m, s) });
     return;
   }
+}
+
+/**
+ * #109 #129 #131: its leaving rule. Its passengers leave it under repair (in the air by parachute, `decideJob`) while its crew stay at
+ * their seats; nobody gets out in the air; its crew only once their stint is over (`stintOver`); its passengers by the shared rule
+ * (`alight`), at its Landing Zone and never by drive distance (it flies straight to their majority's goal).
+ */
+function wantsOut(m: Match, sq: Squad, s: Soldier, v: Vehicle): boolean {
+  if (v.job === 'repair' && !s.crew) return true;
+  if (v.airborne) return false;
+  if (s.crew) return stintOver(m, s, v);
+  return alight(m, sq, s, v, () => !!v.lz && dist2(v, v.lz) < 1, false);
 }
 
 /** #109: the passengers' majority goal (the pilot's breaks a tie), -1 = none aboard with a Capture Point: home. */
@@ -174,4 +186,16 @@ export const helicopter: VehicleRules<'helicopter'> = {
     repairOnPad(m, v);
   },
   job: decideJob,
+  seatFor: (_m, v, s) => (s.crew ? s.crewSeat : [3, 4, 5, 1, 2].find((k) => v.seats[k]! < 0)!), // #129: its crew take the seat they were sent for (pilot, then guns); riders fill the passenger seats first
+  onDriver: (m, _sq, _s, v, wait) => void takeWheel(m, v, wait), // its pilot picks no goal: `fly` ferries the passengers'
+  rides: {
+    /** #122 #129 #131: not while it repairs, with its pilot aboard or on the way, and only for a goal beyond `heliFitM` or across the river; a helicopter fetching the Squad fits from where it landed on its pickup Landing Zone, not only within reach. */
+    fits: (m, sq, L, v, p, fetched) =>
+      v.job !== 'repair' && (inReach(m, L, v) || (fetched && v.fetch === sq.id && !!v.spot && dist2(v, v.spot) < 1)) && (v.seats[0]! >= 0 || m.soldiers.some((s) => s.crew && s.boarding === v.id)) &&
+      (dist2(L, p) > squared(m.tune.heliFitM) || sq.route >= 0),
+    fetching: (v) => v.fetch,
+    claimed: (v) => void (v.fetch = -1),
+  },
+  onReturn: { order: 2, take: crewOnReturn }, // after a jet's pilot
+  wantsOut,
 };

@@ -6,9 +6,9 @@ import { dist2 } from '../geometry';
 import { sideKnown } from '../memory';
 import { vehicleOf, type Soldier, type Squad } from '../state';
 import type { Vec2 } from '../types';
-import { live, type Vehicle } from './body';
+import { crippled, live, type Vehicle } from './body';
 import type { VehicleRules } from './core';
-import { groundMove, head } from './ground';
+import { groundMove, head, setsOff } from './ground';
 import { goalOf } from './seats';
 
 const squared = (r: number) => r * r;
@@ -35,4 +35,7 @@ export const tank: VehicleRules<'tank'> = {
   move: groundMove,
   goal: tankPoint,
   onGoal: (m, v, goal) => void (goal >= 0 && head(m, v, goal)), // with none it keeps going where it was
+  onDriver: setsOff(tankPoint),
+  boardsOnFoot: true,
+  wantsOut: (m, _sq, _s, v) => crippled(m, v), // its crew get out only under a third of its hit points
 };

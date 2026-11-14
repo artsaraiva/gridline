@@ -17,14 +17,13 @@ import { ticksOf, vehicleOf, type Mix, type Soldier, type Squad } from '../state
 import { SIDES, type SideId, type SimEvent, type Vec2, type VehicleKind, type VehicleView } from '../types';
 import { aa } from './aa';
 import { air, crippled, DORMANT, flies, flown, fresh, held, high, live, riders, SPECS, unmanned, wreck, type Round, type Vehicle } from './body';
-import { pickRoute } from './drive-route';
-import { crewOnReturn, helicopter } from './helicopter';
+import { helicopter } from './helicopter';
 import { JOBS } from './helicopter-jobs';
-import { jet, jetOnReturn, jetPoint, SORTIE, takeOff } from './jet';
+import { jet, SORTIE } from './jet';
 import { jeep } from './jeep';
-import { GUNSHIP_GUN, gunshipOnReturn, lent } from './lent';
+import { gunship, lent } from './lent';
 import { tank } from './tank';
-import { bail, beam, descend, freeSeats, getOut, goalOf, GUN_OUT_M, jump, onPad } from './seats';
+import { alight, bail, beam, descend, freeSeats, getOut, goalOf, GUN_OUT_M, jump, stintOver } from './seats';
 
 const squared = (r: number) => r * r;
 
@@ -41,13 +40,35 @@ export interface VehicleRules<K extends VehicleKind> {
   onGoal?(m: Match, v: Vehicle, goal: number): void;
   /** #131: at its pilot's Squad think, what it does: a helicopter's job. An EMP Strike's hold keeps it to the one it has (#143). */
   job?(m: Match, v: Vehicle): void;
+  /** The seat `s` takes as it mounts (#129 a helicopter's crew the seat they were sent for, #101 the Gunship's gunner its gun); unset, the first free one. */
+  seatFor?(m: Match, v: Vehicle, s: Soldier): number;
+  /** What happens as its driver's seat fills (`wait`: the tick its driver's wait for others ends): #107 a ground vehicle's driver takes the wheel and sets off for its goal, #110 a jet takes off. */
+  onDriver?(m: Match, sq: Squad, s: Soldier, v: Vehicle, wait: number): void;
+  /** #107 #110: a Soldier on foot walks up to it at its Squad's think and climbs in alone (`board`): the tank, the AA. */
+  boardsOnFoot?: true;
+  /** #122: it carries a Squad (`decideRide`): the jeep, #109 the helicopter. */
+  rides?: {
+    /** Whether `v` fits a ride for `sq`'s foot leader `L` to `p` beyond the shared checks (`fitsRide`): within reach of `L`, and what its kind asks. */
+    fits(m: Match, sq: Squad, L: Soldier, v: Vehicle, p: Vec2, fetched: boolean): boolean;
+    /** #131: the Squad it flew to fetch, -1 = none: that Squad takes it first. */
+    fetching?(v: Vehicle): number;
+    /** #131: a Squad's claim on it ends any fetch. */
+    claimed?(v: Vehicle): void;
+  };
+  /** A Soldier coming back from the dead may take a seat here (#110 a jet's pilot, #129 a helicopter's crew, #101 the Gunship's seats), offered in `order`: true when it did. */
+  onReturn?: { order: number; take(m: Match, sq: Squad, s: Soldier): boolean };
+  /** Its leaving rule at a rider's think (`ride`); unset, the shared passenger rule (`passengers`). */
+  wantsOut?(m: Match, sq: Squad, s: Soldier, v: Vehicle): boolean;
 }
 
 let table: { [K in VehicleKind]: VehicleRules<K> } | undefined;
 /** #183: the kind table, built on first use, so a kind module imported before this one (as a test may) never meets it half loaded (#142). */
-const kinds = () => (table ??= { tank, jeep, helicopter, jet, aa, gunship: lent, drone: lent, recon: lent });
+const kinds = () => (table ??= { tank, jeep, helicopter, jet, aa, gunship, drone: lent, recon: lent });
 /** #183: the rules of `kind`. */
 export const rulesOf = <K extends VehicleKind>(kind: K): VehicleRules<K> => kinds()[kind];
+let offers: NonNullable<VehicleRules<VehicleKind>['onReturn']>[] | undefined;
+/** #183: the seats a Soldier coming back is offered, in their order. */
+const onReturnOffers = () => (offers ??= [...new Set(Object.values(kinds()).flatMap((r: VehicleRules<VehicleKind>) => (r.onReturn ? [r.onReturn] : [])))].sort((a, b) => a.order - b.order));
 
 /**
  * The first fresh vehicles (#154: map data). Each Side's HQ tanks, jeeps (#108) and helicopters (#109), then the vehicles each
@@ -94,7 +115,7 @@ export function board(m: Match, sq: Squad, s: Soldier) {
   let best: Vehicle | null = null;
   let bestKey = Infinity;
   for (const v of m.vehicles) {
-    if ((v.kind !== 'tank' && v.kind !== 'aa') || v.side !== s.side || !live(v) || crippled(m, v) || !v.seats.includes(-1) || dist2(s, v) > squared(t.boardM)) continue;
+    if (!rulesOf(v.kind).boardsOnFoot || v.side !== s.side || !live(v) || crippled(m, v) || !v.seats.includes(-1) || dist2(s, v) > squared(t.boardM)) continue;
     if (v.id === s.exited && v.seats.some((id) => id >= 0)) continue; // #108: not back into the ride it just left
     const driving = m.points[v.goal];
     if (v.seats[0]! >= 0 && (!driving || dist2(driving, p) > squared(t.sameWayM))) continue;
@@ -105,29 +126,19 @@ export function board(m: Match, sq: Squad, s: Soldier) {
 }
 
 /**
- * `s` takes the first free seat of `v`. In the driver's seat it draws its own preference per Capture Point (seeded, kept for
- * the drive), picks its goal and starts the wait for others. #109: a helicopter's pilot picks no goal (`fly` ferries the
- * passengers'); its first passenger starts the wait for more.
+ * `s` takes its seat in `v` (its kind's `seatFor`, else the first free one); in the driver's seat, its kind's `onDriver`
+ * (`takeWheel`: its own preference per Capture Point, seeded and kept for the drive, and the wait for others). #109: a
+ * helicopter's first passenger starts the wait for more.
  */
 export function mount(m: Match, v: Vehicle, s: Soldier, sq: Squad) {
   const t = m.tune;
-  const seat =
-    v.kind === 'gunship' ? (s.crew ? GUNSHIP_GUN : v.seats.indexOf(-1, GUNSHIP_GUN + 1)) // #101: its gunner or a passenger; nobody takes the pilot's seat
-    : air(v) ? (s.crew ? s.crewSeat : [3, 4, 5, 1, 2].find((k) => v.seats[k]! < 0)!) : v.seats.indexOf(-1); // #129: a helicopter's crew take the seat they were sent for (pilot, then guns); riders fill the passenger seats first
+  const rules = rulesOf(v.kind);
+  const seat = rules.seatFor ? rules.seatFor(m, v, s) : v.seats.indexOf(-1);
   const wait = m.tick + Math.round(t.boardWaitSeconds * t.hz);
   if (v.claim < 0 && air(v) && !s.crew && riders(m, v).every((o) => o.crew)) v.departAt = wait; // its first passenger starts the wait for more
   v.seats[seat] = s.id;
   if (s.crew) s.crewUntil = m.tick + ticksOf(t, between(m, t.crewSeconds));
-  if (seat === 0 && v.kind === 'jet') { // #110: the pilot picks its point and takes off from the base
-    v.goal = jetPoint(m, sq, v);
-    takeOff(m, v);
-  } else if (seat === 0) {
-    Object.assign(v, { goal: -1, bias: m.points.map(() => (rnd(m) * 2 - 1) * t.tankGoalBias), parked: true, ...(v.claim < 0 && { departAt: wait }) });
-    if (!air(v)) {
-      Object.assign(v, { goal: drivePoint(m, sq, s, v), route: -1 });
-      pickRoute(m, v);
-    }
-  }
+  if (seat === 0) rules.onDriver?.(m, sq, s, v, wait);
   Object.assign(s, {
     vehicle: v.id, x: v.x, y: v.y, fx: v.fx, fy: v.fy, target: -1, lastTarget: -1, reviving: -1, suppression: 0, away: -1, awaySince: -1,
     dest: null, path: [], cover: null, chaseUntil: 0, role: null, regroup: false, strayUntil: 0, // a Detached rider keeps its own goal
@@ -135,16 +146,16 @@ export function mount(m: Match, v: Vehicle, s: Soldier, sq: Squad) {
 }
 
 /**
- * A Soldier coming back from the dead (Squad Respawn or Redeploy) takes a seat if one waits for it: in the Squad Leader's
- * vehicle while the leader rides one, else in a friendly vehicle with nobody driving (fit to fight: a third of its hit points
- * or more), as its driver. True when it did. #109: never into a helicopter in the air, #110 nor a jet (its pilot walks to the slot).
- * #101: the Gunship's seats come after a jet's and a helicopter's crew (`gunshipOnReturn`).
+ * A Soldier coming back from the dead (Squad Respawn or Redeploy) takes a seat if one waits for it: first the seats the kinds
+ * offer (`onReturn`: #110 a jet's pilot, #129 a helicopter's crew, #101 then the Gunship's), else in the Squad Leader's vehicle
+ * while the leader rides one, else as the driver of a friendly ground vehicle with nobody driving (fit to fight: a third of its
+ * hit points or more). True when it did. #109: never into a helicopter in the air.
  */
 export function boardOnReturn(m: Match, sq: Squad, s: Soldier): boolean {
-  if (jetOnReturn(m, sq, s) || crewOnReturn(m, sq, s) || gunshipOnReturn(m, sq, s)) return true;
+  if (onReturnOffers().some((o) => o.take(m, sq, s))) return true;
   const lead = m.soldiers[sq.members[0]!]!;
   const mine = lead.state === 'alive' ? vehicleOf(m, lead.vehicle) : undefined;
-  const v = mine && freeSeats(mine) > 0 && !mine.airborne ? mine : m.vehicles.find((o) => o.side === s.side && live(o) && !o.airborne && o.kind !== 'helicopter' && o.kind !== 'jet' && o.seats[0] === -1 && !crippled(m, o));
+  const v = mine && freeSeats(mine) > 0 && !mine.airborne ? mine : m.vehicles.find((o) => o.side === s.side && live(o) && !o.airborne && SPECS[o.kind].layer === 'ground' && o.seats[0] === -1 && !crippled(m, o));
   if (!v) return false;
   mount(m, v, s, sq);
   return true;
@@ -155,11 +166,9 @@ export function boardOnReturn(m: Match, sq: Squad, s: Soldier): boolean {
  * Squad (#131) fits from where it landed on its pickup Landing Zone, not only within `boardM`.
  */
 export function fitsRide(m: Match, sq: Squad, body: Soldier[], L: Soldier, v: Vehicle, p: Vec2, fetched: boolean): boolean {
-  const t = m.tune;
-  const free = freeSeats(v); // #129: a pilot seat is for crew
-  return (v.kind === 'jeep' || air(v)) && v.side === sq.side && live(v) && !v.airborne && !crippled(m, v) && v.job !== 'repair' && v.claim < 0 && (dist2(L, v) <= squared(t.boardM) || (fetched && v.fetch === sq.id && !!v.spot && dist2(v, v.spot) < 1)) &&
-    v.seats.every((id) => id < 0 || m.soldiers[id]!.crew) && (!air(v) || v.seats[0]! >= 0 || m.soldiers.some((s) => s.crew && s.boarding === v.id)) && free >= Math.max(1, body.length - 1) &&
-    (!air(v) || dist2(L, p) > squared(t.heliFitM) || sq.route >= 0);
+  const rides = rulesOf(v.kind).rides;
+  return !!rides && v.side === sq.side && live(v) && !v.airborne && !crippled(m, v) && v.claim < 0 && v.seats.every((id) => id < 0 || m.soldiers[id]!.crew) &&
+    freeSeats(v) >= Math.max(1, body.length - 1) && rides.fits(m, sq, L, v, p, fetched); // #129: a pilot seat is for crew
 }
 
 /**
@@ -176,13 +185,15 @@ export function decideRide(m: Match, sq: Squad, body: Soldier[], L: Soldier) {
   const fits = m.vehicles.filter((v) => fitsRide(m, sq, body, L, v, p, true));
   if (!fits.length) return;
   const pick = Math.floor(rnd(m) * fits.length);
-  const v = fits.find((o) => o.fetch === sq.id) ?? fits[pick]!; // #131: the helicopter that came for it
+  const fetching = (o: Vehicle) => rulesOf(o.kind).rides?.fetching?.(o) === sq.id;
+  const v = fits.find(fetching) ?? fits[pick]!; // #131: the helicopter that came for it
   const seats = freeSeats(v);
   const left = body.length > seats ? body.reduce((a, s) => (dist2(s, v) > dist2(a, v) ? s : a)) : null;
   if (left) Object.assign(left, { detached: true, goal: -1, commitUntil: m.tick + ticksOf(t, t.commitSeconds[1]) }); // walks the Squad's goal as its own Commitment
-  const walk = v.fetch === sq.id ? Math.sqrt(Math.max(...body.map((s) => dist2(s, v)))) / (0.8 * t.walkSpeed) : 0; // #131: a helicopter that came lands up to `lzM` away: the wait includes the walk
+  const walk = fetching(v) ? Math.sqrt(Math.max(...body.map((s) => dist2(s, v)))) / (0.8 * t.walkSpeed) : 0; // #131: a helicopter that came lands up to `lzM` away: the wait includes the walk
   const claimUntil = m.tick + Math.round((t.boardWaitSeconds + walk) * t.hz);
-  Object.assign(v, { claim: sq.id, claimUntil, departAt: claimUntil, fetch: -1 });
+  Object.assign(v, { claim: sq.id, claimUntil, departAt: claimUntil });
+  rulesOf(v.kind).rides?.claimed?.(v);
   for (const s of body)
     if (s !== left) Object.assign(s, { boarding: v.id, climbAt: 0, dest: null, path: [], cover: null, holdUntil: reactAt(m, s) });
 }
@@ -234,8 +245,7 @@ export function ride(m: Match, sq: Squad, s: Soldier) {
       else v.goal = goal;
     }
   }
-  if (v.kind === 'jet') return;
-  if (!wantsOut(m, sq, s, v)) return;
+  if (!(rules.wantsOut ?? passengers)(m, sq, s, v)) return;
   if (v.airborne) return jump(m, s);
   if (m.tick - v.movedAt < Math.round(t.dismountStopSeconds * t.hz)) {
     if (v.halt < 0) v.halt = m.tick; // nobody bails at speed
@@ -245,36 +255,12 @@ export function ride(m: Match, sq: Squad, s: Soldier) {
 }
 
 /**
- * The shared leaving rule (#27, #108), at think. Anyone gets out under a third of the hit points; a tank's (#110 an AA's) crew only then.
- * A transport empties at its goal. A passenger also gets out once the vehicle has stood still `stillSeconds` (waiting to set
- * off is not standing still), within `dismountM` of its own Capture Point, or once its drive distance to that point has grown
- * for `awaySeconds`. #109: nobody gets out of a helicopter in the air, #129 crew only once their stint is over on its helipad, and its passengers never go by
- * drive distance (it flies straight to their majority's goal).
+ * The shared leaving rule (#27, #108), at think, for a kind with none of its own (`wantsOut`): everyone gets out under a third of
+ * the hit points; #129 crew (a helicopter's, drawn into its Squad's ride on the way to it) once their stint is over (`stintOver`);
+ * anyone else by the shared passenger rule (`alight`), the drive's end its goal and its drive distance counting.
  */
-function wantsOut(m: Match, sq: Squad, s: Soldier, v: Vehicle): boolean {
-  const t = m.tune;
-  if (v.kind === 'gunship') return false; // #101: its Asset puts each one out (assets/gunship.ts)
-  if (air(v)) {
-    if (v.job === 'repair' && !s.crew) return true; // #131: its passengers leave it (in the air by parachute, `decideJob`), its crew stay at their seats
-  } else if (crippled(m, v)) return true;
-  if (air(v) && v.airborne) return false;
-  if (s.crew) return m.tick >= s.crewUntil && onPad(v) && v.claim < 0 && riders(m, v).every((o) => o.crew); // #129: its stint over, on the helipad, no claimed Squad boarding and no passenger aboard (never a pilotless helicopter with riders)
-  if (v.kind === 'tank' || v.kind === 'aa') return false;
-  if (v.goal >= 0 && (air(v) ? !!v.lz && dist2(v, v.lz) < 1 : flowDist(m, driveFlow(m, v.side, v.goal), v) === 0)) return true;
-  if (v.seats[0] === s.id) return false;
-  if (m.tick - Math.max(v.movedAt, v.departAt) >= t.stillSeconds * t.hz) return true;
-  const own = goalOf(m, sq, s);
-  const p = m.points[own];
-  if (!p) return false;
-  if (dist2(v, p) <= squared(t.dismountM)) return true;
-  if (air(v)) return false;
-  const d = flowDist(m, driveFlow(m, v.side, own), v);
-  if (d === Infinity) return false;
-  if (s.away >= 0 && d > s.away) s.awaySince = s.awaySince < 0 ? m.tick : s.awaySince;
-  else if (d < s.away) s.awaySince = -1;
-  s.away = d;
-  return s.awaySince >= 0 && m.tick - s.awaySince >= t.awaySeconds * t.hz;
-}
+const passengers = (m: Match, sq: Squad, s: Soldier, v: Vehicle) =>
+  crippled(m, v) || (s.crew ? stintOver(m, s, v) : alight(m, sq, s, v, () => flowDist(m, driveFlow(m, v.side, v.goal), v) === 0, true));
 
 /**
  * The vehicle phase, after the Soldiers walk: fresh vehicles in empty slots `vehicleRespawnSeconds` after the last one died

@@ -5,15 +5,25 @@ import { driveFlow, flowDist, flowLook } from '../ai/flow';
 import { approach, BRAKE_RESERVE, cosDeg, stopSpeed, turnToward } from '../momentum';
 import { dist2 } from '../geometry';
 import { cellIndex, openRun } from '../grid';
+import type { Soldier, Squad } from '../state';
 import type { Vec2 } from '../types';
 import { SPECS, type Vehicle } from './body';
+import type { VehicleRules } from './core';
 import { alongPath, overCrossing, pickRoute, routeFlow } from './drive-route';
+import { takeWheel } from './seats';
 
 /** #107 #108: a ground vehicle's tick in the vehicle phase: with a driver and a goal it drives once full or its driver's wait for others is out; else it stands. */
 export function groundMove(m: Match, v: Vehicle, halted: boolean) {
   if (v.seats[0]! >= 0 && v.goal >= 0 && (!v.seats.includes(-1) || m.tick >= v.departAt)) step(m, v, halted);
   else v.speed = 0; // no driver, or waiting to set off
 }
+
+/** #107: a ground kind's `onDriver`: its new driver takes the wheel (`takeWheel`), then picks its `goal` and the way there. */
+export const setsOff = (goal: (m: Match, sq: Squad, s: Soldier, v: Vehicle) => number): VehicleRules<'tank'>['onDriver'] => (m, sq, s, v, wait) => {
+  takeWheel(m, v, wait);
+  Object.assign(v, { goal: goal(m, sq, s, v), route: -1 });
+  pickRoute(m, v);
+};
 
 /** #123: at its driver's think, a ground vehicle heads for `goal`: a new goal is a new way there. */
 export function head(m: Match, v: Vehicle, goal: number) {

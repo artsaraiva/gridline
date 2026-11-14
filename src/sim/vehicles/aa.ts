@@ -2,9 +2,9 @@
 import type { Match } from '../index';
 import { dist2, keystone } from '../geometry';
 import { enemyOf, type Vec2 } from '../types';
-import { live, type Vehicle } from './body';
+import { crippled, live, type Vehicle } from './body';
 import type { VehicleRules } from './core';
-import { groundMove, head } from './ground';
+import { groundMove, head, setsOff } from './ground';
 
 /** #154: what another friendly AA laying back on a flank takes off each point on that flank, in the metres `aaPoint` scores in: more than the gap between Auental's two rear flags with both preferences against it. */
 const AA_SPREAD_M = 300;
@@ -40,4 +40,7 @@ export const aa: VehicleRules<'aa'> = {
   move: groundMove,
   goal: (m, _sq, _s, v) => aaPoint(m, v), // lays back, whatever its Squad's goal
   onGoal: head, // with no rear point left it stops where it is
+  onDriver: setsOff((m, _sq, _s, v) => aaPoint(m, v)),
+  boardsOnFoot: true, // crewed alone, as a tank
+  wantsOut: (m, _sq, _s, v) => crippled(m, v), // its crew get out only under a third of its hit points
 };

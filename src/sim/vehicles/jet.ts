@@ -291,4 +291,10 @@ export const jet: VehicleRules<'jet'> = {
     if (v.seats[0]! >= 0) sortie(m, v);
   },
   goal: (m, sq, _s, v) => jetPoint(m, sq, v), // the point of its next pass
+  onDriver(m, sq, _s, v) { // the pilot picks its point and takes off from the base
+    v.goal = jetPoint(m, sq, v);
+    takeOff(m, v);
+  },
+  onReturn: { order: 1, take: jetOnReturn }, // first: as BF4's deploy screen puts you in the air
+  wantsOut: () => false, // its pilot never gets out
 };

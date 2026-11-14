@@ -38,5 +38,12 @@ export function gunshipOnReturn(m: Match, sq: Squad, s: Soldier): boolean {
   return true;
 }
 
-/** #101 #139: a lent body moves only as its Asset flies it, so it takes no tick of its own. */
-export const lent: VehicleRules<'gunship' | 'drone' | 'recon'> = {};
+/** #139: a drone or the Recon Plane: nobody aboard, and it moves only as its Asset flies it, so it takes no part in the shared rules. */
+export const lent: VehicleRules<'drone' | 'recon'> = {};
+
+/** #101: the Gunship: as a lent body, and its seats for Soldiers coming back. */
+export const gunship: VehicleRules<'gunship'> = {
+  seatFor: (_m, v, s) => (s.crew ? GUNSHIP_GUN : v.seats.indexOf(-1, GUNSHIP_GUN + 1)), // its gunner or a passenger; nobody takes the pilot's seat
+  onReturn: { order: 3, take: gunshipOnReturn }, // after a jet's pilot and a helicopter's crew
+  wantsOut: () => false, // its Asset puts each one out (assets/gunship.ts)
+};
