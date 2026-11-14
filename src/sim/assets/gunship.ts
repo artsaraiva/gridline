@@ -12,8 +12,8 @@
 // `gunshipRangeM` of the ground under it are Contacts, and its cannon fires one shell every `gunshipShotSeconds` at the one
 // nearest (none in range: no shot): it leaves the aircraft, flies `gunshipShellFlightSeconds` and lands a Barrage shell's blast
 // within `gunshipScatterM` of where that enemy was. Soldiers coming back may take its gun seat or a passenger seat
-// (vehicles/lent.ts `gunshipOnReturn`); each passenger jumps as it passes its goal, and everyone aboard bails out as it turns for
-// home. It is in the sky, so both Sides' views carry it; the enemy AA fires on it as on a helicopter: under a third of its hit
+// (vehicles/lent.ts `gunshipOnReturn`); each passenger jumps as it passes its goal (`paradrop`), and everyone aboard bails out as
+// it turns for home (`homeward`). It is in the sky, so both Sides' views carry it; the enemy AA fires on it as on a helicopter: under a third of its hit
 // points it leaves early, at 0 it falls as a Wreck where it was and fires no more (shells already in the air still land).
 // Its path is stepped a tick at a time, turning by `turnToward`'s polynomial step (no trig).
 import { dist2, inHq, launchPoint } from '../geometry';
@@ -23,7 +23,7 @@ import { pickWeighted, rnd } from '../rng';
 import { ticksOf, vehicleOf, type Mix } from '../state';
 import type { Match } from '../index';
 import { enemyOf, type SimEvent, type Tune, type Vec2 } from '../types';
-import { bail, borrow, crippled, goalOf, jump, lost, release, riders, steer, type Vehicle } from '../vehicles';
+import { borrow, crippled, homeward, lost, paradrop, release, steer, type Vehicle } from '../vehicles';
 import { shellBlast } from './barrage';
 import { assetRadio, type Effect, type Kind } from './core';
 import { heavyGate } from './missile';
@@ -47,7 +47,7 @@ function inRange(m: Match, e: Effect, v: Vehicle) {
 /** Turns for home: the radio says so, and everyone aboard jumps. */
 function leave(m: Match, e: Effect, v: Vehicle, events: SimEvent[]) {
   Object.assign(e, { phase: 'leaving', phaseAt: m.tick });
-  bail(m, v);
+  homeward(m, v);
   assetRadio(m, e, 'Gunship leaving', events);
 }
 
@@ -81,16 +81,6 @@ function shoot(m: Match, e: Effect, v: Vehicle) {
   } while (dx * dx + dy * dy > R * R);
   e.shells!.push({ x: prey.x + dx, y: prey.y + dy, from: { x: v.x, y: v.y }, launch: m.tick, land: m.tick + ticksOf(t, t.gunshipShellFlightSeconds), done: false });
   e.nextShot = m.tick + ticksOf(t, t.gunshipShotSeconds);
-}
-
-/** Each passenger jumps as the aircraft passes its goal: within reach of it and heading away again; with no goal, at once. */
-function drop(m: Match, v: Vehicle) {
-  const r = m.tune.gunshipRangeM;
-  for (const s of riders(m, v)) {
-    if (s.crew) continue;
-    const p = m.points[goalOf(m, m.squads[s.squad]!, s)];
-    if (!p || ((p.x - v.x) * v.fx + (p.y - v.y) * v.fy <= 0 && dist2(p, v) <= r * r)) jump(m, s);
-  }
 }
 
 /**
@@ -187,7 +177,7 @@ export const gunship: Kind = {
       Object.assign(e, { phase: 'station', phaseAt: m.tick, nextShot: m.tick });
       assetRadio(m, e, 'Gunship on station', events);
     }
-    drop(m, v);
+    paradrop(m, v); // each passenger jumps as it passes its goal
     if (m.tick >= e.phaseAt! + ticksOf(t, t.gunshipStationSeconds)) leave(m, e, v, events);
     else if (m.tick >= e.nextShot!) shoot(m, e, v);
   },
