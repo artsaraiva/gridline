@@ -70,7 +70,7 @@ export function setDest(m: Match, s: Soldier, d: { at: Vec2; path: Vec2[] } | Ve
 
 /**
  * An enemy inside the point, or known to the Side (#133) near it. #143: never a Feint's dummy going off by it: the Feint does not move
- * which point a Squad takes (its spec puts that out of scope; enemy Squads drawn to it are the lure of #149).
+ * which point a Squad takes (a lure that drew enemy Squads to it was dropped, #149).
  */
 const threatened = (m: Match, sq: Squad, p: Point) => insideCount(m, p, enemyOf(sq.side)) > 0 || sideKnown(m, sq.side).some((c) => !isDummy(m, c.id) && dist2(c, p) < sq2(p.radius + m.tune.threatenedM));
 
