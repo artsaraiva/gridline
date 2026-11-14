@@ -1,15 +1,18 @@
 // The score strip top-centre (Capture Point badges with capture arcs between the two Sides' Tickets and bars, the clock
-// under them, a mark on the Side that is draining), the contribution messages under the Asset rail (#72), and right-side
-// toasts on major radio events. `chrome/assets.ts` owns the Asset rail itself.
+// under them, a mark on the Side that is draining), the contribution messages under the Asset keypad (#72), and right-side
+// toasts on major radio events. `chrome/assets.ts` owns the Asset keypad itself.
 import { DEFAULT_TUNE } from '../../sim/tune';
 import type { CommanderView, PointView, SideId, SimEvent } from '../../sim/types';
+import { PAD_SIZE } from '../pad';
 import { session } from '../session';
 import { awardLine, clock, drainingSide, FACTION } from '../summary';
+import { POINT_FRAME } from './icons';
 
 /** Chrome geometry in px, which frames the map (`fitView`) and places its grid labels. `console.css` sizes the same boxes:
- * `margin` is every panel's inset, `assetRail` the `.asset` icon cell, `squadRail` the `.tile`, `top` clears the score strip
- * and the grid letters under it, `bottom` the cursor readout, `gridLabels` the numbers left of the map. */
-export const LAYOUT = { margin: 16, assetRail: 40, squadRail: 56, gap: 16, gridLabels: 26, top: 92, bottom: 44 };
+ * `margin` is every panel's inset, `pad` the Asset keypad in the top-left corner (#181), `column` the strip the frame keeps
+ * clear on the left under it (the one-column rail's, so the frame stays as it was), `squadRail` the `.tile`, `top` clears the
+ * score strip and the grid letters under it, `bottom` the cursor readout, `gridLabels` the numbers left of the map. */
+export const LAYOUT = { margin: 16, pad: PAD_SIZE, column: 40, squadRail: 56, gap: 16, gridLabels: 26, top: 92, bottom: 44 };
 
 const rail = document.getElementById('rail')!;
 const score = document.getElementById('score')!;
@@ -21,12 +24,7 @@ const toastSub = toastEl.querySelector('small')!;
 function pointBadge(p: PointView, us: SideId): string {
   const own = p.owner === null ? 'ne' : p.owner === us ? 'fr' : 'ho';
   const col = own === 'fr' ? 'var(--fr)' : own === 'ho' ? 'var(--ho)' : 'var(--bone)';
-  const shape =
-    own === 'fr'
-      ? '<rect x="3" y="3" width="22" height="22"/>'
-      : own === 'ho'
-        ? '<path d="M14 0.5 27.5 14 14 27.5 0.5 14z"/>'
-        : '<circle cx="14" cy="14" r="11.5"/>';
+  const shape = POINT_FRAME[own];
   const cap = Math.abs(p.progress);
   const arcCol = (p.progress > 0 ? 'nato' : 'pact') === us ? 'var(--fr)' : 'var(--ho)';
   const arc =
@@ -46,7 +44,7 @@ export function showToast(title: string, sub: string) {
   toastEl.classList.add('show');
 }
 
-/** #72: shows an award as a contribution message under the Asset rail for a few seconds. */
+/** #72: shows an award as a contribution message under the Asset keypad (#181: below its Confirm row while one shows) for a few seconds. */
 export function showAward(e: SimEvent, view: CommanderView) {
   const line = awardLine(e, view);
   if (!line) return;

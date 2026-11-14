@@ -16,18 +16,80 @@ test('Console loads, renders the map and chrome, and confirming an armed Asset r
   await expect(card).toBeVisible();
   expect((await card.boundingBox())?.width).toBe(264);
 
-  // Arm Scan UAV, pin a spot on the map, and confirm: the Sim host receives the Command and starts the active Scan effect
-  const scanRow = page.locator('#assets .asset').first();
-  await expect(scanRow).toHaveClass(/ready/);
-  await scanRow.click();
-  await expect(scanRow).toHaveClass(/armed/);
+  // Arm Scan UAV (#181: the A cell of the keypad), pin a spot on the map, and confirm: the Sim host receives the Command and starts the active Scan effect
+  const scanCell = page.locator('#assets .cell[data-key="A"]');
+  await expect(scanCell).toHaveClass(/ready/);
+  await scanCell.click();
+  await expect(scanCell).toHaveClass(/armed/);
 
   const mapCanvas = page.locator('canvas:not(#hud)');
   await mapCanvas.click({ position: { x: 750, y: 384 } });
   await expect(page.locator('#confirm')).toBeVisible();
   await page.locator('#confirm').click();
 
-  await expect(scanRow).toHaveClass(/active/);
+  await expect(scanCell).toHaveClass(/active/);
+});
+
+test('#181: the Asset keypad: each key arms the cell in its place, held slots arm nothing, the readout names the cell, the Confirm row shows under it while armed', async ({ page }) => {
+  test.slow(); // every step waits on a drawn frame, and headless Chromium's software WebGL draws few while the other browsers run
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await page.goto('/?seed=4&squads=8');
+  await page.getByRole('button', { name: 'Start match' }).click();
+  await expect(page.locator('#rail')).toBeVisible({ timeout: 15000 });
+
+  const cell = (key: string) => page.locator(`#assets .cell[data-key="${key}"]`);
+  const armed = page.locator('#assets .cell.armed');
+  const readout = page.locator('#assets .readout');
+  const confirmRow = page.locator('#assets .cfrow');
+  await expect(page.locator('#assets .cell')).toHaveCount(15);
+  expect(await cell('Q').boundingBox()).toMatchObject({ width: 48, height: 48 });
+  expect(await page.locator('#assets .pad').boundingBox()).toMatchObject({ x: 16, y: 16, width: 256, height: 212 });
+
+  // At rest: no readout, no Confirm row; the gated Cruise Missile shows the keystone it needs
+  await expect(readout).toBeHidden();
+  await expect(confirmRow).toBeHidden();
+  await expect(cell('R')).toHaveClass(/off/);
+  await expect(cell('R').locator('.slot svg')).toHaveCount(1);
+
+  // The pad is the keyboard: A arms the Scan UAV, Z the Supply Drop in its place, Esc cancels
+  await page.keyboard.press('a');
+  await expect(cell('A')).toHaveClass(/armed/);
+  await expect(readout.locator('.nm')).toHaveText('Scan UAV');
+  await expect(readout.locator('.st')).toHaveText('');
+  await expect(confirmRow).toBeVisible();
+  await expect(confirmRow.locator('.cf span')).toHaveText('Tap the map');
+  await page.keyboard.press('z');
+  await expect(cell('Z')).toHaveClass(/armed/);
+  await expect(armed).toHaveCount(1);
+  await page.keyboard.press('Escape');
+  await expect(armed).toHaveCount(0);
+  await expect(confirmRow).toBeHidden();
+
+  // B is held for vehicle tasking, which has not shipped; the Barrage, EMP Strike and Feint start the match cooling; M is the mixer's: none arms anything
+  for (const key of ['b', 'w', 'f', 'g', 'm']) await page.keyboard.press(key);
+  await expect(armed).toHaveCount(0);
+  await expect(cell('B')).toHaveClass(/held/);
+  await expect(cell('F')).toHaveClass(/cooling/);
+
+  // V is the Mark: no Confirm row; Esc leaves Mark mode
+  await expect(cell('V').locator('.slot')).toHaveText(/^\d\/3$/);
+  await page.keyboard.press('v');
+  await expect(cell('V')).toHaveClass(/armed/);
+  await expect(readout.locator('.nm')).toHaveText('Mark');
+  await expect(confirmRow).toBeHidden();
+  await page.keyboard.press('Escape');
+  await expect(cell('V')).toHaveClass(/ready/);
+
+  // Hovering a cell names it with its state
+  await cell('D').hover();
+  await expect(readout.locator('.nm')).toHaveText('Smoke Screen');
+  await expect(readout.locator('.st')).toHaveText('READY');
+  await cell('R').hover();
+  await expect(readout.locator('.st')).toHaveText(/^NEEDS/); // then the keystone's frame
+  await expect(readout.locator('.st svg')).toHaveCount(1);
+  expect(errors).toEqual([]);
 });
 
 test('#150: Auental picked on the setup screen offers up to 32 Squads, shows a waiting screen, then its 12 points and 8 Elite Squads on the Squad tiles', async ({ page }) => {

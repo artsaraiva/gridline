@@ -1,7 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&display=swap');
 /* Feed palette (renderer.ts COLOR has the same values) and chrome type: Chakra Petch, tabular numbers, RGB-split shadow. */
 :root {
-  --bone: #e8e2c8; --bone-dim: rgba(232, 226, 200, 0.55); --bone-faint: rgba(232, 226, 200, 0.22);
+  --bone: #e8e2c8; --bone-dim: rgba(232, 226, 200, 0.55); --bone-faint: rgba(232, 226, 200, 0.22); --bone-hover: rgba(232, 226, 200, 0.12);
   --friendly: #6fd0ff; --hostile: #ff4b3e; --fr: var(--friendly); --ho: var(--hostile); --faint: var(--bone-faint); --amber: #ffc23d; --ink: #05090b; --panel: rgba(5, 9, 11, 0.74);
   --font: 'Chakra Petch', ui-monospace, monospace;
   --rgb-split: -1px 0 rgba(255, 40, 60, 0.35), 1px 0 rgba(40, 220, 255, 0.35);
@@ -37,43 +37,69 @@ canvas { display: block; touch-action: none; }
 .screen button:hover, .screen button:focus-visible { background: rgba(232, 226, 200, 0.12); }
 .screen .row { display: flex; gap: 8px; }
 
-/* Asset rail (#37), left: one 40 px icon cell per Asset with its hotkey in the corner. The label (name, timer, bar) opens
-   to the right on hover or while armed; an Asset at work or cooling down shows its timer alone. */
+/* Asset keypad (#181; the Asset rail since #37), top-left: 48 px cells in three bands that mirror the keyboard's rows (Q to
+   T, A to G, Z to B), each band under a 12 px ruler naming its categories over the cells they span (pad.ts lays them out:
+   256 × 212). A cell has its hotkey in the corner and the Asset's icon, lifted when a timer, count, keystone frame or Grid
+   Reference sits in the slot under it. One readout line under the pad names the hovered, focused or armed cell; the
+   Confirm row sits under that while an Asset is armed; the awards stack below. */
 #rail {
   position: fixed; top: 16px; left: 16px; display: grid; gap: 4px; justify-items: start;
   font: 600 14px/1.2 var(--font); text-shadow: var(--rgb-split); font-variant-numeric: tabular-nums; text-transform: uppercase; color: var(--bone);
 }
 #rail[hidden], #score[hidden] { display: none; }
-#assets { display: grid; gap: 4px; justify-items: start; font: 600 14px/1 var(--font); }
+#assets { display: grid; gap: 4px; width: 256px; font: 600 14px/1 var(--font); }
 #assets[hidden] { display: none; }
 #assets button { font: inherit; text-transform: inherit; color: var(--bone); cursor: pointer; padding: 0; }
-.asset { position: relative; display: grid; grid-template-columns: 40px auto; gap: 4px; height: 40px; background: none; border: 0; text-align: left; }
-.asset > * { background: var(--panel); border: 1px solid var(--faint); display: flex; align-items: center; box-sizing: border-box; height: 100%; }
-.asset .key { position: absolute; left: 3px; top: 3px; z-index: 1; height: auto; background: none; border: 0; font-weight: 700; font-size: 9px; color: var(--bone-dim); }
-.asset .ico { grid-column: 1; justify-content: center; }
-.asset .ico svg { width: 24px; height: 24px; }
-.asset .lbl { position: relative; display: none; padding: 0 10px; gap: 10px; white-space: nowrap; font-size: 12.5px; font-weight: 600; letter-spacing: 0; }
-.asset:is(:hover, :focus-visible, .armed, .active, .cooling) .lbl { display: flex; }
-.asset:is(.active, .cooling):not(:hover, :focus-visible) .lbl > span:first-child { display: none; }
-.asset .t { font-size: 12px; color: var(--bone-dim); }
-.asset .bar { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--bone-dim); }
-.asset.cooling .lbl > span:first-child, .asset.cooling .ico, .asset.off > * { opacity: 0.42; }
-.asset.off { cursor: default !important; }
-.asset.active .t { color: var(--fr); }
-.asset.active .bar { background: var(--fr); }
-.asset.armed > * { background: var(--bone); color: var(--ink); border-color: var(--bone); text-shadow: none; }
-.asset.armed .t, .asset.armed .key { color: var(--ink); }
-.asset.armed .key { animation: blink 1s steps(1) infinite; }
-.asset.mark .ico text { fill: var(--ink); font-family: var(--font); } /* #136: the "?" cut out of the diamond */
-.asset.mark.armed .ico text { fill: var(--bone); }
-.cfrow { display: flex; gap: 4px; height: 36px; width: 248px; } /* wide enough for "Confirm D6 · Esc cancels" and the cancel cell */
-.cfrow[hidden] { display: none; }
+#assets .pad { display: grid; gap: 10px; }
+#assets .band { display: grid; gap: 4px; }
+#assets .ruler { display: flex; gap: 4px; height: 12px; }
+#assets .ruler span { flex: none; display: flex; align-items: flex-end; gap: 6px; }
+#assets .ruler span.one { gap: 3px; }
+#assets .ruler b { font-size: 9.5px; font-weight: 600; line-height: 1; letter-spacing: 0.1em; color: var(--bone-dim); white-space: nowrap; }
+#assets .ruler i { flex: 1; min-width: 0; height: 4px; margin-bottom: 1px; border: solid var(--faint); border-width: 1px 1px 0 0; } /* the hairline bracket to the end of the span */
+#assets .cells { display: flex; gap: 4px; }
+.cell { position: relative; flex: none; width: 48px; height: 48px; box-sizing: border-box; margin: 0; background: var(--panel); border: 1px solid var(--faint); border-radius: 0; }
+.cell .key { position: absolute; left: 2px; top: 2px; font-size: 9px; font-weight: 700; line-height: 1; color: var(--bone-dim); }
+.cell .ico { position: absolute; left: 11px; top: 11px; width: 24px; height: 24px; }
+.cell .ico svg { display: block; width: 24px; height: 24px; }
+.cell.lift .ico { top: 5px; }
+.cell .slot { position: absolute; left: 0; right: 0; bottom: 6px; display: flex; justify-content: center; gap: 2px; font-size: 10.5px; font-weight: 600; line-height: 1; color: var(--bone-dim); }
+.cell .slot svg { width: 15px; height: 15px; overflow: visible; } /* a gated cell's keystone frames */
+.cell .bar { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--bone-dim); }
+.cell:is(:hover, :focus-visible):not(.armed, .held) { background-image: linear-gradient(var(--bone-hover), var(--bone-hover)); }
+.cell:is(.cooling, .off) .ico { opacity: 0.42; }
+.cell.off { cursor: default !important; }
+.cell.off.lift .ico { top: 4px; }
+.cell.off .slot { bottom: 5px; }
+.cell.off .bar { background: var(--faint); } /* its cooldown keeps draining */
+.cell.active .slot { color: var(--fr); }
+.cell.active .bar { background: var(--fr); }
+#assets .cell.armed { background: var(--bone); border-color: var(--bone); color: var(--ink); text-shadow: none; } /* over `#assets button`'s bone */
+.cell.armed :is(.key, .slot) { color: var(--ink); }
+.cell.armed .slot { font-weight: 700; }
+.cell.armed .key { animation: blink 1s steps(1) infinite; }
+.cell.armed .bar { display: none; }
+.cell.req::after { /* the Squad tile's blinking corner: a Squad's open Request asks for this Asset */
+  content: ''; position: absolute; top: -1px; right: -1px; width: 10px; height: 10px;
+  background: linear-gradient(225deg, var(--amber) 50%, transparent 50%); animation: blink 1s steps(1) infinite;
+}
+.cell.held { background: rgba(5, 9, 11, 0.5); border-style: dashed; } /* a slot held for an Asset or standing action yet to ship */
+.cell.held .key { color: var(--faint); }
+.cell.mark .ico text { fill: var(--ink); font-family: var(--font); } /* #136: the "?" cut out of the diamond */
+.cell.mark.armed .ico text { fill: var(--bone); }
+#assets .readout { height: 28px; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 10px; background: var(--panel); border: 1px solid var(--faint); white-space: nowrap; }
+#assets .readout .nm { font-size: 12.5px; }
+#assets .readout .st { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--bone-dim); }
+#assets .readout .st.rq { color: var(--amber); } /* an open Request's Squad and Grid Reference */
+#assets .readout svg { width: 15px; height: 15px; overflow: visible; }
+.cfrow { display: flex; gap: 4px; height: 36px; }
+#assets .readout[hidden], .cfrow[hidden] { display: none; }
 #assets .cfrow button { border: 0; background: var(--ho); color: var(--ink); font-weight: 700; font-size: 13px; letter-spacing: 0.1em; text-shadow: none; min-height: 36px; }
 #assets .cfrow .cf { flex: 1; display: flex; white-space: nowrap; gap: 8px; justify-content: space-between; align-items: center; padding: 0 12px; }
 #assets .cfrow .cf:disabled { opacity: 0.6; cursor: default; }
 #assets .cfrow .cx { width: 36px; }
 .cfrow small, #confirm small { font-size: 11px; font-weight: 600; opacity: 0.8; text-transform: none; letter-spacing: 0.04em; }
-/* #72: the contribution messages that briefly stack under the rail */
+/* #72: the contribution messages that briefly stack under the keypad (#181: below its Confirm row while one shows) */
 #awards { display: grid; gap: 4px; pointer-events: none; }
 .award { padding: 5px 12px; font-size: 13px; letter-spacing: 0.06em; color: var(--amber); background: var(--panel); border: 1px solid var(--faint); text-transform: none; animation: toast 4.5s forwards; }
 @media (prefers-reduced-motion: reduce) { .award { animation-duration: 0.01s; animation-delay: 4.5s; } }

@@ -33,6 +33,12 @@ const flat = (pts: [number, number][], size: number) => `M${pts.map(([x, y]) => 
 /** #143: the Feint: the map's icon, the dummy under its canopy, filled. */
 export const FEINT_ICON = `<path fill="currentColor" stroke-width="0.6" d="${flat(FEINT_CANOPY, 15)}${flat(FEINT_FIGURE, 15)}"/><circle cx="${12 + FEINT_HEAD.x * 15}" cy="${12 - FEINT_HEAD.y * 15}" r="${FEINT_HEAD.r * 15}" fill="currentColor" stroke-width="0.6"/><path d="${FEINT_LINES.map(([x0, y0, x1, y1]) => `M${12 + x0 * 15} ${12 - y0 * 15}L${12 + x1 * 15} ${12 - y1 * 15}`).join('')}"/>`;
 
+/** #136: the Mark: a filled diamond with a "?" cut out of it (console.css fills the text with the cell's ground). */
+export const MARK_ICON = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2 22 12 12 22 2 12Z"/><text x="12" y="16.6" text-anchor="middle" font-size="13" font-weight="700">?</text></svg>';
+
+/** A Capture Point's APP-6 frame on a 28 px viewBox, by who holds it: a square for own, a diamond for enemy, a circle for neutral. */
+export const POINT_FRAME = { fr: '<rect x="3" y="3" width="22" height="22"/>', ho: '<path d="M14 0.5 27.5 14 14 27.5 0.5 14z"/>', ne: '<circle cx="14" cy="14" r="11.5"/>' };
+
 const PATHS: Record<AssetKind, string> = {
   scan: '<path d="M12 2.5v18.5M2.5 11l9.5-1.8 9.5 1.8M8.3 19.8h7.4"/><circle cx="12" cy="9.4" r="1.1" fill="currentColor"/>',
   supply: '<path d="M3.5 10a8.5 6.5 0 0 1 17 0Zm0 0 6.3 5.6m10.7-5.6-6.3 5.6M12 10v5.6"/><path d="M8.6 15.6h6.8v5.4H8.6z"/><path d="M8.6 18.3h6.8"/>',

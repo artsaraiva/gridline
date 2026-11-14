@@ -1,61 +1,88 @@
-// Asset rail (hotkey and icon; the name, timer and bar open beside it), the Confirm row under the armed Asset, the map
-// Confirm button beside the target ring, and the Asset hotkeys. Rows read ready, cooling, active or armed from the view
-// and targeting. #142: an untargeted Asset (Rapid Deploy) arms straight to its Confirm row, and its time at work is on its row.
+// The Asset keypad (#181; the Asset rail since #37): the cells pad.ts lays out in three bands under their rulers, top-left,
+// drawn from the view and targeting (ready, cooling, at work, gated on the keystones still missing, armed, and the amber
+// corner of a Squad's open Request); one readout line under the pad naming the hovered, focused or armed cell with its state;
+// the Confirm row under it while an Asset is armed; the map Confirm button beside the target ring; and the keys, which arm
+// the cell in their place. #142: an untargeted Asset (Rapid Deploy) arms straight to its Confirm row.
 import { gridRef } from '../../sim/grid-ref';
-import { BEACON_ICON, CREEP_ICON, DRONE_ICON, EMP_ICON, FEINT_ICON, GUNSHIP_ICON, MISSILE_ICON, RAPID_ICON, RECON_ICON, SMOKE_ICON } from './icons';
-import type { AssetKind, CommanderView, Vec2 } from '../../sim/types';
+import type { AssetKind, CommanderView, PointView, SideId, Vec2 } from '../../sim/types';
 import { FOCUS_MARK_PX } from '../layers/effects';
+import { assetLook, callable, markCount, PAD, ruler, spanPx, type CellLook, type PadCell } from '../pad';
 import { pxToWorld, toScreen } from '../renderer';
 import { session } from '../session';
-import { clock } from '../summary';
 import { arm, confirm, disarm, escape, placeConfirm, ready, strip, targeting } from '../targeting';
-
-const icon = (d: string) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round">${d}</svg>`;
-const ROWS: { key: string; asset: AssetKind; name: string; icon: string }[] = [
-  { key: 'Q', asset: 'scan', name: 'Scan UAV', icon: icon('<path d="M12 2.5v18.5M2.5 11l9.5-1.8 9.5 1.8M8.3 19.8h7.4"/><circle cx="12" cy="9.4" r="1.1" fill="currentColor"/>') },
-  { key: 'W', asset: 'supply', name: 'Supply Drop', icon: icon('<path d="M3.5 10a8.5 6.5 0 0 1 17 0Zm0 0 6.3 5.6m10.7-5.6-6.3 5.6M12 10v5.6"/><path d="M8.6 15.6h6.8v5.4H8.6z"/><path d="M8.6 18.3h6.8"/>') },
-  { key: 'E', asset: 'barrage', name: 'Artillery Barrage', icon: icon('<path d="M5.5 3.5l1.6 3v8H3.9v-8z M12 6.5l1.6 3v8h-3.2v-8z M18.5 3.5l1.6 3v8h-3.2v-8z"/><path d="M3.5 18.5h17M5 21h14"/>') },
-  { key: 'R', asset: 'missile', name: 'Cruise Missile', icon: icon(MISSILE_ICON) },
-  { key: 'T', asset: 'gunship', name: 'Gunship', icon: icon(GUNSHIP_ICON) },
-  { key: 'Y', asset: 'smoke', name: 'Smoke Screen', icon: icon(SMOKE_ICON) },
-  { key: 'U', asset: 'creep', name: 'Creeping Barrage', icon: icon(CREEP_ICON) },
-  { key: 'I', asset: 'drone', name: 'Drone Strike', icon: icon(DRONE_ICON) },
-  { key: 'O', asset: 'recon', name: 'Recon Plane', icon: icon(RECON_ICON) },
-  { key: 'P', asset: 'beacon', name: 'Redeploy Beacon', icon: icon(BEACON_ICON) }, // #142: at the end of the row until #147 lays it out for 13
-  { key: 'A', asset: 'rapid', name: 'Rapid Deploy', icon: icon(RAPID_ICON) },
-  { key: 'S', asset: 'emp', name: 'EMP Strike', icon: icon(EMP_ICON) }, // #143: the twelfth and thirteenth
-  { key: 'D', asset: 'feint', name: 'Feint', icon: icon(FEINT_ICON) },
-];
+import { assetIcon, MARK_ICON, POINT_FRAME } from './icons';
 
 const box = document.getElementById('assets')!;
 const mapConfirm = document.getElementById('confirm') as HTMLButtonElement;
-const rows = ROWS.map((r) => {
-  const row = document.createElement('button');
-  row.className = 'asset';
-  row.innerHTML = `<span class="key">${r.key}</span><span class="ico">${r.icon}</span><span class="lbl"><span>${r.name}</span><span class="t"></span><i class="bar"></i></span>`;
-  row.onclick = () => usable(r.asset) && arm(r.asset);
-  const cf = document.createElement('div');
-  cf.className = 'cfrow';
-  cf.innerHTML = '<button class="cf"><span></span><small>Esc cancels</small></button><button class="cx" aria-label="Cancel">✕</button>';
-  cf.querySelector<HTMLButtonElement>('.cf')!.onclick = confirm;
-  cf.querySelector<HTMLButtonElement>('.cx')!.onclick = disarm;
-  box.append(row, cf);
-  return { ...r, row, cf, timer: row.querySelector<HTMLElement>('.t')!, bar: row.querySelector<HTMLElement>('.bar')! };
-});
+
+interface Cell {
+  def: PadCell;
+  el: HTMLElement;
+  slot: HTMLElement;
+  bar: HTMLElement;
+}
+const cells: Cell[] = [];
+const pad = box.appendChild(document.createElement('div'));
+pad.className = 'pad';
+pad.setAttribute('role', 'group');
+pad.setAttribute('aria-label', 'Assets');
+for (let b = 0; PAD.some((c) => c.band === b); b++) {
+  const band = pad.appendChild(document.createElement('div'));
+  band.className = 'band';
+  band.innerHTML = `<div class="ruler">${ruler(b)
+    .map((r) => `<span style="width:${spanPx(r.span)}px"${r.span === 1 ? ' class="one"' : ''}><b>${r.category}</b><i></i></span>`)
+    .join('')}</div><div class="cells"></div>`;
+  const row = band.querySelector('.cells')!;
+  for (const def of PAD.filter((c) => c.band === b)) {
+    if (!def.calls) {
+      const held = row.appendChild(document.createElement('div')); // a slot held for an Asset or standing action that has not shipped: it arms nothing
+      held.className = 'cell held';
+      held.dataset.key = def.key;
+      held.setAttribute('aria-hidden', 'true');
+      held.innerHTML = `<span class="key">${def.key}</span>`;
+      continue;
+    }
+    const el = row.appendChild(document.createElement('button'));
+    el.type = 'button';
+    el.className = def.calls === 'mark' ? 'cell mark' : 'cell';
+    el.dataset.key = def.key;
+    el.setAttribute('aria-label', def.name);
+    el.setAttribute('aria-keyshortcuts', def.key);
+    el.innerHTML = `<span class="key">${def.key}</span><span class="ico">${def.calls === 'mark' ? MARK_ICON : assetIcon(def.calls)}</span><span class="slot"></span><i class="bar"></i>`;
+    const asset = def.calls;
+    if (asset !== 'mark') el.onclick = () => usable(asset) && arm(asset);
+    cells.push({ def, el, slot: el.querySelector<HTMLElement>('.slot')!, bar: el.querySelector<HTMLElement>('.bar')! });
+  }
+}
+
+const readout = box.appendChild(document.createElement('div'));
+readout.className = 'readout';
+readout.hidden = true;
+readout.innerHTML = '<span class="nm"></span><span class="st"></span>';
+const readName = readout.querySelector<HTMLElement>('.nm')!;
+const readState = readout.querySelector<HTMLElement>('.st')!;
+
+const cfRow = box.appendChild(document.createElement('div'));
+cfRow.className = 'cfrow';
+cfRow.hidden = true;
+cfRow.innerHTML = '<button type="button" class="cf"><span></span><small>Esc cancels</small></button><button type="button" class="cx" aria-label="Cancel">✕</button>';
+const cf = cfRow.querySelector<HTMLButtonElement>('.cf')!;
+cf.onclick = confirm;
+cfRow.querySelector<HTMLButtonElement>('.cx')!.onclick = disarm;
 mapConfirm.onclick = confirm;
 
+/** The pad's cell for `calls`: chrome/mark.ts runs the Mark's. */
+export const cellOf = (calls: AssetKind | 'mark') => cells.find((c) => c.def.calls === calls)!.el;
+
 let last: CommanderView | null = null;
-const usable = (asset: AssetKind) => {
-  const a = last?.assets?.find((a) => a.asset === asset);
-  return !!last && !last.result && !!a && (a.readyIn === 0 || !!a.retask) && !a.off; // #101: an Asset at work that takes a new spot arms on its cooldown
-};
+const usable = (asset: AssetKind) => !!last && callable(asset, last);
 
 document.addEventListener('keydown', (e) => {
   if (!last || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
   if ((e.target as HTMLElement).closest('input, textarea, select, [contenteditable]')) return; // a mixer slider has focus
   if (e.key === 'Escape') return escape();
-  const r = ROWS.find((r) => r.key === e.key.toUpperCase());
-  if (r && usable(r.asset)) arm(r.asset);
+  const asset = PAD.find((c) => c.key === e.key.toUpperCase())?.calls; // a held slot calls nothing; the Mark's key is chrome/mark.ts's
+  if (asset && asset !== 'mark' && usable(asset)) arm(asset);
 });
 
 const grid = (p: Vec2) => {
@@ -63,28 +90,50 @@ const grid = (p: Vec2) => {
   return g ? gridRef(g, p) : '';
 };
 
-/** The rows for `view`, or hidden between matches; then the map Confirm button. */
+/** #181: a keystone Capture Point still missing, in its holder's frame and colour, as the score strip draws it (heavier, for 15 px). */
+function keystoneFrame(p: PointView, us: SideId): string {
+  const own = p.owner === null ? 'ne' : p.owner === us ? 'fr' : 'ho';
+  return `<svg viewBox="0 0 28 28" aria-hidden="true" style="color:var(--${own === 'ne' ? 'bone' : own})"><g fill="rgba(5,9,11,.6)" stroke="currentColor" stroke-width="2.4">${POINT_FRAME[own]}</g><text x="14" y="15" fill="currentColor" font-family="Chakra Petch" font-weight="700" font-size="15" text-anchor="middle" dominant-baseline="middle">${p.name}</text></svg>`;
+}
+
+/** Sets `el`'s class, markup or attributes only on change, so a blink keeps its phase and nothing is rebuilt each frame. */
+function put(el: HTMLElement, cls: string | null, html: string | null, attrs: Record<string, string> = {}) {
+  if (cls !== null && el.className !== cls) el.className = cls;
+  if (html !== null && el.dataset.h !== html) el.innerHTML = el.dataset.h = html;
+  for (const [k, v] of Object.entries(attrs)) if (el.getAttribute(k) !== v) el.setAttribute(k, v);
+}
+
+/** The pad for `view`, or hidden between matches; then the readout, the Confirm row and the map Confirm button. */
 export function drawAssetRail(view: CommanderView | null) {
   last = view;
   box.hidden = !view;
-  if (!view || view.result) disarm();
-  for (const r of rows) {
-    const a = view?.assets?.find((a) => a.asset === r.asset);
-    const fx = a?.up ?? view?.effects?.filter((e) => e.asset === r.asset && (e.side ?? view.side) === view.side && (e.asset !== 'gunship' || e.left > 0)).sort((p, q) => q.left - p.left)[0]; // #99: not the enemy's missile; #101 nor a Gunship off station; #142 an untargeted Asset's time is on its row
-    const armed = targeting.armed === r.asset;
-    const state = !a || a.off ? 'off' : armed ? 'armed' : fx ? 'active' : a.readyIn > 0 ? 'cooling' : 'ready';
-    const cls = `asset ${state}`;
-    if (r.row.className !== cls) r.row.className = cls; // only on change, so the blink keeps its phase
-    r.row.disabled = state === 'off';
-    const spot = targeting.spot ?? targeting.pointer;
-    r.timer.textContent =
-      state === 'off' ? (a?.off ?? '—') : state === 'armed' ? (spot ? grid(spot) : '') : fx ? `Up ${clock(Math.ceil(fx.left))}` : a!.readyIn > 0 ? clock(Math.ceil(a!.readyIn)) : 'Ready';
-    r.bar.style.width = fx ? `${(100 * fx.left) / fx.total}%` : a && a.readyIn > 0 ? `${(100 * a.readyIn) / a.cooldown}%` : '0'; // #99: an off row's cooldown still drains
-    r.cf.hidden = !armed;
-    if (!armed) continue;
-    const cf = r.cf.querySelector<HTMLButtonElement>('.cf')!;
+  if (targeting.armed && !usable(targeting.armed)) disarm(); // between matches, at the end, or once it can't be called (a keystone lost; #101 a Gunship off station)
+  const spot = targeting.spot ?? targeting.pointer;
+  const at = spot ? grid(spot) : '';
+  const looks = new Map<Cell, CellLook>();
+  for (const c of cells) {
+    const asset = c.def.calls;
+    if (!view || !asset || asset === 'mark') continue;
+    const look = assetLook(asset, view, targeting.armed === asset, at);
+    looks.set(c, look);
+    put(c.el, `cell ${look.state}${look.lift ? ' lift' : ''}${look.request ? ' req' : ''}`, null, { 'aria-disabled': String(look.state === 'off'), 'aria-pressed': String(look.state === 'armed') });
+    put(c.slot, null, look.needs.length ? look.needs.map((p) => keystoneFrame(p, view.side)).join('') : look.slot);
+    c.bar.style.width = `${(100 * look.bar).toFixed(2)}%`;
+  }
+  // The readout names the armed cell (the Mark's in Mark mode), else the one under the pointer or the keyboard focus
+  const armed = targeting.armed ?? (targeting.marking ? 'mark' : null);
+  const hot = (armed && cells.find((c) => c.def.calls === armed)) || cells.find((c) => c.el.matches(':hover, :focus-visible'));
+  readout.hidden = !view || !hot;
+  if (view && hot) {
+    const look = looks.get(hot); // none for the Mark
+    const named = hot.def.calls === armed; // armed: the name alone
+    put(readName, null, hot.def.name);
+    put(readState, look?.request && !named ? 'st rq' : 'st', named ? '' : !look ? markCount(view) : `${look.readout}${look.needs.map((p) => keystoneFrame(p, view.side)).join('')}`);
+  }
+  cfRow.hidden = !targeting.armed;
+  if (targeting.armed) {
     cf.disabled = !ready();
-    cf.querySelector('span')!.textContent = !ready() ? (targeting.spot ? 'Tap the direction' : 'Tap the map') : targeting.spot ? `Confirm ${grid(targeting.spot)}` : 'Confirm'; // #138: a line-shaped Asset takes a second tap; #142 an untargeted one none
+    put(cf.querySelector('span')!, null, !ready() ? (targeting.spot ? 'Tap the direction' : 'Tap the map') : targeting.spot ? `Confirm ${grid(targeting.spot)}` : 'Confirm'); // #138: a line-shaped Asset takes a second tap; #142 an untargeted one none
   }
   placeMapConfirm(view);
 }
