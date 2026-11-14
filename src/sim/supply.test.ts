@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { crateFlow, crateReachM, flowDist } from './ai/flow';
 import { commanderView, createMatch, step, type Match } from './index';
 import { DEFAULT_TUNE } from './tune';
 import type { CommanderView, Command, MapData, SideId, SimEvent, Tune, Vec2 } from './types';
@@ -179,5 +180,32 @@ describe('Squads resupplying', () => {
   it('go to the HQ when no crate has been called', () => {
     const r = play([], at);
     expect(r.toHq).toBeLessThan(DEFAULT_TUNE.hqRadius);
+  });
+
+  // #156: with no speed jitter here, the crate's field reaches 60 s x 5.06 m/s = 304 m along the walk
+  it('#156: go to a crate within its reach though the HQ is nearer, and get refilled there', () => {
+    const far = { x: -300, y: 240 };
+    const r = play([drop(scene(), far)], far);
+    expect(r.toCrate).toBeLessThan(10);
+    expect(r.toHq).toBeGreaterThan(DEFAULT_TUNE.hqRadius + 100);
+    expect(r.v.friendlies.every((f) => f.ammo === 1)).toBe(true);
+  });
+
+  it('#156: go to the HQ when the only crate is past its reach: they could not get there before it goes', () => {
+    const beyond = { x: -300, y: 400 };
+    const r = play([drop(scene(), beyond)], beyond);
+    expect(r.toHq).toBeLessThan(DEFAULT_TUNE.hqRadius);
+    expect(r.toCrate).toBeGreaterThan(300);
+  });
+});
+
+describe('#156: the crate\'s flow field', () => {
+  it('reaches as far along the walk as the fastest Soldier walks while the crate stays, and no farther', () => {
+    const m = scene({}, { tune: { speedJitter: 0.1 } });
+    expect(crateReachM(m)).toBeCloseTo(60 * 5.06 * 1.1); // 334 m
+    const f = crateFlow(m, { x: 0, y: 0 });
+    expect(flowDist(m, f, { x: crateReachM(m) - 10, y: 0 })).toBeLessThan(Infinity);
+    expect(flowDist(m, f, { x: crateReachM(m) + 10, y: 0 })).toBe(Infinity);
+    expect(flowDist(m, f, { x: -crateReachM(m) + 10, y: 0 })).toBeLessThan(Infinity);
   });
 });

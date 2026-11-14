@@ -40,8 +40,9 @@ function cached(g: Grid, key: string, build: () => Flow): Flow {
  * the heap. With `bank` (the grid's banks) the goal's own bank is walked with every crossing closed, and the way goes on over the
  * decks to the far side but never from the far side back onto a deck. So it crosses the water at most once, and from any deck it
  * goes on to the goal's bank: a route over a crossing is that crossing's field and then this one.
+ * #156: with `reachM`, the search stops that far along the walk from the goal; the cells beyond can't get there.
  */
-export function build(m: Match, g: Grid, goal: Vec2, r: number, closed?: (k: number) => boolean, bank?: Int32Array): Flow {
+export function build(m: Match, g: Grid, goal: Vec2, r: number, closed?: (k: number) => boolean, bank?: Int32Array, reachM?: number): Flow {
   const { cols, rows, cost } = g;
   if (scratch.length !== cols * rows) [scratch, openScratch] = [new Int32Array(cols * rows), new Uint8Array(cols * rows)];
   let open: Uint8Array = cost; // walkable: cost > 0
@@ -63,7 +64,8 @@ export function build(m: Match, g: Grid, goal: Vec2, r: number, closed?: (k: num
       if (bank && bank[k]! >= 0 && !goalBanks.includes(bank[k]!)) goalBanks.push(bank[k]!);
     }
   const side = (k: number) => (bank![k]! < 0 ? 1 : goalBanks.includes(bank![k]!) ? 0 : 2); // 0 the goal's bank, 1 a deck, 2 the far side
-  for (let d = 0; queued; d++) {
+  const last = reachM === undefined ? FAR - 1 : Math.floor((reachM * 100) / c); // #156: the farthest cost kept; open ground costs 100 a cell of c metres
+  for (let d = 0; queued && d <= last; d++) {
     const bucket = buckets[d % ring]!;
     while (bucket.length) {
       const k = bucket.pop()!;
@@ -92,9 +94,10 @@ export function build(m: Match, g: Grid, goal: Vec2, r: number, closed?: (k: num
       }
     }
   }
+  if (queued) for (const b of buckets) b.length = 0; // #156: stopped at its reach, with cells still queued past it
   const out = new Uint16Array(cols * rows).fill(NONE);
   for (let k = 0; k < out.length; k++) {
-    if (dist[k] === FAR) continue;
+    if (dist[k]! > last) continue; // never reached (FAR), or past the reach
     const q = ((dist[k]! + SCALE / 2) / SCALE) | 0; // rounded
     if (q >= NONE) throw new Error(`flow field too long for 16 bits: ${dist[k]} cost units at cell ${k}`); // a clamp would leave Soldiers stuck on a flat far from the goal
     out[k] = q;
@@ -108,12 +111,18 @@ export const pointFlow = (m: Match, i: number) => {
   return cached(m.grid, `p${i}`, () => build(m, m.grid, p, Math.max(m.tune.cellM, p.radius - 6), undefined, banks(m)));
 };
 
-/** To a Supply Drop crate at `at`. #151: building one drops the fields of crates whose effect is over, so a match's drops never pile up. */
+/**
+ * #156: how far along the walk a Supply Drop crate's field reaches: what the fastest Soldier walks in the time the crate stays.
+ * A Squad farther off could never get there before it goes, so it is left out, and the build stays inside one tick on Auental.
+ */
+export const crateReachM = (m: Match) => m.tune.supplyStaySeconds * m.tune.walkSpeed * (1 + m.tune.speedJitter);
+
+/** To a Supply Drop crate at `at`, out to `crateReachM`. #151: building one drops the fields of crates whose effect is over, so a match's drops never pile up. */
 export const crateFlow = (m: Match, at: Vec2) =>
   cached(m.grid, `c${at.x},${at.y}`, () => {
     const byKey = cache.get(m.grid)!;
     for (const key of byKey.keys()) if (key[0] === 'c' && !m.assets.effects.some((e) => e.asset === 'supply' && key === `c${e.x},${e.y}`)) byKey.delete(key);
-    return build(m, m.grid, at, m.tune.supplyRadiusM * 0.6);
+    return build(m, m.grid, at, m.tune.supplyRadiusM * 0.6, undefined, undefined, crateReachM(m));
   });
 
 /** To `side`'s HQ. */
