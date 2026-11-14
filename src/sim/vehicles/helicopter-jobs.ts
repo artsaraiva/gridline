@@ -1,15 +1,18 @@
 // #131: what a piloted helicopter does: `decideJob` takes the first job that applies at its pilot's Squad think (bail, repair,
 // ferry, support, else wait); `circle` is the path of Support and of a hot drop, `glide` the bail-out, `repairOnPad` the repair.
-// The flight itself (`fly`, `cruise`, `plan`) stays in `vehicles.ts`, which calls back here.
-import type { Match } from './index';
-import { between, pickWeighted, rnd } from './rng';
-import { dist2 } from './geometry';
+// The flight itself (`fly`, `cruise`, `plan`) is in helicopter.ts, which calls back here.
+import type { Match } from '../index';
+import { between, pickWeighted, rnd } from '../rng';
+import { clearOfHq, dist2 } from '../geometry';
 import { landingZone } from './flight';
-import { sideKnown } from './memory';
-import { turnToward, approach } from './momentum';
-import { membersOf, ticksOf, type Point, type Soldier, type Squad } from './state';
-import type { Vec2 } from './types';
-import { clearOfHq, crippled, fitsRide, getOut, held, jump, live, onPad, PILOT_SEAT, plan, riders, specOf, wreck, type Vehicle } from './vehicles';
+import { sideKnown } from '../memory';
+import { turnToward, approach } from '../momentum';
+import { membersOf, ticksOf, type Point, type Soldier, type Squad } from '../state';
+import type { Vec2 } from '../types';
+import { crippled, held, live, riders, specOf, wreck, type Vehicle } from './body';
+import { fitsRide } from './core';
+import { plan } from './helicopter';
+import { getOut, jump, onPad, PILOT_SEAT } from './seats';
 
 const squared = (r: number) => r * r;
 

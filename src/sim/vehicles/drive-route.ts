@@ -1,13 +1,13 @@
 // Which way a ground vehicle's driver takes to its Capture Point: over which crossing, and off the road through the fields
 // round the danger its Side knows of.
-import type { Match } from './index';
-import { across, crossingDriveFlow, driveFlow, flowDist, flowLook, type Flow } from './ai/flow';
-import { dist2 } from './geometry';
-import { cellCentre, cellIndex } from './grid';
-import { sideKnown } from './memory';
-import { rnd } from './rng';
-import type { Vec2, VehicleKind } from './types';
-import { live, specOf, type Vehicle } from './vehicles';
+import type { Match } from '../index';
+import { across, crossingDriveFlow, driveFlow, flowDist, flowLook, type Flow } from '../ai/flow';
+import { dist2 } from '../geometry';
+import { cellCentre, cellIndex } from '../grid';
+import { sideKnown } from '../memory';
+import { rnd } from '../rng';
+import type { Vec2, VehicleKind } from '../types';
+import { live, specOf, type Vehicle } from './body';
 
 /** `Vehicle.route`: -1 not chosen yet (it drives its road), its road, or `VIA + c` over crossing `c` first. */
 export const ROAD = 0;

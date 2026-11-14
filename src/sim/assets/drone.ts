@@ -1,5 +1,5 @@
 // Drone Strike (#139): a light, precise Strike beside the heavy Cruise Missile. Always available (no point gate), on a short
-// cooldown that also starts the match. At the call its Side's drone (a vehicle with nobody aboard, vehicles.ts) wakes at the
+// cooldown that also starts the match. At the call its Side's drone (a vehicle with nobody aboard, vehicles/lent.ts) wakes at the
 // caller's HQ and flies level and straight at the spot at `droneSpeedMps`: the flight is its warning, and it is in the sky, so
 // both Sides' views carry it. There it lands one small blast, friend or foe; the enemies in the suppress ring are Contacts for
 // `barrageContactSeconds`. The enemy AA fires on it as on anything that flies (after a jet and a helicopter): at 0 hit points it

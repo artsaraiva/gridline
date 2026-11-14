@@ -1,10 +1,10 @@
 // #124: where a helicopter sets down and the dogleg it flies there and home. Pure choices from the Match RNG; no trig at run time
 // (the Simulation's determinism rule): a bearing is one of 72 unit vectors, 5 degrees apart, written out below.
-import type { Match } from './index';
-import { between, rnd } from './rng';
-import { dist2, insidePolygon } from './geometry';
-import { nearestWalkable } from './grid';
-import type { Vec2 } from './types';
+import type { Match } from '../index';
+import { between, rnd } from '../rng';
+import { dist2, insidePolygon } from '../geometry';
+import { nearestWalkable } from '../grid';
+import type { Vec2 } from '../types';
 
 const BEARINGS: [number, number][] = [
   [1, 0], [0.996195, 0.087156], [0.984808, 0.173648], [0.965926, 0.258819], [0.939693, 0.34202], [0.906308, 0.422618],

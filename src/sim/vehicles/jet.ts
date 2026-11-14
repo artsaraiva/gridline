@@ -1,20 +1,21 @@
 // #110: the jet. A Side's jets (#154: as many as its map lists) live at the off-map base (the Cruise Missile's launch point), each
-// taking off with its pilot already aboard (vehicles.ts: at match start, #154 a seeded gap apart, then a Soldier coming back). Its pilot scores Capture Points as any
+// taking off with its pilot already aboard (`deployPilots`: at match start, #154 a seeded gap apart, then `jetOnReturn`: a Soldier coming back). Its pilot scores Capture Points as any
 // Soldier, from the base; a sortie is `jetPasses`
 // passes, each an attack run on a mark the Side knows by its pilot's point: inbound straight at it, the cannon along the
 // last `jetFireM` at what the Side knows there (and a bomb on a vehicle or a group), overfly, outbound past the Play Area, a
 // `jetTurnSeconds` turn; then home to rearm and repair `jetRearmSeconds`. An enemy jet in the air near it is fought first
 // (`dogfight`: chase, cannon, lock-on missile). Never into the enemy HQ circle's air. Only the AA and the enemy jet hurt it.
-import type { Match } from './index';
-import { bestPoint } from './ai/squad';
-import { assetContacts } from './assets/core';
-import { launchPoint } from './assets/missile';
-import { dist2, inHq, insidePolygon } from './geometry';
-import { cosDeg, turnToward } from './momentum';
-import { pickWeighted, rnd } from './rng';
-import { ticksOf, vehicleOf, type Soldier, type Squad } from './state';
-import { enemyOf, type SideId, type Vec2 } from './types';
-import { clearOfHq, crippled, high, live, specOf, type Vehicle } from './vehicles';
+import type { Match } from '../index';
+import { bestPoint } from '../ai/squad';
+import { assetContacts } from '../assets/core';
+import { launchPoint } from '../assets/missile';
+import { clearOfHq, dist2, inHq, insidePolygon } from '../geometry';
+import { cosDeg, turnToward } from '../momentum';
+import { between, pickWeighted, rnd } from '../rng';
+import { membersOf, ticksOf, vehicleOf, type Soldier, type Squad } from '../state';
+import { enemyOf, type SideId, type Vec2 } from '../types';
+import { crippled, high, live, specOf, type Vehicle } from './body';
+import { mount } from './core';
 
 /** Where a jet is in its sortie. Idle: no pilot, at the base. Rearming: flying home (`until` -1), then at the base until `until`. */
 export const SORTIE = ['idle', 'inbound', 'outbound', 'turning', 'rearming', 'dogfight'] as const;
@@ -24,6 +25,40 @@ export type Sortie = (typeof SORTIE)[number];
 export function jetPoint(m: Match, sq: Squad, v: Vehicle): number {
   const b = launchPoint(m, v.side);
   return bestPoint(m, sq, b, m.tune.squadPull, { dist: (i) => Math.sqrt(dist2(b, m.points[i]!)) });
+}
+
+/**
+ * #110: a Soldier coming back (Squad Respawn or Redeploy) spawns as the pilot of its Side's empty jet, taking off from the base,
+ * as BF4's deploy screen puts you in the air. Never the Squad Leader (the Squad scores, leads and comes back from them, and a
+ * pilot is off at the base or in the sky), and none while a member of its Squad flies one. True when it did.
+ */
+export function jetOnReturn(m: Match, sq: Squad, s: Soldier): boolean {
+  if (s.id === sq.members[0] || membersOf(m, sq).some((o) => o !== s && vehicleOf(m, o.vehicle)?.kind === 'jet')) return false;
+  const v = m.vehicles.find((o) => o.kind === 'jet' && o.side === s.side && live(o) && o.seats[0]! < 0);
+  if (!v) return false;
+  mount(m, v, s, sq);
+  return true;
+}
+
+/**
+ * #110: at match start each jet gets a pilot: the last member of one of its Side's Squads of two or more, seeded; #154 never
+ * a Squad that already has one. A Side's first jet takes off at once, each next one waits at the base a seeded `jetGapSeconds`
+ * after the one before.
+ */
+export function deployPilots(m: Match) {
+  const offAt: Partial<Record<SideId, number>> = {}; // the tick the Side's previous jet takes off
+  for (const v of m.vehicles) {
+    if (v.kind !== 'jet') continue;
+    const squads = m.squads.filter((sq) => sq.side === v.side && sq.members.length > 1 && !membersOf(m, sq).some((s) => vehicleOf(m, s.vehicle)?.kind === 'jet'));
+    const sq = squads[Math.floor(rnd(m) * squads.length)];
+    if (!sq) continue;
+    mount(m, v, m.soldiers[sq.members.at(-1)!]!, sq);
+    const previous = offAt[v.side];
+    // #154 says "a seeded delay after it": after the one before, not the first, so no two later jets leave together either. The
+    // gap is drawn only for a later jet, so a Side with one jet draws exactly as before
+    offAt[v.side] = previous === undefined ? m.tick : previous + ticksOf(m.tune, between(m, m.tune.jetGapSeconds));
+    if (previous !== undefined) Object.assign(v, { sortie: 'rearming', until: offAt[v.side], airborne: false, prey: -1, drop: false }); // the rearm's wait at the base: `sortie` takes off at `until`
+  }
 }
 
 /** A fresh pilot takes off at once from the base on a full sortie. */

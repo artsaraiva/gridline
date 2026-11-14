@@ -2,7 +2,7 @@
 // point gate), on a long cooldown that also starts the match; Squads never Request it. At the call a small missile leaves the
 // caller's own HQ (as the Drone Strike does) and flies level and straight at the spot at `empSpeedMps`; it is in the sky, so
 // both Sides' views carry it. Over the spot it bursts in the air: a flash, no crater, no blast. Every vehicle within
-// `empRadiusM`, the caller's own too (the Commander's mistake), is held for `empSeconds` (vehicles.ts `held`): it neither moves
+// `empRadiusM`, the caller's own too (the Commander's mistake), is held for `empSeconds` (vehicles/body.ts `held`): it neither moves
 // nor fires. The jet flies on, and Soldiers, aboard or on foot, are untouched. The enemy vehicles it holds are Contacts for
 // `barrageContactSeconds`. No Commander Score: there is nothing to measure without faking it.
 import { dist2, inHq } from '../geometry';

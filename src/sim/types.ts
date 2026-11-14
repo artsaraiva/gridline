@@ -443,7 +443,7 @@ export interface Tune {
   gunshipHp: number; // the enemy AA fires on it as on a helicopter; under a third it leaves early, at 0 it falls as a Wreck
   paradropChance: number; // a Soldier coming back takes a passenger seat of its Side's Gunship on station with this chance, when the aircraft is nearer its goal than where it came back
 
-  // Vehicle routes: which crossing, and detours through the fields round known danger (drive-route.ts); danger is weighed in seconds of driving
+  // Vehicle routes: which crossing, and detours through the fields round known danger (vehicles/drive-route.ts); danger is weighed in seconds of driving
   driveSeenS: number; // what driving past an enemy the Side saw lately is worth (`routeSeenSeconds`, within `routeSeenRadiusM`)
   driveLossS: number; // ... past where one of its own died lately (`routeLossSeconds`, within `routeLossRadiusM`)
   driveWreckS: number; // ... past an own ground Wreck, as lately and as near

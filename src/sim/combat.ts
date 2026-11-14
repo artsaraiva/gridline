@@ -1,5 +1,5 @@
 // Fire, Wounding, revive and bleed-out, suppression; a death settles what the enemy Commander's Assets earn (#72 #75).
-// #107: Soldiers aboard a vehicle fire only its guns (the coax here, the main gun in vehicles.ts) and take no fire; a
+// #107: Soldiers aboard a vehicle fire only its guns (the coax here, the main gun in vehicles/core.ts) and take no fire; a
 // Launcher's rockets hit vehicles. #108: rifles hit a jeep like a Soldier in the open; its gunner fires the MG as the coax.
 // #110: a jet's pilot fires its cannon as the coax, an AA's occupant its gun in bursts; lock-on missiles in air-missiles.ts.
 // #101: the Gunship's gunner fires its left side gun as a helicopter's.
@@ -13,7 +13,7 @@ import { between, rnd } from './rng';
 import { award } from './score';
 import { membersOf, ticksOf, vehicleOf, type Soldier } from './state';
 import { enemyOf, type SimEvent, type Vec2 } from './types';
-import { jetTarget } from './jet';
+import { jetTarget } from './vehicles/jet';
 import { gunner, held, hurt, isLauncher, leave, mainGuns, rocketTarget, sideGun, specOf, type Vehicle } from './vehicles';
 
 interface Shot {

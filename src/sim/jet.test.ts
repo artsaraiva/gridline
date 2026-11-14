@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { commanderView, createMatch, step, type Match } from './index';
-import { jetTarget } from './jet';
+import { jetTarget } from './vehicles/jet';
 import { leave } from './vehicles';
 import { DEFAULT_TUNE } from './tune';
 import { NO_TEMPO, NO_TRAITS, thinkOnId } from './test-tune';
