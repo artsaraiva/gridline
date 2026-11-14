@@ -122,6 +122,24 @@ test('#150: back on Kaltenbach the Squads select drops 16, 24 and 32 and falls b
   await expect(squads).toHaveValue('8');
 });
 
+test('#147: the score strip stays centred from 1280 × 720 up and, on a narrower window, keeps a panel gap clear of the Asset keypad', async ({ page }) => {
+  test.slow(); // Auental's map loads behind a waiting screen
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto('/?map=auental&squads=3');
+  await page.getByRole('button', { name: 'Start match' }).click();
+  await expect(page.locator('#rail')).toBeVisible({ timeout: 30000 });
+  await expect(page.locator('#score .pts svg')).toHaveCount(12); // Auental's strip, the widest
+
+  const strip = page.locator('#score');
+  let s = (await strip.boundingBox())!;
+  expect(s.x + s.width / 2).toBeCloseTo(640, 0);
+
+  await page.setViewportSize({ width: 1024, height: 768 }); // centred, its left end would run under the pad's T cell
+  s = (await strip.boundingBox())!;
+  const pad = (await page.locator('#assets').boundingBox())!;
+  expect(s.x).toBeCloseTo(pad.x + pad.width + 16, 0);
+});
+
 test('the mixer (#85): the speaker button opens the panel, M toggles mute, the levels survive a reload, nothing errors', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));

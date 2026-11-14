@@ -105,9 +105,12 @@ canvas { display: block; touch-action: none; }
 @media (prefers-reduced-motion: reduce) { .award { animation-duration: 0.01s; animation-delay: 4.5s; } }
 
 /* Score strip, top-centre: each Side's Tickets and bar either side of the Capture Point badges, the clock under them. A
-   blinking amber mark follows the Tickets of the Side that is draining. */
+   blinking amber mark follows the Tickets of the Side that is draining. #147: it is centred between equal insets that hold
+   it a panel gap (16 px) right of the Asset keypad (16 + 256 px). On a window too narrow to centre it between them
+   (Auental's 12 badges below 1152 px, Kaltenbach's 5 below 984 px) its left auto margin falls to zero, so it starts at the
+   inset and runs on to the right. */
 .score {
-  position: fixed; top: 10px; left: 50%; transform: translateX(-50%); padding: 6px 12px 7px; box-sizing: border-box;
+  position: fixed; top: 10px; left: 288px; right: 288px; width: max-content; margin: 0 auto; padding: 6px 12px 7px; box-sizing: border-box;
   display: grid; grid-template: 'fr pts ho' auto 'fr clock ho' auto / auto auto auto; gap: 2px 14px; align-items: center;
   background: rgba(5, 9, 11, 0.6);
   font: 600 14px/1.2 var(--font); text-shadow: var(--rgb-split); font-variant-numeric: tabular-nums; text-transform: uppercase; color: var(--bone);
