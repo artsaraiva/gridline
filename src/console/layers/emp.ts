@@ -8,7 +8,7 @@
 import * as THREE from 'three/webgpu';
 import type { CommanderView, VehicleView } from '../../sim/types';
 import { metresPerPx, pool, sideColor } from '../renderer';
-import { BOLT_OUTLINE, burstAt, crackle, EMP_BLUE, EMP_OUTLINE, EMP_SHADOW_FRAME, EMP_SHEET, empFlash, empRing, empsInFlight, HULL_M } from '../sprites/emp';
+import { BOLT_OUTLINE, burstAt, crackle, DRAWN_M, EMP_BLUE, EMP_OUTLINE, EMP_SHADOW_FRAME, EMP_SHEET, empFlash, empRing, empsInFlight } from '../sprites/emp';
 import { lifted } from '../sprites/level-flight';
 import { spriteMesh } from '../sprites/sheet';
 import { skyIcons } from './sky-icon';
@@ -111,7 +111,7 @@ export function drawEmps(view: CommanderView, scale: number, now: number) {
   for (const v of view.vehicles ?? []) {
     if (!v.disabled) continue;
     const at = drawnAt(v);
-    for (const spark of crackle(v.id, at, HULL_M[v.kind] ?? 10, now / 1000))
+    for (const spark of crackle(v.id, at, DRAWN_M[v.kind] ?? 16, now / 1000))
       for (let i = 1; i < spark.length; i++) segment(sparks.next(), spark[i - 1]!, spark[i]!, SPARK_PX, Z.spark);
     const bolt = bolts.next();
     bolt.position.set(at.x + scale * 0.9, at.y + scale * 0.9, Z.bolt); // by the icon's top right, clear of its body

@@ -5,14 +5,11 @@
 // fire (memory.ts `hear`), so the enemy Squads near it act as under fire: they bound, and fire back at it when suppressed.
 import type { Match } from '../index';
 import { seeThrough } from '../memory';
-import { sees } from '../perception';
-import type { Mix, Soldier } from '../state';
-import type { Vec2 } from '../types';
+import { looksAt } from '../perception';
+import type { Mix } from '../state';
 import { assetRadio, type Effect, type Kind } from './core';
 import { feintTicks } from './crate';
 
-/** A living Soldier on foot (not on a parachute) of `s`'s Side sees the dummy at `p`: a Soldier's eyes, as for the Redeploy Beacon. */
-const looksAt = (m: Match, s: Soldier, p: Vec2) => s.state === 'alive' && s.vehicle < 0 && !s.chute && sees(m, s, p);
 /** The tick the dummy lands, and its first burst goes off. */
 const landing = (m: Match, e: Effect) => e.until - feintTicks(m);
 const burstTicks = (m: Match) => Math.round(m.tune.feintBurstSeconds * m.tune.hz);

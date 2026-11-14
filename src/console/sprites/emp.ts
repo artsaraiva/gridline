@@ -2,9 +2,13 @@
 // its level flight from the HQ, the white-blue flash of its airburst, its ring while it holds, and the crackle on each vehicle it
 // holds. layers/emp.ts draws them.
 import type { EffectView, SideId, Vec2, VehicleKind } from '../../sim/types';
+import { AA_EXAGGERATION, AA_WORLD_M } from './aa';
+import { HELI_EXAGGERATION, HELI_WORLD_M } from './helicopter';
+import { JEEP_EXAGGERATION, JEEP_WORLD_M } from './jeep';
 import { levelFlight, lifted, type LevelFlight } from './level-flight';
 import { CRUISE_ALTITUDE_M } from './missile';
 import type { SpriteSheetSpec } from './sheet';
+import { TANK_EXAGGERATION, TANK_WORLD_M } from './tank';
 
 /** Headings baked per Faction (heading k at k * 360 / EMP_HEADINGS deg from east). */
 export const EMP_HEADINGS = 16;
@@ -27,8 +31,17 @@ const TRAIL_M = 90;
 /** The crackle is redrawn this often, each time somewhere else on the hull. */
 const SPARK_SECONDS = 0.09;
 const SPARKS = 3;
-/** How big each class's hull is as its layer draws it (exaggeration included), in metres: the crackle keeps on it. */
-export const HULL_M: Partial<Record<VehicleKind, number>> = { tank: 12, aa: 12, jeep: 7, helicopter: 14 };
+/** How big each class's frame is as its layer draws it (its sprite module's world size and exaggeration), in metres: the crackle keeps to its middle. */
+export const DRAWN_M: Partial<Record<VehicleKind, number>> = {
+  tank: TANK_WORLD_M * TANK_EXAGGERATION,
+  aa: AA_WORLD_M * AA_EXAGGERATION,
+  jeep: JEEP_WORLD_M * JEEP_EXAGGERATION,
+  helicopter: HELI_WORLD_M * HELI_EXAGGERATION,
+};
+/** The sparks keep within this share of the drawn frame from its centre (the hull, not the frame's empty margin) ... */
+const SPARK_REACH = 0.2;
+/** ... and each of their two jags is this share of it long, or up to twice that. */
+const SPARK_JAG = 0.075;
 
 export const EMP_SHEET: SpriteSheetSpec = {
   file: 'munitions/emp-missile.png',
@@ -97,20 +110,20 @@ function hash(...n: number[]) {
 }
 
 /**
- * The crackle on a vehicle the EMP holds (`id`, centred on `at`, `sizeM` across as drawn) at `seconds` (any running clock): a few
- * short jagged sparks, two segments each, inside its hull, redrawn every SPARK_SECONDS somewhere else.
+ * The crackle on a vehicle the EMP holds (`id`, centred on `at`, its frame `sizeM` across as drawn, `DRAWN_M`) at `seconds` (any
+ * running clock): a few short jagged sparks, two segments each, over its hull, redrawn every SPARK_SECONDS somewhere else.
  */
 export function crackle(id: number, at: Vec2, sizeM: number, seconds: number): Vec2[][] {
   const slot = Math.floor(seconds / SPARK_SECONDS);
   return Array.from({ length: SPARKS }, (_, k) => {
     const r = (i: number) => hash(id, slot, k, i);
-    const reach = sizeM * 0.32;
+    const reach = sizeM * SPARK_REACH;
     const a = 2 * Math.PI * r(0);
     let p = { x: at.x + Math.cos(a) * reach * r(1), y: at.y + Math.sin(a) * reach * r(1) };
     const pts = [p];
     let heading = 2 * Math.PI * r(2);
     for (let s = 0; s < 2; s++) {
-      const len = sizeM * (0.12 + 0.12 * r(3 + s));
+      const len = sizeM * SPARK_JAG * (1 + r(3 + s));
       heading += (r(5 + s) - 0.5) * 2.2; // a jag
       p = { x: p.x + Math.cos(heading) * len, y: p.y + Math.sin(heading) * len };
       const off = Math.hypot(p.x - at.x, p.y - at.y);

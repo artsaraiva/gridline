@@ -8,7 +8,7 @@
 import { dist2, inHq } from '../geometry';
 import { see } from '../memory';
 import { vehicleOf, type Mix } from '../state';
-import { high, live } from '../vehicles';
+import { high, hold, live } from '../vehicles';
 import { assetRadio, type Kind } from './core';
 
 export const emp: Kind = {
@@ -35,10 +35,10 @@ export const emp: Kind = {
       const r = t.empRadiusM;
       // anything that flies as high as the jet is out of reach (cancelling a UAV is #57's); nothing reaches into an HQ, as nothing fires into one
       const hit = m.vehicles.filter((v) => live(v) && !high(v) && dist2(v, e) <= r * r && !inHq(m, v.side, v));
-      for (const v of hit) v.disabledUntil = Math.max(v.disabledUntil, e.until);
+      for (const v of hit) hold(v, e.until);
       e.found = hit.filter((v) => v.side !== e.side).map((v) => v.id);
       const n = e.found.length;
-      assetRadio(m, e, `EMP effective, ${n ? `${n} vehicle${n > 1 ? 's' : ''}` : 'no vehicles'}`, events); // the enemy's alone: the caller's own show held on its map
+      assetRadio(m, e, `EMP effective, ${n ? `${n} vehicle${n > 1 ? 's' : ''}` : 'no vehicles'}`, events); // it counts the enemy's vehicles alone: the caller's own show held on the caller's map
     }
     if (m.tick - e.land! >= Math.round(t.barrageContactSeconds * t.hz)) return;
     for (const sq of m.squads) if (sq.side === e.side) for (const v of e.found!.map((id) => vehicleOf(m, id)!)) if (live(v)) see(m, sq, v);

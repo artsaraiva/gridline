@@ -23,7 +23,7 @@ const ROWS: { key: string; asset: AssetKind; name: string; icon: string }[] = [
   { key: 'O', asset: 'recon', name: 'Recon Plane', icon: icon(RECON_ICON) },
   { key: 'P', asset: 'beacon', name: 'Redeploy Beacon', icon: icon(BEACON_ICON) }, // #142: at the end of the row until #147 lays it out for 13
   { key: 'A', asset: 'rapid', name: 'Rapid Deploy', icon: icon(RAPID_ICON) },
-  { key: 'S', asset: 'emp', name: 'EMP Strike', icon: icon(EMP_ICON) }, // #143: the thirteenth and twelfth
+  { key: 'S', asset: 'emp', name: 'EMP Strike', icon: icon(EMP_ICON) }, // #143: the twelfth and thirteenth
   { key: 'D', asset: 'feint', name: 'Feint', icon: icon(FEINT_ICON) },
 ];
 

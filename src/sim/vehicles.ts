@@ -168,6 +168,8 @@ const fresh = (m: Match, side: SideId, kind: VehicleKind, slot: Vec2) => ({
 
 /** #143: an EMP Strike holds `v`: it neither moves (a helicopter hangs where it is in the air) nor fires, nor does a helicopter change its job. Its riders are untouched. */
 export const held = (m: Match, v: Vehicle) => m.tick < v.disabledUntil;
+/** #143: an EMP Strike holds `v` until the tick `until`; a second one over it holds it as long as the later says. */
+export const hold = (v: Vehicle, until: number) => void (v.disabledUntil = Math.max(v.disabledUntil, until));
 
 /**
  * The first fresh vehicles (#154: map data). Each Side's HQ tanks, jeeps (#108) and helicopters (#109), then the vehicles each

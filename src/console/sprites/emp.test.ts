@@ -53,7 +53,7 @@ describe('EMP Strike burst', () => {
     expect(now).toHaveLength(3);
     for (const spark of now) {
       expect(spark).toHaveLength(3);
-      for (const p of spark) expect(Math.hypot(p.x - at.x, p.y - at.y)).toBeLessThanOrEqual(19 * 0.32 + 1e-9);
+      for (const p of spark) expect(Math.hypot(p.x - at.x, p.y - at.y)).toBeLessThanOrEqual(19 * 0.2 + 1e-9);
     }
     expect(crackle(7, at, 19, 3.01)).toEqual(now);
     expect(crackle(7, at, 19, 3.2)).not.toEqual(now);
