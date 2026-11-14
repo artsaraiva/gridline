@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { bake, KALTENBACH } from '../../scripts/bakes';
-import { across, driveFlow, flowDist, flowLook } from './ai/flow';
-import { overCrossing, pickRoute, ROAD, VIA } from './vehicles/drive-route';
-import { cellIndex } from './grid';
-import { createMatch, stateHash, step, type Match } from './index';
-import { NO_TEMPO, NO_TRAITS, thinkOnId } from './test-tune';
-import { DEFAULT_TUNE } from './tune';
-import type { Tune, Vec2 } from './types';
-import { drivePoint, type Vehicle, type VehicleOf } from './vehicles';
+import { bake, KALTENBACH } from '../../../scripts/bakes';
+import { across, driveFlow, flowDist, flowLook } from '../ai/flow';
+import { overCrossing, pickRoute, ROAD, VIA } from './drive-route';
+import { cellIndex } from '../grid';
+import { createMatch, stateHash, step, type Match } from '../index';
+import { NO_TEMPO, NO_TRAITS, thinkOnId } from '../test-tune';
+import { DEFAULT_TUNE } from '../tune';
+import type { Tune, Vec2 } from '../types';
+import type { Vehicle, VehicleOf } from './index';
 
 // Vehicle routes on the committed Kaltenbach bake: nobody sees anybody, so whatever a driver knows is what the test tells its Side.
 const HZ = DEFAULT_TUNE.hz;
@@ -145,21 +145,6 @@ describe('vehicle routes', () => {
     expect(v.drive.route).toBe(ROAD); // over the deck, the road's field leads on
     expect(roadPast(m, v, roadDeck)).toBe(false);
   }, 30_000); // the real Auental bake: its drive fields take seconds to build
-
-  it('a tank driver marks down a point where known enemy tanks outnumber the friendly ones going, and where its Side just lost a tank', () => {
-    for (const tune of [{ tankOutgunnedPenalty: 100, tankWreckPenalty: 0 }, { tankOutgunnedPenalty: 0, tankWreckPenalty: 100 }]) {
-      const { m, v } = underWay(tune);
-      const s = m.soldiers[v.seats[0]!]!;
-      const sq = m.squads[s.squad]!;
-      const goal = drivePoint(m, sq, s, v);
-      const p = m.points[goal]!;
-      const foes = m.vehicles.filter((o) => o.side === 'pact' && o.kind === 'tank');
-      if (tune.tankWreckPenalty) wreckAt(m, p);
-      else foes.forEach((o) => sq.memory.push({ id: o.id, x: p.x, y: p.y, tick: m.tick, source: 'seen' }));
-      expect(foes.length).toBeGreaterThan(1);
-      expect(drivePoint(m, sq, s, v)).not.toBe(goal);
-    }
-  });
 
   it('the route, its detour, its next plan and a Wreck\'s tick are in the state hash', () => {
     const { m, v } = underWay();

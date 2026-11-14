@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { commanderView, createMatch, step, type Match } from './index';
 import { canStand } from './geometry';
-import { jump } from './vehicles';
+import { jump, leave } from './vehicles';
+import { crew, vehicle } from './test-scene';
 import { DEFAULT_TUNE } from './tune';
 import { NO_TEMPO, NO_TRAITS, thinkOnId } from './test-tune';
 import type { CommanderView, MapData, SimEvent, Tune } from './types';
@@ -25,13 +26,10 @@ function scene(tune: Partial<Tune> = {}, map: Partial<MapData> = {}): Match {
   return m;
 }
 
-/** Nato's helicopter hovers at the origin with Soldiers 0 (pilot) and 1..3 aboard. */
+/** Nato's helicopter hovers at the origin with Soldiers 0 (pilot) and 1..3 (passengers) aboard. */
 function airborne(m: Match, hp: number) {
-  const h = m.vehicles[0]!;
-  Object.assign(h, { x: 0, y: 0, airborne: true, parked: false, hp, seats: [0, 1, 2, 3] });
-  for (const id of [0, 1, 2, 3]) Object.assign(m.soldiers[id]!, { x: 0, y: 0, vehicle: h.id });
-  Object.assign(m.soldiers[0]!, { crew: true, crewUntil: 1e9 }); // #129: the pilot is crew, who stay aboard
-  return h;
+  const h = crew(m, vehicle(m, 'helicopter'), [[0, 0], 1, 2, 3], { x: 0, y: 0 }); // #129: the pilot is crew, who stay aboard
+  return Object.assign(h, { airborne: true, parked: false, hp });
 }
 
 const run = (m: Match, ticks: number) => {
@@ -50,7 +48,7 @@ describe('#130 parachute jump', () => {
     const jumpedAt = views.findIndex((v) => friend(v, 1).chute !== undefined);
     expect(jumpedAt).toBeGreaterThanOrEqual(0);
     expect(friend(views[jumpedAt]!, 0).chute).toBeDefined(); // #131: under a third everyone aboard jumps, the pilot too (it was the one who stayed)
-    expect(h.seats).toEqual([-1, -1, -1, -1]);
+    expect(h.seats).toEqual([-1, -1, -1, -1, -1, -1]);
     const landedAt = views.findIndex((v, i) => i > jumpedAt && friend(v, 1).chute === undefined);
     expect((landedAt - jumpedAt) / HZ).toBeCloseTo(T.chuteSeconds, 0);
     const spots = [1, 2, 3].map((id) => m.soldiers[id]!);
@@ -66,7 +64,7 @@ describe('#130 parachute jump', () => {
     const m = scene();
     const h = airborne(m, T.heliHp);
     run(m, 3 * HZ);
-    expect(h.seats).toEqual([0, 1, 2, 3]);
+    expect(h.seats).toEqual([0, -1, -1, 1, 2, 3]);
   });
 
   it('the descent progress runs from 0 to 1', () => {
@@ -95,7 +93,8 @@ describe('#130 parachute jump', () => {
     airborne(m, T.heliHp);
     jump(m, m.soldiers[1]!);
     Object.assign(m.soldiers[1]!, { fx: -1, fy: 0 });
-    Object.assign(m.soldiers[0]!, { x: 500, y: 500, vehicle: -1 });
+    leave(m, m.soldiers[0]!);
+    Object.assign(m.soldiers[0]!, { x: 500, y: 500 });
     Object.assign(m.soldiers[4]!, { x: -120, y: 0, fx: 1, fy: 0 });
     const { events } = run(m, 4 * HZ);
     expect(events.some((e) => e.kind === 'shot' && e.from === 1)).toBe(false);

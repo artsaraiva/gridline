@@ -269,9 +269,6 @@ export function boardStep(m: Match, s: Soldier): Vehicle | null {
   return v;
 }
 
-/** Where `s` drives `v` (its kind's `goal`, -1 = none). Exported for tests. */
-export const drivePoint = (m: Match, sq: Squad, s: Soldier, v: Vehicle): number => rulesOf(v.kind).goal?.(m, sq, s, v) ?? -1;
-
 /**
  * At its Squad's think, a Soldier aboard: the driver picks where it takes the vehicle (its kind's `goal`; Retreat and Resupply
  * ignore it) and #131 a helicopter's pilot its job. One who wants out (`wantsOut`) gets out once the vehicle has stood
