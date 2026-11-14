@@ -25,6 +25,12 @@ export const BEACON_ICON = '<path d="M8.5 16.5h7v4.5h-7z"/><path d="M12 16.5V7.2
 /** #142: Rapid Deploy: a stopwatch with two chevrons running through it. */
 export const RAPID_ICON = '<circle cx="12" cy="13.5" r="7.8"/><path d="M12 3v2.2M9.8 3h4.4"/><path d="M8.4 10.5l3 3-3 3M12.6 10.5l3 3-3 3"/>';
 
+/** #136: the Mark: a filled diamond with a "?" cut out of it (console.css fills the text with the cell's ground). */
+export const MARK_ICON = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2 22 12 12 22 2 12Z"/><text x="12" y="16.6" text-anchor="middle" font-size="13" font-weight="700">?</text></svg>';
+
+/** A Capture Point's APP-6 frame on a 28 px viewBox, by who holds it: a square for own, a diamond for enemy, a circle for neutral. */
+export const POINT_FRAME = { fr: '<rect x="3" y="3" width="22" height="22"/>', ho: '<path d="M14 0.5 27.5 14 14 27.5 0.5 14z"/>', ne: '<circle cx="14" cy="14" r="11.5"/>' };
+
 const PATHS: Record<AssetKind, string> = {
   scan: '<path d="M12 2.5v18.5M2.5 11l9.5-1.8 9.5 1.8M8.3 19.8h7.4"/><circle cx="12" cy="9.4" r="1.1" fill="currentColor"/>',
   supply: '<path d="M3.5 10a8.5 6.5 0 0 1 17 0Zm0 0 6.3 5.6m10.7-5.6-6.3 5.6M12 10v5.6"/><path d="M8.6 15.6h6.8v5.4H8.6z"/><path d="M8.6 18.3h6.8"/>',

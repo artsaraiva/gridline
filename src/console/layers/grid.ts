@@ -18,6 +18,7 @@ const curEl = document.getElementById('cur')!;
 const FONT = (weight: number, px: number) => `${weight} ${px}px 'Chakra Petch', ui-monospace, monospace`;
 const CHROME = (a: number) => `rgba(232, 226, 200, ${a})`;
 const LABEL_GAP = 13; // px from the map's edge to its labels
+const LABEL_HALF = 8; // about half a label's size, from its centre
 
 let cw = 0;
 let ch = 0;
@@ -101,9 +102,11 @@ export function drawGrid(view: CommanderView | null) {
     }
 
     // 3. Grid letters and numbers on the map's own edges, in the space `fitView` leaves for them. An edge that is off
-    // screen pins them to a fixed line: letters under the score strip, numbers right of the Asset rail.
+    // screen pins them to a fixed line: letters under the score strip, numbers at the left edge of the frame. #181: a label
+    // that would fall under the Asset keypad is not drawn; the cursor readout still names the square.
     const ly = Math.max(tl.y - LABEL_GAP, LAYOUT.top - LABEL_GAP);
-    const lx = Math.max(tl.x - LABEL_GAP, LAYOUT.margin + LAYOUT.assetRail + LABEL_GAP);
+    const lx = Math.max(tl.x - LABEL_GAP, LAYOUT.margin + LAYOUT.column + LABEL_GAP);
+    const underPad = (x: number, y: number) => x - LABEL_HALF < LAYOUT.margin + LAYOUT.pad.w && y - LABEL_HALF < LAYOUT.margin + LAYOUT.pad.h;
     ctx.save();
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'center';
@@ -113,11 +116,11 @@ export function drawGrid(view: CommanderView | null) {
     ctx.font = FONT(700, 13);
     for (let i = 0; i < g.cols; i++) {
       const sx = toScreen({ x: -halfW + (i + 0.5) * g.squareM, y: 0 }).x;
-      if (sx > lx + 10 && sx < W - LAYOUT.margin - LAYOUT.squadRail - 10) ctx.fillText(g.letters[i]!, sx, ly);
+      if (sx > lx + 10 && sx < W - LAYOUT.margin - LAYOUT.squadRail - 10 && !underPad(sx, ly)) ctx.fillText(g.letters[i]!, sx, ly);
     }
     for (let j = 0; j < g.rows; j++) {
       const sy = toScreen({ x: 0, y: halfH - (j + 0.5) * g.squareM }).y;
-      if (sy > ly + 10 && sy < H - 8) ctx.fillText(String(j + 1), lx, sy);
+      if (sy > ly + 10 && sy < H - 8 && !underPad(lx, sy)) ctx.fillText(String(j + 1), lx, sy);
     }
     ctx.restore();
   }

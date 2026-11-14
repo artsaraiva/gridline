@@ -136,7 +136,7 @@ _Avoid_: Taxi, evac, air drop
 A jet's round of passes from its Side's off-map base: each pass is an attack run at an enemy its Side knows near the Capture Point its pilot picks, its cannon raking the last stretch before it (a bomb on a vehicle or a group, while it has bombs), then it climbs out past the Play Area and turns for the next; an enemy jet met in the air is fought first; after the last pass it flies home and rearms with its pilot aboard.
 _Avoid_: Strafing Run (the Commander Asset), attack run, mission
 
-**Support**:
+**Support (helicopter job)**:
 The helicopter job of circling a Capture Point where any friendly Squad knows enemies, so its side-gun gunners fire on them; the helicopter never circles without a gunner aboard. With nothing else to do it waits on its helipad.
 _Avoid_: Gunship run, patrol, strafing
 
@@ -180,6 +180,10 @@ _Avoid_: Missile strike, rocket, tomahawk
 The Strike that flies slowly over the battlefield for a while in wide turns, over the enemies its Side knows, reveals the ones under it as Contacts and shells them from the air. The Commander gives it a focus, the spot it works round, and may move that while it flies. Soldiers coming back may spawn aboard it: as its gunner, or to parachute down as it passes their goal.
 _Avoid_: AC-130, Spooky, air support
 
+**Recon**:
+An Asset that reveals enemies and harms nobody, such as the Scan UAV and the Recon Plane.
+_Avoid_: Intel, scouting
+
 **Scan UAV**:
 The Asset that circles a chosen spot for a short time and reveals every enemy near it as a Contact, then as a Last Known Position.
 _Avoid_: Drone, recon, radar
@@ -212,6 +216,14 @@ _Avoid_: Concealment, cover, obscurant
 The Screen that lays a wall of smoke along a line the Commander drew, with a start and a direction. While it stands, nobody on the ground sees through it or into it, from either Side; anything in the air sees through it, and suppressive fire still crosses it.
 _Avoid_: Smoke, smoke grenade, smokescreen
 
+**Denial**:
+An Asset that takes something from the enemy without killing, such as the EMP Strike (their vehicles) or the Feint (their certainty).
+_Avoid_: Disruption, debuff, electronic warfare
+
+**Support (Asset)**:
+An Asset that helps the Commander's own Squads, such as the Supply Drop, the Redeploy Beacon and Rapid Deploy.
+_Avoid_: Logistics, reinforcement
+
 **Redeploy Beacon**:
 The Asset that drops a crate with a mast and a blinking light at a chosen spot; while it stands, a wiped Squad of its side whose Order point or goal it is nearer than any held Capture Point and the HQ Redeploys there, unless a living enemy Soldier stands near it. One per side: a new one replaces the old.
 _Avoid_: Spawn beacon, rally point, forward spawn, squad beacon
@@ -219,6 +231,10 @@ _Avoid_: Spawn beacon, rally point, forward spawn, squad beacon
 **Rapid Deploy**:
 The Asset with no target that, for a while, has every Squad of the Commander's side Squad Respawn and Redeploy in half the time.
 _Avoid_: Reinforce, fast respawn, reinforcements
+
+**Standing action**:
+A Commander action with no cooldown and no Confirm, such as the Mark.
+_Avoid_: Free action, ability, Asset (for the Mark)
 
 **Mark**:
 A spot the Commander flags as a suspected enemy position. It joins what the Side knows, so every Squad, Elite or not, treats it as one: an own Capture Point near it counts as threatened, the helicopter lands away from it, and a Squad taking fire from an enemy it cannot see fires at it. It never shows an enemy and never changes an Order. It fades by itself, the Commander can renew or clear it, and a friendly Soldier who checks the spot and finds nobody clears it.
