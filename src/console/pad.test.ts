@@ -1,14 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import type { AssetKind, AssetView, CommanderView, EffectView, PointView, SideId, SquadView } from '../sim/types';
+import { ASSET_KINDS, type AssetKind, type AssetView, type CommanderView, type EffectView, type PointView, type SideId, type SquadView } from '../sim/types';
 import { assetLook, atWork, callable, keystonesMissing, markCount, PAD, PAD_SIZE, ruler } from './pad';
 
-/** Every AssetKind: TypeScript fails this table when one is added or dropped, so a new Asset can't miss the pad. */
-const KINDS: Record<AssetKind, true> = { scan: true, supply: true, barrage: true, missile: true, gunship: true, smoke: true, creep: true, drone: true, recon: true, beacon: true, rapid: true, emp: true, feint: true };
-
 describe('the Asset keypad (#181)', () => {
+  // #184: ASSET_TABLE is total over AssetKind, so the typecheck gives every Asset a key; this holds that key on the pad, and the Asset's alone
   it('gives every AssetKind exactly one cell', () => {
-    for (const k of Object.keys(KINDS)) expect(PAD.filter((c) => c.calls === k), k).toHaveLength(1);
-    expect(PAD.filter((c) => c.calls && c.calls !== 'mark')).toHaveLength(Object.keys(KINDS).length);
+    for (const k of ASSET_KINDS) expect(PAD.filter((c) => c.calls === k), k).toHaveLength(1);
+    expect(PAD.filter((c) => c.calls && c.calls !== 'mark')).toHaveLength(ASSET_KINDS.length);
   });
 
   it('is three bands of five on the keyboard rows, every key once', () => {
