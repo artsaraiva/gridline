@@ -22,6 +22,7 @@ export const supply: Kind<SupplyEffect> = {
   landsIn: (m, e) => Math.max(0, (e.until - m.tick - stayTicks(m)) / m.tune.hz),
   fall: (t) => t.supplyFallSeconds,
   start: (m, base) => ({ ...base, asset: 'supply', given: {}, open: {} }),
+  answers: { request: 'supply', at: (m, e) => (landed(m, e) ? e : null) }, // once the crate has landed
   work(m, e, events) {
     if (!landed(m, e)) return;
     if (e.until - m.tick === stayTicks(m)) assetRadio(m, e, 'Supply Drop landed', events);

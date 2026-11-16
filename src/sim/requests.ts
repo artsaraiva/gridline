@@ -1,15 +1,14 @@
 // Requests (#41): a Squad asks the Commander for an Asset at a Grid Reference. One open Request per Squad; it lives
-// `requestSeconds`, then expires, or closes when a matching Asset of the Side has landed near its grid. A Squad asks only
-// from what it knows (what it sees, what it heard, its own ammo) and may ask for an Asset that is cooling down.
-// The phase draws no random numbers, so replays stay the same.
-import { landed } from './assets/crate';
+// `requestSeconds`, then expires, or closes when a matching Asset of the Side has arrived near its grid (each kind that answers
+// one says where, assets/core.ts `answers`). A Squad asks only from what it knows (what it sees, what it heard, its own ammo)
+// and may ask for an Asset that is cooling down. The phase draws no random numbers, so replays stay the same.
 import type { Match } from './index';
-import type { Effect } from './assets/core';
+import { answering } from './assets/core';
 import { dist2 } from './geometry';
 import { gridCentre, gridRef } from './grid-ref';
-import { elite, membersOf, vehicleOf, wiped, type Mix, type Squad } from './state';
+import { elite, membersOf, wiped, type Mix, type Squad } from './state';
 import { inSky } from './vehicles';
-import { REQUEST_KINDS, type AssetKind, type RequestKind, type SideId, type SimEvent, type SquadView, type Vec2 } from './types';
+import { REQUEST_KINDS, type RequestKind, type SideId, type SimEvent, type SquadView, type Vec2 } from './types';
 
 /** An open Request: the Asset it asks for, the centre of the grid square it names, and the tick it expires. */
 export interface Request {
@@ -19,15 +18,11 @@ export interface Request {
 }
 
 const WORDS: Record<RequestKind, string> = { supply: 'supplies', barrage: 'fire support', scan: 'recon' };
-/** #139: the Assets that answer each Request. */
-const ANSWERS: Record<RequestKind, AssetKind[]> = { supply: ['supply'], barrage: ['barrage', 'drone'], scan: ['scan', 'recon'] };
 
-/** A matching Asset of `side` has arrived near `at`: the crate has landed, a shell has, the UAV is on station. */
+/** An Asset of `side` that answers `asset` has arrived near `at`: the crate has landed, a shell has, the UAV is on station (#139: a Drone Strike has hit, a Recon Plane passes near). */
 function answered(m: Match, side: SideId, asset: RequestKind, at: Vec2) {
   const r = m.tune.requestCloseM;
-  // #139: a Drone Strike that has hit answers "fire support" as a shell does; a Recon Plane answers "recon" as it passes near (neither once shot down)
-  const there = (e: Effect) => (e.asset === 'supply' ? landed(m, e) : e.asset === 'barrage' ? e.shells.some((s) => s.done) : e.asset === 'drone' ? e.told : e.asset !== 'recon' || e.phase !== 'down');
-  return m.assets.effects.some((e) => e.side === side && ANSWERS[asset].includes(e.asset) && dist2(e.asset === 'recon' ? vehicleOf(m, e.vehicle)! : e, at) <= r * r && there(e));
+  return answering(m, side, asset).some((p) => dist2(p, at) <= r * r);
 }
 
 /** What `sq` needs and where, or null: Fire support when most are suppressed by enemies it sees, Recon when any is under fire it can't place, else Supplies. */

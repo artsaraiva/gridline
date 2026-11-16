@@ -7,7 +7,7 @@ import { provideContacts } from '../contacts';
 import { gridRef } from '../grid-ref';
 import type { Mix } from '../state';
 import type { Soldier } from '../state';
-import { ASSET_KINDS, enemyOf, SIDES, type AssetKind, type AssetView, type Command, type EffectView, type SideId, type SimEvent, type Tune, type Vec2 } from '../types';
+import { ASSET_KINDS, enemyOf, SIDES, type AssetKind, type AssetView, type Command, type EffectView, type RequestKind, type SideId, type SimEvent, type Tune, type Vec2 } from '../types';
 import { barrage, type BarrageEffect, type Shell } from './barrage';
 import { beacon, type BeaconEffect } from './beacon';
 import { creep, type CreepEffect } from './creep';
@@ -104,6 +104,11 @@ export interface Kind<E extends Effect> {
   // #39: a kind that falls before it works says how long the fall has left and takes in all
   landsIn?(m: Match, e: E): number;
   fall?(t: Tune): number;
+  /**
+   * #41: it answers a Squad's `request` (requests.ts): `at` is where it does right now, a Request near that spot closes, or null
+   * while it does not yet (#139: or no more). #182: in place of requests.ts's table and its switch on the kind.
+   */
+  answers?: { request: RequestKind; at(m: Match, e: E): Vec2 | null };
   /** #101: `side`'s effect of this kind that a call now moves rather than starting another (no cooldown, no gate), if there is one; with `at`, moves it there. */
   retask?(m: Match, side: SideId, at?: Vec2): E | undefined;
   /** #138: it is line-shaped: the call carries a second tap, and the effect a line this long from the first towards it. #139: `across`: the line runs through the first tap right across the Play Area and `beyond` metres past each edge (the effect's `from` and `to`). */
@@ -204,6 +209,17 @@ export function call(m: Match, c: Extract<Command, { kind: 'asset' }>, events: S
 export function assetEffects(m: Match, events: SimEvent[]) {
   for (const e of m.assets.effects) kindOf(e).work(m, e, events);
   m.assets.effects = m.assets.effects.filter((e) => e.until > m.tick + 1);
+}
+
+/** #41: where `side`'s Assets answer a `request` Request right now (requests.ts closes one near any of them). */
+export function answering(m: Match, side: SideId, request: RequestKind): Vec2[] {
+  const out: Vec2[] = [];
+  for (const e of m.assets.effects) {
+    const a = kindOf(e).answers;
+    const at = e.side === side && a?.request === request ? a.at(m, e) : null;
+    if (at) out.push(at);
+  }
+  return out;
 }
 
 /** Enemies of `side` its Assets show as Contacts right now. */

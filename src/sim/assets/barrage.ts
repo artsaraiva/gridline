@@ -35,6 +35,7 @@ export const barrage: Kind<BarrageEffect> = {
   firstReadySeconds: (t) => t.barrageCooldownSeconds, // starts on cooldown, so the opening rush can't be shelled
   seconds: (t) => t.barrageWarningSeconds + (t.barrageShells > 1 ? t.barrageSpanSeconds : 0) + t.barrageFlightSeconds + t.barrageContactSeconds,
   radius: zone,
+  answers: { request: 'barrage', at: (m, e) => (e.shells.some((s) => s.done) ? e : null) }, // once a shell has landed
 
   start(m, base) {
     const t = m.tune;

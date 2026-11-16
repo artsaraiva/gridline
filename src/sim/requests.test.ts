@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { commanderEvents, commanderView, createMatch, step, type Match } from './index';
 import { DEFAULT_TUNE } from './tune';
+import { vehicle } from './test-scene';
 import type { Command, MapData, SimEvent, SquadView, Tune } from './types';
 
 const HZ = DEFAULT_TUNE.hz;
@@ -214,5 +215,31 @@ describe('Request closes', () => {
     expect(request(f)).not.toBeNull(); // 613 m from the HQ at 45 m/s: 13.6 s
     run(f, 1 * HZ);
     expect(request(f)).toBeNull();
+  });
+
+  it('#182: a Drone Strike shot down on its way never closes Fire support', () => {
+    const f = scene(SEEN, { tune: { droneCooldownSeconds: 0 } });
+    run(f, 1);
+    const spot = request(f)!.at;
+    run(f, 6 * HZ, [asset(f, 'drone', spot)]);
+    Object.assign(vehicle(f, 'drone'), { hp: 0, deadAt: f.tick }); // the enemy AA's last hit, as vehicles/core.ts `hurt` leaves it
+    const lines = run(f, 10 * HZ); // well past the 13.6 s it would have flown
+    expect(lines).toContainEqual(expect.objectContaining({ kind: 'radio', text: 'Drone lost' }));
+    expect(request(f)).toMatchObject({ asset: 'barrage' });
+  });
+
+  it('#182: a Recon Plane shot down over the grid never answers Recon: the Squad asks beside where it fell, and the Request stays open', () => {
+    const r = scene({ 0: { x: 10, y: 10 } });
+    run(r, 1, [asset(r, 'recon', { x: 50, y: 300 }, { x: 50, y: 350 })]); // a pass along x = 50, from the north edge
+    const plane = vehicle(r, 'recon');
+    while (plane.y < 30) run(r, 1); // over G6, nobody asking yet
+    Object.assign(plane, { hp: 0, deadAt: r.tick });
+    expect(run(r, 1)).toContainEqual(expect.objectContaining({ kind: 'radio', text: 'Recon lost' }));
+    Object.assign(r.soldiers[0]!, { suppression: 0.9 }); // under fire it cannot place, as a map script would have it
+    run(r, 1);
+    expect(request(r)).toMatchObject({ asset: 'scan', grid: 'G6' });
+    expect(Math.sqrt((plane.x - 50) ** 2 + (plane.y - 50) ** 2)).toBeLessThan(DEFAULT_TUNE.requestCloseM); // it lies inside the close radius
+    run(r, 2 * HZ);
+    expect(request(r)).toMatchObject({ asset: 'scan' });
   });
 });

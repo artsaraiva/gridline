@@ -18,6 +18,7 @@ export const scan: Kind<ScanEffect> = {
   seconds: (t) => t.scanSeconds,
   radius: (t) => t.scanRadiusM,
   start: (m, base) => ({ ...base, asset: 'scan' }),
+  answers: { request: 'scan', at: (m, e) => e }, // on station from its call
   work(m, e, events) {
     const t = m.tune;
     const r = t.scanRadiusM;

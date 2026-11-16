@@ -28,6 +28,7 @@ export const recon: Kind<ReconEffect> = {
   radius: (t) => t.reconStripM,
   line: (t) => ({ length: 0, width: 2 * t.reconStripM, across: true, beyond: BEYOND_M }),
   gate: (m, side) => inTheAir(m, side, 'recon'),
+  answers: { request: 'scan', at: (m, e) => (e.phase === 'down' ? null : vehicleOf(m, e.vehicle)!) }, // #139: "recon" as it passes near (never once shot down)
 
   start(m, base, { from, to }) {
     const t = m.tune;

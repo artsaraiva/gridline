@@ -23,6 +23,7 @@ export const drone: Kind<DroneEffect> = {
   seconds: (t) => t.barrageContactSeconds, // the flight is added at the call, by distance
   radius: (t) => t.droneSuppressM,
   gate: (m, side) => inTheAir(m, side, 'drone'), // on a map wider than its cooldown flies, the next waits for this one
+  answers: { request: 'barrage', at: (m, e) => (e.told ? e : null) }, // #139: "fire support", as a shell does, once it has hit (never once shot down)
 
   start(m, base) {
     const t = m.tune;
