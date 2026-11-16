@@ -26,7 +26,7 @@ Baked sprites are Blender renders under `assets/` packed into sheets under `publ
 
 ## Console (`src/console`)
 
-- Text on the Console uses `GLOSSARY.md` terms as written there.
+- Text on the Console uses `GLOSSARY.md` terms as written there. The one exception is an Asset's map label (`label` in `src/console/asset-table.ts`): BARRAGE, MISSILE and BEACON keep the short names the map has always shown. An Asset's name and map label are read from that table, never written again elsewhere.
 - Pure formatters (`summary.ts`) carry a unit test; DOM code stays thin and untested.
 
 ## Commits and PRs

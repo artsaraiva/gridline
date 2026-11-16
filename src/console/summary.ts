@@ -1,17 +1,18 @@
 import { gridRef } from '../sim/grid-ref';
-import { enemyOf, type CommanderView, type FriendlyView, type MapGrid, type SideId, type SimEvent, type SquadView, type Vec2 } from '../sim/types';
+import { enemyOf, type CommanderView, type FriendlyView, type MapGrid, type ScoreCategory, type SideId, type SimEvent, type SquadView, type Vec2 } from '../sim/types';
+import { ASSET_TABLE } from './asset-table';
 
 export const FACTION: Record<SideId, string> = { nato: 'NATO', pact: 'Warsaw Pact' };
 
 export const clock = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
-/** #72: the Commander Score categories in end-screen order, labelled by Asset name (as the rail shows them) or Orders. */
-const SCORE_ROWS = [
-  ['uav', 'Scan UAV'],
-  ['supply', 'Supply Drop'],
-  ['artillery', 'Artillery Barrage'],
+/** #72: the Commander Score categories in end-screen order, each labelled by the Asset that earns it (#184: its name in ASSET_TABLE, as the pad shows it) or Orders. */
+const SCORE_ROWS: readonly (readonly [ScoreCategory, string])[] = [
+  ['uav', ASSET_TABLE.scan.name],
+  ['supply', ASSET_TABLE.supply.name],
+  ['artillery', ASSET_TABLE.barrage.name],
   ['orders', 'Orders'],
-] as const;
+];
 
 /** What the end screen shows, from the chosen Side's point of view. Call only once `view.result` is set. */
 export function endSummary(view: CommanderView) {

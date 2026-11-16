@@ -9,7 +9,8 @@
 // #143: so do the EMP Strike (layers/emp.ts) and the Feint (layers/feint.ts).
 import * as THREE from 'three/webgpu';
 import { gridRef } from '../../sim/grid-ref';
-import type { CommanderView, Vec2 } from '../../sim/types';
+import type { AssetKind, CommanderView, Vec2 } from '../../sim/types';
+import { ASSET_TABLE } from '../asset-table';
 import { COLOR, metresPerPx, pool, sideColor, toScreen } from '../renderer';
 import { session } from '../session';
 import { lastImpactAt } from './impacts';
@@ -20,7 +21,8 @@ import { css, dashedRing, fading, UNIT_PX } from './symbols';
 /** #101: how far the Gunship's focus mark reaches from its spot on screen (the Cruise Missile's target mark: a chevron unit). */
 export const FOCUS_MARK_PX = UNIT_PX;
 
-const NAME = { scan: 'Scan UAV', supply: 'Supply Drop', barrage: 'Barrage', missile: 'Missile', gunship: 'Gunship', smoke: 'Smoke Screen', creep: 'Creeping Barrage', drone: 'Drone Strike', recon: 'Recon Plane', beacon: 'Beacon', rapid: 'Rapid Deploy', emp: 'EMP Strike', feint: 'Feint' };
+/** #184: an Asset's map label as its tag writes it, from ASSET_TABLE. */
+const tag = (asset: AssetKind) => ASSET_TABLE[asset].label.toUpperCase();
 const discGeometry = new THREE.CircleGeometry(1, 96);
 /** The Barrage ring turns this fast while it works, so an ongoing strike reads at a glance. */
 const RING_TURN_RAD_PER_S = 0.25;
@@ -106,28 +108,28 @@ export function drawEffects(view: CommanderView, now: number) {
     if (e.asset === 'missile') continue; // #99: layers/missile.ts draws its marker, ring and line
     if (e.asset === 'gunship') {
       // layers/gunship.ts draws its focus mark; here the label beside it, to its own Commander, until it turns for home
-      if (e.left > 0 && e.side === view.side) label(tags++, e, FOCUS_MARK_PX + 4, -18, `GUNSHIP ${e.phase === 'inbound' ? 'INBOUND' : clock(Math.ceil(e.left))}`, css(sideColor(e.side)));
+      if (e.left > 0 && e.side === view.side) label(tags++, e, FOCUS_MARK_PX + 4, -18, `${tag(e.asset)} ${e.phase === 'inbound' ? 'INBOUND' : clock(Math.ceil(e.left))}`, css(sideColor(e.side)));
       continue;
     }
     if (e.asset === 'drone' || e.asset === 'recon') {
       // #139: layers/drone.ts and layers/recon.ts draw them; here the label, to its own Commander, while it flies: by the drone's impact mark, by the Recon Plane itself
       if (e.side !== view.side || !e.craft || e.lost) continue;
-      if (e.asset === 'drone') label(tags++, e, FOCUS_MARK_PX + 4, -18, `DRONE STRIKE IMPACT ${clock(Math.ceil(e.impactIn))}`, css(sideColor(e.side)));
-      else label(tags++, e.craft, 22, -34, `RECON PLANE ${clock(Math.ceil(e.left))}`, css(sideColor(e.side)));
+      if (e.asset === 'drone') label(tags++, e, FOCUS_MARK_PX + 4, -18, `${tag(e.asset)} IMPACT ${clock(Math.ceil(e.impactIn))}`, css(sideColor(e.side)));
+      else label(tags++, e.craft, 22, -34, `${tag(e.asset)} ${clock(Math.ceil(e.left))}`, css(sideColor(e.side)));
       continue;
     }
     if (e.asset === 'beacon') {
       // #142: layers/beacon.ts draws the case, its lamp and the deny ring; here the label, to its own Commander, hostile while the beacon is silenced
       if (e.side !== view.side) continue;
       const time = e.landsIn ? `LANDS ${clock(Math.ceil(e.landsIn))}` : e.contested ? 'CONTESTED' : clock(Math.ceil(e.left));
-      label(tags++, { x: e.x + 6, y: e.y + 6 }, 6, -18, `BEACON ${time}`, css(e.contested ? COLOR.hostile : COLOR.friendly));
+      label(tags++, { x: e.x + 6, y: e.y + 6 }, 6, -18, `${tag(e.asset)} ${time}`, css(e.contested ? COLOR.hostile : COLOR.friendly));
       continue;
     }
     if (e.asset === 'emp' || e.asset === 'feint') {
       // #143: layers/emp.ts and layers/feint.ts draw them; here the label, to its own Commander: the EMP's by its mark, counting to the burst and then its hold, the dummy's by it, counting to its landing and then its noise
       if (e.side !== view.side) continue;
-      if (e.asset === 'emp') label(tags++, e, FOCUS_MARK_PX + 4, -18, `EMP STRIKE ${e.burst === undefined ? `IMPACT ${clock(Math.ceil(e.impactIn))}` : clock(Math.ceil(e.left))}`, css(COLOR.friendly));
-      else label(tags++, { x: e.x + 6, y: e.y + 6 }, 6, -18, `FEINT ${e.landsIn ? `LANDS ${clock(Math.ceil(e.landsIn))}` : clock(Math.ceil(e.left))}`, css(COLOR.friendly));
+      if (e.asset === 'emp') label(tags++, e, FOCUS_MARK_PX + 4, -18, `${tag(e.asset)} ${e.burst === undefined ? `IMPACT ${clock(Math.ceil(e.impactIn))}` : clock(Math.ceil(e.left))}`, css(COLOR.friendly));
+      else label(tags++, { x: e.x + 6, y: e.y + 6 }, 6, -18, `${tag(e.asset)} ${e.landsIn ? `LANDS ${clock(Math.ceil(e.landsIn))}` : clock(Math.ceil(e.left))}`, css(COLOR.friendly));
       continue;
     }
     if (e.asset === 'smoke' || e.asset === 'creep') {
@@ -135,7 +137,7 @@ export function drawEffects(view: CommanderView, now: number) {
       const falling = !!e.impactIn || !!e.shells.length;
       const color = e.asset === 'creep' && e.side === view.side ? COLOR.hostile : sideColor(e.side); // the Creeping Barrage is a danger zone to its own Side too, as the Barrage's ring
       if (e.line && falling) stripAt(e, e.line.to, e.line.width, color, 0.06);
-      if (e.line && e.side === view.side) label(tags++, e.line.to, 8, -18, `${NAME[e.asset].toUpperCase()} ${e.impactIn ? `IMPACT ${clock(Math.ceil(e.impactIn))}` : clock(Math.ceil(e.left))}`, css(color));
+      if (e.line && e.side === view.side) label(tags++, e.line.to, 8, -18, `${tag(e.asset)} ${e.impactIn ? `IMPACT ${clock(Math.ceil(e.impactIn))}` : clock(Math.ceil(e.left))}`, css(color));
       continue;
     }
     const danger = e.asset === 'barrage';
@@ -149,7 +151,7 @@ export function drawEffects(view: CommanderView, now: number) {
       if (high) time = `LANDS ${clock(Math.ceil(e.landsIn))}`;
     }
     if (e.asset === 'barrage' && e.impactIn) time = `IMPACT ${clock(Math.ceil(e.impactIn))}`; // the Barrage counts down to its first shell
-    label(tags++, { x: e.x + e.radius * 0.72, y: e.y + e.radius * 0.72 }, 6, -18, `${NAME[e.asset].toUpperCase()} ${time}`, css(danger ? COLOR.hostile : COLOR.friendly));
+    label(tags++, { x: e.x + e.radius * 0.72, y: e.y + e.radius * 0.72 }, 6, -18, `${tag(e.asset)} ${time}`, css(danger ? COLOR.hostile : COLOR.friendly));
   }
   const at = targeting.armed && (targeting.spot ?? targeting.pointer);
   const radius = targeting.armed && view.assets?.find((a) => a.asset === targeting.armed)?.radius;
@@ -162,7 +164,7 @@ export function drawEffects(view: CommanderView, now: number) {
     const edge = mark ? at : { x: at.x + radius * 0.72, y: at.y + radius * 0.72 };
     const dx = mark ? FOCUS_MARK_PX + 4 : 6;
     const g = session.host?.map.grid;
-    label(tags++, edge, dx, -18, `${NAME[targeting.armed!].toUpperCase()} ${g ? gridRef(g, at) : ''}`, css(color));
+    label(tags++, edge, dx, -18, `${tag(targeting.armed!)} ${g ? gridRef(g, at) : ''}`, css(color));
     const near = nearestSquad(view, at);
     if (near) label(tags++, edge, dx, 2, `${near.name.toUpperCase()} ${Math.round(near.d)} M`, css(color));
   }
