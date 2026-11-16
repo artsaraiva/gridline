@@ -35,7 +35,8 @@ const bar = smoothstep(0.82, 0.91, roll).mul(float(1).sub(smoothstep(0.91, 1, ro
 const rolled = scanned.add(vec3(0.63, 0.86, 1).mul(bar.mul(0.08)));
 // static: coarse noise screened on, flickering with the burst
 const snow = rand(floor(screenUV.mul(screenSize).div(2)).add(fract(time.mul(7)))).mul(glitch).mul(step(0.35, rand(vec2(tick, 1.7))));
-const withStatic = mix(rolled, vec3(1), snow.mul(0.45));
+const exposure = uniform(0); // a blast's over-exposure, 0..1, warm
+const withStatic = mix(rolled, vec3(1), snow.mul(0.45)).add(vec3(1, 0.94, 0.82).mul(exposure));
 const feed = vignette(withStatic, float(0.7), float(0.6));
 
 const pipeline = new THREE.RenderPipeline(renderer, vec4(feed, 1));
@@ -49,11 +50,25 @@ let last = performance.now();
 export const burst = (k: number) => !calm && scheduler.burst(performance.now(), k);
 confirmed.push(() => burst(0.4));
 
-/** Renders the scene through the feed chain. */
-export function renderFeed() {
+/** A flare is gone this long after it starts. */
+const FLARE_MS = 120;
+let flared = { at: -Infinity, k: 0 };
+/** Over-exposes the whole feed by `k` (0..1) for a moment: a Cruise Missile's hit. */
+export const flare = (k: number) => {
+  if (!calm) flared = { at: performance.now(), k };
+};
+
+/** Renders the scene through the feed chain, the camera kicked up to `kick` metres off its place for this one render (a blast on screen): the chrome and the pointer's world position never move. */
+export function renderFeed(kick = 0) {
   const now = performance.now();
   if (!calm) scheduler.frame(now, now - last);
   last = now;
   glitch.value = scheduler.level(now);
+  exposure.value = flared.k * Math.max(0, 1 - (now - flared.at) / FLARE_MS);
+  const [dx, dy] = calm ? [0, 0] : [(Math.random() - 0.5) * 2 * kick, (Math.random() - 0.5) * 2 * kick];
+  camera.position.x += dx;
+  camera.position.y += dy;
   pipeline.render();
+  camera.position.x -= dx;
+  camera.position.y -= dy;
 }

@@ -1,12 +1,34 @@
 // Barrage impacts as baked sprites (#62): the explosion flipbook, then a smoke plume that drifts and fades, and a
-// crater decal that stays for the match. Fed by `impact` events; the sim says where, sprites/impact.ts says how it looks.
-import { pool } from '../renderer';
-import { CRATER_SHEET, EXPLOSION_SHEET, type ImpactAsset, type ImpactRecord, type ImpactSprite, impactLook, recordImpact } from '../sprites/impact';
+// crater decal that stays for the match. Round the flipbook, the blast layers: a white flash and the light it throws, a
+// shock ring, debris and embers, dust, a scorch whose heat cools, and a kick of the camera (`impactKick`, applied by main.ts).
+// Fed by `impact` events; the sim says where, sprites/impact.ts says how it looks.
+import * as THREE from 'three/webgpu';
+import { metresPerPx, pool, toScreen } from '../renderer';
+import { CRATER_SHEET, EXPLOSION_SHEET, type ImpactAsset, type ImpactGlow, type ImpactRecord, type ImpactSprite, impactLook, recordImpact } from '../sprites/impact';
 import { spriteMesh } from '../sprites/sheet';
 import { SMOKE_PUFF_SHEET } from '../sprites/smoke-puff';
+import { soft, softRing, streak } from './symbols';
 
 const pools = { crater: pool(() => spriteMesh(CRATER_SHEET)), explosion: pool(() => spriteMesh(EXPLOSION_SHEET)), plume: pool(() => spriteMesh(SMOKE_PUFF_SHEET)) };
-const Z = { crater: 0.3, plume: 0.62, explosion: 0.66 };
+const quad = new THREE.PlaneGeometry(1, 1);
+const HOT = new THREE.Color(0xffe6aa);
+const DULL = new THREE.Color(0xff7828);
+const glows = {
+  scorch: pool(() => new THREE.Mesh(quad, soft(0x060504, { dark: true }))),
+  heat: pool(() => new THREE.Mesh(quad, soft(0xff7828))),
+  dust: pool(() => new THREE.Mesh(quad, soft(0xbeb4a0, { glow: false }))),
+  light: pool(() => new THREE.Mesh(quad, soft(0xffce8c))),
+  flash: pool(() => new THREE.Mesh(quad, soft(0xfffcf0))),
+  ring: pool(() => new THREE.Mesh(quad, softRing(0xfff4e0, 0.022))),
+  ember: pool(() => new THREE.Mesh(quad, soft(0xffaa50))),
+  fire: pool(() => new THREE.Mesh(quad, soft(0xffb060))),
+};
+const debris = pool(() => new THREE.Mesh(quad, streak(0xffe6aa)));
+const Z = { scorch: 0.29, crater: 0.3, heat: 0.31, fire: 0.32, dust: 0.6, plume: 0.62, explosion: 0.66, light: 0.67, flash: 0.68, ring: 0.69, ember: 0.7, debris: 0.7 };
+/** A debris streak's width on screen. */
+const DEBRIS_PX = 1.4;
+/** The camera's kick at an impact, in screen px: a shell's, a missile's. */
+const KICK_PX = { shell: 3, missile: 7 };
 
 const impacts: ImpactRecord[] = [];
 
@@ -30,12 +52,46 @@ function place(kind: keyof typeof pools, s: ImpactSprite) {
   p.frame.value = s.frame;
 }
 
+function glow(kind: keyof typeof glows, g: ImpactGlow | null) {
+  if (!g || g.opacity <= 0) return;
+  const m = glows[kind].next();
+  m.position.set(g.x, g.y, Z[kind]);
+  m.scale.setScalar(g.size);
+  (m.material as THREE.MeshBasicNodeMaterial).opacity = g.opacity;
+}
+
+/** The strongest kick an impact on screen gives the camera at this frame, in screen px; 0 when none does. */
+let kick = 0;
+export const impactKick = () => kick;
+
 export function drawImpacts(now: number) {
+  kick = 0;
   for (const i of impacts) {
     const look = impactLook(i, now);
+    glow('scorch', look.scorch);
     place('crater', look.crater);
-    if (look.explosion) place('explosion', look.explosion);
+    glow('heat', look.heat);
+    for (const f of look.fires) glow('fire', f);
+    glow('dust', look.dust);
     for (const p of look.plume) if (p.opacity > 0) place('plume', p);
+    if (look.explosion) place('explosion', look.explosion);
+    glow('light', look.light);
+    glow('flash', look.flash);
+    for (const r of look.rings) glow('ring', r);
+    for (const e of look.embers) glow('ember', e);
+    for (const d of look.debris) {
+      const m = debris.next();
+      m.position.set((d.x0 + d.x1) / 2, (d.y0 + d.y1) / 2, Z.debris);
+      m.rotation.z = Math.atan2(d.y1 - d.y0, d.x1 - d.x0);
+      m.scale.set(Math.max(1e-3, Math.hypot(d.x1 - d.x0, d.y1 - d.y0)), DEBRIS_PX * metresPerPx.value, 1);
+      const material = m.material as THREE.MeshBasicNodeMaterial;
+      material.color.lerpColors(DULL, HOT, d.heat);
+      material.opacity = d.opacity;
+    }
+    if (look.kick > 0) {
+      const s = toScreen(i);
+      if (s.x >= 0 && s.x <= innerWidth && s.y >= 0 && s.y <= innerHeight) kick = Math.max(kick, look.kick * (i.asset === 'missile' ? KICK_PX.missile : KICK_PX.shell));
+    }
   }
-  for (const p of Object.values(pools)) p.end();
+  for (const p of [...Object.values(pools), ...Object.values(glows), debris]) p.end();
 }

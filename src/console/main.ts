@@ -11,7 +11,7 @@ import { drawChevrons, pulse } from './layers/chevrons';
 import { drawLastKnown } from './layers/contacts';
 import { drawEffects, hideEffectLabels } from './layers/effects';
 import { drawGrid } from './layers/grid';
-import { addImpact, drawImpacts } from './layers/impacts';
+import { addImpact, drawImpacts, impactKick } from './layers/impacts';
 import { addDeathMarker, drawDeathMarkers } from './layers/markers';
 import { watchFrame } from './layers/map';
 import { drawMissiles } from './layers/missile';
@@ -37,7 +37,7 @@ import { drawEmps } from './layers/emp';
 import { UNIT_PX } from './layers/symbols';
 import { addShot, drawTracers } from './layers/tracers';
 import { checkEnd } from './match-flow';
-import { renderFeed } from './post';
+import { flare, renderFeed } from './post';
 import { metresPerPx, pxToWorld, renderer } from './renderer';
 import { session } from './session';
 
@@ -68,7 +68,10 @@ renderer.setAnimationLoop(() => {
   const events = host.takeEvents();
   for (const e of events) {
     if (e.kind === 'death') addDeathMarker(e.x, e.y, e.side, now);
-    else if (e.kind === 'impact') addImpact(e.x, e.y, now, e.asset);
+    else if (e.kind === 'impact') {
+      addImpact(e.x, e.y, now, e.asset);
+      if (e.asset === 'missile') flare(0.2); // the feed over-exposes for a moment under a Cruise Missile
+    }
     else if (e.kind === 'shot' || e.kind === 'suppressive') {
       addShot(e, view, now);
       pulse(e.from, e.side, now);
@@ -118,5 +121,5 @@ renderer.setAnimationLoop(() => {
     soundFrame(view, host.map.hqs[view.side], now / 1000); // the looping cues (UAV, shells, crate) follow the Asset layers
   }
   checkEnd(view);
-  renderFeed();
+  renderFeed(impactKick() * metresPerPx.value);
 });
