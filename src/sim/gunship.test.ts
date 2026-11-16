@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { commanderEvents, commanderView, createMatch, stateHash, step, type Match } from './index';
 import { insidePolygon } from './geometry';
 import { crew, vehicle } from './test-scene';
+import { effectsOf } from './assets/lookup';
 import { leave, type Vehicle } from './vehicles';
 import { DEFAULT_TUNE } from './tune';
 import type { Command, CommanderView, MapData, SimEvent, Tune, Vec2 } from './types';
@@ -122,7 +123,7 @@ describe('Gunship: the call', () => {
     const moved = step(m, [gunship(m, focus)]);
     expect(rejections(moved)).toEqual([]);
     expect(moved).toContainEqual(expect.objectContaining({ kind: 'radio', type: 'asset', text: 'Gunship retasked' }));
-    expect(m.assets.effects.filter((e) => e.asset === 'gunship')).toHaveLength(1);
+    expect(effectsOf(m, 'gunship')).toHaveLength(1);
     expect(m.assets.readyAt.nato.gunship).toBe(ready);
     expect(effect(commanderView(m, 'nato'))).toMatchObject({ x: 150, y: -300, phase: 'station' });
     const from = run.views.length;
@@ -225,7 +226,7 @@ describe('Gunship: the sortie', () => {
   it('its sortie, its aircraft, its shells and what they did to a Soldier are part of the state hash', () => {
     const m = scene({ 6: { x: 0, y: -150 } }, { gunshipScatterM: 0 });
     const run = play(m, 50 * HZ);
-    const e = m.assets.effects.find((o) => o.asset === 'gunship')!;
+    const e = effectsOf(m, 'gunship')[0]!;
     expect(e.shells.length).toBeGreaterThan(0);
     const moves = (nudge: () => void, undo: () => void, what: string) => {
       const h = stateHash(m);

@@ -22,6 +22,7 @@ import { scan, type ScanEffect } from './scan';
 import { smoke, type SmokeEffect } from './smoke';
 import { supply, type SupplyEffect } from './supply';
 import { lost, release, type Vehicle } from '../vehicles';
+import { effectsOf } from './lookup';
 
 /** One called Asset at work: what every kind's effect has. `until` is the first tick it no longer works. #182: each kind's own fields are declared in its adapter. */
 export interface EffectBase {
@@ -135,7 +136,7 @@ export function assetRadio(m: Match, e: EffectBase, text: string, events: SimEve
 }
 
 /** #139: `side` has `asset` at work: its one aircraft is out (or its last moments still show), so the next call waits. */
-export const inTheAir = (m: Match, side: SideId, asset: 'drone' | 'recon') => (m.assets.effects.some((e) => e.asset === asset && e.side === side) ? 'in the air' : null);
+export const inTheAir = (m: Match, side: SideId, asset: 'drone' | 'recon') => (effectsOf(m, asset, side).length ? 'in the air' : null);
 
 /**
  * #139: whether the enemy AA has shot down `v`, the aircraft `e` flies (vehicles/core.ts `hurt`). If so it sleeps where it fell, the
@@ -218,7 +219,7 @@ export function assetViews(m: Match, side: SideId): AssetView[] {
     const off = !retask && kinds()[k].gate?.(m, side);
     const line = kinds()[k].line?.(t);
     const untargeted = kinds()[k].untargeted;
-    const fx = untargeted && m.assets.effects.find((e) => e.asset === k && e.side === side);
+    const fx = untargeted && effectsOf(m, k, side)[0];
     return {
       asset: k,
       readyIn: Math.max(0, m.assets.readyAt[side][k] - m.tick) / t.hz,

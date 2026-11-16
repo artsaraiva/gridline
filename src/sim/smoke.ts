@@ -1,5 +1,6 @@
 // Smoke on the ground (#138): the disc each Smoke Screen shell leaves, and the ground sight it blocks. A module of its own, clear
 // of assets/core.ts, so grid.ts can read it for `los`; assets/smoke.ts is the Asset that lays the discs.
+import { effectsOf } from './assets/lookup';
 import { segDist2 } from './geometry';
 import type { Match } from './index';
 import type { Tune, Vec2 } from './types';
@@ -27,9 +28,8 @@ export function smokeDisc(t: Tune, age: number): { r: number; density: number } 
 
 /** The line from `a` to `b` touches a live smoke disc: nobody on the ground sees along it, whichever end is inside or behind the smoke. */
 export function smoked(m: Match, a: Vec2, b: Vec2): boolean {
-  for (const e of m.assets.effects) {
-    if (e.asset !== 'smoke') continue;
-    for (const s of e.shells!) {
+  for (const e of effectsOf(m, 'smoke')) {
+    for (const s of e.shells) {
       const { r } = smokeDisc(m.tune, m.tick - s.land);
       if (r > 0 && segDist2(s, a, b) <= r * r) return true;
     }

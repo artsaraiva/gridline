@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { commanderEvents, commanderView, createMatch, stateHash, step, type Match } from './index';
 import { DEFAULT_TUNE } from './tune';
+import { effectsOf } from './assets/lookup';
 import type { Command, CommanderView, MapData, SimEvent, Tune, Vec2 } from './types';
 
 const HZ = DEFAULT_TUNE.hz;
@@ -208,7 +209,7 @@ describe('Cruise Missile: the blast', () => {
   it('the flight and what it did to a Soldier are part of the state hash', () => {
     const m = scene({ 6: { x: AT.x + 15, y: AT.y } }); // pact 6 in the Wound ring
     step(m, [missile(m, AT)]);
-    const e = m.assets.effects.find((o) => o.asset === 'missile')!;
+    const e = effectsOf(m, 'missile')[0]!;
     for (const [field, nudge] of [['land', 1], ['launch', -1]] as const) {
       const h = stateHash(m);
       e[field] += nudge;

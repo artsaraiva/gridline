@@ -27,6 +27,7 @@ import { enemyOf, type SimEvent, type Tune, type Vec2 } from '../types';
 import { borrow, crippled, homeward, lost, paradrop, release, steer, type Vehicle } from '../vehicles';
 import { shellBlast, type Shell } from './barrage';
 import { assetRadio, type Aircraft, type EffectBase, type Kind, type Shells } from './core';
+import { effectsOf } from './lookup';
 import { heavyGate } from './missile';
 import { blast } from '../damage';
 
@@ -152,7 +153,7 @@ export const gunship: Kind<GunshipEffect> = {
   radius: (t) => t.gunshipFocusM,
   gate: heavyGate,
   retask(m, side, at) {
-    const e = m.assets.effects.find((o): o is GunshipEffect => o.asset === 'gunship' && o.side === side && (o.phase === 'inbound' || o.phase === 'station'));
+    const e = effectsOf(m, 'gunship', side).find((o) => o.phase === 'inbound' || o.phase === 'station');
     if (e && at) Object.assign(e, { x: at.x, y: at.y, prey: -1 } satisfies Partial<GunshipEffect>); // it turns for the new focus at once
     return e;
   },
