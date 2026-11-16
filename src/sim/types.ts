@@ -529,13 +529,23 @@ export type ScoreCategory = 'uav' | 'supply' | 'artillery' | 'orders';
 
 export type Command =
   | { tick: number; side: SideId; kind: 'order'; squad: number; point: string | null }
-  | { tick: number; side: SideId; kind: 'asset'; asset: 'scan' | 'supply' | 'barrage' | 'missile' | 'gunship' | 'smoke' | 'creep' | 'drone' | 'recon' | 'beacon' | 'rapid' | 'emp' | 'feint'; at?: Vec2; to?: Vec2 } // #138: `to` is a line-shaped Asset's second tap: its line runs from `at` towards it. #142: `at` is absent only for an untargeted Asset (Rapid Deploy)
+  | { tick: number; side: SideId; kind: 'asset'; asset: AssetKind; at?: Vec2; to?: Vec2 } // #138: `to` is a line-shaped Asset's second tap: its line runs from `at` towards it. #142: `at` is absent only for an untargeted Asset (Rapid Deploy)
   /** #136: no `id` places a Mark at `at`; with `id` it renews that Mark, or clears it when `at` is null. */
   | { tick: number; side: SideId; kind: 'mark'; at: Vec2 | null; id?: number };
 
-export type AssetKind = Extract<Command, { kind: 'asset' }>['asset'];
-/** #99: what a Squad may Request: never a Cruise Missile (#58), #101 nor a Gunship, #138 nor a line-shaped Asset. */
-export type RequestKind = Exclude<AssetKind, 'missile' | 'gunship' | 'smoke' | 'creep' | 'drone' | 'recon' | 'beacon' | 'rapid' | 'emp' | 'feint'>; // #139: a Drone Strike answers a Barrage Request and a Recon Plane a Scan one (requests.ts); #142: Squads never Request a beacon or Rapid Deploy, #143 nor an EMP Strike or a Feint
+/**
+ * #182: every Asset kind, once. Each has an adapter in assets/ (the Kind table there is total over this list, so a name with no
+ * adapter fails the typecheck), and this order is the one the rows, the hash and the `cause` hash use.
+ */
+export const ASSET_KINDS = ['scan', 'supply', 'barrage', 'missile', 'gunship', 'smoke', 'creep', 'drone', 'recon', 'beacon', 'rapid', 'emp', 'feint'] as const;
+export type AssetKind = (typeof ASSET_KINDS)[number];
+/**
+ * #99: what a Squad may Request: never a Cruise Missile (#58), #101 nor a Gunship, #138 nor a line-shaped Asset. #139: a Drone
+ * Strike answers a Barrage Request and a Recon Plane a Scan one (requests.ts); #142: Squads never Request a beacon or Rapid Deploy,
+ * #143 nor an EMP Strike or a Feint. #182: an allow-list, so a new kind is never Requested until it is added here.
+ */
+export const REQUEST_KINDS = ['scan', 'supply', 'barrage'] as const satisfies readonly AssetKind[];
+export type RequestKind = (typeof REQUEST_KINDS)[number];
 
 export interface MatchResult {
   winner: SideId | null; // null = draw

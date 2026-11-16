@@ -9,7 +9,7 @@ import { dist2 } from './geometry';
 import { gridCentre, gridRef } from './grid-ref';
 import { elite, membersOf, vehicleOf, wiped, type Mix, type Squad } from './state';
 import { inSky } from './vehicles';
-import type { AssetKind, RequestKind, SideId, SimEvent, SquadView, Vec2 } from './types';
+import { REQUEST_KINDS, type AssetKind, type RequestKind, type SideId, type SimEvent, type SquadView, type Vec2 } from './types';
 
 /** An open Request: the Asset it asks for, the centre of the grid square it names, and the tick it expires. */
 export interface Request {
@@ -19,7 +19,6 @@ export interface Request {
 }
 
 const WORDS: Record<RequestKind, string> = { supply: 'supplies', barrage: 'fire support', scan: 'recon' };
-const KINDS: RequestKind[] = ['scan', 'supply', 'barrage'];
 /** #139: the Assets that answer each Request. */
 const ANSWERS: Record<RequestKind, AssetKind[]> = { supply: ['supply'], barrage: ['barrage', 'drone'], scan: ['scan', 'recon'] };
 
@@ -82,7 +81,7 @@ export function requestView(m: Match, sq: Squad): SquadView['request'] {
 export function hashRequests(m: Match, mix: Mix) {
   for (const sq of m.squads) {
     const r = sq.request;
-    mix(r ? KINDS.indexOf(r.asset) + 1 : 0);
+    mix(r ? REQUEST_KINDS.indexOf(r.asset) + 1 : 0);
     mix(r ? Math.round(r.at.x * 1000) : 0);
     mix(r ? Math.round(r.at.y * 1000) : 0);
     mix(r?.until ?? 0);
