@@ -6,10 +6,11 @@ import type { AssetKind, VehicleKind } from '../../sim/types';
 import { drawMap, fitView } from '../layers/map';
 import { camera } from '../renderer';
 import { session } from '../session';
-import { ASSETS, CYCLE_SECONDS } from './asset-review-config';
+import { CYCLE_SECONDS, REVIEW, VEHICLES, type ReviewCall } from './asset-review-config';
 import './asset-review.css';
 
-const VEHICLES: VehicleKind[] = ['tank', 'jeep', 'helicopter', 'jet', 'aa'];
+/** #184: `focus` names an Asset the scene calls. */
+const reviewed = (focus: string | null): focus is AssetKind => !!focus && Object.hasOwn(REVIEW, focus) && !!REVIEW[focus as AssetKind];
 
 function $(id: string) {
   return document.getElementById(id)!;
@@ -28,10 +29,10 @@ function setClose() {
   camera.updateProjectionMatrix();
 }
 
-/** Close tactical zoom centred on one Asset's call spot (#101: wider for the Gunship's loops). */
+/** One Asset's call spot at its review zoom: close tactical, or wider for what flies (#101 the Gunship's loops, #139 the Recon Plane's pass and the drone's flight in). */
 function setFocus(asset: AssetKind) {
-  const { at } = ASSETS.find((a) => a.asset === asset)!;
-  camera.zoom = asset === 'gunship' || asset === 'recon' ? 1.6 : asset === 'drone' ? 3 : 8; // #139: wide enough for the Recon Plane's pass, and for the drone's flight in
+  const { at, zoom } = REVIEW[asset]!;
+  camera.zoom = zoom;
   camera.position.set(at.x, at.y, 100);
   camera.updateProjectionMatrix();
 }
@@ -46,11 +47,11 @@ function follow(kind: VehicleKind) {
   }, 100);
 }
 
-/** `?focus=barrage|scan|supply|gunship|smoke|creep|drone|recon|beacon|emp|feint` frames that Asset close up, `?focus=tank|jeep|helicopter|jet|aa` follows nato's vehicle of that class, `?focus=close` the cluster; anything else is the overview. */
+/** `?focus=` an Asset the scene calls frames it (REVIEW), one of VEHICLES follows nato's vehicle of that class, `close` the cluster; anything else is the overview. */
 function applyFocus(focus: string | null) {
   if (focus === 'close') setClose();
   else if (VEHICLES.includes(focus as VehicleKind)) follow(focus as VehicleKind);
-  else if (ASSETS.some((a) => a.asset === focus)) setFocus(focus as AssetKind);
+  else if (reviewed(focus)) setFocus(focus);
   else setOverview();
 }
 
@@ -104,7 +105,7 @@ export async function startAssetReview(): Promise<() => void> {
 
   function callAll() {
     const up = (asset: AssetKind) => session.view?.effects?.some((e) => e.asset === asset && 'side' in e && e.side === 'nato');
-    for (const { asset, at, to } of ASSETS) if (!['gunship', 'smoke', 'drone', 'recon', 'emp', 'feint'].includes(asset) || !up(asset)) host.send({ side: 'nato', kind: 'asset', asset, at, ...(to && { to }) }); // #143: the EMP and the Feint outlast the cycle too
+    for (const [asset, call] of Object.entries(REVIEW) as [AssetKind, ReviewCall | null][]) if (call && (!call.single || !up(asset))) host.send({ side: 'nato', kind: 'asset', asset, at: call.at, ...(call.to && { to: call.to }) });
   }
   callAll();
   const interval = setInterval(callAll, CYCLE_SECONDS * 1000);
