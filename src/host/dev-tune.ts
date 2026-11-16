@@ -1,7 +1,10 @@
 // DEV-only tune override for review scenes. The worker imports it in every build, but only passes
 // `freeAssets: true` under `import.meta.env.DEV`, so production tunes are never changed.
 import { DEFAULT_TUNE } from '../sim/tune';
-import type { Tune } from '../sim/types';
+import { ASSET_KINDS, type AssetKind, type Tune } from '../sim/types';
+
+/** #184: every Asset's cooldown at zero, one Tune key a kind in ASSET_KINDS: a kind with no `${kind}CooldownSeconds` fails the typecheck here. */
+const NO_COOLDOWNS = Object.fromEntries(ASSET_KINDS.map((k) => [`${k}CooldownSeconds`, 0])) as Pick<Tune, `${AssetKind}CooldownSeconds`>;
 
 /**
  * Returns a tune that keeps Asset cooldowns at zero, and the heavy Assets' point gate open (Missile, #101 Gunship), so every Asset cycles continuously;
@@ -12,19 +15,7 @@ export function devTune(freeAssets: boolean, tanks?: number): Tune {
   if (!freeAssets) return t;
   return {
     ...t,
-    scanCooldownSeconds: 0,
-    supplyCooldownSeconds: 0,
-    barrageCooldownSeconds: 0,
-    missileCooldownSeconds: 0,
-    gunshipCooldownSeconds: 0,
-    smokeCooldownSeconds: 0,
-    creepCooldownSeconds: 0,
-    droneCooldownSeconds: 0,
-    reconCooldownSeconds: 0,
-    beaconCooldownSeconds: 0,
-    rapidCooldownSeconds: 0,
-    empCooldownSeconds: 0,
-    feintCooldownSeconds: 0,
+    ...NO_COOLDOWNS,
     missileGated: false,
     matchSeconds: 3600,
   };

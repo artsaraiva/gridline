@@ -2,14 +2,15 @@
 // drawn from the view and targeting (ready, cooling, at work, gated on the keystones still missing, armed, and the amber
 // corner of a Squad's open Request); one readout line under the pad naming the hovered, focused or armed cell with its state;
 // the Confirm row under it while an Asset is armed; the map Confirm button beside the target ring; and the keys, which arm
-// the cell in their place. #142: an untargeted Asset (Rapid Deploy) arms straight to its Confirm row.
+// the cell in their place. #142: an untargeted Asset (Rapid Deploy) arms straight to its Confirm row. #184: the rules (each
+// cell's look, the readout, the Confirm label, what stays armed) are pad.ts's and targeting.ts's; this only writes them.
 import { gridRef } from '../../sim/grid-ref';
 import type { AssetKind, CommanderView, PointView, SideId, Vec2 } from '../../sim/types';
 import { FOCUS_MARK_PX } from '../layers/effects';
-import { assetLook, callable, markCount, PAD, ruler, spanPx, type CellLook, type PadCell } from '../pad';
+import { armedCell, assetLook, callable, confirmLabel, PAD, readoutOf, ruler, spanPx, type CellLook, type PadCell } from '../pad';
 import { pxToWorld, toScreen } from '../renderer';
 import { session } from '../session';
-import { arm, confirm, disarm, escape, placeConfirm, ready, strip, targeting } from '../targeting';
+import { arm, confirm, disarm, escape, keepCallable, placeConfirm, ready, strip, targeting } from '../targeting';
 import { assetIcon, MARK_ICON, POINT_FRAME } from './icons';
 
 const box = document.getElementById('assets')!;
@@ -107,7 +108,7 @@ function put(el: HTMLElement, cls: string | null, html: string | null, attrs: Re
 export function drawAssetRail(view: CommanderView | null) {
   last = view;
   box.hidden = !view;
-  if (targeting.armed && !usable(targeting.armed)) disarm(); // between matches, at the end, or once it can't be called (a keystone lost; #101 a Gunship off station)
+  keepCallable(view);
   const spot = targeting.spot ?? targeting.pointer;
   const at = spot ? grid(spot) : '';
   const looks = new Map<Cell, CellLook>();
@@ -120,20 +121,19 @@ export function drawAssetRail(view: CommanderView | null) {
     put(c.slot, null, look.needs.length ? look.needs.map((p) => keystoneFrame(p, view.side)).join('') : look.slot);
     c.bar.style.width = `${(100 * look.bar).toFixed(2)}%`;
   }
-  // The readout names the armed cell (the Mark's in Mark mode), else the one under the pointer or the keyboard focus
-  const armed = targeting.armed ?? (targeting.marking ? 'mark' : null);
+  // The readout names the armed cell, else the one under the pointer or the keyboard focus
+  const armed = armedCell(targeting);
   const hot = (armed && cells.find((c) => c.def.calls === armed)) || cells.find((c) => c.el.matches(':hover, :focus-visible'));
   readout.hidden = !view || !hot;
   if (view && hot) {
-    const look = looks.get(hot); // none for the Mark
-    const named = hot.def.calls === armed; // armed: the name alone
-    put(readName, null, hot.def.name);
-    put(readState, look?.request && !named ? 'st rq' : 'st', named ? '' : !look ? markCount(view) : `${look.readout}${look.needs.map((p) => keystoneFrame(p, view.side)).join('')}`);
+    const r = readoutOf(hot.def, looks.get(hot), armed, view); // no look for the Mark
+    put(readName, null, r.name);
+    put(readState, r.request ? 'st rq' : 'st', `${r.state}${r.needs.map((p) => keystoneFrame(p, view.side)).join('')}`);
   }
   cfRow.hidden = !targeting.armed;
   if (targeting.armed) {
     cf.disabled = !ready();
-    put(cf.querySelector('span')!, null, !ready() ? (targeting.spot ? 'Tap the direction' : 'Tap the map') : targeting.spot ? `Confirm ${grid(targeting.spot)}` : 'Confirm'); // #138: a line-shaped Asset takes a second tap; #142 an untargeted one none
+    put(cf.querySelector('span')!, null, confirmLabel(ready(), targeting.spot ? grid(targeting.spot) : null));
   }
   placeMapConfirm(view);
 }

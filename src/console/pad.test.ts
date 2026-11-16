@@ -1,14 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import type { AssetKind, AssetView, CommanderView, EffectView, PointView, SideId, SquadView } from '../sim/types';
-import { assetLook, atWork, callable, keystonesMissing, markCount, PAD, PAD_SIZE, ruler } from './pad';
-
-/** Every AssetKind: TypeScript fails this table when one is added or dropped, so a new Asset can't miss the pad. */
-const KINDS: Record<AssetKind, true> = { scan: true, supply: true, barrage: true, missile: true, gunship: true, smoke: true, creep: true, drone: true, recon: true, beacon: true, rapid: true, emp: true, feint: true };
+import { ASSET_KINDS, type AssetKind, type AssetView, type CommanderView, type EffectView, type PointView, type SideId, type SquadView } from '../sim/types';
+import { armedCell, assetLook, atWork, callable, confirmLabel, keystonesMissing, markCount, PAD, PAD_SIZE, readoutOf, ruler } from './pad';
 
 describe('the Asset keypad (#181)', () => {
+  // #184: ASSET_TABLE is total over AssetKind, so the typecheck gives every Asset a key; this holds that key on the pad, and the Asset's alone
   it('gives every AssetKind exactly one cell', () => {
-    for (const k of Object.keys(KINDS)) expect(PAD.filter((c) => c.calls === k), k).toHaveLength(1);
-    expect(PAD.filter((c) => c.calls && c.calls !== 'mark')).toHaveLength(Object.keys(KINDS).length);
+    for (const k of ASSET_KINDS) expect(PAD.filter((c) => c.calls === k), k).toHaveLength(1);
+    expect(PAD.filter((c) => c.calls && c.calls !== 'mark')).toHaveLength(ASSET_KINDS.length);
   });
 
   it('is three bands of five on the keyboard rows, every key once', () => {
@@ -131,5 +129,44 @@ describe('a cell reads its Asset (#181)', () => {
   it('the Mark counts its live Marks of the most there may be', () => {
     expect(markCount(view({}))).toBe('0/3');
     expect(markCount(view({ marks: [{ id: 1, x: 0, y: 0, fade: 1 }] }))).toBe('1/3');
+  });
+});
+
+describe('the readout and the Confirm row (#184: out of chrome/assets.ts)', () => {
+  const cell = (calls: AssetKind | 'mark') => PAD.find((c) => c.calls === calls)!;
+
+  it('names the armed cell, the Asset\'s or the Mark\'s in Mark mode', () => {
+    expect(armedCell({ armed: 'barrage', marking: false })).toBe('barrage');
+    expect(armedCell({ armed: null, marking: true })).toBe('mark');
+    expect(armedCell({ armed: null, marking: false })).toBeNull();
+  });
+
+  it('reads a cell by its name and state: READY, the keystones a gated cell still needs, an open Request in amber, the Mark\'s count', () => {
+    const v = view({
+      assets: [row('barrage'), row('missile', { readyIn: 60, cooldown: 240, off: 'needs E' }), row('scan', { readyIn: 20 })],
+      squads: [squad(2, 'Charlie', { asset: 'scan', at: { x: 0, y: 0 }, grid: 'J4', left: 9 })],
+    });
+    const read = (asset: AssetKind) => readoutOf(cell(asset), assetLook(asset, v, false, ''), null, v);
+    expect(read('barrage')).toEqual({ name: 'Artillery Barrage', state: 'READY', needs: [], request: false });
+    expect(read('missile')).toMatchObject({ name: 'Cruise Missile', state: 'NEEDS', request: false });
+    expect(read('missile').needs.map((p) => p.name)).toEqual(['E']);
+    expect(read('scan')).toEqual({ name: 'Scan UAV', state: 'CHARLIE · J4', needs: [], request: true });
+    expect(readoutOf(cell('mark'), undefined, null, v)).toEqual({ name: 'Mark', state: '0/3', needs: [], request: false });
+  });
+
+  it('names the armed cell alone: no state, keystones or amber', () => {
+    const v = view({
+      assets: [row('scan')],
+      squads: [squad(2, 'Charlie', { asset: 'scan', at: { x: 0, y: 0 }, grid: 'J4', left: 9 })],
+    });
+    expect(readoutOf(cell('scan'), assetLook('scan', v, true, 'J4'), 'scan', v)).toEqual({ name: 'Scan UAV', state: '', needs: [], request: false });
+    expect(readoutOf(cell('mark'), undefined, 'mark', v)).toEqual({ name: 'Mark', state: '', needs: [], request: false });
+  });
+
+  it('labels Confirm with the tap still needed, else the pinned spot: #138 a line-shaped Asset\'s direction, #142 none for an untargeted one', () => {
+    expect(confirmLabel(false, null)).toBe('Tap the map');
+    expect(confirmLabel(false, 'F6')).toBe('Tap the direction');
+    expect(confirmLabel(true, 'F6')).toBe('Confirm F6');
+    expect(confirmLabel(true, null)).toBe('Confirm');
   });
 });

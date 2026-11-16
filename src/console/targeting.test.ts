@@ -3,8 +3,8 @@ import type { SimHost } from '../host/host';
 import type { UnstampedCommand } from '../host/protocol';
 import { TEST_FIELD } from '../maps/test-field';
 import { session } from './session';
-import type { CommanderView } from '../sim/types';
-import { answer, arm, clearOrder, confirm, disarm, escape, markMode, placeConfirm, ready, select, strip, tap, targeting } from './targeting';
+import type { AssetView, CommanderView, RequestKind } from '../sim/types';
+import { answer, arm, clearOrder, confirm, disarm, escape, keepCallable, markMode, placeConfirm, ready, select, strip, tap, targeting } from './targeting';
 
 // The Sim host is the boundary: a fake one records what the Console sends.
 let sent: UnstampedCommand[];
@@ -73,6 +73,26 @@ describe('Asset targeting', () => {
     tap({ x: 10, y: 20 }, 5);
     tap({ x: 10, y: 20 }, 5);
     expect(sent).toEqual([]);
+  });
+});
+
+describe('an armed Asset that can no longer be called (#181)', () => {
+  const rows = (o: Partial<CommanderView>) => ({ ...view, result: null, assets: [{ asset: 'gunship', readyIn: 0, cooldown: 240, radius: 30 }], ...o }) as CommanderView;
+
+  it('stays armed while it can be called, and #101 while at work and taking a new spot on its cooldown', () => {
+    arm('gunship');
+    keepCallable(rows({}));
+    keepCallable(rows({ assets: [{ asset: 'gunship', readyIn: 200, cooldown: 240, radius: 30, retask: true }] }));
+    expect(targeting.armed).toBe('gunship');
+  });
+
+  it('disarms between matches, at the end, or once it is off (#101 a Gunship off station) or cooling', () => {
+    for (const v of [null, rows({ result: { winner: 'nato', reason: 'tickets' } }), rows({ assets: [{ asset: 'gunship', readyIn: 200, cooldown: 240, radius: 30 }] }), rows({ assets: [{ asset: 'gunship', readyIn: 0, cooldown: 240, radius: 30, off: 'needs C' }] })]) {
+      arm('gunship');
+      tap({ x: 10, y: 20 }, 5);
+      keepCallable(v);
+      expect(targeting, JSON.stringify(v?.assets ?? null)).toMatchObject({ armed: null, spot: null });
+    }
   });
 });
 
@@ -160,14 +180,16 @@ describe('Order targeting', () => {
 });
 
 describe('Answering a Request', () => {
-  const ask = (readyIn: number, grid = true) => {
+  // #184: each row says which Request it answers, as the Simulation's do
+  const ask = (readyIn: number, grid = true, kind: RequestKind = 'barrage') => {
     session.view = {
       ...view,
       result: null,
-      assets: [{ asset: 'barrage', readyIn, cooldown: 120, radius: 40 }],
-      squads: [{ id: 1, request: { asset: 'barrage', at: grid ? { x: 50, y: 50 } : { x: 277, y: 0 }, grid: 'G6', left: 20 } }],
+      assets: [{ asset: kind, readyIn, cooldown: 120, radius: 40, answers: kind }],
+      squads: [{ id: 1, request: { asset: kind, at: grid ? { x: 50, y: 50 } : { x: 277, y: 0 }, grid: 'G6', left: 20 } }],
     } as unknown as CommanderView;
   };
+  const add = (row: AssetView) => session.view!.assets!.push(row);
 
   it('selects the Squad and arms the matching Asset with the ring pinned at the grid; the confirm is still needed', () => {
     ask(0);
@@ -185,14 +207,36 @@ describe('Answering a Request', () => {
   });
 
   it('#139: with the Barrage cooling down the Drone Strike answers "fire support" instead; with neither ready it only selects', () => {
+    const drone = (readyIn: number, off?: string): AssetView => ({ asset: 'drone', readyIn, cooldown: 60, radius: 15, answers: 'barrage', ...(off && { off }) });
     ask(30);
-    const drone = (readyIn: number, off?: string) => (session.view!.assets as unknown[]).push({ asset: 'drone', readyIn, cooldown: 60, radius: 15, ...(off && { off }) });
-    drone(0);
+    add(drone(0));
     answer(1);
     expect(targeting).toMatchObject({ selected: 1, armed: 'drone', spot: { x: 50, y: 50 } });
     disarm();
     ask(30);
-    drone(0, 'in the air');
+    add(drone(0, 'in the air'));
+    answer(1);
+    expect(targeting).toMatchObject({ selected: 1, armed: null });
+  });
+
+  it('#139: with the Scan UAV cooling down the Recon Plane answers "recon", still wanting its direction; the Request\'s own Asset comes first', () => {
+    const recon: AssetView = { asset: 'recon', readyIn: 0, cooldown: 90, radius: 40, answers: 'scan', line: { length: 0, width: 80, across: true, beyond: 150 } };
+    ask(30, true, 'scan');
+    add(recon);
+    answer(1);
+    expect(targeting).toMatchObject({ selected: 1, armed: 'recon', spot: { x: 50, y: 50 } });
+    expect(ready()).toBe(false);
+    disarm();
+    ask(0, true, 'scan');
+    add(recon);
+    answer(1);
+    expect(targeting.armed).toBe('scan');
+  });
+
+  it('#184: the pairing is the row\'s alone: an Asset whose row answers another Request, or none, never arms', () => {
+    ask(30, true, 'scan');
+    add({ asset: 'drone', readyIn: 0, cooldown: 60, radius: 15, answers: 'barrage' });
+    add({ asset: 'recon', readyIn: 0, cooldown: 90, radius: 40 });
     answer(1);
     expect(targeting).toMatchObject({ selected: 1, armed: null });
   });

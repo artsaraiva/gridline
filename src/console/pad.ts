@@ -3,11 +3,11 @@
 // categories. A cell's key is its place on the pad, and the slot of an Asset or standing action that has not shipped is held
 // empty, so no key moves when it lands. DOM-free: chrome/assets.ts draws the pad, chrome/mark.ts runs the Mark cell.
 import { DEFAULT_TUNE } from '../sim/tune';
-import type { AssetKind, CommanderView, PointView, SquadView } from '../sim/types';
+import { ASSET_KINDS, type AssetKind, type CommanderView, type PointView, type SquadView } from '../sim/types';
+import { ASSET_TABLE, type Category } from './asset-table';
 import { clock } from './summary';
 
-/** The names the rulers show (GLOSSARY.md), each over the cells it spans. */
-export type Category = 'Strike' | 'Recon' | 'Screen' | 'Denial' | 'Support' | 'Standing';
+export type { Category };
 
 export interface PadCell {
   /** The band, 0 at the top, and the key: the cell's place on the keyboard. */
@@ -19,24 +19,23 @@ export interface PadCell {
   calls: AssetKind | 'mark' | null;
 }
 
-/** The cells band by band, in key order. Strikes run light to heavy, so the point-gated Cruise Missile and Gunship keep R and T. */
-export const PAD: PadCell[] = [
-  { band: 0, key: 'Q', category: 'Strike', name: 'Drone Strike', calls: 'drone' },
-  { band: 0, key: 'W', category: 'Strike', name: 'Artillery Barrage', calls: 'barrage' },
-  { band: 0, key: 'E', category: 'Strike', name: 'Creeping Barrage', calls: 'creep' },
-  { band: 0, key: 'R', category: 'Strike', name: 'Cruise Missile', calls: 'missile' },
-  { band: 0, key: 'T', category: 'Strike', name: 'Gunship', calls: 'gunship' },
-  { band: 1, key: 'A', category: 'Recon', name: 'Scan UAV', calls: 'scan' },
-  { band: 1, key: 'S', category: 'Recon', name: 'Recon Plane', calls: 'recon' },
-  { band: 1, key: 'D', category: 'Screen', name: 'Smoke Screen', calls: 'smoke' },
-  { band: 1, key: 'F', category: 'Denial', name: 'EMP Strike', calls: 'emp' },
-  { band: 1, key: 'G', category: 'Denial', name: 'Feint', calls: 'feint' },
-  { band: 2, key: 'Z', category: 'Support', name: 'Supply Drop', calls: 'supply' },
-  { band: 2, key: 'X', category: 'Support', name: 'Redeploy Beacon', calls: 'beacon' },
-  { band: 2, key: 'C', category: 'Support', name: 'Rapid Deploy', calls: 'rapid' },
-  { band: 2, key: 'V', category: 'Standing', name: 'Mark', calls: 'mark' },
-  { band: 2, key: 'B', category: 'Standing', name: 'Vehicle tasking', calls: null }, // #146
+/** The keyboard's letter rows, left to right, which the bands mirror: the order the pad shows its cells in. */
+const KEY_ROWS = ['QWERT', 'ASDFG', 'ZXCVB'];
+
+/** The cells that call no Asset: the Mark, a standing action, and a slot held until what it calls ships. */
+const STANDING: Omit<PadCell, 'band'>[] = [
+  { key: 'V', category: 'Standing', name: 'Mark', calls: 'mark' },
+  { key: 'B', category: 'Standing', name: 'Vehicle tasking', calls: null }, // #146
 ];
+
+/** What sits at `key`: the Asset whose key it is in ASSET_TABLE (#184), or a standing cell. */
+const cellsAt = (key: string): Omit<PadCell, 'band'>[] => [
+  ...ASSET_KINDS.filter((k) => ASSET_TABLE[k].key === key).map((k) => ({ key, category: ASSET_TABLE[k].category, name: ASSET_TABLE[k].name, calls: k })),
+  ...STANDING.filter((c) => c.key === key),
+];
+
+/** The cells band by band, in key order. Strikes run light to heavy, so the point-gated Cruise Missile and Gunship keep R and T. */
+export const PAD: PadCell[] = KEY_ROWS.flatMap((row, band) => [...row].flatMap((key) => cellsAt(key).map((c) => ({ band, ...c }))));
 
 /** Pad geometry in px (console.css sizes the same boxes): a cell, the gap between cells and under a ruler, a ruler, and between bands. */
 export const PAD_PX = { cell: 48, gap: 4, ruler: 12, band: 10 };
@@ -122,3 +121,24 @@ const requestTag = (q: SquadView) => [q.name.toUpperCase(), q.request?.grid].fil
 
 /** #136: the Mark cell's count: the live Marks of the most there may be ("1/3"). */
 export const markCount = (view: CommanderView) => `${view.marks?.length ?? 0}/${DEFAULT_TUNE.markMax}`;
+
+/** The cell the pad shows armed: the armed Asset's, or #136 the Mark's in Mark mode; null for none. */
+export const armedCell = (t: { armed: AssetKind | null; marking: boolean }): AssetKind | 'mark' | null => t.armed ?? (t.marking ? 'mark' : null);
+
+/**
+ * The readout line for `cell` (#184: out of chrome/assets.ts): its name, then its state, or nothing more when it is the armed
+ * cell. `look` is an Asset cell's, whose readout and keystones it shows (`request`: in amber, for an open Request); the Mark has
+ * none, and shows its count.
+ */
+export function readoutOf(cell: PadCell, look: CellLook | undefined, armed: AssetKind | 'mark' | null, view: CommanderView): { name: string; state: string; needs: PointView[]; request: boolean } {
+  const named = cell.calls === armed;
+  return { name: cell.name, state: named ? '' : look ? look.readout : markCount(view), needs: named || !look ? [] : look.needs, request: !named && !!look?.request };
+}
+
+/**
+ * The Confirm row's label for the armed Asset (#184: out of chrome/assets.ts): the tap it still needs, else Confirm and the
+ * pinned spot's Grid Reference. `ready`: it has all Confirm needs (targeting.ts `ready`); `spot`: the pinned spot's Grid
+ * Reference, null before the first tap. #138: a line-shaped Asset with its start pinned still wants its direction; #142 an
+ * untargeted one is ready with no spot.
+ */
+export const confirmLabel = (ready: boolean, spot: string | null) => (!ready ? (spot !== null ? 'Tap the direction' : 'Tap the map') : spot !== null ? `Confirm ${spot}` : 'Confirm');
