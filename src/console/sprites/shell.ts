@@ -115,9 +115,9 @@ export function barrageShells(view: CommanderView, map: MapData, exaggeration = 
   const out: ShellInFlight[] = [];
   for (const e of view.effects ?? []) {
     if (e.asset !== 'barrage' && e.asset !== 'creep' && e.asset !== 'smoke') continue;
-    const hq = map.hqs[e.side ?? view.side];
+    const hq = map.hqs['side' in e ? e.side : view.side]; // the Barrage's view names no Side: only its caller's view has it
     const from = { x: hq.x, y: hq.y };
-    for (const s of e.shells ?? []) {
+    for (const s of e.shells) {
       if (s.flight >= SHELL_VISIBLE_FROM) out.push({ ...shellInFlight(from, { x: s.x, y: s.y }, s.flight, exaggeration), ...(e.asset === 'smoke' && { smoke: true as const }) });
     }
   }

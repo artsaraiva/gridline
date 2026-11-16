@@ -2,7 +2,7 @@
 // Cruise Missile's altitude over its ground shadow, banked into its turn, left or right (a Wreck lies flat), and its
 // shells: each arcs from where the aircraft was when it fired down to where it lands, drawn as the Barrage's round and
 // streak. layers/gunship.ts draws it.
-import type { EffectView, SideId, Vec2 } from '../../sim/types';
+import type { EffectView, GunshipEffectView, SideId, Vec2 } from '../../sim/types';
 import { ALTITUDE_LIFT_PER_M, CRUISE_ALTITUDE_M } from './missile';
 import { SHADOW_DIR, type SpriteSheetSpec } from './sheet';
 import { SHELL_EXAGGERATION, SHELL_HEADINGS, SHELL_WORLD_M } from './shell';
@@ -126,4 +126,4 @@ export function gunshipShell(from: Vec2, to: Vec2, flight: number): GunshipShell
 
 /** The Gunships in the air in `view`'s effects, the enemy's included (the sky rule). */
 export const gunshipsInAir = (effects: EffectView[] | undefined) =>
-  (effects ?? []).flatMap((e): (GunshipBody & { e: EffectView })[] => (e.asset === 'gunship' && e.craft && e.side ? [{ side: e.side, craft: e.craft, e }] : []));
+  (effects ?? []).flatMap((e): (GunshipBody & { e: GunshipEffectView })[] => (e.asset === 'gunship' && e.craft ? [{ side: e.side, craft: e.craft, e }] : []));

@@ -1,6 +1,6 @@
 // The Cruise Missile (#99): its baked sheet, level flight and drop, and its contrail. layers/missile.ts draws it.
 import { DEFAULT_TUNE } from '../../sim/tune';
-import type { CommanderView, EffectView, SideId, Vec2 } from '../../sim/types';
+import type { CommanderView, SideId, Vec2 } from '../../sim/types';
 import { SHADOW_DIR, type SpriteSheetSpec } from './sheet';
 
 /** Pitch rows baked per Faction: 0 = level cruise, the rest nosing down to straight down (-90 deg) into the target. */
@@ -142,7 +142,5 @@ export function missileTrail(p: MissileInFlight, left: number, speedMps = DEFAUL
 
 /** Every missile in `view`, the enemy's included: in the air while `flight` < 1, then its hanging contrail until `left` runs out. */
 export function missiles(view: CommanderView): MissileView[] {
-  return (view.effects ?? []).flatMap((e): MissileView[] => (isMissile(e) ? [e] : []));
+  return (view.effects ?? []).flatMap((e): MissileView[] => (e.asset === 'missile' ? [e] : []));
 }
-
-const isMissile = (e: EffectView): e is EffectView & MissileView => e.asset === 'missile' && !!e.from && e.flight !== undefined && !!e.side;

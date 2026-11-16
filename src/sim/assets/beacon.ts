@@ -17,8 +17,6 @@ export const beacon: Kind<BeaconEffect> = {
   firstReadySeconds: (t) => t.beaconCooldownSeconds,
   seconds: (t) => t.supplyFallSeconds + t.beaconSeconds,
   radius: (t) => t.beaconRingM,
-  landsIn: (m, e) => Math.max(0, (e.until - m.tick - beaconTicks(m)) / m.tune.hz),
-  fall: (t) => t.supplyFallSeconds,
   replaces: true,
   start: (m, base) => ({ ...base, asset: 'beacon' }),
   work(m, e, events) {
@@ -26,5 +24,12 @@ export const beacon: Kind<BeaconEffect> = {
   },
   seen: (m, e, side) => m.soldiers.some((s) => s.side === side && looksAt(m, s, e)),
   // the view's ring is the deny ring, drawn only while it is contested, and only for its own Side
-  view: (m, e, own) => ({ side: e.side, radius: m.tune.beaconDenyM, ...(own && beaconDenied(m, e) && { contested: true as const }) }),
+  view: (m, e, own, base) => ({
+    ...base,
+    landsIn: Math.max(0, (e.until - m.tick - beaconTicks(m)) / m.tune.hz),
+    fall: m.tune.supplyFallSeconds,
+    side: e.side,
+    radius: m.tune.beaconDenyM,
+    ...(own && beaconDenied(m, e) && { contested: true as const }),
+  }),
 };

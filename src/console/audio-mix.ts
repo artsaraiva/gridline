@@ -90,8 +90,8 @@ export function drawnLoops(view: CommanderView, hq: Vec2, seconds: number): Loop
       const u = scanUav(e, e.radius, seconds);
       out.push({ key: `uav:${e.x}:${e.y}`, kind: 'uav', x: u.x, y: u.y });
     }
-    if (e.landsIn !== undefined && e.fall && e.landsIn > 0) out.push({ key: `crate:${e.x}:${e.y}`, kind: 'crate', x: e.x, y: e.y });
-    for (const s of e.shells ?? []) {
+    if ('landsIn' in e && e.fall && e.landsIn > 0) out.push({ key: `crate:${e.x}:${e.y}`, kind: 'crate', x: e.x, y: e.y });
+    for (const s of 'shells' in e ? e.shells : []) {
       if (s.flight < SHELL_VISIBLE_FROM) continue; // not drawn yet
       const p = shellInFlight(hq, s, s.flight);
       out.push({ key: `shell:${s.x}:${s.y}`, kind: 'shell', x: p.x, y: p.y });

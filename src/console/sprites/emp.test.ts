@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { commanderView, createMatch, step } from '../../sim';
 import { DEFAULT_TUNE } from '../../sim/tune';
-import type { EffectView, MapData } from '../../sim/types';
+import type { EmpEffectView, MapData } from '../../sim/types';
 import { CRUISE_ALTITUDE_M } from './missile';
 import { crackle, EMP_HEADINGS, EMP_SHADOW_FRAME, EMP_SHEET, empFlash, empInFlight, empRing, empsInFlight, FLASH_SECONDS } from './emp';
 
-const flying = (o: Partial<EffectView> = {}) => ({ asset: 'emp' as const, x: 0, y: 0, radius: 60, left: 15, total: 19, side: 'nato' as const, from: { x: -400, y: 0 }, flight: 0.5, impactIn: 3, ...o });
+const flying = (o: Partial<EmpEffectView> = {}): EmpEffectView => ({ asset: 'emp', x: 0, y: 0, radius: 60, left: 15, total: 19, side: 'nato', from: { x: -400, y: 0 }, flight: 0.5, impactIn: 3, ...o });
 
 describe('EMP Strike missile', () => {
   it('registers the baked sheet: a row of headings a Faction, then the shadow', () => {

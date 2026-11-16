@@ -62,9 +62,9 @@ export const creep: Kind<CreepEffect> = {
     return m.soldiers.filter((s) => s.side !== e.side && s.state === 'alive' && s.vehicle < 0 && fresh.some((x) => dist2(s, x) <= r2));
   },
 
-  view(m, e, own) {
+  view(m, e, own, base) {
     const { shells, impactIn } = flying(m, e.shells);
-    return { side: e.side, shells, ...(own && { impactIn, line: { to: e.to, width: 2 * reach(m.tune) } }) };
+    return { ...base, side: e.side, shells, ...(own && { impactIn, line: { to: e.to, width: 2 * reach(m.tune) } }) };
   },
 
   hash(e, mix: Mix) {

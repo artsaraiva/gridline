@@ -50,9 +50,10 @@ export const emp: Kind<EmpEffect> = {
     for (const sq of m.squads) if (sq.side === e.side) for (const v of (e.found ?? []).map((id) => vehicleOf(m, id)!)) if (live(v)) see(m, sq, v); // set at the burst, above
   },
 
-  view(m, e) {
+  view(m, e, own, base) {
     const t = m.tune;
     return {
+      ...base,
       side: e.side,
       from: e.from,
       flight: Math.min(1, (m.tick - e.launch) / (e.land - e.launch)),

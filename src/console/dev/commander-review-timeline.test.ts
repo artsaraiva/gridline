@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { insidePolygon } from '../../sim/geometry';
 import { DEFAULT_TUNE } from '../../sim/tune';
-import type { AssetKind, SimEvent } from '../../sim/types';
+import type { AssetKind, CommanderView, EffectViewOf, SideId, SimEvent } from '../../sim/types';
 import { assetLook, markCount } from '../pad';
 import { CHAPTERS, eventsBetween, GUNSHIP_LOOP_M, GUNSHIP_STATION_S, LENGTH, viewAt } from './commander-review-timeline';
+
+/** #182: the effect of `asset` in `v` (`side`'s, when given), typed as its kind's view. */
+const effectOf = <K extends AssetKind>(v: CommanderView, asset: K, side?: SideId) => v.effects!.find((e): e is EffectViewOf<K> => e.asset === asset && (!side || ('side' in e && e.side === side)));
 
 const chapter = (title: string) => CHAPTERS.find((c) => c.title === title)!.at + 1;
 const OLD = chapter('Ferry') - 1; // #131: the chapters before it end here (the Parachute chapter's end was the timeline's)
@@ -345,7 +348,7 @@ describe('commander review timeline (#69)', () => {
     for (const title of ['Support', 'Bail']) expect(heli(viewAt(chapter(title) - 1)), title).toMatchObject({ x: PAD.x, y: PAD.y }); // each starts from the pad, the one before is over
   });
 
-  const gunship = (v: ReturnType<typeof viewAt>, side: 'nato' | 'pact') => v.effects!.find((e) => e.asset === 'gunship' && e.side === side);
+  const gunship = (v: ReturnType<typeof viewAt>, side: 'nato' | 'pact') => effectOf(v, 'gunship', side);
 
   it('#101 Gunship: nato\'s circles its route round C counter-clockwise, banked on station, shelling the Contacts; the ring counts its station down, then it flies home', () => {
     const from = chapter('Gunship') - 1;
@@ -430,7 +433,7 @@ describe('commander review timeline (#69)', () => {
 });
 
 describe('#138 line-shaped Assets', () => {
-  const fx = (t: number, asset: 'smoke' | 'creep') => viewAt(t).effects!.find((e) => e.asset === asset);
+  const fx = <K extends 'smoke' | 'creep'>(t: number, asset: K) => effectOf(viewAt(t), asset);
 
   it('Smoke Screen: the strip and four shells half a second apart, then four discs that bloom, hold and thin out', () => {
     const call = chapter('Smoke Screen') + 1;
@@ -458,7 +461,7 @@ describe('#138 line-shaped Assets', () => {
 });
 
 describe('#139 Drone Strike and Recon Plane chapters', () => {
-  const fx = (t: number, asset: 'drone' | 'recon', side = 'nato') => viewAt(t).effects!.find((e) => e.asset === asset && e.side === side);
+  const fx = <K extends 'drone' | 'recon'>(t: number, asset: K, side: SideId = 'nato') => effectOf(viewAt(t), asset, side);
 
   it('Drone Strike: nato\'s leaves the HQ, flies straight at the Contacts at 45 m/s and lands one impact; its row is off while it flies', () => {
     const call = chapter('Drone Strike');

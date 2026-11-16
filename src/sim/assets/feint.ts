@@ -26,8 +26,6 @@ export const feint: Kind<FeintEffect> = {
   firstReadySeconds: (t) => t.feintCooldownSeconds,
   seconds: (t) => t.supplyFallSeconds + t.feintSeconds,
   radius: (t) => t.feintRingM,
-  landsIn: (m, e) => Math.max(0, (e.until - m.tick - feintTicks(m)) / m.tune.hz),
-  fall: (t) => t.supplyFallSeconds,
 
   start: (m, base) => ({ ...base, asset: 'feint', dummy: m.soldiers.length + m.vehicles.length + m.assets.dummies++ }),
 
@@ -43,9 +41,9 @@ export const feint: Kind<FeintEffect> = {
   // the fall is in the sky, for both Sides to see; once down, the enemy's Console carries it only while one of its Soldiers sees it
   seen: (m, e, side) => m.tick < landing(m, e) || m.soldiers.some((s) => s.side === side && looksAt(m, s, e)),
   // its own Console's pulse: the seconds since its last burst (the steps have run to `m.tick - 1`); the enemy's has no pulse to show
-  view(m, e, own) {
+  view(m, e, own, base) {
     const since = m.tick - landing(m, e);
-    return { side: e.side, ...(own && since > 0 && { burst: (((since - 1) % burstTicks(m)) + 1) / m.tune.hz }) };
+    return { ...base, landsIn: Math.max(0, (e.until - m.tick - feintTicks(m)) / m.tune.hz), fall: m.tune.supplyFallSeconds, side: e.side, ...(own && since > 0 && { burst: (((since - 1) % burstTicks(m)) + 1) / m.tune.hz }) };
   },
 
   hash(e, mix: Mix) {

@@ -16,6 +16,7 @@ export const rapid: Kind<RapidEffect> = {
   seconds: (t) => t.rapidSeconds,
   radius: () => 0,
   start: (m, base) => ({ ...base, asset: 'rapid' }),
+  view: (m, e, own, base) => base, // never asked: it has no effect on the map
   work(m, e, events) {
     if (e.until === m.tick + 1) assetRadio(m, e, 'Rapid deployment over', events);
   },

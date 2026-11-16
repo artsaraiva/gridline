@@ -56,9 +56,9 @@ export const missile: Kind<MissileEffect> = {
     return m.soldiers.filter((s) => s.side !== e.side && s.state === 'alive' && s.vehicle < 0 && dist2(s, e) <= r * r);
   },
 
-  view(m, e) {
+  view(m, e, own, base) {
     const t = m.tune;
-    return { side: e.side, from: e.from, flight: flight(m, e), impactIn: Math.max(0, (e.land - m.tick) / t.hz), total: (e.until - e.launch) / t.hz };
+    return { ...base, side: e.side, from: e.from, flight: flight(m, e), impactIn: Math.max(0, (e.land - m.tick) / t.hz), total: (e.until - e.launch) / t.hz };
   },
 
   hash(e, mix: Mix) {

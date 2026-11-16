@@ -1,7 +1,7 @@
 // The Drone Strike's drone (#139): its baked sheet (a row a Faction, then the shadow), where it is in its flight, its short
 // contrail, and its fall when the enemy AA shoots it down. layers/drone.ts draws it.
 import { DEFAULT_TUNE } from '../../sim/tune';
-import type { EffectView, SideId, Vec2 } from '../../sim/types';
+import type { CraftView, DroneEffectView, EffectView, SideId, Vec2 } from '../../sim/types';
 import { downed, levelFlight, lifted, type LevelFlight } from './level-flight';
 import { CRUISE_ALTITUDE_M } from './missile';
 import type { SpriteSheetSpec } from './sheet';
@@ -47,7 +47,8 @@ export interface DroneInFlight extends LevelFlight {
   trail: { tail: Vec2; head: Vec2 };
 }
 
-type DroneView = EffectView & { side: SideId; from: Vec2; craft: NonNullable<EffectView['craft']> };
+/** A drone's view while its aircraft shows: until it hits. */
+type DroneView = DroneEffectView & { craft: CraftView };
 
 /** A drone in the air (or falling): its pose, frame and world scale, its contrail and the spot it is bound for. */
 export function droneInFlight(e: DroneView, exaggeration = DRONE_EXAGGERATION): DroneInFlight {
@@ -68,4 +69,4 @@ export function droneInFlight(e: DroneView, exaggeration = DRONE_EXAGGERATION): 
 }
 
 /** Every drone in the air in `effects`, the enemy's included (the sky rule); one that has hit is the impact layer's. */
-export const dronesInFlight = (effects: EffectView[] | undefined) => (effects ?? []).flatMap((e) => (e.asset === 'drone' && e.side && e.from && e.craft ? [droneInFlight({ ...e, side: e.side, from: e.from, craft: e.craft })] : []));
+export const dronesInFlight = (effects: EffectView[] | undefined) => (effects ?? []).flatMap((e) => (e.asset === 'drone' && e.craft ? [droneInFlight({ ...e, craft: e.craft })] : []));

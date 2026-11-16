@@ -57,11 +57,12 @@ export const drone: Kind<DroneEffect> = {
     return m.soldiers.filter((s) => s.side !== e.side && s.state === 'alive' && s.vehicle < 0 && dist2(s, e) <= r * r);
   },
 
-  view(m, e) {
+  view(m, e, own, base) {
     const t = m.tune;
     const v = vehicleOf(m, e.vehicle)!;
     const lost = e.phase === 'down';
     return {
+      ...base,
       side: e.side,
       from: e.from,
       flight: Math.min(1, ((lost ? e.phaseAt : m.tick) - e.launch) / (e.land - e.launch)),

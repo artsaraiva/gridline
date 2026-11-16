@@ -85,7 +85,7 @@ describe('artillery shell sky entry, streak and fog', () => {
     const ticks = (seconds: number) => Math.round(seconds * tune.hz);
     // Just after the first shell leaves it is up but not yet drawn
     for (let i = 0; i < ticks(tune.barrageWarningSeconds + 0.5); i++) step(m, []);
-    expect(commanderView(m, 'nato').effects![0]!.shells!.length).toBeGreaterThan(0);
+    expect(commanderView(m, 'nato').effects!.find((e) => e.asset === 'barrage')!.shells.length).toBeGreaterThan(0);
     expect(barrageShells(commanderView(m, 'nato'), TEST_FIELD)).toEqual([]);
     // In the last part of its flight it is
     const drawnAt = ticks(tune.barrageWarningSeconds + tune.barrageFlightSeconds * (1 + SHELL_VISIBLE_FROM) / 2);

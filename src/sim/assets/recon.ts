@@ -61,11 +61,12 @@ export const recon: Kind<ReconEffect> = {
     for (const sq of m.squads) if (sq.side === e.side) for (const o of found) see(m, sq, o);
   },
 
-  view(m, e, own) {
+  view(m, e, own, base) {
     const t = m.tune;
     const v = vehicleOf(m, e.vehicle)!;
     const lost = e.phase === 'down';
     return {
+      ...base,
       side: e.side,
       total: (e.land - e.launch) / t.hz,
       craft: { x: v.x, y: v.y, fx: v.fx, fy: v.fy, turn: 0 },

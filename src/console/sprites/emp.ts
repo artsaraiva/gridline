@@ -1,7 +1,7 @@
 // The EMP Strike (#143): its baked missile (the Drone Strike's sprite family: a row a Faction, then the shadow), where it is in
 // its level flight from the HQ, the white-blue flash of its airburst, its ring while it holds, and the crackle on each vehicle it
 // holds. layers/emp.ts draws them.
-import type { EffectView, SideId, Vec2, VehicleKind } from '../../sim/types';
+import type { EffectView, EmpEffectView, SideId, Vec2, VehicleKind } from '../../sim/types';
 import { AA_EXAGGERATION, AA_WORLD_M } from './aa';
 import { HELI_EXAGGERATION, HELI_WORLD_M } from './helicopter';
 import { JEEP_EXAGGERATION, JEEP_WORLD_M } from './jeep';
@@ -67,10 +67,8 @@ export interface EmpInFlight extends LevelFlight {
   trail: { tail: Vec2; head: Vec2 };
 }
 
-type EmpView = EffectView & { side: SideId; from: Vec2; flight: number };
-
 /** The missile in the air, level all the way from the HQ it left to the spot it bursts over (the burst is in the air: it never comes down). */
-export function empInFlight(e: EmpView, exaggeration = EMP_EXAGGERATION): EmpInFlight {
+export function empInFlight(e: EmpEffectView, exaggeration = EMP_EXAGGERATION): EmpInFlight {
   const [dx, dy] = [e.x - e.from.x, e.y - e.from.y];
   const d = Math.hypot(dx, dy) || 1;
   const craft = { x: e.from.x + dx * e.flight, y: e.from.y + dy * e.flight, fx: dx / d, fy: dy / d };
@@ -86,7 +84,7 @@ export function empInFlight(e: EmpView, exaggeration = EMP_EXAGGERATION): EmpInF
 
 /** Every EMP missile still in the air in `effects`, the enemy's included (the sky rule); one that has burst is the flash's. */
 export const empsInFlight = (effects: EffectView[] | undefined) =>
-  (effects ?? []).flatMap((e) => (e.asset === 'emp' && e.side && e.from && e.flight !== undefined && e.burst === undefined ? [empInFlight({ ...e, side: e.side, from: e.from, flight: e.flight })] : []));
+  (effects ?? []).flatMap((e) => (e.asset === 'emp' && e.burst === undefined ? [empInFlight(e)] : []));
 
 /** The burst `burst` seconds on: a disc over the spot that starts at the ring's `radius` and collapses to nothing as it fades, slowly then fast; null once over. */
 export function empFlash(burst: number, radius: number): { r: number; opacity: number } | null {

@@ -19,8 +19,6 @@ export const supply: Kind<SupplyEffect> = {
   cooldownSeconds: (t) => t.supplyCooldownSeconds,
   seconds: (t) => t.supplyFallSeconds + t.supplyStaySeconds,
   radius: (t) => t.supplyRadiusM,
-  landsIn: (m, e) => Math.max(0, (e.until - m.tick - stayTicks(m)) / m.tune.hz),
-  fall: (t) => t.supplyFallSeconds,
   start: (m, base) => ({ ...base, asset: 'supply', given: {}, open: {} }),
   answers: { request: 'supply', at: (m, e) => (landed(m, e) ? e : null) }, // once the crate has landed
   work(m, e, events) {
@@ -53,6 +51,7 @@ export const supply: Kind<SupplyEffect> = {
       if (open[s.id] && (!drew || given[s.id] === cap || e.until - m.tick === 1)) tell(m, e, s.id, events);
     }
   },
+  view: (m, e, own, base) => ({ ...base, landsIn: Math.max(0, (e.until - m.tick - stayTicks(m)) / m.tune.hz), fall: m.tune.supplyFallSeconds }),
   hash(e, mix: Mix) {
     for (const r of [e.given, e.open]) for (const [id, n] of Object.entries(r)) for (const v of [+id, Math.round(n * 1000)]) mix(v); // integer keys enumerate in ascending order
   },

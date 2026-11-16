@@ -206,12 +206,12 @@ export const gunship: Kind<GunshipEffect> = {
 
   contacts: (m, e) => (e.phase === 'station' ? inRange(m, e, vehicleOf(m, e.vehicle)!) : []),
 
-  view(m, e) {
+  view(m, e, own, base) {
     const t = m.tune;
     const v = vehicleOf(m, e.vehicle)!;
     const left = e.phase === 'inbound' ? t.gunshipStationSeconds : e.phase === 'station' ? (e.phaseAt + ticksOf(t, t.gunshipStationSeconds) - m.tick) / t.hz : 0;
     const shells = e.shells.filter((s) => !s.done && s.launch <= m.tick).map((s) => ({ x: s.x, y: s.y, from: s.from, flight: (m.tick - s.launch) / (s.land - s.launch) }));
-    return { side: e.side, from: e.from, left: Math.max(0, left), total: t.gunshipStationSeconds, shells, ...(e.phase !== 'down' && !lost(v) && { phase: e.phase, craft: { x: v.x, y: v.y, fx: v.fx, fy: v.fy, turn: e.turn } }) }; // shot down this tick: its Asset learns next tick
+    return { ...base, side: e.side, from: e.from, left: Math.max(0, left), total: t.gunshipStationSeconds, shells, ...(e.phase !== 'down' && !lost(v) && { phase: e.phase, craft: { x: v.x, y: v.y, fx: v.fx, fy: v.fy, turn: e.turn } }) }; // shot down this tick: its Asset learns next tick
   },
 
   hash(e, mix: Mix) {

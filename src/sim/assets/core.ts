@@ -7,7 +7,7 @@ import { provideContacts } from '../contacts';
 import { gridRef } from '../grid-ref';
 import type { Mix } from '../state';
 import type { Soldier } from '../state';
-import { ASSET_KINDS, enemyOf, SIDES, type AssetKind, type AssetView, type Command, type EffectView, type RequestKind, type SideId, type SimEvent, type Tune, type Vec2 } from '../types';
+import { ASSET_KINDS, enemyOf, SIDES, type AssetKind, type AssetView, type Command, type EffectView, type EffectViewBase, type EffectViewOf, type RequestKind, type SideId, type SimEvent, type Tune, type Vec2 } from '../types';
 import { barrage, type BarrageEffect, type Shell } from './barrage';
 import { beacon, type BeaconEffect } from './beacon';
 import { creep, type CreepEffect } from './creep';
@@ -97,13 +97,13 @@ export interface Kind<E extends Effect> {
   replaces?: true;
   /** #40: enemies of the caller the effect shows as Contacts for as long as it lasts. */
   contacts?(m: Match, e: E): Soldier[];
-  /** #40: extra fields for the effect's view. */
-  view?(m: Match, e: E, own: boolean): Partial<EffectView>; // #138: `own` is false in the enemy's view of a `sky` kind
+  /**
+   * #40: the effect's view, built on `base` (the fields every view has: a kind may set its own `radius`, `left` or `total`).
+   * #138: `own` is false in the enemy's view of a `sky` kind. #182: typed by its kind's view, the crate's fall included.
+   */
+  view(m: Match, e: E, own: boolean, base: EffectViewBase & { asset: E['asset'] }): EffectViewOf<E['asset']>;
   /** Mixes its own fields into the state hash, after the ones every effect has. */
   hash?(e: E, mix: Mix): void;
-  // #39: a kind that falls before it works says how long the fall has left and takes in all
-  landsIn?(m: Match, e: E): number;
-  fall?(t: Tune): number;
   /**
    * #41: it answers a Squad's `request` (requests.ts): `at` is where it does right now, a Request near that spot closes, or null
    * while it does not yet (#139: or no more). #182: in place of requests.ts's table and its switch on the kind.
@@ -250,16 +250,11 @@ export function assetViews(m: Match, side: SideId): AssetView[] {
   });
 }
 
-const fallView = (m: Match, e: Effect) => {
-  const k = kindOf(e);
-  return k.landsIn && k.fall ? { landsIn: k.landsIn(m, e), fall: k.fall(m.tune) } : {};
-};
-
 export function effectViews(m: Match, side: SideId): EffectView[] {
   const t = m.tune;
   return m.assets.effects
     .filter((e) => !kindOf(e).untargeted && (e.side === side || kindOf(e).sky || kindOf(e).seen?.(m, e, side)))
-    .map((e) => ({ asset: e.asset, x: e.x, y: e.y, radius: kindOf(e).radius(t), left: (e.until - m.tick) / t.hz, total: kindOf(e).seconds(t), ...fallView(m, e), ...kindOf(e).view?.(m, e, e.side === side) }));
+    .map((e) => kindOf(e).view(m, e, e.side === side, { asset: e.asset, x: e.x, y: e.y, radius: kindOf(e).radius(t), left: (e.until - m.tick) / t.hz, total: kindOf(e).seconds(t) }));
 }
 
 export function hashAssets(m: Match, mix: Mix) {

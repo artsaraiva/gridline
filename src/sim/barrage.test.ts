@@ -114,7 +114,7 @@ describe('Artillery Barrage: the shells', () => {
     const [first] = landings();
     const m = scene({ 6: { x: first!.x, y: first!.y } }); // pact Soldier 6, on the first landing spot
     const run = play(m, 16 * HZ);
-    const air = (i: number) => run.views[i]!.effects![0]!.shells!;
+    const air = (i: number) => run.views[i]!.effects!.find((e) => e.asset === 'barrage')!.shells;
     expect(air(9 * HZ)).toEqual([]); // 9 s: nothing has left yet
     const t0 = 10 * HZ + 10; // the first shell is up, the second (1 s behind it) not yet
     expect(air(t0)).toMatchObject([{ x: first!.x, y: first!.y }]); // launched

@@ -41,10 +41,10 @@ export const smoke: Kind<SmokeEffect> = {
     }
   },
 
-  view(m, e) {
+  view(m, e, own, base) {
     const t = m.tune;
     const discs = e.shells.map((s) => ({ x: s.x, y: s.y, age: (m.tick - s.land) / t.hz, ...smokeDisc(t, m.tick - s.land) }));
-    return { side: e.side, line: { to: e.to, width: t.smokeWidthM }, ...flying(m, e.shells), smoke: discs.filter((d) => d.r > 0) };
+    return { ...base, side: e.side, line: { to: e.to, width: t.smokeWidthM }, ...flying(m, e.shells), smoke: discs.filter((d) => d.r > 0) };
   },
 
   hash(e, mix: Mix) {

@@ -75,7 +75,7 @@ export const barrage: Kind<BarrageEffect> = {
     return m.soldiers.filter((s) => s.side !== e.side && s.state === 'alive' && s.vehicle < 0 && dist2(s, e) <= r * r);
   },
 
-  view: (m, e) => flying(m, e.shells),
+  view: (m, e, own, base) => ({ ...base, ...flying(m, e.shells) }),
 
   hash: (e, mix: Mix) => hashShells(e.shells, mix),
 };

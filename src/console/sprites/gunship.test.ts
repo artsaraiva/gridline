@@ -48,7 +48,7 @@ describe('gunship shell', () => {
 
 describe('gunships in the air', () => {
   it('lists every Gunship effect with its aircraft, the enemy\'s too, and none once shot down', () => {
-    const base = { asset: 'gunship' as const, x: 0, y: 0, radius: 150, left: 10, total: 70 };
+    const base = { asset: 'gunship' as const, x: 0, y: 0, radius: 150, left: 10, total: 70, from: { x: -500, y: 0 }, shells: [] };
     const list = gunshipsInAir([{ ...base, side: 'nato', craft: { ...craft, turn: 1 } }, { ...base, side: 'pact', craft: { ...craft, turn: 0 } }, { ...base, side: 'nato' }]);
     expect(list.map((g) => [g.side, g.craft.turn])).toEqual([['nato', 1], ['pact', 0]]);
   });
