@@ -6,13 +6,18 @@
 // (or an earlier UAV's, which discovered it first).
 import { dist2, inHq } from '../geometry';
 import { see } from '../memory';
-import { assetRadio, type Kind } from './core';
+import { assetRadio, type EffectBase, type Kind } from './core';
 
-export const scan: Kind = {
+export interface ScanEffect extends EffectBase {
+  asset: 'scan';
+}
+
+export const scan: Kind<ScanEffect> = {
   name: 'Scan UAV',
   cooldownSeconds: (t) => t.scanCooldownSeconds,
   seconds: (t) => t.scanSeconds,
   radius: (t) => t.scanRadiusM,
+  start: (m, base) => ({ ...base, asset: 'scan' }),
   work(m, e, events) {
     const t = m.tune;
     const r = t.scanRadiusM;

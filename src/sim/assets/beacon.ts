@@ -3,10 +3,14 @@
 // per Side: a new call replaces the old one. It is a thing on the ground: the enemy's Console carries it only while one of its
 // Soldiers sees it, and an enemy who does nothing to it (v1). No Commander Score: an ordered capture by the Squad already scores.
 import { looksAt } from '../perception';
-import { assetRadio, type Kind } from './core';
+import { assetRadio, type EffectBase, type Kind } from './core';
 import { beaconDenied, beaconTicks } from './crate';
 
-export const beacon: Kind = {
+export interface BeaconEffect extends EffectBase {
+  asset: 'beacon';
+}
+
+export const beacon: Kind<BeaconEffect> = {
   name: 'Redeploy Beacon',
   called: 'Beacon inbound',
   cooldownSeconds: (t) => t.beaconCooldownSeconds,
@@ -15,9 +19,8 @@ export const beacon: Kind = {
   radius: (t) => t.beaconRingM,
   landsIn: (m, e) => Math.max(0, (e.until - m.tick - beaconTicks(m)) / m.tune.hz),
   fall: (t) => t.supplyFallSeconds,
-  start(m, e) {
-    m.assets.effects = m.assets.effects.filter((o) => o.asset !== 'beacon' || o.side !== e.side);
-  },
+  replaces: true,
+  start: (m, base) => ({ ...base, asset: 'beacon' }),
   work(m, e, events) {
     if (e.until - m.tick === beaconTicks(m)) assetRadio(m, e, 'Beacon down', events);
   },

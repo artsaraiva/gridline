@@ -9,10 +9,11 @@ import { rnd } from './rng';
 import { enemyOf, type SideId, type SimEvent, type Vec2 } from './types';
 import { boardOnReturn, inSky, leave } from './vehicles';
 import type { Effect } from './assets/core';
+import type { GunshipEffect } from './assets/gunship';
 import { beaconDenied, liveBeacon } from './assets/crate';
 
 /** #101: `side`'s Gunship on station, if it has one: a Soldier coming back may take a seat in it (`boardOnReturn`). Its Asset's effect is read here, so no vehicle module reads one. */
-const onStation = (m: Match, side: SideId) => vehicleOf(m, m.assets.effects.find((e) => e.asset === 'gunship' && e.side === side && e.phase === 'station')?.vehicle ?? -1);
+const onStation = (m: Match, side: SideId) => vehicleOf(m, m.assets.effects.find((e): e is GunshipEffect => e.asset === 'gunship' && e.side === side && e.phase === 'station')?.vehicle ?? -1);
 
 function bringBack(m: Match, s: Soldier, at: Vec2) {
   leave(m, s);

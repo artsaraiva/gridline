@@ -136,7 +136,7 @@ describe('Drone Strike: the blast', () => {
     play(a, 2 * HZ, CENTRE);
     play(b, 2 * HZ, CENTRE);
     expect(stateHash(a)).toBe(stateHash(b));
-    b.assets.effects[0]!.land!++;
+    b.assets.effects.find((e) => e.asset === 'drone')!.land++;
     expect(stateHash(a)).not.toBe(stateHash(b));
   });
 });

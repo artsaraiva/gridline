@@ -136,7 +136,7 @@ describe('Recon Plane: the pass', () => {
     play(a, over(100));
     play(b, over(100));
     expect(stateHash(a)).toBe(stateHash(b));
-    b.assets.effects[0]!.found!.push(7);
+    b.assets.effects.find((e) => e.asset === 'recon')!.found.push(7);
     expect(stateHash(a)).not.toBe(stateHash(b));
   });
 });

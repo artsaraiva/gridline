@@ -208,17 +208,17 @@ describe('Cruise Missile: the blast', () => {
   it('the flight and what it did to a Soldier are part of the state hash', () => {
     const m = scene({ 6: { x: AT.x + 15, y: AT.y } }); // pact 6 in the Wound ring
     step(m, [missile(m, AT)]);
-    const e = m.assets.effects[0]!;
+    const e = m.assets.effects.find((o) => o.asset === 'missile')!;
     for (const [field, nudge] of [['land', 1], ['launch', -1]] as const) {
       const h = stateHash(m);
-      (e as unknown as Record<string, number>)[field]! += nudge;
+      e[field] += nudge;
       expect(stateHash(m), field).not.toBe(h);
-      (e as unknown as Record<string, number>)[field]! -= nudge;
+      e[field] -= nudge;
     }
     const h = stateHash(m);
-    e.from!.x += 1;
+    e.from.x += 1;
     expect(stateHash(m)).not.toBe(h);
-    e.from!.x -= 1;
+    e.from.x -= 1;
     for (let i = 0; i < 30 * HZ; i++) step(m, []);
     expect(m.soldiers[6]!.cause).toBe('missile');
     const hit = stateHash(m);

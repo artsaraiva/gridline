@@ -26,8 +26,8 @@ const ANSWERS: Record<RequestKind, AssetKind[]> = { supply: ['supply'], barrage:
 function answered(m: Match, side: SideId, asset: RequestKind, at: Vec2) {
   const r = m.tune.requestCloseM;
   // #139: a Drone Strike that has hit answers "fire support" as a shell does; a Recon Plane answers "recon" as it passes near (neither once shot down)
-  const there = (e: Effect) => (e.asset === 'supply' ? landed(m, e) : e.asset === 'barrage' ? e.shells!.some((s) => s.done) : e.asset === 'drone' ? e.told : e.phase !== 'down');
-  return m.assets.effects.some((e) => e.side === side && ANSWERS[asset].includes(e.asset) && dist2(e.asset === 'recon' ? vehicleOf(m, e.vehicle!)! : e, at) <= r * r && there(e));
+  const there = (e: Effect) => (e.asset === 'supply' ? landed(m, e) : e.asset === 'barrage' ? e.shells.some((s) => s.done) : e.asset === 'drone' ? e.told : e.asset !== 'recon' || e.phase !== 'down');
+  return m.assets.effects.some((e) => e.side === side && ANSWERS[asset].includes(e.asset) && dist2(e.asset === 'recon' ? vehicleOf(m, e.vehicle)! : e, at) <= r * r && there(e));
 }
 
 /** What `sq` needs and where, or null: Fire support when most are suppressed by enemies it sees, Recon when any is under fire it can't place, else Supplies. */

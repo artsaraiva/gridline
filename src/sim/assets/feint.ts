@@ -7,14 +7,19 @@ import type { Match } from '../index';
 import { seeThrough } from '../memory';
 import { looksAt } from '../perception';
 import type { Mix } from '../state';
-import { assetRadio, type Effect, type Kind } from './core';
+import { assetRadio, type EffectBase, type Kind } from './core';
 import { feintTicks } from './crate';
 
+export interface FeintEffect extends EffectBase {
+  asset: 'feint';
+  dummy: number; // its dummy's id as a shooter, after every Soldier's and vehicle's (crate.ts `dummyOf`)
+}
+
 /** The tick the dummy lands, and its first burst goes off. */
-const landing = (m: Match, e: Effect) => e.until - feintTicks(m);
+const landing = (m: Match, e: FeintEffect) => e.until - feintTicks(m);
 const burstTicks = (m: Match) => Math.round(m.tune.feintBurstSeconds * m.tune.hz);
 
-export const feint: Kind = {
+export const feint: Kind<FeintEffect> = {
   name: 'Feint',
   called: 'Decoy inbound',
   cooldownSeconds: (t) => t.feintCooldownSeconds,
@@ -24,16 +29,14 @@ export const feint: Kind = {
   landsIn: (m, e) => Math.max(0, (e.until - m.tick - feintTicks(m)) / m.tune.hz),
   fall: (t) => t.supplyFallSeconds,
 
-  start(m, e) {
-    e.dummy = m.soldiers.length + m.vehicles.length + m.assets.dummies++;
-  },
+  start: (m, base) => ({ ...base, asset: 'feint', dummy: m.soldiers.length + m.vehicles.length + m.assets.dummies++ }),
 
   work(m, e, events) {
     const since = m.tick - landing(m, e);
     if (since < 0) return; // a parachute coming down is a paratrooper to anyone: only the landed dummy is seen for what it is
     if (since === 0) assetRadio(m, e, 'Decoy active', events);
-    for (const sq of m.squads) if (sq.side !== e.side && !sq.dud.includes(e.dummy!) && sq.members.some((id) => looksAt(m, m.soldiers[id]!, e))) seeThrough(sq, e.dummy!);
-    if (since % burstTicks(m) === 0) events.push({ kind: 'shot', side: e.side, from: e.dummy!, to: -1, hit: false });
+    for (const sq of m.squads) if (sq.side !== e.side && !sq.dud.includes(e.dummy) && sq.members.some((id) => looksAt(m, m.soldiers[id]!, e))) seeThrough(sq, e.dummy);
+    if (since % burstTicks(m) === 0) events.push({ kind: 'shot', side: e.side, from: e.dummy, to: -1, hit: false });
     if (e.until === m.tick + 1) for (const sq of m.squads) sq.dud = sq.dud.filter((id) => id !== e.dummy); // it is gone: nothing left to tell apart
   },
 
@@ -46,6 +49,6 @@ export const feint: Kind = {
   },
 
   hash(e, mix: Mix) {
-    mix(e.dummy!);
+    mix(e.dummy);
   },
 };

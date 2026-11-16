@@ -10,7 +10,7 @@ describe('#151: crate flow fields', () => {
     warmFlows(m);
     const base = flowBytes(m);
     const field = m.grid.cols * m.grid.rows * 2;
-    const drop = (x: number, y: number) => m.assets.effects.push({ side: 'nato', asset: 'supply', x, y, until: m.tick + 100, told: true });
+    const drop = (x: number, y: number) => m.assets.effects.push({ side: 'nato', asset: 'supply', x, y, until: m.tick + 100, told: true, given: {}, open: {} });
     drop(-200, 50);
     crateFlow(m, { x: -200, y: 50 });
     expect(flowBytes(m)).toBe(base + field);
