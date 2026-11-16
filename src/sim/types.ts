@@ -541,8 +541,9 @@ export const ASSET_KINDS = ['scan', 'supply', 'barrage', 'missile', 'gunship', '
 export type AssetKind = (typeof ASSET_KINDS)[number];
 /**
  * #99: what a Squad may Request: never a Cruise Missile (#58), #101 nor a Gunship, #138 nor a line-shaped Asset. #139: a Drone
- * Strike answers a Barrage Request and a Recon Plane a Scan one (requests.ts); #142: Squads never Request a beacon or Rapid Deploy,
- * #143 nor an EMP Strike or a Feint. #182: an allow-list, so a new kind is never Requested until it is added here.
+ * Strike answers a Barrage Request and a Recon Plane a Scan one (each Kind's `answers`, which #184 puts on its AssetView); #142:
+ * Squads never Request a beacon or Rapid Deploy, #143 nor an EMP Strike or a Feint. #182: an allow-list, so a new kind is never
+ * Requested until it is added here.
  */
 export const REQUEST_KINDS = ['scan', 'supply', 'barrage'] as const satisfies readonly AssetKind[];
 export type RequestKind = (typeof REQUEST_KINDS)[number];
@@ -727,6 +728,8 @@ export interface AssetView {
   untargeted?: true;
   /** #142: an untargeted Asset at work (it has no effect on the map): the seconds it keeps working and its full time. Absent otherwise. */
   up?: { left: number; total: number };
+  /** #184: the Request it answers (its Kind's `answers`): its own kind's, or #139 a Barrage Request for the Drone Strike and a Scan one for the Recon Plane. Absent for one that answers none. */
+  answers?: RequestKind;
 }
 
 /** #182: what every effect on the Console carries; each kind's view adds its own fields (`EffectView`, keyed on `asset`). */

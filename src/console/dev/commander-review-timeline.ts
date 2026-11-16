@@ -872,8 +872,8 @@ function reconAt(t: number): EffectView[] {
 
 /** #139: the two rows, each ready until its call (the Drone Strike is off while nato's is in the air). */
 const airRows = (t: number): AssetView[] => [
-  { asset: 'drone', readyIn: t < DRONE.call ? 0 : Math.max(0, DRONE.call + G.droneCooldownSeconds - t), cooldown: G.droneCooldownSeconds, radius: G.droneSuppressM, ...(droneAt(DRONE, 'nato', t).length && { off: 'in the air' }) },
-  { asset: 'recon', readyIn: t < RECON.call ? 0 : Math.max(0, RECON.call + G.reconCooldownSeconds - t), cooldown: G.reconCooldownSeconds, radius: G.reconStripM, line: { length: 0, width: 2 * G.reconStripM, across: true, beyond: 150 }, ...(reconAt(t).length && { off: 'in the air' }) },
+  { asset: 'drone', readyIn: t < DRONE.call ? 0 : Math.max(0, DRONE.call + G.droneCooldownSeconds - t), cooldown: G.droneCooldownSeconds, radius: G.droneSuppressM, answers: 'barrage', ...(droneAt(DRONE, 'nato', t).length && { off: 'in the air' }) },
+  { asset: 'recon', readyIn: t < RECON.call ? 0 : Math.max(0, RECON.call + G.reconCooldownSeconds - t), cooldown: G.reconCooldownSeconds, radius: G.reconStripM, line: { length: 0, width: 2 * G.reconStripM, across: true, beyond: 150 }, answers: 'scan', ...(reconAt(t).length && { off: 'in the air' }) },
 ];
 
 function airEvents(): [number, SimEvent][] {
@@ -1024,9 +1024,9 @@ const keypadRows = (t: number): AssetView[] =>
   t < KEYPAD_AT
     ? []
     : [
-        { asset: 'scan', readyIn: 0, cooldown: G.scanCooldownSeconds, radius: G.scanRadiusM },
-        { asset: 'supply', readyIn: t < KEYPAD.supply ? 0 : Math.max(0, KEYPAD.supply + G.supplyCooldownSeconds - t), cooldown: G.supplyCooldownSeconds, radius: G.supplyRadiusM },
-        { asset: 'barrage', readyIn: 0, cooldown: G.barrageCooldownSeconds, radius: G.barrageSpreadM + G.barrageSuppressM },
+        { asset: 'scan', readyIn: 0, cooldown: G.scanCooldownSeconds, radius: G.scanRadiusM, answers: 'scan' },
+        { asset: 'supply', readyIn: t < KEYPAD.supply ? 0 : Math.max(0, KEYPAD.supply + G.supplyCooldownSeconds - t), cooldown: G.supplyCooldownSeconds, radius: G.supplyRadiusM, answers: 'supply' },
+        { asset: 'barrage', readyIn: 0, cooldown: G.barrageCooldownSeconds, radius: G.barrageSpreadM + G.barrageSuppressM, answers: 'barrage' },
       ];
 
 function keypadEvents(): [number, SimEvent][] {

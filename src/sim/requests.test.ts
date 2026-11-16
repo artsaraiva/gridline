@@ -243,3 +243,10 @@ describe('Request closes', () => {
     expect(request(r)).toMatchObject({ asset: 'scan' });
   });
 });
+
+describe('#184: what answers a Request', () => {
+  it("is on each Asset's row, as its Kind answers: the Scan UAV, Supply Drop and Barrage their own, #139 the Drone Strike fire support and the Recon Plane recon, the rest none", () => {
+    const rows = commanderView(scene({ 0: { x: 0, y: 0 } }), 'nato').assets!;
+    expect(Object.fromEntries(rows.filter((a) => a.answers).map((a) => [a.asset, a.answers]))).toEqual({ scan: 'scan', supply: 'supply', barrage: 'barrage', drone: 'barrage', recon: 'scan' });
+  });
+});

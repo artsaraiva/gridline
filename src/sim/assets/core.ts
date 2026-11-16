@@ -236,6 +236,7 @@ export function assetViews(m: Match, side: SideId): AssetView[] {
     const line = kinds()[k].line?.(t);
     const untargeted = kinds()[k].untargeted;
     const fx = untargeted && effectsOf(m, k, side)[0];
+    const answers = kinds()[k].answers?.request; // #184: so the Console arms what answers a Request without a list of its own
     return {
       asset: k,
       readyIn: Math.max(0, m.assets.readyAt[side][k] - m.tick) / t.hz,
@@ -246,6 +247,7 @@ export function assetViews(m: Match, side: SideId): AssetView[] {
       ...(line && { line }),
       ...(untargeted && { untargeted }),
       ...(fx && { up: { left: (fx.until - m.tick) / t.hz, total: kinds()[k].seconds(t) } }),
+      ...(answers && { answers }),
     };
   });
 }

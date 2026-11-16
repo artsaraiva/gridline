@@ -10,12 +10,9 @@
 // says both "tap a Mark to clear it" and "re-tapped" renews it: the mode is what tells them apart.
 import { chord, hqHolds, insidePolygon, lineHits } from '../sim/geometry';
 import { DEFAULT_TUNE } from '../sim/tune';
-import { enemyOf, type AssetKind, type RequestKind, type Vec2 } from '../sim/types';
+import { enemyOf, type AssetKind, type Vec2 } from '../sim/types';
 import { session } from './session';
 import { eliteSquad } from './summary';
-
-/** #139: the other Asset that answers each Request (sim/requests.ts). */
-const ALSO: Record<RequestKind, AssetKind | undefined> = { barrage: 'drone', scan: 'recon', supply: undefined };
 
 export const targeting = {
   armed: null as AssetKind | null,
@@ -66,12 +63,14 @@ export function escape() {
  * Answers a Squad's open Request (#41): selects the Squad and arms the matching Asset with its ring pinned at the requested
  * grid. The confirm is still the Commander's. An Asset that is cooling down, or a Request that has closed, only selects.
  * #139: with the Barrage cooling down the Drone Strike arms instead, and the Recon Plane for the Scan UAV (it still wants its direction).
+ * #184: what may answer is what the Simulation says on each row (`answers`), the Request's own Asset first.
  */
 export function answer(squad: number) {
   select(squad);
   const view = session.view;
   const r = view?.squads.find((q) => q.id === squad)?.request;
-  const asset = r && [r.asset, ALSO[r.asset]].find((k) => view?.assets?.some((a) => a.asset === k && a.readyIn === 0 && !a.off));
+  const free = (r && view?.assets?.filter((a) => a.answers === r.asset && a.readyIn === 0 && !a.off)) || [];
+  const asset = (free.find((a) => a.asset === r?.asset) ?? free[0])?.asset;
   if (!view || view.result || !r || !asset) return;
   markMode(false);
   targeting.armed = asset;
