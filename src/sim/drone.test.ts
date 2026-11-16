@@ -4,6 +4,7 @@ import { commanderView, createMatch, stateHash, step, type Match } from './index
 import { DEFAULT_TUNE } from './tune';
 import type { Command, CommanderView, MapData, SimEvent, Tune, Vec2 } from './types';
 import { crew, vehicle } from './test-scene';
+import { effectsOf } from './assets/lookup';
 
 const HZ = DEFAULT_TUNE.hz;
 
@@ -136,7 +137,7 @@ describe('Drone Strike: the blast', () => {
     play(a, 2 * HZ, CENTRE);
     play(b, 2 * HZ, CENTRE);
     expect(stateHash(a)).toBe(stateHash(b));
-    b.assets.effects[0]!.land!++;
+    effectsOf(b, 'drone')[0]!.land++;
     expect(stateHash(a)).not.toBe(stateHash(b));
   });
 });

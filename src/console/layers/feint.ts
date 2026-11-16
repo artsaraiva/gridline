@@ -34,9 +34,9 @@ const dummies = pool(() => {
 /** `scale` is the chevron size in metres (constant on screen), for the icon. */
 export function drawFeints(view: CommanderView, scale: number) {
   for (const e of view.effects ?? []) {
-    if (e.asset !== 'feint' || e.landsIn === undefined || !e.fall) continue;
+    if (e.asset !== 'feint' || !e.fall) continue;
     const d = feintDrop({ x: e.x, y: e.y, landsIn: e.landsIn, fall: e.fall });
-    const color = sideColor(e.side ?? view.side);
+    const color = sideColor(e.side);
     const m = dummies.next();
     m.shadow.visible = !d.landed;
     m.shadow.position.set(d.shadow.x, d.shadow.y, Z.shadow);

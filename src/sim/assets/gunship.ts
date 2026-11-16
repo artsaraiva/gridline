@@ -25,12 +25,28 @@ import { ticksOf, vehicleOf, type Mix } from '../state';
 import type { Match } from '../index';
 import { enemyOf, type SimEvent, type Tune, type Vec2 } from '../types';
 import { borrow, crippled, homeward, lost, paradrop, release, steer, type Vehicle } from '../vehicles';
-import { shellBlast } from './barrage';
-import { assetRadio, type Effect, type Kind } from './core';
+import { shellBlast, type Shell } from './barrage';
+import { assetRadio, type Aircraft, type EffectBase, type Kind, type Shells } from './core';
+import { effectsOf } from './lookup';
 import { heavyGate } from './missile';
 import { blast } from '../damage';
 
 const PHASES = ['inbound', 'station', 'leaving', 'down'] as const;
+
+/** A Gunship shell: a Barrage shell, and where it left the aircraft. */
+export interface GunShell extends Shell {
+  from: Vec2;
+}
+
+export interface GunshipEffect extends EffectBase, Aircraft<(typeof PHASES)[number]>, Shells {
+  asset: 'gunship';
+  shells: GunShell[];
+  from: Vec2; // its launch point, beyond the Play Area behind the caller's HQ: it wakes and sleeps there
+  nextShot: number; // the first tick its cannon may fire again
+  prey: number; // the id of the enemy it flies at (-1: at its focus, `x` and `y`)
+  turn: -1 | 0 | 1; // which way it turned this tick: 1 left, -1 right, 0 straight on
+  out: boolean; // it is flying out from a spot too close inside its turn, to come back round onto it
+}
 
 /** The radius of its tightest turn. */
 const turnM = (t: Tune) => (t.gunshipSpeedMps * 180) / (Math.PI * t.gunshipTurnDegPerS);
@@ -40,22 +56,23 @@ const CLEAR = 1.25;
 const OVER_M = 25;
 
 /** The caller's enemies on foot in reach of the aircraft `v`: alive, not under a parachute, outside their own HQ (the Scan UAV's rule: an HQ hides its own). */
-function inRange(m: Match, e: Effect, v: Vehicle) {
+function inRange(m: Match, e: GunshipEffect, v: Vehicle) {
   const r = m.tune.gunshipRangeM;
   return m.soldiers.filter((s) => s.side !== e.side && s.state === 'alive' && s.vehicle < 0 && !s.chute && dist2(s, v) <= r * r && !inHq(m, s.side, s));
 }
 
 /** Turns for home: the radio says so, and everyone aboard jumps. */
-function leave(m: Match, e: Effect, v: Vehicle, events: SimEvent[]) {
-  Object.assign(e, { phase: 'leaving', phaseAt: m.tick });
+function leave(m: Match, e: GunshipEffect, v: Vehicle, events: SimEvent[]) {
+  e.phase = 'leaving';
+  e.phaseAt = m.tick;
   homeward(m, v);
   assetRadio(m, e, 'Gunship leaving', events);
 }
 
 /** Lands the shells due; the first says "Splash". */
-function land(m: Match, e: Effect, events: SimEvent[]) {
+function land(m: Match, e: GunshipEffect, events: SimEvent[]) {
   const t = m.tune;
-  for (const s of e.shells!) {
+  for (const s of e.shells) {
     if (s.done || s.land > m.tick) continue;
     s.done = true;
     events.push({ kind: 'impact', side: e.side, x: s.x, y: s.y, asset: 'gunship' });
@@ -68,7 +85,7 @@ function land(m: Match, e: Effect, events: SimEvent[]) {
 }
 
 /** One shell at the enemy in range nearest the aircraft, if there is one, landing uniformly over a disc round where it is. */
-function shoot(m: Match, e: Effect, v: Vehicle) {
+function shoot(m: Match, e: GunshipEffect, v: Vehicle) {
   const t = m.tune;
   let prey: { x: number; y: number } | null = null;
   for (const s of inRange(m, e, v)) if (!prey || dist2(s, v) < dist2(prey, v)) prey = s;
@@ -80,7 +97,7 @@ function shoot(m: Match, e: Effect, v: Vehicle) {
     dx = (rnd(m) * 2 - 1) * R;
     dy = (rnd(m) * 2 - 1) * R;
   } while (dx * dx + dy * dy > R * R);
-  e.shells!.push({ x: prey.x + dx, y: prey.y + dy, from: { x: v.x, y: v.y }, launch: m.tick, land: m.tick + ticksOf(t, t.gunshipShellFlightSeconds), done: false });
+  e.shells.push({ x: prey.x + dx, y: prey.y + dy, from: { x: v.x, y: v.y }, launch: m.tick, land: m.tick + ticksOf(t, t.gunshipShellFlightSeconds), done: false });
   e.nextShot = m.tick + ticksOf(t, t.gunshipShotSeconds);
 }
 
@@ -91,14 +108,14 @@ function shoot(m: Match, e: Effect, v: Vehicle) {
  * `gunshipRangeM` of it: those round the focus when there are any; else all of them, the farther from the focus the less
  * likely, and the focus itself (as one enemy there).
  */
-function aim(m: Match, e: Effect, v: Vehicle): Vec2 {
+function aim(m: Match, e: GunshipEffect, v: Vehicle): Vec2 {
   const spots = known(m, e.side);
   const over = (p: Vec2) => dist2(p, v) <= OVER_M * OVER_M;
   const r2 = m.tune.gunshipRangeM * m.tune.gunshipRangeM;
   const foes = [...spots].filter(([id, p]) => m.soldiers[id] && markable(m, id) && !inHq(m, enemyOf(e.side), p));
   const ahead = foes.filter(([, p]) => !over(p));
   const focused = ahead.filter(([, p]) => dist2(p, e) <= m.tune.gunshipFocusM * m.tune.gunshipFocusM);
-  const at = e.prey! < 0 ? (focused.length ? undefined : e) : markable(m, e.prey!) ? spots.get(e.prey!) : undefined;
+  const at = e.prey < 0 ? (focused.length ? undefined : e) : markable(m, e.prey) ? spots.get(e.prey) : undefined;
   if (at && !over(at)) return at;
   const marks: [number, Vec2][] = focused.length ? focused : over(e) ? ahead : [...ahead, [-1, e]];
   // ponytail: every known enemy against every other, once a pass; a grid of counts if a 128 v 128 match ever shows it in `pnpm bench`
@@ -111,7 +128,7 @@ function aim(m: Match, e: Effect, v: Vehicle): Vec2 {
  * One tick ahead, turning toward `to` at `gunshipTurnDegPerS`. A spot inside the turn on its side is out of reach: it flies
  * straight on (`out`) until the spot is CLEAR of that turn, then comes round onto it.
  */
-function fly(m: Match, e: Effect, v: Vehicle, to: Vec2) {
+function fly(m: Match, e: GunshipEffect, v: Vehicle, to: Vec2) {
   const t = m.tune;
   const R = turnM(t);
   const [dx, dy] = [to.x - v.x, to.y - v.y];
@@ -119,15 +136,15 @@ function fly(m: Match, e: Effect, v: Vehicle, to: Vec2) {
   const left = v.fx * dy - v.fy * dx >= 0 ? 1 : -1;
   const [cx, cy] = [-v.fy * left * R, v.fx * left * R]; // the centre of its tightest turn that way
   const gap = Math.sqrt((dx - cx) * (dx - cx) + (dy - cy) * (dy - cy)) / R; // from the turn's centre, in turn radii: under 1 is inside it
-  e.out = gap < 1 || (e.out! && gap < CLEAR);
+  e.out = gap < 1 || (e.out && gap < CLEAR);
   const f = d === 0 || e.out ? { fx: v.fx, fy: v.fy } : turnToward(v.fx, v.fy, dx / d, dy / d, t.gunshipTurnDegPerS, t.hz);
   const cross = v.fx * f.fy - v.fy * f.fx;
-  e.turn = Math.abs(cross) < t.gunshipTurnDegPerS / t.hz / 115 ? 0 : Math.sign(cross); // half a tick's turn (in radians) or more: banked that way
+  e.turn = Math.abs(cross) < t.gunshipTurnDegPerS / t.hz / 115 ? 0 : cross > 0 ? 1 : -1; // half a tick's turn (in radians) or more: banked that way
   const step = t.gunshipSpeedMps / t.hz;
   steer(m, v, { x: v.x + f.fx * step, y: v.y + f.fy * step }, f);
 }
 
-export const gunship: Kind = {
+export const gunship: Kind<GunshipEffect> = {
   name: 'Gunship',
   sky: true,
   cooldownSeconds: (t) => t.gunshipCooldownSeconds,
@@ -136,35 +153,37 @@ export const gunship: Kind = {
   radius: (t) => t.gunshipFocusM,
   gate: heavyGate,
   retask(m, side, at) {
-    const e = m.assets.effects.find((o) => o.asset === 'gunship' && o.side === side && (o.phase === 'inbound' || o.phase === 'station'));
-    if (e && at) Object.assign(e, { x: at.x, y: at.y, prey: -1 }); // it turns for the new focus at once
+    const e = effectsOf(m, 'gunship', side).find((o) => o.phase === 'inbound' || o.phase === 'station');
+    if (e && at) Object.assign(e, { x: at.x, y: at.y, prey: -1 } satisfies Partial<GunshipEffect>); // it turns for the new focus at once
     return e;
   },
 
-  start(m, e) {
+  start(m, base) {
     const t = m.tune;
-    const from = launchPoint(m, e.side);
-    const d = Math.sqrt(dist2(from, e));
-    const v = borrow(m, e.side, 'gunship', from, { fx: (e.x - from.x) / d, fy: (e.y - from.y) / d }); // it waits at the launch point
-    Object.assign(e, { from, vehicle: v.id, phase: 'inbound', phaseAt: m.tick, nextShot: m.tick, shells: [], prey: -1, turn: 0, out: false });
+    const from = launchPoint(m, base.side);
+    const d = Math.sqrt(dist2(from, base));
+    const v = borrow(m, base.side, 'gunship', from, { fx: (base.x - from.x) / d, fy: (base.y - from.y) / d }); // it waits at the launch point
     // ponytail: a bound, not the exact end (in to the far side of the Play Area and home from there, a full turn each way and one to spare); reaching home ends it sooner
     const far = Math.sqrt(Math.max(...m.map.playArea.map((p) => dist2(p, from))));
-    e.until = m.tick + ticksOf(t, (2 * far) / t.gunshipSpeedMps + 3 * (360 / t.gunshipTurnDegPerS) + t.gunshipStationSeconds);
+    const until = m.tick + ticksOf(t, (2 * far) / t.gunshipSpeedMps + 3 * (360 / t.gunshipTurnDegPerS) + t.gunshipStationSeconds);
+    return { ...base, asset: 'gunship', from, vehicle: v.id, phase: 'inbound', phaseAt: m.tick, nextShot: m.tick, shells: [], prey: -1, turn: 0, out: false, until };
   },
 
   work(m, e, events) {
     const t = m.tune;
     land(m, e, events);
     if (e.phase === 'down') return;
-    const v = vehicleOf(m, e.vehicle!)!;
+    const v = vehicleOf(m, e.vehicle)!;
     if (lost(v)) { // shot down: vehicles/core.ts `hurt` left the Wreck and bailed its riders out
-      Object.assign(e, { phase: 'down', phaseAt: m.tick, until: Math.max(m.tick, ...e.shells!.filter((s) => !s.done).map((s) => s.land)) + 1 });
+      e.until = Math.max(m.tick, ...e.shells.filter((s) => !s.done).map((s) => s.land)) + 1;
+      e.phase = 'down';
+      e.phaseAt = m.tick;
       return;
     }
     if (m.tick + 1 >= e.until) return release(v); // the bound in `start` ran out before home: gone all the same, never left flying
     if (e.phase !== 'leaving' && crippled(m, v)) leave(m, e, v, events); // breaks off early
     if (e.phase === 'leaving') {
-      const home = e.from!;
+      const home = e.from;
       if (dist2(v, home) <= (t.gunshipSpeedMps / t.hz) ** 2) {
         release(v); // off the map: gone
         e.until = m.tick + 1;
@@ -175,27 +194,29 @@ export const gunship: Kind = {
     fly(m, e, v, e.phase === 'inbound' ? e : aim(m, e, v));
     if (e.phase === 'inbound') {
       if (dist2(v, e) > t.gunshipRangeM * t.gunshipRangeM) return;
-      Object.assign(e, { phase: 'station', phaseAt: m.tick, nextShot: m.tick });
+      e.phase = 'station';
+      e.phaseAt = m.tick;
+      e.nextShot = m.tick;
       assetRadio(m, e, 'Gunship on station', events);
     }
     paradrop(m, v); // each passenger jumps as it passes its goal
-    if (m.tick >= e.phaseAt! + ticksOf(t, t.gunshipStationSeconds)) leave(m, e, v, events);
-    else if (m.tick >= e.nextShot!) shoot(m, e, v);
+    if (m.tick >= e.phaseAt + ticksOf(t, t.gunshipStationSeconds)) leave(m, e, v, events);
+    else if (m.tick >= e.nextShot) shoot(m, e, v);
   },
 
-  contacts: (m, e) => (e.phase === 'station' ? inRange(m, e, vehicleOf(m, e.vehicle!)!) : []),
+  contacts: (m, e) => (e.phase === 'station' ? inRange(m, e, vehicleOf(m, e.vehicle)!) : []),
 
-  view(m, e) {
+  view(m, e, own, base) {
     const t = m.tune;
-    const v = vehicleOf(m, e.vehicle!)!;
-    const left = e.phase === 'inbound' ? t.gunshipStationSeconds : e.phase === 'station' ? (e.phaseAt! + ticksOf(t, t.gunshipStationSeconds) - m.tick) / t.hz : 0;
-    const shells = e.shells!.filter((s) => !s.done && s.launch <= m.tick).map((s) => ({ x: s.x, y: s.y, from: s.from!, flight: (m.tick - s.launch) / (s.land - s.launch) }));
-    return { side: e.side, from: e.from!, left: Math.max(0, left), total: t.gunshipStationSeconds, shells, ...(e.phase !== 'down' && !lost(v) && { phase: e.phase, craft: { x: v.x, y: v.y, fx: v.fx, fy: v.fy, turn: e.turn! } }) }; // shot down this tick: its Asset learns next tick
+    const v = vehicleOf(m, e.vehicle)!;
+    const left = e.phase === 'inbound' ? t.gunshipStationSeconds : e.phase === 'station' ? (e.phaseAt + ticksOf(t, t.gunshipStationSeconds) - m.tick) / t.hz : 0;
+    const shells = e.shells.filter((s) => !s.done && s.launch <= m.tick).map((s) => ({ x: s.x, y: s.y, from: s.from, flight: (m.tick - s.launch) / (s.land - s.launch) }));
+    return { ...base, side: e.side, from: e.from, left: Math.max(0, left), total: t.gunshipStationSeconds, shells, ...(e.phase !== 'down' && !lost(v) && { phase: e.phase, craft: { x: v.x, y: v.y, fx: v.fx, fy: v.fy, turn: e.turn } }) }; // shot down this tick: its Asset learns next tick
   },
 
   hash(e, mix: Mix) {
-    for (const n of [e.from!.x, e.from!.y]) mix(Math.round(n * 1000));
-    for (const n of [e.vehicle!, PHASES.indexOf(e.phase!), e.phaseAt!, e.nextShot!, e.prey!, e.turn!, +e.out!, e.shells!.length]) mix(n);
-    for (const s of e.shells!) for (const n of [Math.round(s.x * 1000), Math.round(s.y * 1000), Math.round(s.from!.x * 1000), Math.round(s.from!.y * 1000), s.launch, s.land, +s.done]) mix(n);
+    for (const n of [e.from.x, e.from.y]) mix(Math.round(n * 1000));
+    for (const n of [e.vehicle, PHASES.indexOf(e.phase), e.phaseAt, e.nextShot, e.prey, e.turn, +e.out, e.shells.length]) mix(n);
+    for (const s of e.shells) for (const n of [Math.round(s.x * 1000), Math.round(s.y * 1000), Math.round(s.from.x * 1000), Math.round(s.from.y * 1000), s.launch, s.land, +s.done]) mix(n);
   },
 };

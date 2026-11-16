@@ -3,6 +3,7 @@
 import type { Match } from '../index';
 import type { Grid } from '../grid';
 import { cellCentre, cellIndex, nearestWalkable } from '../grid';
+import { effectsOf } from '../assets/lookup';
 import { dist2 } from '../geometry';
 import { SIDES, type SideId, type Vec2 } from '../types';
 
@@ -121,7 +122,8 @@ export const crateReachM = (m: Match) => m.tune.supplyStaySeconds * m.tune.walkS
 export const crateFlow = (m: Match, at: Vec2) =>
   cached(m.grid, `c${at.x},${at.y}`, () => {
     const byKey = cache.get(m.grid)!;
-    for (const key of byKey.keys()) if (key[0] === 'c' && !m.assets.effects.some((e) => e.asset === 'supply' && key === `c${e.x},${e.y}`)) byKey.delete(key);
+    const crates = effectsOf(m, 'supply');
+    for (const key of byKey.keys()) if (key[0] === 'c' && !crates.some((e) => key === `c${e.x},${e.y}`)) byKey.delete(key);
     return build(m, m.grid, at, m.tune.supplyRadiusM * 0.6, undefined, undefined, crateReachM(m));
   });
 

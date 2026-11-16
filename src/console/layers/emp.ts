@@ -94,7 +94,7 @@ export function drawEmps(view: CommanderView, scale: number, now: number) {
     r.position.set(e.x, e.y, Z.ring);
     r.ring.r.value = e.radius;
     // in the air, its target ring in its caller's colour, as the drone's; then its own, faint, while it holds
-    r.ring.tint.value.setHex(e.burst === undefined ? sideColor(e.side ?? view.side) : EMP_BLUE);
+    r.ring.tint.value.setHex(e.burst === undefined ? sideColor(e.side) : EMP_BLUE);
     r.ring.alpha.value = e.burst === undefined ? AIM_RING_OPACITY : empRing(e.left);
     const flash = e.burst === undefined ? null : empFlash(e.burst, e.radius);
     if (!flash) continue;

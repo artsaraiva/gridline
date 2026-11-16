@@ -3,10 +3,14 @@
 // nobody, shows no Contacts and scores nothing. In the sky, so both Sides' views carry it.
 import type { Mix } from '../state';
 import { smokeDisc, smokeLife, STAGGER_SECONDS } from '../smoke';
-import { flying, hashShells } from './barrage';
-import { assetRadio, type Kind } from './core';
+import { flying, hashShells, type Shell } from './barrage';
+import { assetRadio, hashLine, type EffectBase, type Kind, type Line, type Shells } from './core';
 
-export const smoke: Kind = {
+export interface SmokeEffect extends EffectBase, Shells, Line {
+  asset: 'smoke';
+}
+
+export const smoke: Kind<SmokeEffect> = {
   name: 'Smoke Screen',
   called: 'Smoke inbound', // the spec's Voice Line
   sky: true,
@@ -15,19 +19,20 @@ export const smoke: Kind = {
   radius: (t) => t.smokeWidthM / 2,
   line: (t) => ({ length: t.smokeLengthM, width: t.smokeWidthM }),
 
-  start(m, e) {
+  start(m, base, { to }) {
     const t = m.tune;
     const n = t.smokeShells;
-    e.shells = [];
+    const shells: Shell[] = [];
     for (let i = 0; i < n; i++) {
       const k = (i + 0.5) / n; // evenly along the wall, half a gap in from each end
       const land = m.tick + Math.round((t.smokeWarningSeconds + i * STAGGER_SECONDS) * t.hz);
-      e.shells.push({ x: e.x + (e.to!.x - e.x) * k, y: e.y + (e.to!.y - e.y) * k, launch: land - Math.round(t.barrageFlightSeconds * t.hz), land, done: false });
+      shells.push({ x: base.x + (to.x - base.x) * k, y: base.y + (to.y - base.y) * k, launch: land - Math.round(t.barrageFlightSeconds * t.hz), land, done: false });
     }
+    return { ...base, asset: 'smoke', to, shells };
   },
 
   work(m, e, events) {
-    for (const shell of e.shells!) {
+    for (const shell of e.shells) {
       if (shell.done || shell.land > m.tick) continue;
       shell.done = true;
       if (e.told) continue;
@@ -36,11 +41,14 @@ export const smoke: Kind = {
     }
   },
 
-  view(m, e) {
+  view(m, e, own, base) {
     const t = m.tune;
-    const discs = e.shells!.map((s) => ({ x: s.x, y: s.y, age: (m.tick - s.land) / t.hz, ...smokeDisc(t, m.tick - s.land) }));
-    return { side: e.side, line: { to: e.to!, width: t.smokeWidthM }, ...flying(m, e.shells!), smoke: discs.filter((d) => d.r > 0) };
+    const discs = e.shells.map((s) => ({ x: s.x, y: s.y, age: (m.tick - s.land) / t.hz, ...smokeDisc(t, m.tick - s.land) }));
+    return { ...base, side: e.side, line: { to: e.to, width: t.smokeWidthM }, ...flying(m, e.shells), smoke: discs.filter((d) => d.r > 0) };
   },
 
-  hash: (e, mix: Mix) => hashShells(e.shells!, mix),
+  hash(e, mix: Mix) {
+    hashLine(e, mix);
+    hashShells(e.shells, mix);
+  },
 };

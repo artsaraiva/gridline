@@ -78,7 +78,7 @@ export function keystonesMissing(off: string | undefined, points: PointView[]): 
  */
 export function atWork(asset: AssetKind, view: CommanderView): { left: number; total: number } | undefined {
   const up = view.assets?.find((a) => a.asset === asset)?.up;
-  return up ?? view.effects?.filter((e) => e.asset === asset && (e.side ?? view.side) === view.side && !e.lost && (e.asset !== 'gunship' || e.left > 0)).sort((p, q) => q.left - p.left)[0];
+  return up ?? view.effects?.filter((e) => e.asset === asset && ('side' in e ? e.side : view.side) === view.side && !('lost' in e && e.lost) && (e.asset !== 'gunship' || e.left > 0)).sort((p, q) => q.left - p.left)[0];
 }
 
 export type CellState = 'ready' | 'cooling' | 'active' | 'off' | 'armed';

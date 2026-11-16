@@ -4,6 +4,7 @@ import { commanderView, createMatch, stateHash, step, type Match } from './index
 import { DEFAULT_TUNE } from './tune';
 import type { Command, CommanderView, MapData, SimEvent, Tune, Vec2 } from './types';
 import { crew, vehicle } from './test-scene';
+import { effectsOf } from './assets/lookup';
 
 const HZ = DEFAULT_TUNE.hz;
 
@@ -136,7 +137,7 @@ describe('Recon Plane: the pass', () => {
     play(a, over(100));
     play(b, over(100));
     expect(stateHash(a)).toBe(stateHash(b));
-    b.assets.effects[0]!.found!.push(7);
+    effectsOf(b, 'recon')[0]!.found.push(7);
     expect(stateHash(a)).not.toBe(stateHash(b));
   });
 });

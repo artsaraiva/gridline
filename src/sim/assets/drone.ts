@@ -7,10 +7,14 @@
 import { dist2 } from '../geometry';
 import { vehicleOf, type Mix } from '../state';
 import { borrow, release, steer } from '../vehicles';
-import { assetRadio, inTheAir, shotDown, type Kind } from './core';
+import { assetRadio, inTheAir, shotDown, type Aircraft, type EffectBase, type Flight, type Kind } from './core';
 import { blast } from '../damage';
 
-export const drone: Kind = {
+export interface DroneEffect extends EffectBase, Flight, Aircraft<'inbound' | 'down'> {
+  asset: 'drone';
+}
+
+export const drone: Kind<DroneEffect> = {
   name: 'Drone Strike',
   called: 'Drone away',
   sky: true,
@@ -19,24 +23,25 @@ export const drone: Kind = {
   seconds: (t) => t.barrageContactSeconds, // the flight is added at the call, by distance
   radius: (t) => t.droneSuppressM,
   gate: (m, side) => inTheAir(m, side, 'drone'), // on a map wider than its cooldown flies, the next waits for this one
+  answers: { request: 'barrage', at: (m, e) => (e.told ? e : null) }, // #139: "fire support", as a shell does, once it has hit (never once shot down)
 
-  start(m, e) {
+  start(m, base) {
     const t = m.tune;
-    const from = { x: m.map.hqs[e.side].x, y: m.map.hqs[e.side].y };
-    const d = Math.sqrt(dist2(from, e)) || 1;
-    const v = borrow(m, e.side, 'drone', from, { fx: (e.x - from.x) / d, fy: (e.y - from.y) / d });
-    Object.assign(e, { from, vehicle: v.id, phase: 'inbound', phaseAt: m.tick, launch: m.tick, land: m.tick + Math.max(1, Math.round((d / t.droneSpeedMps) * t.hz)) });
-    e.until = e.land! + Math.round(t.barrageContactSeconds * t.hz);
+    const from = { x: m.map.hqs[base.side].x, y: m.map.hqs[base.side].y };
+    const d = Math.sqrt(dist2(from, base)) || 1;
+    const v = borrow(m, base.side, 'drone', from, { fx: (base.x - from.x) / d, fy: (base.y - from.y) / d });
+    const land = m.tick + Math.max(1, Math.round((d / t.droneSpeedMps) * t.hz));
+    return { ...base, asset: 'drone', from, vehicle: v.id, phase: 'inbound', phaseAt: m.tick, launch: m.tick, land, until: land + Math.round(t.barrageContactSeconds * t.hz) };
   },
 
   work(m, e, events) {
     if (e.told || e.phase === 'down') return;
     const t = m.tune;
-    const v = vehicleOf(m, e.vehicle!)!;
+    const v = vehicleOf(m, e.vehicle)!;
     if (shotDown(m, e, v, 'Drone lost', events)) return; // it falls where it was, with no blast
-    if (m.tick < e.land!) {
-      const k = (m.tick - e.launch!) / (e.land! - e.launch!);
-      return steer(m, v, { x: e.from!.x + (e.x - e.from!.x) * k, y: e.from!.y + (e.y - e.from!.y) * k });
+    if (m.tick < e.land) {
+      const k = (m.tick - e.launch) / (e.land - e.launch);
+      return steer(m, v, { x: e.from.x + (e.x - e.from.x) * k, y: e.from.y + (e.y - e.from.y) * k });
     }
     e.told = true;
     release(v);
@@ -52,22 +57,23 @@ export const drone: Kind = {
     return m.soldiers.filter((s) => s.side !== e.side && s.state === 'alive' && s.vehicle < 0 && dist2(s, e) <= r * r);
   },
 
-  view(m, e) {
+  view(m, e, own, base) {
     const t = m.tune;
-    const v = vehicleOf(m, e.vehicle!)!;
+    const v = vehicleOf(m, e.vehicle)!;
     const lost = e.phase === 'down';
     return {
+      ...base,
       side: e.side,
-      from: e.from!,
-      flight: Math.min(1, ((lost ? e.phaseAt! : m.tick) - e.launch!) / (e.land! - e.launch!)),
-      impactIn: lost ? 0 : Math.max(0, (e.land! - m.tick) / t.hz),
-      total: (e.until - e.launch!) / t.hz,
+      from: e.from,
+      flight: Math.min(1, ((lost ? e.phaseAt : m.tick) - e.launch) / (e.land - e.launch)),
+      impactIn: lost ? 0 : Math.max(0, (e.land - m.tick) / t.hz),
+      total: (e.until - e.launch) / t.hz,
       ...(!e.told && { craft: { x: v.x, y: v.y, fx: v.fx, fy: v.fy, turn: 0 } }),
       ...(lost && { lost }),
     };
   },
 
   hash(e, mix: Mix) {
-    for (const n of [Math.round(e.from!.x * 1000), Math.round(e.from!.y * 1000), e.vehicle!, +(e.phase === 'down'), e.phaseAt!, e.launch!, e.land!]) mix(n);
+    for (const n of [Math.round(e.from.x * 1000), Math.round(e.from.y * 1000), e.vehicle, +(e.phase === 'down'), e.phaseAt, e.launch, e.land]) mix(n);
   },
 };

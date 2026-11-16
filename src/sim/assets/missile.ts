@@ -6,7 +6,7 @@ import type { Match } from '../index';
 import { dist2, keystone, launchPoint } from '../geometry';
 import type { Mix } from '../state';
 import type { SideId } from '../types';
-import { assetRadio, type Effect, type Kind } from './core';
+import { assetRadio, type EffectBase, type Flight, type Kind } from './core';
 import { blast } from '../damage';
 
 const CENTRE = { x: 0, y: 0 };
@@ -18,9 +18,13 @@ export function heavyGate(m: Match, side: SideId): string | null {
   return !keys.length ? 'no Capture Point' : missing.length ? `needs ${missing.join(', ')}` : null;
 }
 
-const flight = (m: Match, e: Effect) => Math.min(1, (m.tick - e.launch!) / (e.land! - e.launch!));
+export interface MissileEffect extends EffectBase, Flight {
+  asset: 'missile';
+}
 
-export const missile: Kind = {
+const flight = (m: Match, e: MissileEffect) => Math.min(1, (m.tick - e.launch) / (e.land - e.launch));
+
+export const missile: Kind<MissileEffect> = {
   name: 'Missile',
   called: 'Missile away',
   sky: true,
@@ -30,16 +34,15 @@ export const missile: Kind = {
   radius: (t) => t.missileSuppressM,
   gate: heavyGate,
 
-  start(m, e) {
+  start(m, base) {
     const t = m.tune;
-    e.from = launchPoint(m, e.side);
-    e.launch = m.tick;
-    e.land = m.tick + Math.max(1, Math.round((Math.sqrt(dist2(e.from, e)) / t.missileSpeedMps) * t.hz));
-    e.until = e.land + Math.round(t.barrageContactSeconds * t.hz);
+    const from = launchPoint(m, base.side);
+    const land = m.tick + Math.max(1, Math.round((Math.sqrt(dist2(from, base)) / t.missileSpeedMps) * t.hz));
+    return { ...base, asset: 'missile', from, launch: m.tick, land, until: land + Math.round(t.barrageContactSeconds * t.hz) };
   },
 
   work(m, e, events) {
-    if (e.told || e.land! > m.tick) return;
+    if (e.told || e.land > m.tick) return;
     e.told = true;
     events.push({ kind: 'impact', side: e.side, x: e.x, y: e.y, asset: 'missile' });
     assetRadio(m, e, 'Splash', events);
@@ -53,12 +56,12 @@ export const missile: Kind = {
     return m.soldiers.filter((s) => s.side !== e.side && s.state === 'alive' && s.vehicle < 0 && dist2(s, e) <= r * r);
   },
 
-  view(m, e) {
+  view(m, e, own, base) {
     const t = m.tune;
-    return { side: e.side, from: e.from!, flight: flight(m, e), impactIn: Math.max(0, (e.land! - m.tick) / t.hz), total: (e.until - e.launch!) / t.hz };
+    return { ...base, side: e.side, from: e.from, flight: flight(m, e), impactIn: Math.max(0, (e.land - m.tick) / t.hz), total: (e.until - e.launch) / t.hz };
   },
 
   hash(e, mix: Mix) {
-    for (const v of [Math.round(e.from!.x * 1000), Math.round(e.from!.y * 1000), e.launch!, e.land!]) mix(v);
+    for (const v of [Math.round(e.from.x * 1000), Math.round(e.from.y * 1000), e.launch, e.land]) mix(v);
   },
 };

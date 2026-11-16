@@ -17,7 +17,7 @@ const view = (over: Partial<CommanderView> = {}): CommanderView => ({
   effects: [],
   ...over,
 });
-const effect = (over: Partial<EffectView>): EffectView => ({ asset: 'scan', x: 0, y: 0, radius: 60, left: 10, total: 15, ...over });
+const AT = { x: 0, y: 0, radius: 60, left: 10, total: 15 };
 
 // Cases set TUNING knobs; each gets the defaults back so the order of the cases does not matter.
 const DEFAULTS = structuredClone(TUNING);
@@ -107,19 +107,19 @@ describe('observability rule: a combat sound plays only when its source is drawn
 
   it('a Scan UAV on station hums at its orbit; nothing loops on an empty map', () => {
     expect(drawnLoops(view(), HQ, 0)).toEqual([]);
-    const loops = drawnLoops(view({ effects: [effect({ asset: 'scan', x: 100, y: 50, radius: 60 })] }), HQ, 0);
+    const loops = drawnLoops(view({ effects: [{ ...AT, asset: 'scan', x: 100, y: 50, radius: 60 }] }), HQ, 0);
     expect(loops).toHaveLength(1);
     expect(loops[0]).toMatchObject({ kind: 'uav', key: 'uav:100:50', x: 160, y: 50 });
   });
 
   it('a Supply Drop crate flutters while it falls and goes quiet once landed', () => {
-    const falling = effect({ asset: 'supply', x: 10, y: 20, landsIn: 3, fall: 5 });
+    const falling: EffectView = { ...AT, asset: 'supply', x: 10, y: 20, landsIn: 3, fall: 5 };
     expect(drawnLoops(view({ effects: [falling] }), HQ, 0)).toMatchObject([{ kind: 'crate', key: 'crate:10:20' }]);
     expect(drawnLoops(view({ effects: [{ ...falling, landsIn: 0 }] }), HQ, 0)).toEqual([]);
   });
 
   it('each drawn Barrage shell whistles along its descent, keyed by where it lands; one not yet drawn is silent', () => {
-    const barrage = effect({ asset: 'barrage', x: 0, y: 0, radius: 25, shells: [{ x: 5, y: 5, flight: 0.95 }, { x: -5, y: 5, flight: 0.85 }, { x: 0, y: 9, flight: 0.3 }] });
+    const barrage: EffectView = { ...AT, asset: 'barrage', x: 0, y: 0, radius: 25, shells: [{ x: 5, y: 5, flight: 0.95 }, { x: -5, y: 5, flight: 0.85 }, { x: 0, y: 9, flight: 0.3 }], impactIn: 0 };
     const loops = drawnLoops(view({ effects: [barrage] }), HQ, 0);
     expect(loops.map((l) => l.key)).toEqual(['shell:5:5', 'shell:-5:5']);
     expect(loops[0]!.kind).toBe('shell');

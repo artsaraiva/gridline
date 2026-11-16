@@ -11,7 +11,8 @@ const Z = 0.64; // over craters and impact plumes, under every symbol
 
 export function drawSmokeScreens(view: CommanderView) {
   for (const e of view.effects ?? [])
-    (e.smoke ?? []).forEach((d, i) => {
+    if (e.asset === 'smoke')
+      e.smoke.forEach((d, i) => {
       for (const s of smokeLook(d, i)) {
         if (s.opacity <= 0) continue;
         const p = puffs.next();

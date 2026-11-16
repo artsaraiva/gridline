@@ -8,11 +8,15 @@ import { footLeader, lastDeath, membersOf, vehicleOf, wiped, type Point, type So
 import { rnd } from './rng';
 import { enemyOf, type SideId, type SimEvent, type Vec2 } from './types';
 import { boardOnReturn, inSky, leave } from './vehicles';
-import type { Effect } from './assets/core';
+import type { BeaconEffect } from './assets/beacon';
 import { beaconDenied, liveBeacon } from './assets/crate';
+import { effectsOf } from './assets/lookup';
 
 /** #101: `side`'s Gunship on station, if it has one: a Soldier coming back may take a seat in it (`boardOnReturn`). Its Asset's effect is read here, so no vehicle module reads one. */
-const onStation = (m: Match, side: SideId) => vehicleOf(m, m.assets.effects.find((e) => e.asset === 'gunship' && e.side === side && e.phase === 'station')?.vehicle ?? -1);
+function onStation(m: Match, side: SideId) {
+  const e = effectsOf(m, 'gunship', side).find((g) => g.phase === 'station');
+  return e && vehicleOf(m, e.vehicle);
+}
 
 function bringBack(m: Match, s: Soldier, at: Vec2) {
   leave(m, s);
@@ -43,7 +47,7 @@ export function quiet(m: Match, sq: Squad, members: Soldier[]): boolean {
  * #142: the Rapid Deploy multiplier on `side`'s respawn and Redeploy times: `rapidMul` while one works, else 1. Read against the
  * whole time at every tick, so a timer already running is shortened the same way (one past its shortened time comes back at once).
  */
-const timerMul = (m: Match, side: SideId) => (m.assets.effects.some((e) => e.asset === 'rapid' && e.side === side) ? m.tune.rapidMul : 1);
+const timerMul = (m: Match, side: SideId) => (effectsOf(m, 'rapid', side).length ? m.tune.rapidMul : 1);
 
 /** Ticks from a death until that member may Squad Respawn (#142: shortened while Rapid Deploy works). */
 export const respawnTicks = (m: Match, side: SideId) => m.tune.respawnSeconds * m.tune.hz * timerMul(m, side);
@@ -73,7 +77,7 @@ export function redeployPoint(m: Match, sq: Squad): Point | null {
  * `redeployPoint` picks and the HQ. Every Squad of the Side uses it, Elite or not (#153: the beacon is physical, Side-wide).
  * Squad Respawn never does: a dead member still comes back behind the leader, or where `redeployPoint` says (out of scope).
  */
-export function redeployBeacon(m: Match, sq: Squad): Effect | null {
+export function redeployBeacon(m: Match, sq: Squad): BeaconEffect | null {
   const b = liveBeacon(m, sq.side);
   if (!b || beaconDenied(m, b)) return null;
   const near = steer(m, sq);

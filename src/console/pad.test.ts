@@ -40,7 +40,13 @@ describe('the Asset keypad (#181)', () => {
 const row = (asset: AssetKind, o: Partial<AssetView> = {}): AssetView => ({ asset, readyIn: 0, cooldown: 120, radius: 30, ...o });
 const point = (name: string, owner: SideId | null): PointView => ({ id: name, name, x: 0, y: 0, radius: 25, owner, progress: 0 });
 const squad = (id: number, name: string, request: SquadView['request'] = null): SquadView => ({ id, name, size: 4, strength: 4, respawnIn: [], redeployIn: null, request });
-const effect = (asset: AssetKind, left: number, total: number, o: Partial<EffectView> = {}): EffectView => ({ asset, x: 0, y: 0, radius: 10, left, total, ...o });
+// effects at work with `left` of `total` seconds, each with the fields its kind's view always carries
+const at = (left: number, total: number) => ({ x: 0, y: 0, radius: 10, left, total });
+const FROM = { x: -500, y: 0 };
+const crate = (left: number, total: number): EffectView => ({ ...at(left, total), asset: 'supply', landsIn: 0, fall: 5 });
+const missile = (left: number, total: number, side: SideId): EffectView => ({ ...at(left, total), asset: 'missile', side, from: FROM, flight: 0.5, impactIn: 4 });
+const gunship = (left: number, total: number, side: SideId): EffectView => ({ ...at(left, total), asset: 'gunship', side, from: FROM, shells: [] });
+const drone = (left: number, total: number, side: SideId, lost?: true): EffectView => ({ ...at(left, total), asset: 'drone', side, from: FROM, flight: 0.5, impactIn: 4, ...(lost && { lost }) });
 const view = (o: Partial<CommanderView>): CommanderView => ({
   side: 'nato', tick: 0, seconds: 0, friendlies: [], contacts: [], squads: [], points: [point('A', 'nato'), point('C', null), point('E', 'pact')], tickets: { nato: 100, pact: 100 }, result: null, ...o,
 });
@@ -56,16 +62,16 @@ describe('a cell reads its Asset (#181)', () => {
   });
 
   it('at work: the time left and its bar (friendly in the cell), the readout saying UP', () => {
-    const v = view({ assets: [row('supply', { readyIn: 80 })], effects: [effect('supply', 10, 60)] });
+    const v = view({ assets: [row('supply', { readyIn: 80 })], effects: [crate(10, 60)] });
     expect(assetLook('supply', v, false, '')).toMatchObject({ state: 'active', slot: '00:10', lift: true, bar: 10 / 60, readout: 'UP 00:10' });
   });
 
   it('at work: #142 an untargeted Asset by its row; #99 never the enemy\'s missile; #101 nor a Gunship off station; #139 nor a drone shot down', () => {
     expect(atWork('rapid', view({ assets: [row('rapid', { readyIn: 170, untargeted: true, up: { left: 50, total: 60 } })] }))).toEqual({ left: 50, total: 60 });
-    expect(atWork('missile', view({ effects: [effect('missile', 8, 12, { side: 'pact' })] }))).toBeUndefined();
-    expect(atWork('missile', view({ effects: [effect('missile', 8, 12, { side: 'nato' })] }))).toMatchObject({ left: 8 });
-    expect(atWork('gunship', view({ effects: [effect('gunship', 0, 75, { side: 'nato' })] }))).toBeUndefined();
-    expect(atWork('drone', view({ effects: [effect('drone', 2, 30, { side: 'nato', lost: true })] }))).toBeUndefined();
+    expect(atWork('missile', view({ effects: [missile(8, 12, 'pact')] }))).toBeUndefined();
+    expect(atWork('missile', view({ effects: [missile(8, 12, 'nato')] }))).toMatchObject({ left: 8 });
+    expect(atWork('gunship', view({ effects: [gunship(0, 75, 'nato')] }))).toBeUndefined();
+    expect(atWork('drone', view({ effects: [drone(2, 30, 'nato', true)] }))).toBeUndefined();
   });
 
   it('gated: exactly the keystones still missing, in the order the gate names them, over a faint cooldown that keeps draining', () => {
@@ -75,16 +81,16 @@ describe('a cell reads its Asset (#181)', () => {
   });
 
   it('gated outranks at work; with every keystone held the cell falls back to at work, cooling or ready', () => {
-    const fx = [effect('missile', 8, 12, { side: 'nato' })];
+    const fx = [missile(8, 12, 'nato')];
     expect(assetLook('missile', view({ assets: [row('missile', { readyIn: 200, cooldown: 240, off: 'needs C' })], effects: fx }), false, '').state).toBe('off');
     expect(assetLook('missile', view({ assets: [row('missile', { readyIn: 200, cooldown: 240 })], effects: fx }), false, '').state).toBe('active');
     expect(assetLook('missile', view({ assets: [row('missile', { readyIn: 200, cooldown: 240 })] }), false, '').state).toBe('cooling');
   });
 
   it('off for another reason: a drone in the air reads at work while it flies, and says why once it is shot down', () => {
-    const flying = view({ assets: [row('drone', { readyIn: 0, off: 'in the air' })], effects: [effect('drone', 12, 30, { side: 'nato' })] });
+    const flying = view({ assets: [row('drone', { readyIn: 0, off: 'in the air' })], effects: [drone(12, 30, 'nato')] });
     expect(assetLook('drone', flying, false, '')).toMatchObject({ state: 'active', needs: [], readout: 'UP 00:12' });
-    const down = view({ assets: [row('drone', { readyIn: 0, off: 'in the air' })], effects: [effect('drone', 2, 30, { side: 'nato', lost: true })] });
+    const down = view({ assets: [row('drone', { readyIn: 0, off: 'in the air' })], effects: [drone(2, 30, 'nato', true)] });
     expect(assetLook('drone', down, false, '')).toMatchObject({ state: 'off', needs: [], slot: '', lift: false, readout: 'IN THE AIR' });
     expect(assetLook('scan', view({ assets: [] }), false, '')).toMatchObject({ state: 'off', readout: '—' }); // not in the game
   });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { commanderView, createMatch, stateHash, step, type Match } from './index';
 import { DEFAULT_TUNE } from './tune';
+import { effectsOf } from './assets/lookup';
 import type { Command, MapData, SimEvent, Tune, Vec2 } from './types';
 
 const HZ = DEFAULT_TUNE.hz;
@@ -195,7 +196,7 @@ describe('Commander Score: UAV assist', () => {
   it('two UAVs over the same enemy award once', () => {
     const m = uavScene();
     play(m, HZ / 2, [scan(m), scan(m, { x: V.x + 10, y: V.y })]);
-    expect(m.assets.effects).toHaveLength(2);
+    expect(effectsOf(m, 'scan')).toHaveLength(2);
     shooterIn(m);
     expect(awards(untilDead(m))).toEqual([UAV_ASSIST]);
   });
@@ -207,7 +208,7 @@ describe('Commander Score: UAV assist', () => {
       play(m, HZ / 2, [scan(m)]);
       Object.assign(m.soldiers[1]!, { x: V.x - 145, y: V.y });
       play(m, tick - HZ / 2, []);
-      expect(m.assets.effects).toEqual([]);
+      expect(effectsOf(m, 'scan')).toEqual([]);
       shooterIn(m);
       return awards(untilDead(m));
     };
@@ -218,7 +219,7 @@ describe('Commander Score: UAV assist', () => {
   it('out of all eyes for a moment after the UAV left and found again by a Soldier alone, it awards nothing even within the grace', () => {
     const m = uavScene();
     play(m, 2 * HZ, [scan(m)]); // the 1 s Scan is over, nobody has seen 6 for a second
-    expect(m.assets.effects).toEqual([]);
+    expect(effectsOf(m, 'scan')).toEqual([]);
     shooterIn(m);
     expect(m.tick).toBeLessThan(WINDOW - HZ);
     expect(awards(untilDead(m))).toEqual([]);
@@ -390,8 +391,8 @@ describe('Commander Score: Supply', () => {
     const m = crateScene();
     run(m, LANDED + HZ, [drop(m)]);
     const drawn = stateHash(m);
-    const crate = m.assets.effects.find((e) => e.asset === 'supply')!;
-    crate.given![0] = 0;
+    const crate = effectsOf(m, 'supply')[0]!;
+    crate.given[0] = 0;
     expect(stateHash(m)).not.toBe(drawn);
   });
 });

@@ -72,8 +72,8 @@ export function drawGunships(view: CommanderView, scale: number) {
   }
   for (const e of view.effects ?? []) {
     if (e.asset !== 'gunship') continue;
-    for (const s of e.shells ?? []) {
-      const r = gunshipShell(s.from!, s, s.flight);
+    for (const s of e.shells) {
+      const r = gunshipShell(s.from, s, s.flight);
       const t = streaks.next();
       const [dx, dy] = [r.x - r.tail.x, r.y - r.tail.y];
       t.position.set((r.x + r.tail.x) / 2, (r.y + r.tail.y) / 2, Z.streak);

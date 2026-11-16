@@ -5,23 +5,28 @@ import type { Match } from '../index';
 import { dist2 } from '../geometry';
 import { elite, squadName, type Mix } from '../state';
 import type { SimEvent } from '../types';
-import { assetRadio, type Effect, type Kind } from './core';
+import { assetRadio, type EffectBase, type Kind } from './core';
 import { landed, stayTicks } from './crate';
 
-export const supply: Kind = {
+export interface SupplyEffect extends EffectBase {
+  asset: 'supply';
+  given: Record<number, number>; // #74: Commander Score points each Soldier (by id) drew from this crate
+  open: Record<number, number>; // #74: of those, what the Console has not heard of yet
+}
+
+export const supply: Kind<SupplyEffect> = {
   name: 'Supply Drop',
   cooldownSeconds: (t) => t.supplyCooldownSeconds,
   seconds: (t) => t.supplyFallSeconds + t.supplyStaySeconds,
   radius: (t) => t.supplyRadiusM,
-  landsIn: (m, e) => Math.max(0, (e.until - m.tick - stayTicks(m)) / m.tune.hz),
-  fall: (t) => t.supplyFallSeconds,
+  start: (m, base) => ({ ...base, asset: 'supply', given: {}, open: {} }),
+  answers: { request: 'supply', at: (m, e) => (landed(m, e) ? e : null) }, // once the crate has landed
   work(m, e, events) {
     if (!landed(m, e)) return;
     if (e.until - m.tick === stayTicks(m)) assetRadio(m, e, 'Supply Drop landed', events);
     const t = m.tune;
     const cap = t.scoreSupplyCapPerRecipient;
-    const given = (e.given ??= {});
-    const open = (e.open ??= {});
+    const { given, open } = e;
     for (const s of m.soldiers) {
       if (s.side !== e.side) continue;
       let drew = 0;
@@ -46,14 +51,15 @@ export const supply: Kind = {
       if (open[s.id] && (!drew || given[s.id] === cap || e.until - m.tick === 1)) tell(m, e, s.id, events);
     }
   },
+  view: (m, e, own, base) => ({ ...base, landsIn: Math.max(0, (e.until - m.tick - stayTicks(m)) / m.tune.hz), fall: m.tune.supplyFallSeconds }),
   hash(e, mix: Mix) {
-    for (const r of [e.given, e.open]) for (const id in r) for (const v of [+id, Math.round(r[+id]! * 1000)]) mix(v); // integer keys enumerate in ascending order
+    for (const r of [e.given, e.open]) for (const [id, n] of Object.entries(r)) for (const v of [+id, Math.round(n * 1000)]) mix(v); // integer keys enumerate in ascending order
   },
 };
 
 /** #74: the contribution message for what a recipient drew since the last one, naming the Squad (#153: if it is Elite). */
-function tell(m: Match, e: Effect, id: number, events: SimEvent[]) {
+function tell(m: Match, e: SupplyEffect, id: number, events: SimEvent[]) {
   const sq = m.squads[m.soldiers[id]!.squad]!;
-  events.push({ kind: 'award', side: e.side, category: 'supply', points: e.open![id]!, reason: `Supply Drop resupplied ${elite(m)[sq.id] ? squadName(m, sq) : 'friendlies'}` });
-  e.open![id] = 0;
+  events.push({ kind: 'award', side: e.side, category: 'supply', points: e.open[id] ?? 0, reason: `Supply Drop resupplied ${elite(m)[sq.id] ? squadName(m, sq) : 'friendlies'}` });
+  e.open[id] = 0;
 }

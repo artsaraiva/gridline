@@ -77,3 +77,19 @@ describe('#183 the Vehicle rules behind one seam', () => {
     expect(found).toEqual([]);
   });
 });
+
+// #182: the Asset rules sit behind theirs. The core (and the adapters it loads) is loaded only by the Simulation's entry points and
+// requests.ts; every other rule reads the effects by kind through assets/lookup.ts, which, like crate.ts, imports the core as a type.
+describe('#182 the Asset core behind its seam', () => {
+  it('loads the Asset core at run time only from commands.ts, index.ts, view.ts, requests.ts and the adapters', () => {
+    const outside = [...graph].filter(([f, to]) => to.includes('assets/core.ts') && !f.startsWith('assets/')).map(([f]) => f);
+    expect(outside.sort()).toEqual(['commands.ts', 'index.ts', 'requests.ts', 'view.ts']);
+    expect(graph.get('assets/lookup.ts')).toEqual([]);
+    expect(graph.get('assets/crate.ts')).not.toContain('assets/core.ts');
+  });
+
+  it('reads the effects at work only in the core and lookup.ts', () => {
+    const readers = [...graph.keys()].filter((f) => /\.assets\.effects\b/.test(readFileSync(join(SIM, f), 'utf8')));
+    expect(readers.sort()).toEqual(['assets/core.ts', 'assets/lookup.ts']);
+  });
+});

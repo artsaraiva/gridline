@@ -529,13 +529,23 @@ export type ScoreCategory = 'uav' | 'supply' | 'artillery' | 'orders';
 
 export type Command =
   | { tick: number; side: SideId; kind: 'order'; squad: number; point: string | null }
-  | { tick: number; side: SideId; kind: 'asset'; asset: 'scan' | 'supply' | 'barrage' | 'missile' | 'gunship' | 'smoke' | 'creep' | 'drone' | 'recon' | 'beacon' | 'rapid' | 'emp' | 'feint'; at?: Vec2; to?: Vec2 } // #138: `to` is a line-shaped Asset's second tap: its line runs from `at` towards it. #142: `at` is absent only for an untargeted Asset (Rapid Deploy)
+  | { tick: number; side: SideId; kind: 'asset'; asset: AssetKind; at?: Vec2; to?: Vec2 } // #138: `to` is a line-shaped Asset's second tap: its line runs from `at` towards it. #142: `at` is absent only for an untargeted Asset (Rapid Deploy)
   /** #136: no `id` places a Mark at `at`; with `id` it renews that Mark, or clears it when `at` is null. */
   | { tick: number; side: SideId; kind: 'mark'; at: Vec2 | null; id?: number };
 
-export type AssetKind = Extract<Command, { kind: 'asset' }>['asset'];
-/** #99: what a Squad may Request: never a Cruise Missile (#58), #101 nor a Gunship, #138 nor a line-shaped Asset. */
-export type RequestKind = Exclude<AssetKind, 'missile' | 'gunship' | 'smoke' | 'creep' | 'drone' | 'recon' | 'beacon' | 'rapid' | 'emp' | 'feint'>; // #139: a Drone Strike answers a Barrage Request and a Recon Plane a Scan one (requests.ts); #142: Squads never Request a beacon or Rapid Deploy, #143 nor an EMP Strike or a Feint
+/**
+ * #182: every Asset kind, once. Each has an adapter in assets/ (the Kind table there is total over this list, so a name with no
+ * adapter fails the typecheck), and this order is the one the rows, the hash and the `cause` hash use.
+ */
+export const ASSET_KINDS = ['scan', 'supply', 'barrage', 'missile', 'gunship', 'smoke', 'creep', 'drone', 'recon', 'beacon', 'rapid', 'emp', 'feint'] as const;
+export type AssetKind = (typeof ASSET_KINDS)[number];
+/**
+ * #99: what a Squad may Request: never a Cruise Missile (#58), #101 nor a Gunship, #138 nor a line-shaped Asset. #139: a Drone
+ * Strike answers a Barrage Request and a Recon Plane a Scan one (requests.ts); #142: Squads never Request a beacon or Rapid Deploy,
+ * #143 nor an EMP Strike or a Feint. #182: an allow-list, so a new kind is never Requested until it is added here.
+ */
+export const REQUEST_KINDS = ['scan', 'supply', 'barrage'] as const satisfies readonly AssetKind[];
+export type RequestKind = (typeof REQUEST_KINDS)[number];
 
 export interface MatchResult {
   winner: SideId | null; // null = draw
@@ -719,7 +729,8 @@ export interface AssetView {
   up?: { left: number; total: number };
 }
 
-export interface EffectView {
+/** #182: what every effect on the Console carries; each kind's view adds its own fields (`EffectView`, keyed on `asset`). */
+export interface EffectViewBase {
   asset: AssetKind;
   x: number;
   y: number;
@@ -728,43 +739,166 @@ export interface EffectView {
   left: number;
   /** Its full working time in seconds. */
   total: number;
-  // #39 Supply Drop: the crate falls before it works
-  /** Seconds until the crate lands; 0 = on the ground. Only on a crate. */
-  landsIn?: number;
-  /** How long the fall takes in all, in seconds. Only on a crate. */
-  fall?: number;
-  /** #40 Barrage: shells in the air, each with where it lands and how far along its flight it is (0..1). #101: a Gunship's with the muzzle spot it left (`from`). */
-  shells?: { x: number; y: number; flight: number; from?: Vec2 }[];
-  /** #40 Barrage: seconds until the first shell lands; 0 once it has. */
-  impactIn?: number;
-  // #99 Cruise Missile: in the sky, so in both Sides' views
-  /** Who called it. Only on a missile. */
-  side?: SideId;
-  /** Where it was launched, beyond the Play Area behind the caller's HQ. Only on a missile. */
-  from?: Vec2;
-  /** How far along its flight it is (0..1); 1 once it has hit. Only on a missile. */
-  flight?: number;
-  // #101 Gunship: in the sky, so in both Sides' views (with `side`, and `from` its launch point); `x` and `y` are its focus (`radius`: `gunshipFocusM`)
+}
+
+/** #40: a shell in the air: where it lands and how far along its flight it is (0..1). */
+export interface ShellView {
+  x: number;
+  y: number;
+  flight: number;
+}
+/** #101: an aircraft: the ground spot under it, its unit heading and the way it is turning (1 left, -1 right, 0 straight on). #139: a drone's and the Recon Plane's `turn` is 0: they fly straight. */
+export interface CraftView {
+  x: number;
+  y: number;
+  fx: number;
+  fy: number;
+  turn: number;
+}
+/** #138: the strip of a line-shaped Asset: it runs from (`x`, `y`) to `to` and is `width` across. */
+export interface LineView {
+  to: Vec2;
+  width: number;
+}
+/** #39: a crate falls before it works (the Supply Drop's; #142 the Redeploy Beacon's, #143 the Feint's dummy). */
+export interface FallView {
+  /** Seconds until the crate lands; 0 = on the ground. */
+  landsIn: number;
+  /** How long the fall takes in all, in seconds. */
+  fall: number;
+}
+
+/** Scan UAV. */
+export interface ScanEffectView extends EffectViewBase {
+  asset: 'scan';
+}
+/** #39 Supply Drop: the crate. */
+export interface SupplyEffectView extends EffectViewBase, FallView {
+  asset: 'supply';
+}
+/** #40 Barrage. */
+export interface BarrageEffectView extends EffectViewBase {
+  asset: 'barrage';
+  /** Its shells in the air. */
+  shells: ShellView[];
+  /** Seconds until the first shell lands; 0 once it has. */
+  impactIn: number;
+}
+/** #99 Cruise Missile: in the sky, so in both Sides' views. */
+export interface MissileEffectView extends EffectViewBase {
+  asset: 'missile';
+  /** Who called it. */
+  side: SideId;
+  /** Where it was launched, beyond the Play Area behind the caller's HQ. */
+  from: Vec2;
+  /** How far along its flight it is (0..1); 1 once it has hit. */
+  flight: number;
+  /** Seconds until it hits; 0 once it has. */
+  impactIn: number;
+}
+/** #101 Gunship: in the sky, so in both Sides' views; `x` and `y` are its focus (`radius`: `gunshipFocusM`). */
+export interface GunshipEffectView extends EffectViewBase {
+  asset: 'gunship';
+  side: SideId;
+  /** Its launch point, where it comes from and goes home to. */
+  from: Vec2;
+  /** Its shells in the air, each with the muzzle spot it left. */
+  shells: (ShellView & { from: Vec2 })[];
   /** Where it is in its sortie: flying in, on station (hunting, revealing and shelling), or flying home. Absent once shot down. */
   phase?: 'inbound' | 'station' | 'leaving';
-  /** The aircraft: the ground spot under it, its unit heading and the way it is turning (1 left, -1 right, 0 straight on). Absent once shot down. */
-  craft?: { x: number; y: number; fx: number; fy: number; turn: number };
-  // #138 Smoke Screen (in the sky, so in both Sides' views, with `side`) and Creeping Barrage (its shells in flight are in both; the strip only in the caller's)
-  /** The strip of a line-shaped Asset: it runs from (`x`, `y`) to `to` and is `width` across. */
-  line?: { to: Vec2; width: number };
-  /** Smoke Screen: the discs on the ground, each with its radius now, the seconds since its shell landed, and how dense it is (1, falling to 0 as it thins). */
-  smoke?: { x: number; y: number; r: number; age: number; density: number }[];
-  // #139 Drone Strike and Recon Plane: in the sky, so in both Sides' views, with `side` and `craft` (`turn` 0: they fly straight). The drone's `from` is the HQ it left, its `flight` and `impactIn` as the missile's; the Recon Plane's `line` is its pass, in the caller's view only.
+  /** The aircraft. Absent once shot down. */
+  craft?: CraftView;
+}
+/** #138 Smoke Screen: in the sky, so in both Sides' views. */
+export interface SmokeEffectView extends EffectViewBase {
+  asset: 'smoke';
+  side: SideId;
+  /** The wall it lays. */
+  line: LineView;
+  shells: ShellView[];
+  impactIn: number;
+  /** The discs on the ground, each with its radius now, the seconds since its shell landed, and how dense it is (1, falling to 0 as it thins). */
+  smoke: { x: number; y: number; r: number; age: number; density: number }[];
+}
+/** #138 Creeping Barrage: its shells in flight are in both Sides' views; the strip and the time to the first only in the caller's. */
+export interface CreepEffectView extends EffectViewBase {
+  asset: 'creep';
+  side: SideId;
+  shells: ShellView[];
+  /** The caller's view only. */
+  impactIn?: number;
+  /** The caller's view only. */
+  line?: LineView;
+}
+/** #139 Drone Strike: in the sky, so in both Sides' views; `from` is the HQ it left, `flight` and `impactIn` as the missile's. */
+export interface DroneEffectView extends EffectViewBase {
+  asset: 'drone';
+  side: SideId;
+  from: Vec2;
+  flight: number;
+  impactIn: number;
+  /** The drone, until it hits. */
+  craft?: CraftView;
   /** The enemy AA shot it down: `craft` is where it was hit, and nothing more comes of it. Absent otherwise. */
   lost?: true;
-  // #142 Redeploy Beacon: a crate (`landsIn` and `fall` as the Supply Drop's) with `side`; in the enemy's view only while an enemy Soldier sees it. `radius` is its deny ring (`beaconDenyM`).
+}
+/** #139 Recon Plane: in the sky, so in both Sides' views. */
+export interface ReconEffectView extends EffectViewBase {
+  asset: 'recon';
+  side: SideId;
+  craft: CraftView;
+  /** Where its pass starts, beyond the Play Area. The caller's view only. */
+  from?: Vec2;
+  /** Its pass. The caller's view only. */
+  line?: LineView;
+  /** The enemy AA shot it down: `craft` is where it was hit, and nothing more comes of it. Absent otherwise. */
+  lost?: true;
+}
+/** #142 Redeploy Beacon: a crate with `side`; in the enemy's view only while an enemy Soldier sees it. `radius` is its deny ring (`beaconDenyM`). */
+export interface BeaconEffectView extends EffectViewBase, FallView {
+  asset: 'beacon';
+  side: SideId;
   /** A living enemy Soldier is inside the deny ring, so no Squad Redeploys there. Own view only; absent otherwise. */
   contested?: true;
-  // #143 EMP Strike: in the sky, so in both Sides' views, with `side`; `from` is the HQ it left, `flight` and `impactIn` as the missile's. `radius` is its ring (`empRadiusM`).
-  // #143 Feint: a dummy that falls as the Supply crate (`landsIn` and `fall`), with `side`; in the enemy's view while it falls (the sky rule), then only while an enemy Soldier sees it.
-  /** EMP Strike: seconds since its airburst, absent before. Feint: seconds since its last burst of fake fire, its own Console's pulse; absent before the first and in the enemy's view. */
+}
+/** #142 Rapid Deploy: never sent. It is untargeted and has no effect on the map; its row carries `up` (`AssetView`). */
+export interface RapidEffectView extends EffectViewBase {
+  asset: 'rapid';
+}
+/** #143 EMP Strike: in the sky, so in both Sides' views; `from` is the HQ it left, `flight` and `impactIn` as the missile's. `radius` is its ring (`empRadiusM`). */
+export interface EmpEffectView extends EffectViewBase {
+  asset: 'emp';
+  side: SideId;
+  from: Vec2;
+  flight: number;
+  impactIn: number;
+  /** Seconds since its airburst; absent before. */
   burst?: number;
 }
+/** #143 Feint: a dummy that falls as the Supply crate, with `side`; in the enemy's view while it falls (the sky rule), then only while an enemy Soldier sees it. */
+export interface FeintEffectView extends EffectViewBase, FallView {
+  asset: 'feint';
+  side: SideId;
+  /** Seconds since its last burst of fake fire, its own Console's pulse; absent before the first and in the enemy's view. */
+  burst?: number;
+}
+
+/** #182: an effect at work, as a Commander's Console sees it: narrow on `asset` for its kind's fields. */
+export type EffectView =
+  | ScanEffectView
+  | SupplyEffectView
+  | BarrageEffectView
+  | MissileEffectView
+  | GunshipEffectView
+  | SmokeEffectView
+  | CreepEffectView
+  | DroneEffectView
+  | ReconEffectView
+  | BeaconEffectView
+  | RapidEffectView
+  | EmpEffectView
+  | FeintEffectView;
+export type EffectViewOf<K extends AssetKind> = Extract<EffectView, { asset: K }>;
 
 /** Things that happened this tick, on every Side; `commanderEvents` keeps the ones a Side's Console may show. */
 export type SimEvent =

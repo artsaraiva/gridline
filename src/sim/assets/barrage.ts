@@ -6,18 +6,21 @@ import { dist2 } from '../geometry';
 import type { Match } from '../index';
 import { rnd } from '../rng';
 import type { Mix } from '../state';
-import type { Tune, Vec2 } from '../types';
-import { assetRadio, type Kind } from './core';
+import type { Tune } from '../types';
+import { assetRadio, type EffectBase, type Kind, type Shells } from './core';
 import { blast, type Blast } from '../damage';
 
-/** One shell: where it lands, the tick it leaves and the tick it lands. #101: a Gunship's also where it left the aircraft. */
+/** One shell: where it lands, the tick it leaves and the tick it lands (#101: a Gunship's, also where it left the aircraft: gunship.ts `GunShell`). */
 export interface Shell {
   x: number;
   y: number;
   launch: number;
   land: number;
   done: boolean;
-  from?: Vec2;
+}
+
+export interface BarrageEffect extends EffectBase, Shells {
+  asset: 'barrage';
 }
 
 /** A Barrage shell's blast (#101: a Gunship shell's too). */
@@ -26,18 +29,19 @@ export const shellBlast = (t: Tune): Blast => ({ killM: t.barrageKillM, woundM: 
 /** The danger zone: shells land within the spread of the spot, and suppress out to their own reach beyond that. */
 const zone = (t: Tune) => t.barrageSpreadM + t.barrageSuppressM;
 
-export const barrage: Kind = {
+export const barrage: Kind<BarrageEffect> = {
   name: 'Barrage',
   cooldownSeconds: (t) => t.barrageCooldownSeconds,
   firstReadySeconds: (t) => t.barrageCooldownSeconds, // starts on cooldown, so the opening rush can't be shelled
   seconds: (t) => t.barrageWarningSeconds + (t.barrageShells > 1 ? t.barrageSpanSeconds : 0) + t.barrageFlightSeconds + t.barrageContactSeconds,
   radius: zone,
+  answers: { request: 'barrage', at: (m, e) => (e.shells.some((s) => s.done) ? e : null) }, // once a shell has landed
 
-  start(m, e) {
+  start(m, base) {
     const t = m.tune;
     const n = t.barrageShells;
     const R = t.barrageSpreadM;
-    e.shells = [];
+    const shells: Shell[] = [];
     for (let i = 0; i < n; i++) {
       let dx: number;
       let dy: number;
@@ -46,13 +50,14 @@ export const barrage: Kind = {
         dy = (rnd(m) * 2 - 1) * R;
       } while (dx * dx + dy * dy > R * R); // uniform over the disc, without trig
       const launch = m.tick + Math.round((t.barrageWarningSeconds + (n > 1 ? (i * t.barrageSpanSeconds) / (n - 1) : 0)) * t.hz);
-      e.shells.push({ x: e.x + dx, y: e.y + dy, launch, land: launch + Math.round(t.barrageFlightSeconds * t.hz), done: false });
+      shells.push({ x: base.x + dx, y: base.y + dy, launch, land: launch + Math.round(t.barrageFlightSeconds * t.hz), done: false });
     }
+    return { ...base, asset: 'barrage', shells };
   },
 
   work(m, e, events) {
     const t = m.tune;
-    for (const shell of e.shells!) {
+    for (const shell of e.shells) {
       if (shell.done || shell.land > m.tick) continue;
       shell.done = true;
       events.push({ kind: 'impact', side: e.side, x: shell.x, y: shell.y, asset: 'barrage' });
@@ -65,14 +70,14 @@ export const barrage: Kind = {
   },
 
   contacts(m, e) {
-    if (!e.shells!.some((x) => x.done)) return [];
+    if (!e.shells.some((x) => x.done)) return [];
     const r = zone(m.tune);
     return m.soldiers.filter((s) => s.side !== e.side && s.state === 'alive' && s.vehicle < 0 && dist2(s, e) <= r * r);
   },
 
-  view: (m, e) => flying(m, e.shells!),
+  view: (m, e, own, base) => ({ ...base, ...flying(m, e.shells) }),
 
-  hash: (e, mix: Mix) => hashShells(e.shells!, mix),
+  hash: (e, mix: Mix) => hashShells(e.shells, mix),
 };
 
 /** For an effect's view: the shells in the air, and the seconds until the first lands (#138: the Smoke Screen's and the Creeping Barrage's too). */

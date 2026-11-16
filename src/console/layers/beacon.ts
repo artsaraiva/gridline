@@ -54,9 +54,9 @@ const tint = (m: THREE.Mesh, color: number, opacity?: number) => {
 /** `scale` is the chevron size in metres (constant on screen), used for the icon and the lamp's glow; `now` in ms runs the blink. */
 export function drawBeacons(view: CommanderView, scale: number, now: number) {
   for (const e of view.effects ?? []) {
-    if (e.asset !== 'beacon' || e.landsIn === undefined || !e.fall) continue;
+    if (e.asset !== 'beacon' || !e.fall) continue;
     const d = beaconDrop({ x: e.x, y: e.y, landsIn: e.landsIn, fall: e.fall });
-    const color = sideColor(e.side ?? view.side);
+    const color = sideColor(e.side);
     const m = beacons.next();
     m.shadow.visible = !d.landed;
     m.shadow.position.set(d.shadow.x, d.shadow.y, 0.43);

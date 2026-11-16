@@ -112,7 +112,7 @@ export function drawEffects(view: CommanderView, now: number) {
     if (e.asset === 'drone' || e.asset === 'recon') {
       // #139: layers/drone.ts and layers/recon.ts draw them; here the label, to its own Commander, while it flies: by the drone's impact mark, by the Recon Plane itself
       if (e.side !== view.side || !e.craft || e.lost) continue;
-      if (e.asset === 'drone') label(tags++, e, FOCUS_MARK_PX + 4, -18, `DRONE STRIKE IMPACT ${clock(Math.ceil(e.impactIn ?? 0))}`, css(sideColor(e.side)));
+      if (e.asset === 'drone') label(tags++, e, FOCUS_MARK_PX + 4, -18, `DRONE STRIKE IMPACT ${clock(Math.ceil(e.impactIn))}`, css(sideColor(e.side)));
       else label(tags++, e.craft, 22, -34, `RECON PLANE ${clock(Math.ceil(e.left))}`, css(sideColor(e.side)));
       continue;
     }
@@ -126,14 +126,14 @@ export function drawEffects(view: CommanderView, now: number) {
     if (e.asset === 'emp' || e.asset === 'feint') {
       // #143: layers/emp.ts and layers/feint.ts draw them; here the label, to its own Commander: the EMP's by its mark, counting to the burst and then its hold, the dummy's by it, counting to its landing and then its noise
       if (e.side !== view.side) continue;
-      if (e.asset === 'emp') label(tags++, e, FOCUS_MARK_PX + 4, -18, `EMP STRIKE ${e.burst === undefined ? `IMPACT ${clock(Math.ceil(e.impactIn ?? 0))}` : clock(Math.ceil(e.left))}`, css(COLOR.friendly));
+      if (e.asset === 'emp') label(tags++, e, FOCUS_MARK_PX + 4, -18, `EMP STRIKE ${e.burst === undefined ? `IMPACT ${clock(Math.ceil(e.impactIn))}` : clock(Math.ceil(e.left))}`, css(COLOR.friendly));
       else label(tags++, { x: e.x + 6, y: e.y + 6 }, 6, -18, `FEINT ${e.landsIn ? `LANDS ${clock(Math.ceil(e.landsIn))}` : clock(Math.ceil(e.left))}`, css(COLOR.friendly));
       continue;
     }
     if (e.asset === 'smoke' || e.asset === 'creep') {
       // the strip until the last shell is down (the enemy's Creeping Barrage has none: only its shells show); the label to its own Commander
-      const falling = !!e.impactIn || !!e.shells?.length;
-      const color = e.asset === 'creep' && e.side === view.side ? COLOR.hostile : sideColor(e.side ?? view.side); // the Creeping Barrage is a danger zone to its own Side too, as the Barrage's ring
+      const falling = !!e.impactIn || !!e.shells.length;
+      const color = e.asset === 'creep' && e.side === view.side ? COLOR.hostile : sideColor(e.side); // the Creeping Barrage is a danger zone to its own Side too, as the Barrage's ring
       if (e.line && falling) stripAt(e, e.line.to, e.line.width, color, 0.06);
       if (e.line && e.side === view.side) label(tags++, e.line.to, 8, -18, `${NAME[e.asset].toUpperCase()} ${e.impactIn ? `IMPACT ${clock(Math.ceil(e.impactIn))}` : clock(Math.ceil(e.left))}`, css(color));
       continue;
@@ -143,12 +143,12 @@ export function drawEffects(view: CommanderView, now: number) {
     r.ring.mesh.rotation.z = danger ? (now / 1000) * RING_TURN_RAD_PER_S : 0;
     if (danger) r.ring.alpha.value = 0.7 + 0.3 * Math.max(0, 1 - (now - lastImpactAt('barrage')) / RING_PULSE_MS);
     let time = clock(Math.ceil(e.left));
-    if (e.landsIn !== undefined && e.fall) { // a Supply Drop crate: its ring brightens as it comes down
+    if (e.asset === 'supply' && e.fall) { // a Supply Drop crate: its ring brightens as it comes down
       const high = e.landsIn / e.fall;
       r.ring.alpha.value = 0.35 + 0.5 * (1 - high);
       if (high) time = `LANDS ${clock(Math.ceil(e.landsIn))}`;
     }
-    if (e.impactIn) time = `IMPACT ${clock(Math.ceil(e.impactIn))}`; // the Barrage counts down to its first shell
+    if (e.asset === 'barrage' && e.impactIn) time = `IMPACT ${clock(Math.ceil(e.impactIn))}`; // the Barrage counts down to its first shell
     label(tags++, { x: e.x + e.radius * 0.72, y: e.y + e.radius * 0.72 }, 6, -18, `${NAME[e.asset].toUpperCase()} ${time}`, css(danger ? COLOR.hostile : COLOR.friendly));
   }
   const at = targeting.armed && (targeting.spot ?? targeting.pointer);

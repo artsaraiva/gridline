@@ -3,7 +3,7 @@ import type { Match } from './index';
 import type { Sighting } from './memory';
 import type { Order, Pending } from './orders';
 import type { Request } from './requests';
-import type { SideId, SoldierState, Tune, Vec2 } from './types';
+import { ASSET_KINDS, type SideId, type SoldierState, type Tune, type Vec2 } from './types';
 import type { Vehicle } from './vehicles';
 
 export interface Soldier {
@@ -181,7 +181,7 @@ export function hashSoldiers(m: Match, mix: Mix) {
     mix(s.reviving);
     mix(s.deadAt);
     mix(s.ammo);
-    mix(s.cause === 'barrage' ? 1 : s.cause === 'missile' ? 2 : s.cause === 'gunship' ? 3 : s.cause === 'creep' ? 4 : s.cause === 'drone' ? 5 : 0);
+    mix(s.cause ? ASSET_KINDS.indexOf(s.cause) + 1 : 0); // #182: from the one kind list, so a new cause never hashes as none
     mix(s.uavUntil); // #75
     mix(+s.uavAssist);
     mix(s.vehicle); // #107

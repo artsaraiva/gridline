@@ -3,18 +3,21 @@
 import type { Match } from '../index';
 import { insideCount } from '../capture';
 import { dist2 } from '../geometry';
-import { enemyOf } from '../types';
-import type { Effect } from './core';
+import { enemyOf, type SideId } from '../types';
+import type { BeaconEffect } from './beacon';
+import type { FeintEffect } from './feint';
+import { effectsOf } from './lookup';
+import type { SupplyEffect } from './supply';
 
 export const stayTicks = (m: Match) => Math.round(m.tune.supplyStaySeconds * m.tune.hz);
 
 /** Landed: the stay has begun. */
-export const landed = (m: Match, e: Effect) => e.until - m.tick <= stayTicks(m);
+export const landed = (m: Match, e: SupplyEffect) => e.until - m.tick <= stayTicks(m);
 
 /** The landed crate of `side` nearest to `p`, or null. */
-export function nearestCrate(m: Match, side: Effect['side'], p: { x: number; y: number }): Effect | null {
-  let best: Effect | null = null;
-  for (const e of m.assets.effects) if (e.asset === 'supply' && e.side === side && landed(m, e) && (!best || dist2(e, p) < dist2(best, p))) best = e;
+export function nearestCrate(m: Match, side: SideId, p: { x: number; y: number }): SupplyEffect | null {
+  let best: SupplyEffect | null = null;
+  for (const e of effectsOf(m, 'supply', side)) if (landed(m, e) && (!best || dist2(e, p) < dist2(best, p))) best = e;
   return best;
 }
 
@@ -22,11 +25,10 @@ export function nearestCrate(m: Match, side: Effect['side'], p: { x: number; y: 
 export const beaconTicks = (m: Match) => Math.round(m.tune.beaconSeconds * m.tune.hz);
 
 /** #142: `side`'s Redeploy Beacon once it has landed, or null (one per Side). */
-export const liveBeacon = (m: Match, side: Effect['side']): Effect | null =>
-  m.assets.effects.find((e) => e.asset === 'beacon' && e.side === side && e.until - m.tick <= beaconTicks(m)) ?? null;
+export const liveBeacon = (m: Match, side: SideId): BeaconEffect | null => effectsOf(m, 'beacon', side).find((e) => e.until - m.tick <= beaconTicks(m)) ?? null;
 
 /** #142: a living enemy Soldier stands within `beaconDenyM` of the beacon, so it is silent (counted as a Capture Point counts). */
-export const beaconDenied = (m: Match, e: Effect) => insideCount(m, { x: e.x, y: e.y, radius: m.tune.beaconDenyM }, enemyOf(e.side)) > 0;
+export const beaconDenied = (m: Match, e: BeaconEffect) => insideCount(m, { x: e.x, y: e.y, radius: m.tune.beaconDenyM }, enemyOf(e.side)) > 0;
 
 /** #143: how long a Feint's dummy fakes gunfire once it has landed. */
 export const feintTicks = (m: Match) => Math.round(m.tune.feintSeconds * m.tune.hz);
@@ -35,4 +37,4 @@ export const feintTicks = (m: Match) => Math.round(m.tune.feintSeconds * m.tune.
 export const isDummy = (m: Match, id: number) => id >= m.soldiers.length + m.vehicles.length;
 
 /** #143: the Feint at work whose dummy has id `id`, if any. */
-export const dummyOf = (m: Match, id: number): Effect | undefined => (isDummy(m, id) ? m.assets.effects.find((e) => e.asset === 'feint' && e.dummy === id) : undefined);
+export const dummyOf = (m: Match, id: number): FeintEffect | undefined => (isDummy(m, id) ? effectsOf(m, 'feint').find((e) => e.dummy === id) : undefined);

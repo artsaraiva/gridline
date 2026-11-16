@@ -1,7 +1,7 @@
 // The Recon Plane (#139): its baked sheet (a row a Faction, then the shadow), where it is in its pass, the sweep band under
 // it that fades behind, and its fall when the enemy AA shoots it down. layers/recon.ts draws it.
 import { DEFAULT_TUNE } from '../../sim/tune';
-import type { EffectView, SideId, Vec2 } from '../../sim/types';
+import type { EffectView, ReconEffectView, SideId, Vec2 } from '../../sim/types';
 import { downed, levelFlight, type LevelFlight } from './level-flight';
 import { CRUISE_ALTITUDE_M } from './missile';
 import type { SpriteSheetSpec } from './sheet';
@@ -42,9 +42,7 @@ export interface ReconInFlight extends LevelFlight {
   opacity: number;
 }
 
-type ReconView = EffectView & { side: SideId; craft: NonNullable<EffectView['craft']> };
-
-export function reconInFlight(e: ReconView, exaggeration = RECON_EXAGGERATION): ReconInFlight {
+export function reconInFlight(e: ReconEffectView, exaggeration = RECON_EXAGGERATION): ReconInFlight {
   const { height, opacity } = e.lost ? downed(e.left, DEFAULT_TUNE.barrageContactSeconds) : { height: 1, opacity: 1 };
   return { ...levelFlight(e.craft, e.side, RECON_HEADINGS, CRUISE_ALTITUDE_M * height), side: e.side, size: RECON_WORLD_M * exaggeration, lost: !!e.lost, opacity };
 }
@@ -65,8 +63,8 @@ export interface Pass {
 }
 
 /** The pass of a Recon Plane's effect and how far along it the aircraft is; null in the enemy's view (only the caller's carries the pass). */
-export function passOf(e: EffectView): (Pass & { flown: number }) | null {
-  if (!e.craft || !e.from || !e.line) return null;
+export function passOf(e: ReconEffectView): (Pass & { flown: number }) | null {
+  if (!e.from || !e.line) return null;
   return { from: e.from, fx: e.craft.fx, fy: e.craft.fy, width: e.line.width, flown: Math.hypot(e.craft.x - e.from.x, e.craft.y - e.from.y) };
 }
 
@@ -88,4 +86,4 @@ export function sweepBand(pass: Pass, headM: number, sweptM = headM): BandStep[]
 }
 
 /** Every Recon Plane in the air in `effects`, the enemy's included (the sky rule). */
-export const reconsInFlight = (effects: EffectView[] | undefined) => (effects ?? []).flatMap((e) => (e.asset === 'recon' && e.side && e.craft ? [{ ...reconInFlight({ ...e, side: e.side, craft: e.craft }), e }] : []));
+export const reconsInFlight = (effects: EffectView[] | undefined) => (effects ?? []).flatMap((e) => (e.asset === 'recon' ? [{ ...reconInFlight(e), e }] : []));

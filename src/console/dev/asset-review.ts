@@ -103,7 +103,7 @@ export async function startAssetReview(): Promise<() => void> {
   document.body.dataset.reviewReady = 'true'; // scripts/review-capture.mjs waits for this
 
   function callAll() {
-    const up = (asset: AssetKind) => session.view?.effects?.some((e) => e.asset === asset && e.side === 'nato');
+    const up = (asset: AssetKind) => session.view?.effects?.some((e) => e.asset === asset && 'side' in e && e.side === 'nato');
     for (const { asset, at, to } of ASSETS) if (!['gunship', 'smoke', 'drone', 'recon', 'emp', 'feint'].includes(asset) || !up(asset)) host.send({ side: 'nato', kind: 'asset', asset, at, ...(to && { to }) }); // #143: the EMP and the Feint outlast the cycle too
   }
   callAll();

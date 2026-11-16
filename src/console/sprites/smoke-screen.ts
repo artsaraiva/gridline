@@ -1,11 +1,11 @@
 // The Smoke Screen on the map (#138): each disc is a soft grey blot under puffs that rise, drift and fade one after the
 // other for as long as it stands. All of it is the shell trail's baked puff (smoke-puff.ts), bigger and longer-lived.
 // layers/smoke-screen.ts draws it. The sizes and timings are Console look, not bake or Tune values.
-import type { EffectView } from '../../sim/types';
+import type { SmokeEffectView } from '../../sim/types';
 import { type ImpactSprite, WIND } from './impact';
 import { SMOKE_PUFF_VARIANTS } from './smoke-puff';
 
-type Disc = NonNullable<EffectView['smoke']>[number];
+type Disc = SmokeEffectView['smoke'][number];
 
 /** The blot is drawn this much wider than the disc: a puff's baked edge is soft, and the smoke must cover what it hides. */
 const BLOT_OVER = 4.4;
