@@ -10,7 +10,8 @@
 // says both "tap a Mark to clear it" and "re-tapped" renews it: the mode is what tells them apart.
 import { chord, hqHolds, insidePolygon, lineHits } from '../sim/geometry';
 import { DEFAULT_TUNE } from '../sim/tune';
-import { enemyOf, type AssetKind, type Vec2 } from '../sim/types';
+import { enemyOf, type AssetKind, type CommanderView, type Vec2 } from '../sim/types';
+import { callable } from './pad';
 import { session } from './session';
 import { eliteSquad } from './summary';
 
@@ -31,6 +32,11 @@ export const targeting = {
 export function disarm() {
   targeting.armed = null;
   targeting.spot = targeting.aim = null;
+}
+
+/** #181: disarms an armed Asset that `view` no longer lets be called: between matches, at the end, a keystone lost, #101 a Gunship off station. */
+export function keepCallable(view: CommanderView | null) {
+  if (targeting.armed && !(view && callable(targeting.armed, view))) disarm();
 }
 
 /** Arms `asset`, or disarms when it is the one already armed. */

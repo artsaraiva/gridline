@@ -121,3 +121,24 @@ const requestTag = (q: SquadView) => [q.name.toUpperCase(), q.request?.grid].fil
 
 /** #136: the Mark cell's count: the live Marks of the most there may be ("1/3"). */
 export const markCount = (view: CommanderView) => `${view.marks?.length ?? 0}/${DEFAULT_TUNE.markMax}`;
+
+/** The cell the pad shows armed: the armed Asset's, or #136 the Mark's in Mark mode; null for none. */
+export const armedCell = (t: { armed: AssetKind | null; marking: boolean }): AssetKind | 'mark' | null => t.armed ?? (t.marking ? 'mark' : null);
+
+/**
+ * The readout line for `cell` (#184: out of chrome/assets.ts): its name, then its state, or nothing more when it is the armed
+ * cell. `look` is an Asset cell's, whose readout and keystones it shows (`request`: in amber, for an open Request); the Mark has
+ * none, and shows its count.
+ */
+export function readoutOf(cell: PadCell, look: CellLook | undefined, armed: AssetKind | 'mark' | null, view: CommanderView): { name: string; state: string; needs: PointView[]; request: boolean } {
+  const named = cell.calls === armed;
+  return { name: cell.name, state: named ? '' : look ? look.readout : markCount(view), needs: named || !look ? [] : look.needs, request: !named && !!look?.request };
+}
+
+/**
+ * The Confirm row's label for the armed Asset (#184: out of chrome/assets.ts): the tap it still needs, else Confirm and the
+ * pinned spot's Grid Reference. `ready`: it has all Confirm needs (targeting.ts `ready`); `spot`: the pinned spot's Grid
+ * Reference, null before the first tap. #138: a line-shaped Asset with its start pinned still wants its direction; #142 an
+ * untargeted one is ready with no spot.
+ */
+export const confirmLabel = (ready: boolean, spot: string | null) => (!ready ? (spot !== null ? 'Tap the direction' : 'Tap the map') : spot !== null ? `Confirm ${spot}` : 'Confirm');
