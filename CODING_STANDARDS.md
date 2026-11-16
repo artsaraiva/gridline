@@ -17,6 +17,7 @@ Baked sprites are Blender renders under `assets/` packed into sheets under `publ
 - **Deterministic arithmetic.** Rules touch floats only with `+ - * /` and `Math.sqrt`. `Math.hypot`, trig, `Date`, `Math.random` and object-key order that is not integer-ascending are out.
 - **Rules carry their reason.** A rule that departs from the spec's literal wording (a derived hold Order counting on a retake, a crate that never announces at match end) records the judgement in a one-line comment where the rule lives.
 - **Awards never leak fog.** An `award` reason names no position and no enemy the Commander's Side has not seen.
+- **An Asset's effect state is declared in its adapter; other rules read effects through `assets/lookup.ts`.** Each kind's effect type lives beside its Kind in `assets/<asset>.ts`, and a rule outside the Asset core asks `effectsOf` for the effects of one kind rather than reading `m.assets.effects` (`imports.test.ts` holds it). Flag a field added to `EffectBase` that only one kind uses.
 
 ## Tune and types
 
