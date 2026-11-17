@@ -27,7 +27,8 @@ function scene(place: Record<number, Vec2> = {}, tune: Partial<Tune> = {}, seed 
   return m;
 }
 
-// The line runs east from (0, 100): shells land every 10 m from x = 0 to x = 110, up to 4 m north or south of y = 100.
+// The line runs east from (0, 100): shells land every 10 m from x = 0 to x = 230, up to 22 m north or south of y = 100 (the effect cases below
+// pin the scatter to 4 m, so the Soldiers they place stand where they did when the line was shorter).
 const START: Vec2 = { x: 0, y: 100 };
 const EAST: Vec2 = { x: 50, y: 100 };
 const creep = (m: Match, at = START, to = EAST): Command => ({ tick: m.tick, side: 'nato', kind: 'asset', asset: 'creep', at, to });
@@ -40,7 +41,7 @@ interface Run {
 }
 
 /** Calls the Creeping Barrage on the first tick and steps to the end of second `seconds`. */
-function play(m: Match, seconds = 30): Run {
+function play(m: Match, seconds = 50): Run {
   const run: Run = { events: [], nato: [], pact: [] };
   for (let i = 0; i < seconds * HZ; i++) {
     const tick = m.tick;
@@ -56,9 +57,9 @@ const fx = (v: CommanderView) => v.effects!.find((e) => e.asset === 'creep');
 const ids = (v: CommanderView) => v.contacts.map((c) => c.id);
 
 describe('Creeping Barrage: the call', () => {
-  it('starts on cooldown: first ready at 2:30, a line 120 m long', () => {
+  it('starts on cooldown: first ready at 2:30, a line 240 m long', () => {
     const m = createMatch({ seed: 1, map: field, tune: DEFAULT_TUNE, squadsPerSide: 1, commanderSide: 'nato' });
-    expect(commanderView(m, 'nato').assets!.find((a) => a.asset === 'creep')).toEqual({ asset: 'creep', readyIn: 150, cooldown: 150, radius: 18, line: { length: 120, width: 36 } });
+    expect(commanderView(m, 'nato').assets!.find((a) => a.asset === 'creep')).toEqual({ asset: 'creep', readyIn: 150, cooldown: 150, radius: 36, line: { length: 240, width: 72 } });
     expect(step(m, [creep(m)]).map((e) => e.kind === 'rejected' && e.reason)).toEqual(['cooling down']);
   });
 
@@ -72,13 +73,13 @@ describe('Creeping Barrage: the call', () => {
 });
 
 describe('Creeping Barrage: the march', () => {
-  it('the first shell lands 10 s after the call at the start, then one every 1.5 s, each 10 m further along; the twelfth 16.5 s later', () => {
+  it('the first shell lands 10 s after the call at the start, then one every 1.5 s, each 10 m further along; the twenty-fourth 34.5 s later', () => {
     const run = play(scene());
     const hits = impacts(run);
-    expect(hits.map((h) => h.tick / HZ)).toEqual([10, 11.5, 13, 14.5, 16, 17.5, 19, 20.5, 22, 23.5, 25, 26.5]);
-    expect(hits.map((h) => Math.round((h.x / 10) * 1e6) / 1e6)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
-    for (const h of hits) expect(Math.abs(h.y - 100)).toBeLessThan(4);
-    expect(new Set(hits.map((h) => h.y)).size).toBe(12); // each scattered on its own
+    expect(hits.map((h) => h.tick / HZ)).toEqual(Array.from({ length: 24 }, (_, i) => 10 + 1.5 * i));
+    expect(hits.map((h) => Math.round((h.x / 10) * 1e6) / 1e6)).toEqual(Array.from({ length: 24 }, (_, i) => i));
+    for (const h of hits) expect(Math.abs(h.y - 100)).toBeLessThan(22);
+    expect(new Set(hits.map((h) => h.y)).size).toBe(24); // each scattered on its own
     expect(hits[0]).toMatchObject({ side: 'nato', asset: 'creep' });
     expect(run.events.filter((e) => e.kind === 'radio').map((e) => [e.tick / HZ, e.text])).toEqual([
       [0, 'Creeping fire inbound'],
@@ -89,10 +90,10 @@ describe('Creeping Barrage: the march', () => {
   it('each shell is 4 s in the air: one or two fly at a time, and the count runs down to the first', () => {
     const { nato } = play(scene());
     const at = (s: number) => fx(nato[s * HZ - 1]!)!;
-    expect(at(5)).toMatchObject({ x: 0, y: 100, impactIn: 5, shells: [], line: { to: { x: 120, y: 100 }, width: 36 } });
+    expect(at(5)).toMatchObject({ x: 0, y: 100, impactIn: 5, shells: [], line: { to: { x: 240, y: 100 }, width: 72 } });
     expect(at(8).shells).toEqual([{ x: 0, y: expect.any(Number), flight: 0.5 }, { x: 10, y: expect.any(Number), flight: 0.125 }]);
     expect(at(12).impactIn).toBe(0);
-    expect(fx(nato[29 * HZ]!)).toBeUndefined(); // 26.5 s and the Contacts' 2 s
+    expect(fx(nato[47 * HZ]!)).toBeUndefined(); // 44.5 s and the Contacts' 2 s
   });
 
   it("the shells in flight are in the enemy's view too; the strip and the count are not", () => {
@@ -105,19 +106,20 @@ describe('Creeping Barrage: the march', () => {
 
 describe('Creeping Barrage: the effect', () => {
   // where the shells land on seed 1, found by a dry run: the spots are drawn at the call
-  const spots = impacts(play(scene())).map(({ x, y }) => ({ x, y }));
+  const TIGHT: Partial<Tune> = { creepScatterM: 4 };
+  const spots = impacts(play(scene({}, TIGHT))).map(({ x, y }) => ({ x, y }));
 
   it('a Soldier on a shell\'s spot dies; one 10 m from the line is suppressed to full and not Wounded; one 30 m off is untouched', () => {
-    const m = scene({ 6: spots[3]!, 7: { x: 55, y: 110 }, 8: { x: 55, y: 130 }, 0: { x: 85, y: 90 } });
+    const m = scene({ 6: spots[3]!, 7: { x: 55, y: 110 }, 8: { x: 55, y: 130 }, 0: { x: 85, y: 90 } }, TIGHT);
     const run = play(m);
     expect(run.events.flatMap((e) => (e.kind === 'death' || e.kind === 'wounded' ? [[e.kind, e.id, e.tick / HZ]] : []))).toEqual([['death', 6, 14.5]]);
     expect(m.soldiers[7]).toMatchObject({ state: 'alive', hp: DEFAULT_TUNE.hp });
     expect(m.soldiers[8]).toMatchObject({ state: 'alive', hp: DEFAULT_TUNE.hp, suppression: 0 });
     expect(m.soldiers[0]).toMatchObject({ state: 'alive', hp: DEFAULT_TUNE.hp }); // its own Side's, 10 m off: no hold-out, and no harm at that range
     const peak = (id: number) => {
-      const again = scene({ 6: spots[3]!, 7: { x: 55, y: 110 }, 8: { x: 55, y: 130 }, 0: { x: 85, y: 90 } });
+      const again = scene({ 6: spots[3]!, 7: { x: 55, y: 110 }, 8: { x: 55, y: 130 }, 0: { x: 85, y: 90 } }, TIGHT);
       let most = 0;
-      for (let i = 0; i < 30 * HZ; i++) {
+      for (let i = 0; i < 50 * HZ; i++) {
         step(again, i === 0 ? [creep(again)] : []);
         most = Math.max(most, again.soldiers[id]!.suppression);
       }
@@ -128,14 +130,14 @@ describe('Creeping Barrage: the effect', () => {
   });
 
   it('a kill scores the caller in artillery at the shell tariff; a friendly killed scores nobody', () => {
-    const m = scene({ 6: spots[3]!, 0: spots[8]! });
+    const m = scene({ 6: spots[3]!, 0: spots[8]! }, TIGHT);
     const run = play(m);
     expect(run.events.flatMap((e) => (e.kind === 'death' ? [e.id] : []))).toEqual([6, 0]);
     expect(run.events.filter((e) => e.kind === 'award')).toEqual([{ kind: 'award', side: 'nato', category: 'artillery', points: DEFAULT_TUNE.scoreArtilleryKill, reason: 'Creeping Barrage kill', tick: 14.5 * HZ }]);
   });
 
   it('Contacts light up along the line in sequence: each enemy within 14 m of a landed shell, for 2 s', () => {
-    const m = scene({ 6: { x: 0, y: 112 }, 7: { x: 60, y: 112 }, 8: { x: 110, y: 112 }, 9: { x: 60, y: 140 } });
+    const m = scene({ 6: { x: 0, y: 112 }, 7: { x: 60, y: 112 }, 8: { x: 110, y: 112 }, 9: { x: 60, y: 140 } }, TIGHT);
     const { nato } = play(m);
     const at = (s: number) => ids(nato[s * HZ - 1]!);
     expect(at(9.5)).toEqual([]);

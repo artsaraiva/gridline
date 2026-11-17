@@ -183,7 +183,7 @@ describe('Request closes', () => {
     run(r, 2);
     expect(request(r)).toBeNull();
 
-    const f = scene(SEEN, { tune: { barrageCooldownSeconds: 0 } });
+    const f = scene(SEEN, { tune: { barrageCooldownSeconds: 0, hp: 1e9 } }); // nobody dies, whatever the shots and shells do: a wiped Squad has no Request
     run(f, 1);
     const spot = request(f)!.at;
     run(f, 1, [asset(f, 'barrage', spot)]);

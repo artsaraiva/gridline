@@ -10,7 +10,7 @@ import type { AssetView, CommanderView, EffectView, FriendlyView, LastKnownView,
 
 /** The first twelve chapters end here; #131 adds the helicopter jobs after them. */
 const OLD_END = 192;
-export const LENGTH = 904;
+export const LENGTH = 914;
 
 /** Where each state starts, for scrubbing. */
 export const CHAPTERS = [
@@ -36,13 +36,13 @@ export const CHAPTERS = [
   { at: 600, title: 'Mark' },
   { at: 640, title: 'Smoke Screen' },
   { at: 680, title: 'Creeping Barrage' },
-  { at: 720, title: 'Drone Strike' },
-  { at: 740, title: 'Drone lost' },
-  { at: 756, title: 'Recon Plane' },
-  { at: 772, title: 'Redeploy Beacon' },
-  { at: 808, title: 'EMP Strike' },
-  { at: 836, title: 'Feint' },
-  { at: 864, title: 'Asset keypad' },
+  { at: 730, title: 'Drone Strike' },
+  { at: 750, title: 'Drone lost' },
+  { at: 766, title: 'Recon Plane' },
+  { at: 782, title: 'Redeploy Beacon' },
+  { at: 818, title: 'EMP Strike' },
+  { at: 846, title: 'Feint' },
+  { at: 874, title: 'Asset keypad' },
 ];
 
 /** Centre of the overlapping Squads, for the close zoom preset. */
@@ -755,7 +755,7 @@ export function viewAt(t: number): CommanderView {
     result: null,
     assets: [{ asset: 'missile', readyIn: t < MISSILE.at ? 0 : Math.max(0, MISSILE.at + DEFAULT_TUNE.missileCooldownSeconds - t), cooldown: DEFAULT_TUNE.missileCooldownSeconds, radius: DEFAULT_TUNE.missileSuppressM, ...keystoneGate(t) }, gunshipRow(t), ...lineRows(t), ...airRows(t), ...beaconRows(t), ...denialRows(t), ...keypadRows(t)],
     effects: [...missileAt(t), ...gunshipsAt(t), ...smokeAt(t), ...creepAt(t), ...droneAt(DRONE, 'nato', t), ...droneAt(DRONE_DOWN, 'pact', t), ...reconAt(t), ...beaconAt(t), ...empAt(t), ...feintAt(t), ...supplyAt(t)],
-    vehicles: [...tanksAt(t), ...jeepsAt(t), ...helisAt(t), ...paraHeli(t), ...airAt(t), ...gunshipBodies(t), ...empVehicles(t)].map((v) => (heldByEmp(v, t) ? { ...v, disabled: true as const } : v)),
+    vehicles: [...tanksAt(t).filter((v) => !driven(v, t)), ...jeepsAt(t).filter((v) => !driven(v, t)), ...helisAt(t), ...paraHeli(t), ...airAt(t), ...gunshipBodies(t), ...empVehicles(t)].map((v) => (heldByEmp(v, t) ? { ...v, disabled: true as const } : v)),
     marks: marksAt(t),
   };
 }
@@ -783,14 +783,14 @@ function markEvents(): [number, SimEvent][] {
 // #138: a Smoke Screen across the ground between Alpha and the Contacts, called 2 s into its chapter: the strip, four grey-tailed
 // shells half a second apart, the discs blooming, holding and thinning. Then a Creeping Barrage walked south through the
 // Contacts: the strip, a shell every 1.5 s each 10 m on, and the dust line they leave. The numbers are the Simulation's.
-const SMOKE = { call: CHAPTERS.find((c) => c.title === 'Smoke Screen')!.at + 2, x: -40, y: -12, to: { x: -40, y: 48 } };
-const CREEP = { call: CHAPTERS.find((c) => c.title === 'Creeping Barrage')!.at + 2, x: -16, y: 62, to: { x: -16, y: -58 } };
+const SMOKE = { call: CHAPTERS.find((c) => c.title === 'Smoke Screen')!.at + 2, x: -40, y: -42, to: { x: -40, y: -42 + G.smokeLengthM } };
+const CREEP = { call: CHAPTERS.find((c) => c.title === 'Creeping Barrage')!.at + 2, x: -16, y: 62, to: { x: -16, y: 62 - G.creepLengthM } };
 const CREEP_REACH = G.creepScatterM + G.creepSuppressM;
 const SMOKE_SECONDS = G.smokeWarningSeconds + (G.smokeShells - 1) * STAGGER_SECONDS + smokeLife(G);
 const CREEP_SECONDS = G.creepWarningSeconds + (G.creepShells - 1) * G.creepStepSeconds + G.barrageContactSeconds;
 /** Where each shell lands and how long after the call. */
 const SMOKE_SHELLS = Array.from({ length: G.smokeShells }, (_, i) => ({ x: SMOKE.x, y: SMOKE.y + ((i + 0.5) / G.smokeShells) * G.smokeLengthM, lands: G.smokeWarningSeconds + i * STAGGER_SECONDS }));
-const CREEP_SHELLS = Array.from({ length: G.creepShells }, (_, i) => ({ x: CREEP.x + (((i * 7) % 9) - 4) * 0.9, y: CREEP.y - i * G.creepStepM, lands: G.creepWarningSeconds + i * G.creepStepSeconds }));
+const CREEP_SHELLS = Array.from({ length: G.creepShells }, (_, i) => ({ x: CREEP.x + (((i * 7) % 9) - 4) * 0.225 * G.creepScatterM, y: CREEP.y - i * G.creepStepM, lands: G.creepWarningSeconds + i * G.creepStepSeconds }));
 
 /** The shells of a line-shaped Asset in the air `s` seconds after its call, as the Simulation's view gives them. */
 const inFlight = (shells: { x: number; y: number; lands: number }[], s: number) =>
@@ -963,6 +963,9 @@ function empVehicles(t: number): VehicleView[] {
 }
 
 /** The EMP holds every live vehicle on the ground (or a helicopter) within its ring, from the burst for `empSeconds`, as the Simulation does. */
+/** The EMP chapter's ring holds only what it stages: the earlier chapters' tanks and jeeps (Wrecks stay) have driven off by then. */
+const driven = (v: VehicleView, t: number) => t >= EMP_AT && t < FEINT_AT && !v.wreck;
+
 const heldByEmp = (v: VehicleView, t: number) => inSpan([EMP_HOLD], t) && !v.wreck && !['jet', 'gunship', 'drone', 'recon'].includes(v.kind) && Math.hypot(v.x - EMP.to.x, v.y - EMP.to.y) <= G.empRadiusM;
 
 function feintAt(t: number): EffectView[] {

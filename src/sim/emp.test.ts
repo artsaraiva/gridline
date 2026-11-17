@@ -58,9 +58,9 @@ const row = (v: CommanderView) => v.assets!.find((a) => a.asset === 'emp')!;
 const CENTRE = { x: 0, y: 0 };
 
 describe('EMP Strike: the call', () => {
-  it('starts on its 180 s cooldown with a 60 m ring and no point gate, and says "EMP away"', () => {
+  it('starts on its 180 s cooldown with a 120 m ring and no point gate, and says "EMP away"', () => {
     const m = scene({}, { empCooldownSeconds: 180 });
-    expect(row(commanderView(m, 'nato'))).toMatchObject({ readyIn: 180, cooldown: 180, radius: 60 });
+    expect(row(commanderView(m, 'nato'))).toMatchObject({ readyIn: 180, cooldown: 180, radius: 120 });
     expect(row(commanderView(m, 'nato')).off).toBeUndefined(); // nobody holds C
     for (let i = 0; i < 180 * HZ - 1; i++) step(m, []);
     expect(rejections(step(m, [emp(m, CENTRE)]))).toEqual(['cooling down']);
@@ -77,7 +77,7 @@ const FLIGHT = Math.round((415 / 60) * HZ);
 describe('EMP Strike: the flight', () => {
   it('leaves the own HQ and flies level and straight at the spot at 60 m/s, in both Sides\' views', () => {
     const run = play(scene(), FLIGHT, CENTRE);
-    expect(effect(run.views[0]!)).toMatchObject({ side: 'nato', from: { x: -415, y: 0 }, x: 0, y: 0, radius: 60 });
+    expect(effect(run.views[0]!)).toMatchObject({ side: 'nato', from: { x: -415, y: 0 }, x: 0, y: 0, radius: 120 });
     const at5 = effect(run.pact[5 * HZ - 1]!)!; // the sky rule
     expect(at5.flight).toBeCloseTo(300 / 415, 2);
     expect(at5.impactIn).toBeCloseTo(415 / 60 - 5, 1);

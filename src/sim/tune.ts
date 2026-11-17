@@ -115,7 +115,7 @@ export const DEFAULT_TUNE: Tune = {
   // #37 Assets: core and Scan
   scanCooldownSeconds: 60,
   scanSeconds: 15,
-  scanRadiusM: 60,
+  scanRadiusM: 120,
 
   // #38 Radio
   radioGapSeconds: 3,
@@ -132,10 +132,10 @@ export const DEFAULT_TUNE: Tune = {
   // #40 Barrage
   barrageCooldownSeconds: 120,
   barrageWarningSeconds: 10,
-  barrageShells: 6,
+  barrageShells: 12,
   barrageSpanSeconds: 5,
   barrageFlightSeconds: 4,
-  barrageSpreadM: 25,
+  barrageSpreadM: 65,
   barrageKillM: 5,
   barrageWoundM: 8,
   barrageSuppressM: 15,
@@ -364,8 +364,8 @@ export const DEFAULT_TUNE: Tune = {
 
   // #138 Smoke Screen
   smokeCooldownSeconds: 90,
-  smokeLengthM: 60,
-  smokeWidthM: 15,
+  smokeLengthM: 120,
+  smokeWidthM: 30,
   smokeShells: 4,
   smokeWarningSeconds: 6,
   smokeBloomSeconds: 5,
@@ -374,11 +374,11 @@ export const DEFAULT_TUNE: Tune = {
 
   // #138 Creeping Barrage
   creepCooldownSeconds: 150,
-  creepLengthM: 120,
-  creepShells: 12,
+  creepLengthM: 240,
+  creepShells: 24,
   creepStepSeconds: 1.5,
   creepStepM: 10,
-  creepScatterM: 4,
+  creepScatterM: 22,
   creepWarningSeconds: 10,
   creepKillM: 3,
   creepWoundM: 6,
@@ -414,7 +414,7 @@ export const DEFAULT_TUNE: Tune = {
 
   // #143 EMP Strike
   empCooldownSeconds: 180,
-  empRadiusM: 60,
+  empRadiusM: 120,
   empSpeedMps: 60,
   empSeconds: 12,
 
