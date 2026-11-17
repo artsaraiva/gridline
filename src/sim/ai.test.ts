@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { RIVER_FIELD } from '../maps/river-field';
 import { commanderView, createMatch, gridRef, stateHash, step, type Match } from './index';
 import { DEFAULT_TUNE } from './tune';
-import { NO_TEMPO, NO_TRAITS, thinkOnId } from './test-tune';
+import { NO_TEMPO, NO_TRAITS, PLAIN_GUNS, thinkOnId } from './test-tune';
 import type { CommanderView, Crossing, MapData, Rect, SimEvent, Tune } from './types';
 
 const HZ = DEFAULT_TUNE.hz;
@@ -340,7 +340,7 @@ describe('shared spotting (#133)', () => {
 });
 
 describe('Retreat', () => {
-  const ONE_SHOT: Partial<Tune> = { hitChance: 1, damage: [100, 100], reviveRangeM: 0, bleedOutSeconds: 1 / HZ };
+  const ONE_SHOT: Partial<Tune> = { hitChance: 1, damage: [100, 100], reviveRangeM: 0, bleedOutSeconds: 1 / HZ, ...PLAIN_GUNS };
   // nato ids 1-3 and pact ids 5-7 shoot each other dead on tick 0; nato id 0 stands apart facing north and sees nobody.
   // Point M, mid-field, gives both Squads something to go for; `owned` adds a nato point nearer home.
   const downToOne = (owned: boolean) => {
@@ -493,6 +493,7 @@ describe('suppressive fire numbers', () => {
   // nato Soldier 0 holds a fresh seen Last Known Position 60 m off, where pact Soldier 4 stands unseen (nobody sees anyone).
   // Scatter is off, so the round lands on the Soldier; its first one is fired on tick 0.
   const base = (tune: Partial<Tune> = {}) => scene({ map: field(), place: { 0: { x: 0, y: 0, fx: 1 }, 4: { x: 60, y: 0 } }, tune: { visionM: 0, suppressiveScatterM: 0, suppressDecayPerSecond: 0, damage: [1, 1], ...tune } });
+  const plain = (tune: Partial<Tune>) => base({ ...PLAIN_GUNS, ...tune }); // the chance itself, without a gun's own accuracy
   // one tick from a copy of `b` on its own seed (the map grid is shared: building it is the slow part)
   const volley = (b: Match, seed: number) => {
     const m: Match = { ...b, rng: seed, soldiers: structuredClone(b.soldiers), squads: structuredClone(b.squads), points: structuredClone(b.points), sightings: structuredClone(b.sightings) };
@@ -504,12 +505,12 @@ describe('suppressive fire numbers', () => {
   it('suppresses the enemy at its Last Known Position by 0.6x a round of aimed fire', () => {
     const { events, suppression } = volley(base(), 1);
     expect(events.filter((e) => e.kind === 'suppressive')).toHaveLength(1);
-    expect(suppression).toBeCloseTo(DEFAULT_TUNE.suppressPerShot * 0.6, 9);
+    expect(suppression).toBeCloseTo(DEFAULT_TUNE.suppressPerShot * DEFAULT_TUNE.guns.rifle.suppressMul * 0.6, 9); // nato 0 carries the rifle
   });
 
   it('hits it at 0.3x the usual chance', () => {
     const rate = (tune: Partial<Tune>) => {
-      const b = base(tune);
+      const b = plain(tune);
       let hits = 0;
       for (let seed = 1; seed <= 2000; seed++) if (volley(b, seed).hit) hits++;
       return hits / 2000;

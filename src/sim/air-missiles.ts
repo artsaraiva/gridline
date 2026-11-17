@@ -68,13 +68,16 @@ export function flyMissiles(m: Match, events: SimEvent[]) {
         if (d <= step + FUSE_M) {
           if (rnd(m) < (e.kind === 'jet' ? t.airMissileVsJetHitChance : t.airMissileHitChance)) {
             hurt(m, e, t.airMissileDamage, v.side, null, events);
+            events.push({ kind: 'airburst', side: v.side, x: e.x, y: e.y, hit: true });
             return false;
           }
           s.missed = true;
         } else Object.assign(s, turnToward(s.fx, s.fy, (e.x - s.x) / d, (e.y - s.y) / d, t.airMissileTurnDegPerS, t.hz));
       }
       Object.assign(s, { x: s.x + s.fx * step, y: s.y + s.fy * step });
-      return m.tick - s.launch < ticksOf(t, t.airMissileSeconds);
+      if (m.tick - s.launch < ticksOf(t, t.airMissileSeconds)) return true;
+      events.push({ kind: 'airburst', side: v.side, x: s.x, y: s.y, hit: false }); // spent: it destroys itself
+      return false;
     });
 }
 

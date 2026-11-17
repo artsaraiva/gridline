@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { VehicleView } from '../../sim/types';
-import { ROUND_STREAK_M, roundStreak, TANK_EXAGGERATION, TANK_HEADINGS, TANK_SHEET, TANK_WORLD_M, tankPose } from './tank';
+import { MUZZLE_M, muzzleOf, ROUND_STREAK_M, roundStreak, TANK_EXAGGERATION, TANK_HEADINGS, TANK_SHEET, TANK_WORLD_M, tankPose } from './tank';
 
 const STEP = (2 * Math.PI) / TANK_HEADINGS;
 const tank = (o: Partial<VehicleView> = {}): VehicleView => ({ id: 9, side: 'nato', kind: 'tank', x: 10, y: -4, fx: 1, fy: 0, tx: 1, ty: 0, ...o });
@@ -38,7 +38,8 @@ describe('tank pose', () => {
 
   it('draws a main gun round as a short streak at its point along the flight, never reaching back past the muzzle', () => {
     const r = { from: { x: 0, y: 0 }, to: { x: 140, y: 0 }, flight: 0.5 };
-    expect(roundStreak(r)).toEqual({ x: 70 - ROUND_STREAK_M / 2, y: 0, length: ROUND_STREAK_M, angle: 0 });
-    expect(roundStreak({ ...r, flight: 0.02 })).toMatchObject({ x: expect.closeTo(1.4), length: expect.closeTo(2.8) });
+    expect(roundStreak(r)).toEqual({ x: 70 - ROUND_STREAK_M / 2, y: 0, length: ROUND_STREAK_M, angle: 0, head: { x: 70, y: 0 } });
+    expect(roundStreak({ ...r, flight: 0.02 })).toMatchObject({ length: 0, head: { x: MUZZLE_M, y: 0 } }); // still in the barrel: nothing over the hull
+    expect(muzzleOf(r)).toEqual({ x: MUZZLE_M, y: 0, heading: 0 });
   });
 });

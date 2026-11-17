@@ -1,6 +1,6 @@
-// The Barrage's shells (#53, #61, #98): each in its visible window is a small baked round at the nearest heading with a
-// shadow on the ground under it, closing in on where it will land, at the head of the trace it has left in the air all
-// the way from its caller's HQ: faint while it is up and away, intensifying as it comes down; after the hit a short streak
+// The Barrage's shells (#53, #61, #98): each in its visible window is a small baked round at the nearest heading, burning
+// and trailing smoke, with a shadow on the ground under it closing in on where it will land and, in its last moments, its
+// light on the ground there; at the head of the trace it has left in the air all the way from its caller's battery: faint while it is up and away, intensifying as it comes down; after the hit a short streak
 // hangs in the air and fades. sprites/shell.ts says where everything is; the Console's own impacts say where shells
 // landed. #138: the Creeping Barrage's shells are the same; the Smoke Screen's are grey and have no hit, so each bursts
 // into a grey puff where it lands and its tail hangs longer.
@@ -9,7 +9,8 @@ import type { CommanderView, Vec2 } from '../../sim/types';
 import { COLOR, metresPerPx, pool } from '../renderer';
 import { session } from '../session';
 import { spriteMesh } from '../sprites/sheet';
-import { barrageShells, SHELL_SHADOW_FRAME, SHELL_SHEET, SHELL_VISIBLE_FROM, shellStreak, shellTraces } from '../sprites/shell';
+import { batteryOf } from '../sprites/battery';
+import { barrageShells, SHELL_SHADOW_FRAME, SHELL_SHEET, SHELL_VISIBLE_FROM, shellGlow, shellInFlight, shellLight, SHELL_SMOKE, shellStreak, shellTraces } from '../sprites/shell';
 import { recentImpacts } from './impacts';
 import { fading, soft, streak } from './symbols';
 
@@ -35,6 +36,9 @@ const greyStreaks = pool(() => new THREE.Mesh(quad, streak(SMOKE_TAIL)));
 const traces = pool(() => new THREE.Mesh(quad, fading(COLOR.bone)));
 const greyTraces = pool(() => new THREE.Mesh(quad, fading(SMOKE_TAIL)));
 const puffs = pool(() => new THREE.Mesh(quad, soft(0xa8aeac, { glow: false })));
+/** A falling shell's glow, and the light it throws on the ground just before it lands. */
+const burns = pool(() => new THREE.Mesh(quad, soft(0xffb060)));
+const lights = pool(() => new THREE.Mesh(quad, soft(0xffce8c)));
 
 /** The own Side's smoke shells seen in the air last frame, by landing spot: one that is missing now has just landed. */
 let seen = new Map<string, { x: number; y: number }>();
@@ -66,7 +70,7 @@ function watch(view: CommanderView, now: number) {
 export function drawShells(view: CommanderView, now: number) {
   const map = session.host?.map;
   if (map) {
-    const hq = map.hqs[view.side];
+    const hq = batteryOf(map, view.side);
     watch(view, now);
     for (const t of shellTraces(view, map)) {
       const m = (t.smoke ? greyTraces : traces).next();
@@ -87,6 +91,27 @@ export function drawShells(view: CommanderView, now: number) {
       b.rotation.z = s.bodyRotation;
       b.scale.setScalar(s.size);
       b.frame.value = s.frame;
+      if (s.smoke) continue; // a smoke shell does not burn
+      for (const q of SHELL_SMOKE) {
+        if (s.flight - q.back < SHELL_VISIBLE_FROM) break;
+        const at = shellInFlight(s.from, s.to, s.flight - q.back);
+        const p = puffs.next();
+        p.position.set(at.x, at.y, 0.7);
+        p.scale.setScalar(q.size * (s.size / at.size) * (at.size / 3.1));
+        p.material.opacity = q.opacity;
+      }
+      const g = shellGlow(fall);
+      const burn = burns.next();
+      burn.position.set(s.x, s.y, 0.71);
+      burn.scale.setScalar(g.size);
+      burn.material.opacity = g.opacity;
+      const l = shellLight(fall);
+      if (l) {
+        const light = lights.next();
+        light.position.set(s.to.x, s.to.y, 0.5);
+        light.scale.setScalar(l.size);
+        light.material.opacity = l.opacity;
+      }
     }
     // sqrt: the glow curve squares it back to a steady fade
     for (const asset of ['barrage', 'creep'] as const)
@@ -104,5 +129,5 @@ export function drawShells(view: CommanderView, now: number) {
       p.material.opacity = SMOKE_BURST.opacity * (1 - k);
     }
   }
-  for (const p of [bodies, shadows, streaks, greyStreaks, traces, greyTraces, puffs]) p.end();
+  for (const p of [bodies, shadows, streaks, greyStreaks, traces, greyTraces, puffs, burns, lights]) p.end();
 }

@@ -1,3 +1,4 @@
+import { spotted } from './guns';
 import type { Match } from './index';
 import { dist2, inHq } from './geometry';
 import { los } from './grid';
@@ -46,6 +47,7 @@ function look(m: Match, s: Soldier) {
   }
   const jeep = seeVehicles(m, s, sq, bestD2); // #107: a tank is never a rifle target
   if (jeep) [best, bestD2] = [jeep.id, dist2(s, jeep)];
+  if (best < 0 && (best = spotted(m, s)) >= 0) bestD2 = dist2(s, m.soldiers[best]!); // a scoped gun takes on what other eyes found
   s.target = best;
   if (best < 0) return;
   s.lastTarget = best;

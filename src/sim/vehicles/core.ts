@@ -10,7 +10,7 @@ import { hashMissiles, type AirMissile } from '../air-missiles';
 import { los, nearestWalkable } from '../grid';
 import { see } from '../memory';
 import { ticksOf, vehicleOf, type Mix, type Soldier, type Squad } from '../state';
-import { SIDES, type SideId, type Tune, type Vec2, type VehicleKind, type VehicleView } from '../types';
+import { SIDES, type GunKind, type SideId, type Tune, type Vec2, type VehicleKind, type VehicleView } from '../types';
 import { aa } from './aa';
 import { air, crippled, DORMANT, flies, flown, fresh, held, high, live, riders, SLOTS, SPECS, type OwnOf, type Round, type Vehicle, type VehicleOf } from './body';
 import { helicopter } from './helicopter';
@@ -88,6 +88,8 @@ export interface Shot {
   near?: Soldier[];
   /** #107: a Launcher's rocket, or #108 a rifle shot, at this vehicle. */
   vehicle?: Vehicle;
+  /** The gun a Soldier on foot fired it with (guns.ts); absent from a vehicle's seat and for a rocket. */
+  gun?: GunKind;
 }
 
 /** #183: combat's shot model, handed to a kind's `seatFire`, so that no kind module imports combat.ts. */

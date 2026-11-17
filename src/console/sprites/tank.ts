@@ -56,15 +56,30 @@ export function tankPose(v: VehicleView, exaggeration = TANK_EXAGGERATION): Tank
 }
 
 /** A main gun round's streak trails this far behind its head. */
-export const ROUND_STREAK_M = 10.8;
+export const ROUND_STREAK_M = 14;
+/** The muzzle is this far from the hull's centre along the gun, at the drawn size. */
+export const MUZZLE_M = 8.5;
+/** The round's wake hangs this far behind it, faint, and for this long after it lands. */
+export const WAKE_M = 70;
+export const WAKE_MS = 500;
+/** The hull rocks back this far as the gun fires, in metres, and settles: `age` ms after the shot. */
+export const rock = (age: number) => (age < 0 ? 0 : 0.9 * Math.exp((-5 * age) / 1000));
+/** The muzzle a round from `from` to `to` left by. */
+export function muzzleOf(r: { from: Vec2; to: Vec2 }): Vec2 & { heading: number } {
+  const d = Math.hypot(r.to.x - r.from.x, r.to.y - r.from.y) || 1;
+  return { x: r.from.x + ((r.to.x - r.from.x) / d) * MUZZLE_M, y: r.from.y + ((r.to.y - r.from.y) / d) * MUZZLE_M, heading: Math.atan2(r.to.y - r.from.y, r.to.x - r.from.x) };
+}
 
-/** The streak of a round `flight` (0..1) of the way from `from` to `to`: its centre, length and angle; it starts at the muzzle. */
-export function roundStreak(r: { from: Vec2; to: Vec2; flight: number }) {
+/**
+ * The streak of a round `flight` (0..1) of the way from `from` to `to`, `back` metres long: its centre, length and angle, and
+ * its head. It starts at the muzzle: nothing is drawn over the hull.
+ */
+export function roundStreak(r: { from: Vec2; to: Vec2; flight: number }, back = ROUND_STREAK_M) {
   const dx = r.to.x - r.from.x;
   const dy = r.to.y - r.from.y;
   const d = Math.hypot(dx, dy) || 1;
-  const head = Math.min(1, Math.max(0, r.flight)) * d;
-  const length = Math.min(ROUND_STREAK_M, head);
+  const head = Math.max(Math.min(MUZZLE_M, d), Math.min(1, Math.max(0, r.flight)) * d);
+  const length = Math.min(back, head - Math.min(MUZZLE_M, d));
   const mid = head - length / 2;
-  return { x: r.from.x + (dx / d) * mid, y: r.from.y + (dy / d) * mid, length, angle: Math.atan2(dy, dx) };
+  return { x: r.from.x + (dx / d) * mid, y: r.from.y + (dy / d) * mid, length, angle: Math.atan2(dy, dx), head: { x: r.from.x + (dx / d) * head, y: r.from.y + (dy / d) * head } };
 }

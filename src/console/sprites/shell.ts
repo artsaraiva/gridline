@@ -1,5 +1,6 @@
 // The Barrage's artillery shell (#53, #61, #98): its baked sheet, sky entry and streak. layers/shells.ts draws it.
 import type { CommanderView, MapData, Vec2 } from '../../sim/types';
+import { batteryOf } from './battery';
 import { SHADOW_DIR, type SpriteSheetSpec } from './sheet';
 
 export const SHELL_PITCH_FRAMES = 8;
@@ -19,12 +20,12 @@ export const SHELL_SHEET: SpriteSheetSpec = {
   constants: { SHELL_PITCH_FRAMES, SHELL_HEADINGS, SHELL_WORLD_M },
 };
 
-// #98: a shell without a visible gun enters the view from the sky, ENTRY_ALTITUDE_M up over a ground spot short of its
-// target on the bearing toward the own HQ, and drops to it on a straight line DESCENT_RAD from horizontal. It is drawn
-// only from SHELL_VISIBLE_FROM of its flight (the last 2 s of the 4 s): long enough to watch it fall, high and far off at
-// first, with its shadow on the ground closing in on where it will land.
-export const SHELL_VISIBLE_FROM = 0.5;
-const ENTRY_ALTITUDE_M = 420;
+// #98: a shell leaves its Side's battery (sprites/battery.ts), climbs out of sight, and comes back into the view from the sky,
+// ENTRY_ALTITUDE_M up over a ground spot short of its target on the bearing from the battery, dropping to it on a straight
+// line DESCENT_RAD from horizontal. It is drawn from SHELL_VISIBLE_FROM of its flight (all but the first 0.6 s of the 4 s): a
+// long fall to watch, high and far off at first, with its shadow on the ground closing in on where it will land.
+export const SHELL_VISIBLE_FROM = 0.15;
+const ENTRY_ALTITUDE_M = 640;
 const DESCENT_RAD = Math.PI / 3;
 const DESCENT_GROUND_M = ENTRY_ALTITUDE_M / Math.tan(DESCENT_RAD);
 const ALTITUDE_LIFT_PER_M = 0.22;
@@ -161,7 +162,7 @@ export function shellTraces(view: CommanderView, map: MapData): TraceSegment[] {
   const out: TraceSegment[] = [];
   for (const e of view.effects ?? []) {
     if (e.asset !== 'barrage' && e.asset !== 'creep' && e.asset !== 'smoke') continue;
-    const hq = map.hqs['side' in e ? e.side : view.side];
+    const hq = batteryOf(map, 'side' in e ? e.side : view.side);
     for (const s of e.shells) out.push(...shellTrace({ x: hq.x, y: hq.y }, { x: s.x, y: s.y }, s.flight, e.asset === 'smoke'));
   }
   return out;
@@ -169,17 +170,27 @@ export function shellTraces(view: CommanderView, map: MapData): TraceSegment[] {
 
 /**
  * The shells in their visible window in `view`: the Barrage's, and (#138) the Creeping Barrage's and the Smoke Screen's, each
- * coming in on the bearing from its caller's HQ (the Commander's own, but for an enemy's in the sky).
+ * coming in on the bearing from its caller's battery (the Commander's own, but for an enemy's in the sky).
  */
 export function barrageShells(view: CommanderView, map: MapData, exaggeration = SHELL_EXAGGERATION): ShellInFlight[] {
   const out: ShellInFlight[] = [];
   for (const e of view.effects ?? []) {
     if (e.asset !== 'barrage' && e.asset !== 'creep' && e.asset !== 'smoke') continue;
-    const hq = map.hqs['side' in e ? e.side : view.side]; // the Barrage's view names no Side: only its caller's view has it
+    const hq = batteryOf(map, 'side' in e ? e.side : view.side); // the Barrage's view names no Side: only its caller's view has it
     const from = { x: hq.x, y: hq.y };
     for (const s of e.shells) {
       if (s.flight >= SHELL_VISIBLE_FROM) out.push({ ...shellInFlight(from, { x: s.x, y: s.y }, s.flight, exaggeration), ...(e.asset === 'smoke' && { smoke: true as const }) });
     }
   }
   return out;
+}
+
+/** A falling shell burns: the glow round it, growing as it comes down. `fall` runs 0 as it first shows to 1 as it lands. */
+export const shellGlow = (fall: number) => ({ size: 4 + 7 * fall, opacity: 0.35 + 0.5 * fall });
+/** The smoke it trails: puffs this far back along its flight, each wider and fainter than the one before. */
+export const SHELL_SMOKE = [0.012, 0.026, 0.042, 0.06, 0.08, 0.1].map((back, i) => ({ back, size: 2.4 + i * 1.5, opacity: 0.3 * (1 - i / 6.5) }));
+/** In its last moments the ground under it lights up: the light's size in metres and its opacity. Null before. */
+export function shellLight(fall: number): { size: number; opacity: number } | null {
+  const k = (fall - 0.82) / 0.18;
+  return k <= 0 ? null : { size: 14 + 22 * k, opacity: 0.45 * k * k };
 }

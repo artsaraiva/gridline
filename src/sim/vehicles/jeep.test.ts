@@ -93,7 +93,7 @@ describe('#108 the jeep fights and dies', () => {
   });
 
   it('a rifle Squad shoots an empty jeep to a Wreck, hitting it like a Soldier', () => {
-    const m = scene({ tune: { jeepsPerSide: 1, walkSpeed: 0, rockets: 0 }, place: { 2: { x: 100, y: 0, fx: -1 }, 3: { x: 100, y: 5, fx: -1 } } });
+    const m = scene({ tune: { jeepsPerSide: 1, walkSpeed: 0, rockets: 0 }, place: { 2: { x: 70, y: 0, fx: -1 }, 3: { x: 70, y: 5, fx: -1 } } }); // inside the reach of the second member's SMG
     Object.assign(vehicle(m, 'jeep'), { x: 0, y: 0 }); // a map script's jeep, left out in the field
     const { events, views } = play(m, 30 * HZ, 'pact');
     const hits = events.filter((e) => e.kind === 'shot' && e.to === 4);

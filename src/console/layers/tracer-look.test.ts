@@ -17,12 +17,21 @@ describe('a shot: a round that flies, and what it kicks up', () => {
 
   it('sizes and speeds the round by who fired it', () => {
     expect(roundOf('foot')).toEqual({ size: 0.85, mps: ROUND_MPS });
-    expect(roundOf('tank').size).toBe(0.8); // a tank's machine gun never hides its main gun's round
-    expect(roundOf('jet').size).toBe(0.8);
-    expect(roundOf('helicopter')).toMatchObject({ size: 0.9 });
+    expect(roundOf('foot', 'sniper')).toMatchObject({ mps: 1000, vapour: 0.3 });
+    expect(roundLength(roundOf('foot', 'smg'))).toBeLessThan(roundLength(roundOf('foot')) / 1.5);
+    expect(roundLength(roundOf('foot', 'dmr'))).toBeGreaterThan(roundLength(roundOf('foot')) * 1.5);
+    expect(roundOf('jeep').size).toBeGreaterThan(roundOf('tank').size * 1.5); // fat and slow next to the tank's thin, fast machine gun
+    expect(roundOf('helicopter').rope).toBe(4);
+    expect(roundOf('tank').size).toBeLessThan(roundOf('foot').size); // a tank's machine gun never hides its main gun's round
+    expect(roundOf('jet').lands).toBe('burst');
     expect(roundOf('helicopter').mps).toBeGreaterThan(ROUND_MPS * 2);
     expect(roundOf('aa').mps).toBeGreaterThan(roundOf('helicopter').mps);
-    expect(roundOf('jeep')).toEqual({ size: 1, mps: ROUND_MPS });
+    expect(roundOf('aa')).toMatchObject({ twin: true, lands: 'flak' });
+    expect(roundOf('gunship')).toEqual({ size: 1, mps: ROUND_MPS });
+    expect(landing(to, 0, false, 0, () => 0.5, roundOf('aa'), true).map((k) => k.kind)).toEqual(['burst', 'flak']); // flak round a target in the air
+    expect(landing(to, 0, false, 0, () => 0.5, roundOf('aa')).map((k) => k.kind)).toEqual(['dust']); // and dust on the ground
+    expect(landing(to, 0, false, 0, () => 0.5, roundOf('jet')).map((k) => k.kind)).toEqual(['burst', 'dust']);
+    expect(landing(to, 0, false, 0, () => 0.5, roundOf('jeep'))[0]!.scale).toBe(1.8);
     expect(flightMs(from, to, roundOf('aa').mps)).toBeLessThan(flightMs(from, to) / 2);
     expect(roundLength(roundOf('aa'))).toBeGreaterThan(roundLength(roundOf('foot')));
     expect(roundAt(from, to, 50, 12, 840)!.head.x).toBeCloseTo(42);

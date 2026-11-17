@@ -68,13 +68,13 @@ export function commanderView(m: Match, side: SideId): CommanderView {
 /**
  * The tick's events a Side's Console may show: all of its own, and an enemy's shot, suppressive fire or Wounding only
  * when that enemy Soldier was in sight (#107: or the vehicle it fires from, as for a main gun impact; #101 the Gunship's always). An enemy's
- * death and an enemy vehicle's destruction always pass, seen or not: a kill shows on the map. Squad Respawns and Redeploys never pass.
+ * death and an enemy vehicle's destruction always pass, seen or not: a kill shows on the map; so does a lock-on missile's burst in the sky. Squad Respawns and Redeploys never pass.
  * Call after `step`.
  */
 export function commanderEvents(m: Match, side: SideId, events: SimEvent[]): SimEvent[] {
   return events.filter((e) => {
     if (e.kind === 'shot' && isDummy(m, e.from)) return false; // #143: a Feint's fake fire is for enemy ears only; its own Console pulses the dummy from the view
-    if (e.side === side || e.kind === 'death' || e.kind === 'destroyed') return true;
+    if (e.side === side || e.kind === 'death' || e.kind === 'destroyed' || e.kind === 'airburst') return true; // a burst in the sky is in both Sides' view
     if (e.kind === 'shot' || e.kind === 'suppressive') {
       const v = vehicleOf(m, m.soldiers[e.from]!.vehicle);
       return v?.kind === 'gunship' || justSeen(m, side, v?.id ?? e.from); // #101: the Gunship's gun fires from the sky

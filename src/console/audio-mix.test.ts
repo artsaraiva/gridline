@@ -119,7 +119,7 @@ describe('observability rule: a combat sound plays only when its source is drawn
   });
 
   it('each drawn Barrage shell whistles along its descent, keyed by where it lands; one not yet drawn is silent', () => {
-    const barrage: EffectView = { ...AT, asset: 'barrage', x: 0, y: 0, radius: 25, shells: [{ x: 5, y: 5, flight: 0.95 }, { x: -5, y: 5, flight: 0.85 }, { x: 0, y: 9, flight: 0.3 }], impactIn: 0 };
+    const barrage: EffectView = { ...AT, asset: 'barrage', x: 0, y: 0, radius: 25, shells: [{ x: 5, y: 5, flight: 0.95 }, { x: -5, y: 5, flight: 0.85 }, { x: 0, y: 9, flight: 0.1 }], impactIn: 0 };
     const loops = drawnLoops(view({ effects: [barrage] }), HQ, 0);
     expect(loops.map((l) => l.key)).toEqual(['shell:5:5', 'shell:-5:5']);
     expect(loops[0]!.kind).toBe('shell');
