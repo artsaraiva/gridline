@@ -10,19 +10,28 @@ import { flyMissiles } from './air-missiles';
 import { rnd } from './rng';
 import { blast, die, hurt, wound } from './damage';
 import { membersOf, vehicleOf, type Soldier } from './state';
-import type { SimEvent, Vec2 } from './types';
+import { gunOf, reach2, trigger } from './guns';
+import type { GunKind, SimEvent, Vec2 } from './types';
 import { guns, isLauncher, lockMissiles, rocketTarget, seatFire, SPECS, type Shot, type Shots, type Vehicle } from './vehicles';
 
 const hitMul = (m: Match, s: Soldier, e: Soldier) =>
   (1 - m.tune.suppressAccuracyLoss * s.suppression) * (cellAt(m, e.x, e.y) === COVER ? m.tune.coverHitMul : 1);
 
-function roll(m: Match, s: Soldier, target: Soldier | null, p: number, every = m.tune.fireSeconds, vehicle?: Vehicle): Omit<Shot, 'at' | 'near'> {
+/**
+ * One round from `s`, hitting with chance `p`. From a vehicle's seat it is `every` seconds to the next (plus the jitter) and a round of
+ * the load; on foot (`gun`) the gun sets the wait and the cost (guns.ts `trigger`), and its accuracy and weight go on `p` and the damage.
+ */
+function roll(m: Match, s: Soldier, target: Soldier | null, p: number, every = m.tune.fireSeconds, vehicle?: Vehicle, gun?: GunKind): Omit<Shot, 'at' | 'near'> {
   const t = m.tune;
-  const hit = (target !== null || !!vehicle) && rnd(m) < p;
-  const damage = hit ? t.damage[0] + rnd(m) * (t.damage[1] - t.damage[0]) : 0;
-  s.nextFire = m.tick + Math.round((every + rnd(m) * t.fireJitterSeconds) * t.hz);
-  s.ammo--;
-  return { shooter: s, target, hit, damage, ...(vehicle && { vehicle }) };
+  const g = gun && t.guns[gun];
+  const hit = (target !== null || !!vehicle) && rnd(m) < p * (g?.hitMul ?? 1);
+  const damage = hit ? (t.damage[0] + rnd(m) * (t.damage[1] - t.damage[0])) * (g?.damageMul ?? 1) : 0;
+  if (g) s.nextFire = m.tick + Math.max(1, Math.round(trigger(m, s, g) * t.hz));
+  else {
+    s.nextFire = m.tick + Math.round((every + rnd(m) * t.fireJitterSeconds) * t.hz);
+    s.ammo--;
+  }
+  return { shooter: s, target, hit, damage, ...(vehicle && { vehicle }), ...(gun && { gun }) };
 }
 
 /** #107: a Launcher with rockets left fires one at the nearest enemy vehicle in reach, ahead of its rifle. */
@@ -42,9 +51,10 @@ function aim(m: Match, s: Soldier): Shot | null {
   if (s.target < 0 || s.reviving >= 0 || m.tick < s.nextFire || s.ammo <= 0) return null;
   const jeep = vehicleOf(m, s.target); // #108: no cover for a jeep
   const e = m.soldiers[s.target] ?? jeep!;
-  if (dist2(s, e) > t.fireRangeM * t.fireRangeM) return null;
-  if (jeep) return roll(m, s, null, t.hitChance * (1 - t.suppressAccuracyLoss * s.suppression), t.fireSeconds, jeep);
-  return roll(m, s, e as Soldier, t.hitChance * hitMul(m, s, e as Soldier));
+  const gun = gunOf(m, s);
+  if (dist2(s, e) > reach2(m, t.guns[gun])) return null;
+  if (jeep) return roll(m, s, null, t.hitChance * (1 - t.suppressAccuracyLoss * s.suppression), t.fireSeconds, jeep, gun);
+  return roll(m, s, e as Soldier, t.hitChance * hitMul(m, s, e as Soldier), t.fireSeconds, undefined, gun);
 }
 
 /**
@@ -57,7 +67,8 @@ function suppressive(m: Match, s: Soldier): Shot | null {
   const t = m.tune;
   if (s.target >= 0 || s.reviving >= 0 || m.tick < s.nextFire || s.role === 'flank' || s.ammo < t.suppressiveMinAmmo) return null;
   let lkp: Vec2 | null = null;
-  let best = t.fireRangeM * t.fireRangeM;
+  const gun = gunOf(m, s);
+  let best = reach2(m, t.guns[gun]);
   const sq = m.squads[s.squad]!;
   for (const c of sq.memory) {
     const d2 = dist2(c, s);
@@ -83,18 +94,18 @@ function suppressive(m: Match, s: Soldier): Shot | null {
       lkp = c;
     }
   if (!lkp || !wallLos(m, s, lkp)) return null; // #138: suppressive fire has no target, so it crosses smoke
-  return rake(m, s, lkp, t.suppressiveScatterM, t.fireSeconds);
+  return rake(m, s, lkp, t.suppressiveScatterM, t.fireSeconds, gun);
 }
 
 /** Suppressive fire scattered up to `scatterM` round `aim`: the enemies near the aim point are suppressed, the nearest within 4 m hit at a fraction of the chance. */
-function rake(m: Match, s: Soldier, aim: Vec2, scatterM: number, every: number): Shot {
+function rake(m: Match, s: Soldier, aim: Vec2, scatterM: number, every: number, gun?: GunKind): Shot {
   const t = m.tune;
   const scatter = () => (rnd(m) * 2 - 1) * scatterM;
   const at = { x: aim.x + scatter(), y: aim.y + scatter() };
   const near = m.soldiers.filter((o) => o.side !== s.side && o.state === 'alive' && o.vehicle < 0 && dist2(o, at) < t.suppressiveRadiusM * t.suppressiveRadiusM);
   let e: Soldier | null = null;
   for (const o of near) if (dist2(o, at) < 16 && (!e || dist2(o, at) < dist2(e, at))) e = o;
-  return { ...roll(m, s, e, e ? t.hitChance * t.suppressiveHitMul * hitMul(m, s, e) : 0, every), at, near };
+  return { ...roll(m, s, e, e ? t.hitChance * t.suppressiveHitMul * hitMul(m, s, e) : 0, every, undefined, gun), at, near };
 }
 
 /** #183: the shot model a vehicle's seat fires by (vehicles/core.ts `seatFire`). */
@@ -110,24 +121,25 @@ export function fire(m: Match, events: SimEvent[]) {
     const shot = v ? seatFire(m, s, v, SHOTS) : (rocket(m, s) ?? aim(m, s) ?? suppressive(m, s)); // #107: aboard, it fires its seat's gun
     if (shot) shots.push(shot);
   }
-  for (const { shooter, target: e, hit, damage, at, near, vehicle } of shots) {
+  for (const { shooter, target: e, hit, damage, at, near, vehicle, gun } of shots) {
+    const pin = t.suppressPerShot * (gun ? t.guns[gun].suppressMul : 1); // a heavy single round pins harder than one of a stream
     if (vehicle) {
       if (hit) hurt(m, vehicle, damage, shooter.side, null, events);
-      events.push({ kind: 'shot', side: shooter.side, from: shooter.id, to: vehicle.id, hit });
+      events.push({ kind: 'shot', side: shooter.side, from: shooter.id, to: vehicle.id, hit, ...(gun && { gun }) });
       continue;
     }
     if (e) e.hp -= damage;
     if (at) {
       for (const o of near!) {
-        o.suppression = Math.min(1, o.suppression + t.suppressPerShot * t.suppressiveSuppressMul);
+        o.suppression = Math.min(1, o.suppression + pin * t.suppressiveSuppressMul);
         m.squads[o.squad]!.lastHit = m.tick;
       }
-      events.push({ kind: 'suppressive', side: shooter.side, from: shooter.id, x: at.x, y: at.y, hit });
+      events.push({ kind: 'suppressive', side: shooter.side, from: shooter.id, x: at.x, y: at.y, hit, ...(gun && { gun }) });
       continue;
     }
-    e!.suppression = Math.min(1, e!.suppression + t.suppressPerShot);
+    e!.suppression = Math.min(1, e!.suppression + pin);
     m.squads[e!.squad]!.lastHit = m.tick;
-    events.push({ kind: 'shot', side: shooter.side, from: shooter.id, to: e!.id, hit });
+    events.push({ kind: 'shot', side: shooter.side, from: shooter.id, to: e!.id, hit, ...(gun && { gun }) });
   }
   for (const { target: e } of shots) {
     if (!e || e.state !== 'alive' || e.hp > 0) continue;

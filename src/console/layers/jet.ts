@@ -9,10 +9,12 @@ import { edgeClamp } from '../edge-clamp';
 import { COLOR, pool, toScreen, toWorld } from '../renderer';
 import { session } from '../session';
 import { targeting } from '../targeting';
+import { aloftAt, fallOf, turned } from '../sprites/destruction';
 import { CONTRAIL_MS, JET_SHEET, jetPose, layTrail, puffLook, type Puff } from '../sprites/jet';
 import { spriteMesh } from '../sprites/sheet';
 import { SMOKE_PUFF_SHEET, SMOKE_PUFF_VARIANTS } from '../sprites/smoke-puff';
 import { vehicleIcon } from '../sprites/vehicle-icon';
+import { deathFor, layWake } from './destruction';
 import { bar, fading, merge, px, shade } from './symbols';
 
 // In the air over everything on the ground and the missile's body; on the ground as a Wreck
@@ -53,7 +55,12 @@ export function drawJets(view: CommanderView, scale: number, now: number) {
   const flying = new Set<number>();
   for (const v of view.vehicles ?? []) {
     if (v.kind !== 'jet' || !(v.airborne || v.wreck)) continue; // at its base: nothing to draw
-    const p = jetPose(v);
+    const death = v.wreck ? deathFor(v) : undefined;
+    const fall = death ? fallOf(death, now) : null; // shot down, its Wreck comes down burning and slides to where it lies (sprites/destruction.ts)
+    const [fx, fy] = fall ? turned(v.fx, v.fy, fall.turn) : [v.fx, v.fy];
+    const p = jetPose(fall ? { ...v, x: fall.x, y: fall.y, fx, fy } : v);
+    if (fall) Object.assign(p, aloftAt(fall));
+    if (fall?.lift) layWake(death!.id, p, now);
     if (v.airborne) {
       flying.add(v.id);
       trails.set(v.id, layTrail(trails.get(v.id) ?? [], p, now));
@@ -64,7 +71,7 @@ export function drawJets(view: CommanderView, scale: number, now: number) {
     s.scale.setScalar(p.size);
     s.frame.value = p.shadow.frame;
     const b = bodies.next();
-    b.position.set(p.x, p.y, v.wreck ? Z.wreck : Z.body);
+    b.position.set(p.x, p.y, v.wreck && !fall?.lift ? Z.wreck : Z.body);
     b.rotation.z = p.body.rotation;
     b.scale.setScalar(p.size);
     b.frame.value = p.body.frame;

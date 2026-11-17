@@ -1,6 +1,6 @@
 // Tune overrides for tests: each switches a ticket's tempo or Traits off so a test can check one rule at a time.
 import type { Match } from './index';
-import type { Tune } from './types';
+import type { GunTune, Tune } from './types';
 
 /** #120: the best point, no Commitment, no aggression, one ride distance (#122). */
 export const NO_TRAITS: Partial<Tune> = { squadGoalBias: 0, choiceMargin: 0, commitSeconds: [0, 0], aggressionValueMul: 0, aggressionRetreatMul: 0, rideM: [180, 180] };
@@ -16,3 +16,7 @@ export const thinkOnId = (m: Match) => {
   }
   return m;
 };
+
+const PLAIN: GunTune = { rangeMul: 1, burst: [1, 1], gapSeconds: 0, pauseSeconds: [0.35, 0.5], hitMul: 1, damageMul: 1, suppressMul: 1, ammo: 1 };
+/** Every gun the plain rifle from before the roster: single rounds at `hitChance` and `fireRangeM`, for a test whose scene needs a certain shot. */
+export const PLAIN_GUNS: Pick<Tune, 'guns'> = { guns: { rifle: PLAIN, smg: PLAIN, lmg: PLAIN, dmr: PLAIN, sniper: PLAIN } };

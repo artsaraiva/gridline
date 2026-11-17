@@ -11,9 +11,11 @@ import { BRIGHT, COLOR, pool } from '../renderer';
 import { session } from '../session';
 import { targeting } from '../targeting';
 import { spriteMesh } from '../sprites/sheet';
+import { fallOf, turned } from '../sprites/destruction';
 import { HELI_SHEET, HELI_WORLD_M, climb, helicopterPose } from '../sprites/helicopter';
-import { CRUISE_ALTITUDE_M } from '../sprites/missile';
+import { ALTITUDE_LIFT_PER_M, CRUISE_ALTITUDE_M } from '../sprites/missile';
 import { iconDim, vehicleIcon } from '../sprites/vehicle-icon';
+import { deathFor, glideTurn, layWake } from './destruction';
 import { bar, merge, px, shade } from './symbols';
 
 // Above the ground vehicles; in the air, above the missile's shadow and under its body
@@ -57,6 +59,10 @@ const icons = pool(() => {
 
 /** Each live helicopter's altitude on screen, by id, and when it was last drawn. */
 const altitudes = new Map<number, number>();
+/** Each helicopter bailed out of, by id: how long it has glided (s) and how far it has turned; its tail is gone, so it turns faster and faster. */
+const glides = new Map<number, { s: number; turn: number }>();
+/** The smoke of a burning helicopter leaves its tail, this far behind its centre. */
+const TAIL_M = 6;
 let last = -1;
 
 /** `scale` is the chevron size in metres (constant on screen), for the icon; `now` in milliseconds. */
@@ -68,17 +74,28 @@ export function drawHelicopters(view: CommanderView, scale: number, now: number)
   for (const v of view.vehicles ?? []) {
     if (v.kind !== 'helicopter') continue;
     seen.add(v.id);
-    const altitude = v.wreck ? 0 : climb(altitudes.get(v.id) ?? (v.airborne ? CRUISE_ALTITUDE_M : 0), !!v.airborne, dt);
+    const death = v.wreck ? deathFor(v) : undefined;
+    const fall = death ? fallOf(death, now) : null; // shot down, its Wreck spins down where it was hit (sprites/destruction.ts)
+    const altitude = fall ? fall.lift / ALTITUDE_LIFT_PER_M : v.wreck ? 0 : climb(altitudes.get(v.id) ?? (v.airborne ? CRUISE_ALTITUDE_M : 0), !!v.airborne, dt);
     if (!v.wreck) altitudes.set(v.id, altitude);
-    const p = helicopterPose(v, altitude, now / 1000);
+    let turn = fall?.turn ?? 0;
+    if (!v.wreck && v.empty && v.airborne) {
+      // bailed out of: it glides on, turning, until it crashes
+      const g = glides.get(v.id) ?? { s: 0, turn: 0 };
+      glides.set(v.id, { s: g.s + dt, turn: (turn = g.turn + (1.5 + 2.6 * g.s) * dt) });
+      glideTurn(v.id, turn);
+    }
+    const [fx, fy] = turned(v.fx, v.fy, turn);
+    const p = helicopterPose({ ...v, fx, fy }, altitude, now / 1000);
     const up = altitude > 0;
+    if (turn && up) layWake(death?.id ?? v.id, { x: p.x - fx * TAIL_M, y: p.y - fy * TAIL_M }, now);
     const s = shadows.next();
     s.position.set(p.shadow.x, p.shadow.y, Z.shadow);
     s.rotation.z = p.shadow.rotation;
     s.scale.setScalar(p.size);
     s.frame.value = p.shadow.frame;
     const b = parts.next();
-    b.position.set(p.x, p.y, v.wreck ? Z.wreck : up ? Z.air : Z.body);
+    b.position.set(p.x, p.y, up ? Z.air : v.wreck ? Z.wreck : Z.body);
     b.rotation.z = p.body.rotation;
     b.scale.setScalar(p.size);
     b.frame.value = p.body.frame;
@@ -107,6 +124,7 @@ export function drawHelicopters(view: CommanderView, scale: number, now: number)
     }
   }
   for (const id of altitudes.keys()) if (!seen.has(id)) altitudes.delete(id);
+  for (const id of glides.keys()) if (!seen.has(id)) glides.delete(id);
   shadows.end();
   parts.end();
   discs.end();

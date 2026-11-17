@@ -22,9 +22,10 @@ const glows = {
   ring: pool(() => new THREE.Mesh(quad, softRing(0xfff4e0, 0.022))),
   ember: pool(() => new THREE.Mesh(quad, soft(0xffaa50))),
   fire: pool(() => new THREE.Mesh(quad, soft(0xffb060))),
+  clod: pool(() => new THREE.Mesh(quad, soft(0x1c1712, { dark: true }))),
 };
 const debris = pool(() => new THREE.Mesh(quad, streak(0xffe6aa)));
-const Z = { scorch: 0.29, crater: 0.3, heat: 0.31, fire: 0.32, dust: 0.6, plume: 0.62, explosion: 0.66, light: 0.67, flash: 0.68, ring: 0.69, ember: 0.7, debris: 0.7 };
+const Z = { scorch: 0.29, crater: 0.3, heat: 0.31, fire: 0.32, dust: 0.6, plume: 0.62, explosion: 0.66, light: 0.67, flash: 0.68, ring: 0.69, ember: 0.7, debris: 0.7, clod: 0.71 };
 /** A debris streak's width on screen. */
 const DEBRIS_PX = 1.4;
 
@@ -34,7 +35,8 @@ export const resetImpacts = () => {
   impacts.length = 0;
 };
 
-export const addImpact = (x: number, y: number, now: number, asset: ImpactAsset) => recordImpact(impacts, x, y, now, asset);
+/** `size` for a blast that is not a munition's (a vehicle blowing up); `dir` the bearing a tank's round came in on. */
+export const addImpact = (x: number, y: number, now: number, asset: ImpactAsset, size?: number, dir?: number) => recordImpact(impacts, x, y, now, asset, size, dir);
 /** When the latest impact of `asset` landed, in ms; -Infinity before the first. */
 export const lastImpactAt = (asset: ImpactAsset) => impacts.filter((i) => i.asset === asset).at(-1)?.at ?? -Infinity;
 /** The impacts of `asset` in the last `ms` ms, oldest first. */
@@ -72,6 +74,7 @@ export function drawImpacts(now: number) {
     glow('flash', look.flash);
     for (const r of look.rings) glow('ring', r);
     for (const e of look.embers) glow('ember', e);
+    for (const c of look.clods) glow('clod', c);
     for (const d of look.debris) {
       const m = debris.next();
       m.position.set((d.x0 + d.x1) / 2, (d.y0 + d.y1) / 2, Z.debris);

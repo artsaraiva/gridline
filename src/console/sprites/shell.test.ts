@@ -1,3 +1,4 @@
+import { batteryOf } from './battery';
 import { describe, expect, it } from 'vitest';
 import { commanderView, createMatch, step } from '../../sim';
 import { TEST_FIELD } from '../../maps/test-field';
@@ -75,7 +76,7 @@ describe('artillery shell sky entry, streak and fog', () => {
     expect(shellInFlight(from, to, 1, SHELL_EXAGGERATION * 2).size).toBeCloseTo(end.size * 2);
   });
 
-  it('surfaces friendly shells in their visible window, bearing from the Commander HQ, and never enemy shells or launch sources', () => {
+  it('surfaces friendly shells in their visible window, bearing from the own battery, and never enemy shells or launch sources', () => {
     const tune = { ...DEFAULT_TUNE, barrageCooldownSeconds: 0 };
     const m = createMatch({ seed: 1, map: TEST_FIELD, tune, squadsPerSide: 1, commanderSide: 'nato' });
     step(m, [
@@ -84,18 +85,19 @@ describe('artillery shell sky entry, streak and fog', () => {
     ]);
     const ticks = (seconds: number) => Math.round(seconds * tune.hz);
     // Just after the first shell leaves it is up but not yet drawn
-    for (let i = 0; i < ticks(tune.barrageWarningSeconds + 0.5); i++) step(m, []);
+    for (let i = 0; i < ticks(tune.barrageWarningSeconds + 0.3); i++) step(m, []);
     expect(commanderView(m, 'nato').effects!.find((e) => e.asset === 'barrage')!.shells.length).toBeGreaterThan(0);
     expect(barrageShells(commanderView(m, 'nato'), TEST_FIELD)).toEqual([]);
     // In the last part of its flight it is
     const drawnAt = ticks(tune.barrageWarningSeconds + tune.barrageFlightSeconds * (1 + SHELL_VISIBLE_FROM) / 2);
-    for (let i = ticks(tune.barrageWarningSeconds + 0.5); i < drawnAt; i++) step(m, []);
+    for (let i = ticks(tune.barrageWarningSeconds + 0.3); i < drawnAt; i++) step(m, []);
     const natoView = commanderView(m, 'nato');
     const natoShells = barrageShells(natoView, TEST_FIELD);
     expect(natoShells.length).toBeGreaterThan(0);
-    // Every shown shell comes in on the bearing from NATO's HQ toward NATO's target, never Pact's HQ
+    // Every shown shell comes in on the bearing from NATO's battery toward NATO's target, never Pact's
+    const battery = batteryOf(TEST_FIELD, 'nato');
     for (const s of natoShells) {
-      expect(s.from).toEqual({ x: TEST_FIELD.hqs.nato.x, y: TEST_FIELD.hqs.nato.y });
+      expect(s.from).toEqual({ x: battery.x, y: battery.y });
       expect(Math.hypot(s.to.x - 40, s.to.y - 20)).toBeLessThanOrEqual(tune.barrageSpreadM);
     }
 

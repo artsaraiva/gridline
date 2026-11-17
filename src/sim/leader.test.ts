@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { commanderView, createMatch, step, type Match } from './index';
+import { PLAIN_GUNS } from './test-tune';
 import { DEFAULT_TUNE } from './tune';
 import type { CommanderView, MapData, SimEvent, Tune } from './types';
 
@@ -38,7 +39,7 @@ function scene(o: { place?: Record<number, Placement>; tune?: Partial<Tune>; see
 }
 
 /** Every shot hits and a single hit Wounds. */
-const ONE_SHOT: Partial<Tune> = { hitChance: 1, damage: [100, 100] };
+const ONE_SHOT: Partial<Tune> = { hitChance: 1, damage: [100, 100], ...PLAIN_GUNS };
 
 type Logged = SimEvent & { tick: number };
 

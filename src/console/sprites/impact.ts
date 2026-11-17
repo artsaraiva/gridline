@@ -25,14 +25,34 @@ export const WIND = { x: 0.7, y: 0.25 };
 const PLUME_PUFFS = 9;
 /** The plume fades in over the explosion's last frames, which fade out under it. */
 const HANDOVER_MS = EXPLOSION_MS * 0.35;
-/** Console look (#99): a missile's explosion and crater are drawn this much bigger than a shell's, */
-const MISSILE_SIZE = 1.8;
-/** and its flipbook plays this much slower, so the flash holds. */
-const MISSILE_HOLD = 1.5;
-/** Console look (#138): a Creeping Barrage shell is lighter: its explosion, crater and dust puff are drawn this much smaller. */
-const CREEP_SIZE = 0.6;
-/** Console look (#139): a Drone Strike's too, a little less so. */
-const DRONE_SIZE = 0.75;
+/**
+ * Console look: what lands, each its own event. `size` is its explosion, crater and smoke next to a Barrage shell's; `hold` slows
+ * the flipbook so the flash holds; `heavy` throws two shock rings and more debris; `fires` burn on in the crater for `fireS`
+ * seconds; `clods` of earth are thrown up; `crater` widens the decal; `rise` lifts the smoke into a column. #99 a Cruise Missile
+ * is the biggest; a jet's bomb the biggest a vehicle makes; a Barrage shell lands heavy; a tank's round is small and sharp, and
+ * thrown forward along its flight; #138 a Creeping Barrage shell and #139 a Drone Strike are lighter.
+ */
+interface Weight {
+  size: number;
+  hold?: number;
+  heavy?: boolean;
+  fires?: number;
+  fireS?: [number, number];
+  clods?: number;
+  crater?: number;
+  rise?: number;
+}
+const WEIGHT: Record<ImpactAsset, Weight> = {
+  barrage: { size: 1, fires: 3, fireS: [6, 10], clods: 14, crater: 1.3, rise: 1 },
+  missile: { size: 1.8, hold: 1.5, heavy: true, fires: 4, fireS: [4, 7], clods: 22, rise: 1.3 },
+  bomb: { size: 1.3, heavy: true, fires: 4, fireS: [5, 9], clods: 26, crater: 1.4, rise: 1.2 },
+  tank: { size: 0.6, fires: 1, fireS: [4, 6], clods: 8 },
+  gunship: { size: 1 },
+  creep: { size: 0.6 },
+  drone: { size: 0.75 },
+};
+/** A blast sized by hand (a vehicle blowing up) is bare: the death draws its own fires and smoke. */
+const weightOf = (i: ImpactRecord): Weight => (i.size === undefined ? WEIGHT[i.asset] : { size: i.size });
 
 export const EXPLOSION_SHEET: SpriteSheetSpec = {
   file: 'munitions/explosion.png',
@@ -58,11 +78,15 @@ export interface ImpactRecord {
   seed: number;
   /** #99: what landed; only a shell leaves a streak (layers/shells.ts). */
   asset: ImpactAsset;
+  /** A blast that is not a munition's (a vehicle blowing up, sprites/destruction.ts): its size as a fraction of a shell's, in place of the asset's; it leaves no plume. */
+  size?: number;
+  /** The bearing it came in on, in radians, when it throws its blast forward (a tank's round). */
+  dir?: number;
 }
 
 /** Records an impact at `at` ms, dropping the oldest past CRATER_CAP. Returns `list`. */
-export function recordImpact(list: ImpactRecord[], x: number, y: number, at: number, asset: ImpactAsset): ImpactRecord[] {
-  list.push({ x, y, at, seed: (list.at(-1)?.seed ?? -1) + 1, asset });
+export function recordImpact(list: ImpactRecord[], x: number, y: number, at: number, asset: ImpactAsset, size?: number, dir?: number): ImpactRecord[] {
+  list.push({ x, y, at, seed: (list.at(-1)?.seed ?? -1) + 1, asset, ...(size !== undefined && { size }), ...(dir !== undefined && { dir }) });
   if (list.length > CRATER_CAP) list.splice(0, list.length - CRATER_CAP);
   return list;
 }
@@ -116,8 +140,10 @@ export interface ImpactLook {
   dust: ImpactGlow | null;
   debris: ImpactStreak[];
   embers: ImpactGlow[];
-  /** A missile only: small fires that burn on in the crater. */
+  /** Small fires that burn on in the crater (a shell's, a bomb's, a missile's; one for a tank's round). */
   fires: ImpactGlow[];
+  /** Clods of earth thrown up and falling back: dark, each `size` metres across. */
+  clods: ImpactGlow[];
 }
 
 const hash = (n: number) => Math.abs(Math.sin(n * 12.9898 + 78.233) * 43758.5453) % 1;
@@ -127,10 +153,10 @@ const BLAST = { flash: 90, light: 280, ring: 380, dust: 1300, heat: 2500, debris
 const HEAVY = { flash: 140, light: 500, ring: 550, dust: 2600, heat: 4000, debris: 34, embers: 14 };
 /** A missile's second shock ring leaves this long after the first. */
 const RING_GAP_MS = 90;
-const FIRES = 4;
 
 /** The blast layers of one impact `age` ms old, sized off its explosion quad, `e` metres across. */
-function blast(i: ImpactRecord, age: number, e: number, heavy: boolean) {
+function blast(i: ImpactRecord, age: number, e: number, w: Weight) {
+  const heavy = !!w.heavy;
   const t = heavy ? HEAVY : BLAST;
   const s = age / 1000;
   const at = (size: number, opacity: number, dx = 0, dy = 0): ImpactGlow => ({ x: i.x + dx, y: i.y + dy, size, opacity });
@@ -146,7 +172,7 @@ function blast(i: ImpactRecord, age: number, e: number, heavy: boolean) {
   for (let k = 0; k < t.debris; k++) {
     const life = s / ((0.3 + 0.5 * hash(i.seed * 13 + k)) * (heavy ? 1.3 : 1));
     if (life >= 1) continue;
-    const a = hash(i.seed * 17 + k) * Math.PI * 2;
+    const a = i.dir === undefined ? hash(i.seed * 17 + k) * Math.PI * 2 : i.dir + (hash(i.seed * 17 + k) - 0.5) * 1.8; // a tank's round throws it on along its flight
     const v = e * (0.55 + hash(i.seed * 19 + k)); // thrown out fast, then held back by drag
     const out = (sec: number) => (v * (1 - Math.exp(-5 * Math.max(0, sec)))) / 5;
     const [d0, d1] = [out(s - 0.035), out(s)];
@@ -163,13 +189,24 @@ function blast(i: ImpactRecord, age: number, e: number, heavy: boolean) {
   }
 
   const fires: ImpactGlow[] = [];
-  if (heavy && s > 0.6)
-    for (let k = 0; k < FIRES; k++) {
-      const life = 4 + 3 * hash(i.seed * 37 + k);
+  const [fire0, fire1] = w.fireS ?? [4, 7];
+  if (s > 0.6)
+    for (let k = 0; k < (w.fires ?? 0); k++) {
+      const life = fire0 + (fire1 - fire0) * hash(i.seed * 37 + k);
       if (s >= life) continue;
       const flicker = (0.55 + 0.45 * Math.sin(s * 23 + k * 2.1)) * Math.min(1, (life - s) / 1.5);
       fires.push(at(4, 0.7 * flicker, (hash(i.seed * 41 + k) - 0.5) * e * 0.1, (hash(i.seed * 43 + k) - 0.5) * e * 0.07));
     }
+
+  const clods: ImpactGlow[] = [];
+  for (let k = 0; k < (w.clods ?? 0); k++) {
+    const life = s / (0.7 + 0.8 * hash(i.seed * 47 + k));
+    if (life >= 1) continue;
+    const a = hash(i.seed * 53 + k) * Math.PI * 2;
+    const out = (e * (0.35 + 0.85 * hash(i.seed * 59 + k)) * (1 - Math.exp(-3 * s))) / 3;
+    const up = e * (0.1 + 0.2 * hash(i.seed * 61 + k)) * 4 * life * (1 - life); // up and back down: lifted north-east, as anything in the air
+    clods.push(at(0.7 + 0.9 * hash(i.seed * 67 + k) + up * 0.04, Math.min(1, 1.6 * (1 - life)), Math.cos(a) * out + up * 0.5, Math.sin(a) * out * 0.8 + up * 0.5));
+  }
 
   const dustLife = age / t.dust;
   return {
@@ -182,26 +219,27 @@ function blast(i: ImpactRecord, age: number, e: number, heavy: boolean) {
     debris,
     embers,
     fires,
+    clods,
   };
 }
 
 /** What one impact shows at `now` ms: the explosion flipbook, then a drifting, fading plume, and a crater that stays. */
 export function impactLook(i: ImpactRecord, now: number): ImpactLook {
-  const heavy = i.asset === 'missile';
-  const light = i.asset === 'creep' ? CREEP_SIZE : i.asset === 'drone' ? DRONE_SIZE : 1;
-  const big = heavy ? MISSILE_SIZE : light;
-  const hold = heavy ? MISSILE_HOLD : 1;
+  const w = weightOf(i);
+  const big = w.size;
+  const light = w.heavy ? 1 : w.size; // a heavy blast's smoke is a shell's, lifted higher
+  const hold = w.hold ?? 1;
   const flashMs = EXPLOSION_MS * hold;
   const handoverMs = HANDOVER_MS * hold;
   const age = Math.max(0, now - i.at);
   const r = hash(i.seed);
   const flip = r < 0.5;
-  const crater = { x: i.x, y: i.y, size: big * CRATER_WORLD_M * (0.85 + 0.3 * hash(i.seed + 0.5)), frame: i.seed % CRATER_VARIANTS, flip, opacity: 1 };
+  const crater = { x: i.x, y: i.y, size: big * (w.crater ?? 1) * CRATER_WORLD_M * (0.85 + 0.3 * hash(i.seed + 0.5)), frame: i.seed % CRATER_VARIANTS, flip, opacity: 1 };
   const frame = Math.floor((age / 1000 / hold) * EXPLOSION_FPS);
   const explosionSize = big * EXPLOSION_WORLD_M * (0.9 + 0.2 * r);
   const explosion = frame < EXPLOSION_FRAMES ? { x: i.x, y: i.y, size: explosionSize, frame, flip: !flip, opacity: Math.min(1, (flashMs - age) / handoverMs) } : null;
   const plume: ImpactSprite[] = [];
-  if (age < SMOKE_FADE_MS) {
+  if (age < SMOKE_FADE_MS && i.size === undefined) { // a vehicle's blast leaves no plume: its Wreck burns under its own black smoke
     const s = age / 1000;
     const fadeIn = Math.max(0, Math.min(1, (age - (flashMs - handoverMs)) / handoverMs));
     const life = age / SMOKE_FADE_MS;
@@ -212,9 +250,10 @@ export function impactLook(i: ImpactRecord, now: number): ImpactLook {
       // Each puff rides the wind at its own pace and wanders a little across it, so the plume stretches and breaks up downwind.
       const drift = s * (0.7 + 0.14 * k) * (1 - 0.35 * life);
       const wander = Math.sin(s * 0.5 + q * 6) * 1.2 * Math.sqrt(life);
+      const rise = (w.rise ?? 0) * Math.min(s, 9) * (0.5 + 0.9 * q); // a heavy landing's smoke climbs into a column: lifted north-east
       plume.push({
-        x: i.x + Math.cos(a) * spread + WIND.x * drift - WIND.y * wander,
-        y: i.y + Math.sin(a) * spread + WIND.y * drift + WIND.x * wander,
+        x: i.x + Math.cos(a) * spread + WIND.x * drift - WIND.y * wander + rise * Math.SQRT1_2,
+        y: i.y + Math.sin(a) * spread + WIND.y * drift + WIND.x * wander + rise * Math.SQRT1_2,
         size: light * (k === 0 ? 26 : 15 + 8 * q) * (1 + 0.8 * Math.sqrt(life)),
         frame: (i.seed + k) % SMOKE_PUFF_VARIANTS,
         flip: q < 0.5,
@@ -222,5 +261,5 @@ export function impactLook(i: ImpactRecord, now: number): ImpactLook {
       });
     }
   }
-  return { crater, explosion, plume, ...blast(i, age, explosionSize, heavy) };
+  return { crater, explosion, plume, ...blast(i, age, explosionSize, w) };
 }

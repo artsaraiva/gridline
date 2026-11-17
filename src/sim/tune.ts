@@ -280,6 +280,7 @@ export const DEFAULT_TUNE: Tune = {
   jetHp: 100,
   jetTurnDegPerS: 40,
   jetMps: 120,
+  jetCrashM: 110,
   jetFireM: 200,
   jetFireSeconds: 0.1,
   jetStripM: 15,
@@ -423,4 +424,14 @@ export const DEFAULT_TUNE: Tune = {
   feintRingM: 10,
   feintSeconds: 30,
   feintBurstSeconds: 2,
+
+  // Guns. Each is tuned to about the rifle's old hits a second (2.35 rounds x hitChance): fast guns hit less a round, slow ones more and
+  // harder; what sets them apart is reach, the shape of their fire and how they pin. `ammo` is the rounds of the old load their cycle took.
+  guns: {
+    rifle: { rangeMul: 1, burst: [3, 5], gapSeconds: 0.1, pauseSeconds: [0.7, 1.5], hitMul: 0.82, damageMul: 1, suppressMul: 0.8, ammo: 3 },
+    smg: { rangeMul: 0.57, burst: [6, 10], gapSeconds: 0.05, pauseSeconds: [0.6, 1.2], hitMul: 0.42, damageMul: 1, suppressMul: 0.4, ammo: 3 },
+    lmg: { rangeMul: 1.2, burst: [22, 38], gapSeconds: 0.1, pauseSeconds: [1.6, 2.6], hitMul: 0.36, damageMul: 1, suppressMul: 0.5, ammo: 11 },
+    dmr: { rangeMul: 1.57, burst: [1, 2], gapSeconds: 0.3, pauseSeconds: [0.6, 1.1], hitMul: 1.45, damageMul: 1.15, suppressMul: 1.4, ammo: 2 },
+    sniper: { rangeMul: 2.3, burst: [1, 1], gapSeconds: 0, pauseSeconds: [2.8, 4.2], hitMul: 3.2, damageMul: 2.4, suppressMul: 3, ammo: 8 },
+  },
 };

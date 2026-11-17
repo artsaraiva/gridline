@@ -1,7 +1,7 @@
 // #110 the AA, at its module's interface: where its driver lays back (`goal`, a decision the view does not show: #154 two of them
 // spread over both flanks, #150 never on a keystone point), and its gun and missile on a jet (what the view and the events show).
 import { describe, expect, it } from 'vitest';
-import { commanderView, step, type Match } from '../index';
+import { commanderEvents, commanderView, step, type Match } from '../index';
 import { DEFAULT_TUNE } from '../tune';
 import { crew, hashes, scene, vehicle, viewOf } from '../test-scene';
 import type { Lock } from '../air-missiles';
@@ -75,5 +75,28 @@ describe('#183 its hash', () => {
     const v = vehicle(m, 'aa');
     hashes<keyof OwnOf<'aa'>>(m, { burstUntil: () => (v.burstUntil = 9), missile: () => (v.missile.lock = 3), drive: () => (v.drive.route = 1) });
     hashes<keyof Lock>(m, { lock: () => (v.missile.lock = 2), nextFire: () => (v.missile.nextFire = 99) }); // the jet's lock is the same record
+  });
+});
+
+describe('#110 a lock-on missile ends with an airburst', () => {
+  // nato's AA has a missile in the air a few metres short of pact's helicopter
+  const shot = (tune: Partial<typeof DEFAULT_TUNE>, launchedAgo = 0) => {
+    const m = scene({ tune: { aasPerSide: 1, helisPerSide: 1, ...tune } });
+    const from = vehicle(m, 'aa');
+    const prey = Object.assign(vehicle(m, 'helicopter', 'pact'), { x: 0, y: 0, airborne: true });
+    from.missiles.push({ x: -5, y: 0, fx: 1, fy: 0, prey: prey.id, launch: m.tick - launchedAgo, missed: false });
+    return { m, events: step(m, []) };
+  };
+
+  it('on a hit, at its target; both Sides see it', () => {
+    const { m, events } = shot({ airMissileHitChance: 1 });
+    expect(events.filter((e) => e.kind === 'airburst')).toEqual([{ kind: 'airburst', side: 'nato', x: 0, y: 0, hit: true }]);
+    expect(commanderEvents(m, 'pact', events).some((e) => e.kind === 'airburst')).toBe(true);
+  });
+
+  it('none on a miss while it flies on; spent, it bursts where it is', () => {
+    expect(shot({ airMissileHitChance: 0 }).events.filter((e) => e.kind === 'airburst')).toEqual([]);
+    const spent = shot({ airMissileHitChance: 0 }, DEFAULT_TUNE.airMissileSeconds * HZ).events.filter((e) => e.kind === 'airburst');
+    expect(spent).toEqual([expect.objectContaining({ side: 'nato', hit: false })]);
   });
 });

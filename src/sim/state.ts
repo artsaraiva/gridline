@@ -22,6 +22,7 @@ export interface Soldier {
   suppression: number; // suppression 0..1
   target: number; // id of the enemy in view it engages, -1 = none
   nextFire: number; // tick
+  burst: number; // rounds left in the burst it is firing; 0 = its next round starts one (guns.ts)
   bleed: number; // Wounded: ticks left before bleeding out
   revive: number; // Wounded: ticks of revive work done on them
   reviving: number; // id of the Wounded squad mate it is reviving, -1 = none
@@ -176,6 +177,7 @@ export function hashSoldiers(m: Match, mix: Mix) {
     mix(Math.round(s.suppression * 1000));
     mix(s.target);
     mix(s.nextFire);
+    mix(s.burst);
     mix(s.bleed);
     mix(s.revive);
     mix(s.reviving);

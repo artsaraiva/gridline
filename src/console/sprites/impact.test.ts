@@ -57,7 +57,7 @@ describe('shell impact: explosion, drifting plume and lasting crater', () => {
     const big = impactLook(missile, EXPLOSION_MS / 2);
     const shell = impactLook(hit(), EXPLOSION_MS / 2);
     expect(big.explosion!.size).toBeCloseTo(shell.explosion!.size * 1.8);
-    expect(big.crater.size).toBeCloseTo(shell.crater.size * 1.8);
+    expect(big.crater.size).toBeCloseTo((shell.crater.size / 1.3) * 1.8); // a Barrage shell's own crater is 1.3 times the plain decal
     expect(impactLook(hit(), EXPLOSION_MS * 1.2).explosion).toBeNull();
     expect(impactLook(missile, EXPLOSION_MS * 1.2).explosion!.frame).toBeLessThan(EXPLOSION_FRAMES);
     expect(impactLook(missile, EXPLOSION_MS * 1.5 - 40).explosion!.frame).toBe(EXPLOSION_FRAMES - 1);
@@ -68,7 +68,7 @@ describe('shell impact: explosion, drifting plume and lasting crater', () => {
     const drone = impactLook(recordImpact([], 50, -50, 0, 'drone').at(-1)!, EXPLOSION_MS / 2); // same seed as hit(): same size jitter
     const shell = impactLook(hit(), EXPLOSION_MS / 2);
     expect(drone.explosion!.size).toBeCloseTo(shell.explosion!.size * 0.75);
-    expect(drone.crater.size).toBeCloseTo(shell.crater.size * 0.75);
+    expect(drone.crater.size).toBeCloseTo((shell.crater.size / 1.3) * 0.75);
     expect(drone.plume[0]!.size).toBeCloseTo(shell.plume[0]!.size * 0.75);
   });
 
@@ -117,7 +117,11 @@ describe('shell impact: explosion, drifting plume and lasting crater', () => {
     expect(impactLook(missile, 200).rings).toHaveLength(2);
     expect(impactLook(missile, 100).debris.length).toBeGreaterThan(impactLook(hit(), 100).debris.length);
     expect(impactLook(missile, 2000).fires.length).toBeGreaterThan(0);
-    expect(impactLook(hit(), 2000).fires).toEqual([]);
+    expect(impactLook(hit(), 2000).fires).toHaveLength(3); // a Barrage shell lands heavy: three fires, for longer
+    expect(impactLook(hit(), 5900).fires).toHaveLength(3);
+    expect(impactLook(hit(), 500).clods.length).toBeGreaterThan(8);
+    expect(impactLook(hit(), 3000).clods).toEqual([]);
+    expect(impactLook(recordImpact([], 0, 0, 0, 'creep').at(-1)!, 2000).fires).toEqual([]);
     expect(impactLook(missile, 8000).fires).toEqual([]);
   });
 

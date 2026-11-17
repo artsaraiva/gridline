@@ -99,6 +99,20 @@ export interface Crossing {
   centreFight?: boolean;
 }
 
+/** The guns a Soldier on foot carries, by its place in its Squad (guns.ts). */
+export type GunKind = 'rifle' | 'smg' | 'lmg' | 'dmr' | 'sniper';
+/** How one gun fires. Reach and accuracy are multiples of the rifle's `fireRangeM` and `hitChance`, so a Tune that moves those moves every gun. */
+export interface GunTune {
+  rangeMul: number; // x fireRangeM
+  burst: [number, number]; // rounds in a burst, seeded
+  gapSeconds: number; // between the rounds of a burst
+  pauseSeconds: [number, number]; // after a burst's last round, seeded
+  hitMul: number; // x hitChance, each round
+  damageMul: number; // x damage, each hit
+  suppressMul: number; // x suppressPerShot, each round at an enemy
+  ammo: number; // rounds of the load a burst costs: a load lasts every gun about as long
+}
+
 export interface Tune {
   // Match and movement
   hz: number;
@@ -377,6 +391,7 @@ export interface Tune {
   // #110 Jet and AA
   jetsPerSide: number | null; // #154: jets per Side, at the off-map base, each taking off with a pilot (at match start, then a Soldier coming back); null = the map's `jets`; 0 = none
   jetHp: number; // only the AA and the enemy jet hurt it
+  jetCrashM: number; // shot down, it comes down this far on along its heading (less where that would leave the Play Area)
   jetTurnDegPerS: number; // it turns toward where it flies (a mark, home, the enemy jet) this fast; in a dogfight x its pilot's quickness
   jetMps: number; // flight speed, base to point and through every pass
   jetFireM: number; // inbound, the cannon fires from this far short of the point ...
@@ -522,6 +537,9 @@ export interface Tune {
   feintRingM: number; // the call's ring
   feintSeconds: number; // it fakes gunfire this long after it lands (it falls for `supplyFallSeconds`)
   feintBurstSeconds: number; // one burst this often, from its landing on
+
+  // Guns: a Squad's fixed roster of five kinds
+  guns: Record<GunKind, GunTune>;
 }
 
 /** #55: what a Commander Score award is for. */
@@ -905,7 +923,8 @@ export type EffectViewOf<K extends AssetKind> = Extract<EffectView, { asset: K }
 
 /** Things that happened this tick, on every Side; `commanderEvents` keeps the ones a Side's Console may show. */
 export type SimEvent =
-  | { kind: 'shot'; side: SideId; from: number; to: number; hit: boolean }
+  /** `gun`: what a Soldier on foot fired it with; absent from a vehicle's seat. */
+  | { kind: 'shot'; side: SideId; from: number; to: number; hit: boolean; gun?: GunKind }
   | { kind: 'wounded' | 'death' | 'respawn'; side: SideId; id: number; x: number; y: number }
   | { kind: 'revived'; side: SideId; id: number; by: number }
   | { kind: 'redeploy'; side: SideId; squad: number; x: number; y: number }
@@ -922,8 +941,15 @@ export type SimEvent =
    */
   | { kind: 'radio'; side: SideId; squad: number | null; type: string; text: string; grid?: string; priority: number }
   /** #34: suppressive fire: a round at (x, y) near a Last Known Position (#136: or a Mark), with no enemy in view. */
-  | { kind: 'suppressive'; side: SideId; from: number; x: number; y: number; hit: boolean }
+  | { kind: 'suppressive'; side: SideId; from: number; x: number; y: number; hit: boolean; gun?: GunKind }
   /** #40: a Barrage shell landed at (x, y); `side` called it. #99: or a Cruise Missile (`asset`), #101 a Gunship's shell. #107: or a tank's main gun, fired by vehicle `from`. */
   | { kind: 'impact'; side: SideId; x: number; y: number; asset: 'barrage' | 'missile' | 'tank' | 'bomb' | 'gunship' | 'creep' | 'drone'; from?: number } // #138: or a Creeping Barrage's shell, #139 a Drone Strike
+  /**
+   * A vehicle of `side` was destroyed and its Wreck lies at (x, y), facing (fx, fy). `from` is set when it fell out of the air:
+   * where it was hit (a helicopter falls in place; a jet comes down `jetCrashM` further on). Both Sides' Consoles show it.
+   */
+  | { kind: 'destroyed'; side: SideId; id: number; vehicle: VehicleKind; x: number; y: number; fx: number; fy: number; from?: Vec2 }
+  /** #110: a lock-on missile of `side` ended in the air at (x, y): on its target (`hit`), or spent after a miss. Both Sides' Consoles show it. */
+  | { kind: 'airburst'; side: SideId; x: number; y: number; hit: boolean }
   /** #55: `side`'s Commander earned `points` of Commander Score. `reason` is safe to show: it never names a position or an unseen enemy. */
   | { kind: 'award'; side: SideId; category: ScoreCategory; points: number; reason: string };

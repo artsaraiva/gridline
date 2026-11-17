@@ -35,7 +35,7 @@ function road(m: Match, v: Vehicle): Vec2[] {
 const roadPast = (m: Match, v: Vehicle, c: Vec2) => road(m, v).some((p) => Math.hypot(p.x - c.x, p.y - c.y) < 12);
 
 const enemySeenAt = (m: Match, at: Vec2) => m.squads.find((sq) => sq.side === 'nato')!.memory.push({ id: m.soldiers.find((s) => s.side === 'pact')!.id, ...at, tick: m.tick, source: 'seen' });
-const wreckAt = (m: Match, at: Vec2, side: 'nato' | 'pact' = 'nato') => m.wrecks.push({ side, kind: 'tank', ...at, fx: 1, fy: 0, seen: false, tick: m.tick });
+const wreckAt = (m: Match, at: Vec2, side: 'nato' | 'pact' = 'nato') => m.wrecks.push({ side, kind: 'tank', ...at, fx: 1, fy: 0, id: -1, tick: m.tick });
 
 /** The spot on `v`'s road, well ahead and well short of its goal, with the most open ground round it: the bocage leaves no way round everywhere. */
 function openStretch(m: Match, v: Vehicle): Vec2 {
@@ -107,7 +107,7 @@ describe('vehicle routes', () => {
     const { m, v } = underWay({ driveCaution: [1, 1], driveWreckS: 200 });
     const at = openStretch(m, v);
     wreckAt(m, at, 'pact');
-    m.wrecks.push({ side: 'nato', kind: 'tank', ...at, fx: 1, fy: 0, seen: false, tick: m.tick - (DEFAULT_TUNE.routeLossSeconds + 1) * HZ });
+    m.wrecks.push({ side: 'nato', kind: 'tank', ...at, fx: 1, fy: 0, id: -1, tick: m.tick - (DEFAULT_TUNE.routeLossSeconds + 1) * HZ });
     pickRoute(m, v);
     expect(v.drive.path).toEqual([]);
     wreckAt(m, at);

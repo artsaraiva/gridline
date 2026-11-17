@@ -117,12 +117,20 @@ How a Soldier leaves a helicopter in the air: they come down over a few seconds,
 _Avoid_: Bail (the helicopter's own job), drop (the Ferry's hot-goal run), fast rope
 
 **Wreck**:
-A destroyed Vehicle's hull, left where it died until its slot gives the Side a fresh one. A Gunship shot down leaves one where it fell.
+A destroyed Vehicle's hull, left where it came to rest until its slot gives the Side a fresh one, and shown to both Sides whether or not the enemy saw it die. A helicopter or Gunship shot down leaves one where it fell; a jet's lies further on along its flight.
 _Avoid_: Debris, corpse, destroyed vehicle (as a thing on the map)
 
 **Launcher**:
 The rocket weapon one Soldier of every Squad carries against Vehicles; rifles cannot hurt an armoured Vehicle.
 _Avoid_: RPG, AT, bazooka
+
+**Gun**:
+What a Soldier on foot fires, fixed by their place in the Squad: the Squad Leader an assault rifle, the Launcher's carrier an SMG, the third an LMG, the fourth a DMR (in an Elite Squad a sniper rifle). Each fires in bursts of its own, reaches its own distance, and a DMR or sniper rifle takes on enemies other friendly eyes have found beyond its carrier's sight. The map shows no mark for it: a Gun is told by its cadence and its round.
+_Avoid_: Weapon, kit, loadout, class
+
+**Battery**:
+The four artillery guns behind each HQ, where a Side's Barrage, Creeping Barrage and Smoke Screen shells leave from.
+_Avoid_: Artillery position, gun line, mortars
 
 **Landing Zone**:
 Where a transport helicopter sets down for its passengers' goal: a spot near the Capture Point, away from the enemies they know about, chosen afresh each trip; the passengers walk in from there.

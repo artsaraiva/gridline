@@ -9,12 +9,14 @@ import { drawRail, drawScoreFeed, showAward, toastEvent } from './chrome/rail';
 import { drawSquads } from './chrome/squads';
 import { drawChevrons, pulse } from './layers/chevrons';
 import { drawLastKnown } from './layers/contacts';
+import { addDeath, drawDestruction } from './layers/destruction';
 import { drawEffects, hideEffectLabels } from './layers/effects';
 import { drawGrid } from './layers/grid';
 import { addImpact, drawImpacts } from './layers/impacts';
 import { addDeathMarker, drawDeathMarkers } from './layers/markers';
 import { watchFrame } from './layers/map';
 import { drawMissiles } from './layers/missile';
+import { drawMuzzles } from './layers/muzzle';
 import { drawGunships } from './layers/gunship';
 import { drawDrones } from './layers/drone';
 import { drawRecons } from './layers/recon';
@@ -23,7 +25,8 @@ import { drawJeeps } from './layers/jeep';
 import { drawHelicopters } from './layers/helicopter';
 import { drawAas } from './layers/aa';
 import { drawJets } from './layers/jet';
-import { drawAirMissiles } from './layers/air-missiles';
+import { addAirburst, drawAirMissiles } from './layers/air-missiles';
+import { drawBombs } from './layers/bomb';
 import { drawMarks } from './layers/marks';
 import { drawOrders, hideOrderTags } from './layers/orders';
 import { drawHqs, drawPoint } from './layers/points';
@@ -31,6 +34,7 @@ import { drawScanUavs } from './layers/scan-uav';
 import { drawShells } from './layers/shells';
 import { drawSmokeScreens } from './layers/smoke-screen';
 import { drawSupplyDrops } from './layers/supply-drop';
+import { drawBatteries } from './layers/battery';
 import { drawBeacons } from './layers/beacon';
 import { drawFeints } from './layers/feint';
 import { drawEmps } from './layers/emp';
@@ -68,8 +72,11 @@ renderer.setAnimationLoop(() => {
   const events = host.takeEvents();
   for (const e of events) {
     if (e.kind === 'death') addDeathMarker(e.x, e.y, e.side, now);
+    else if (e.kind === 'destroyed') addDeath(e, now);
+    else if (e.kind === 'airburst') addAirburst(e, now);
     else if (e.kind === 'impact') {
-      addImpact(e.x, e.y, now, e.asset);
+      const gun = e.asset === 'tank' ? view.vehicles?.find((v) => v.id === e.from) : undefined; // a tank's round throws its blast on along its flight
+      addImpact(e.x, e.y, now, e.asset, undefined, gun && Math.atan2(e.y - gun.y, e.x - gun.x));
       if (e.asset === 'missile') flare(0.2); // the feed over-exposes for a moment under a Cruise Missile
     }
     else if (e.kind === 'shot' || e.kind === 'suppressive') {
@@ -90,6 +97,7 @@ renderer.setAnimationLoop(() => {
   showRadioLog(true);
   drawRadioLog(now);
   drawGrid(view);
+  drawDestruction(now); // before the impacts: it sets off each death's blasts
   drawImpacts(now);
   drawSmokeScreens(view);
   drawEffects(view, now);
@@ -97,18 +105,21 @@ renderer.setAnimationLoop(() => {
   drawSupplyDrops(view, scale);
   drawBeacons(view, scale, now);
   drawFeints(view, scale);
+  drawBatteries(view, now);
   drawShells(view, now);
   drawMissiles(view, scale);
   drawGunships(view, scale);
   drawDrones(view, scale);
   drawRecons(view, scale, now);
   drawEmps(view, scale, now);
-  drawTanks(view, scale);
-  drawJeeps(view, scale);
+  drawTanks(view, scale, now);
+  drawJeeps(view, scale, now);
   drawHelicopters(view, scale, now);
-  drawAas(view, scale);
+  drawAas(view, scale, now);
   drawJets(view, scale, now);
-  drawAirMissiles(view, scale);
+  drawBombs(view);
+  drawAirMissiles(view, scale, now);
+  drawMuzzles(now); // after every layer that fires a heavy gun this frame
   drawOrders(view, metresPerPx.value);
   drawMarks(view, scale, now);
   drawDeathMarkers(now, scale);

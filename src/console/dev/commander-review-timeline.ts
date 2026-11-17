@@ -10,7 +10,7 @@ import type { AssetView, CommanderView, EffectView, FriendlyView, LastKnownView,
 
 /** The first twelve chapters end here; #131 adds the helicopter jobs after them. */
 const OLD_END = 192;
-export const LENGTH = 914;
+export const LENGTH = 984;
 
 /** Where each state starts, for scrubbing. */
 export const CHAPTERS = [
@@ -43,6 +43,8 @@ export const CHAPTERS = [
   { at: 818, title: 'EMP Strike' },
   { at: 846, title: 'Feint' },
   { at: 874, title: 'Asset keypad' },
+  { at: 914, title: 'Destruction' },
+  { at: 944, title: 'Guns and ordnance' },
 ];
 
 /** Centre of the overlapping Squads, for the close zoom preset. */
@@ -754,8 +756,8 @@ export function viewAt(t: number): CommanderView {
     tickets: { nato: 150, pact: 150 },
     result: null,
     assets: [{ asset: 'missile', readyIn: t < MISSILE.at ? 0 : Math.max(0, MISSILE.at + DEFAULT_TUNE.missileCooldownSeconds - t), cooldown: DEFAULT_TUNE.missileCooldownSeconds, radius: DEFAULT_TUNE.missileSuppressM, ...keystoneGate(t) }, gunshipRow(t), ...lineRows(t), ...airRows(t), ...beaconRows(t), ...denialRows(t), ...keypadRows(t)],
-    effects: [...missileAt(t), ...gunshipsAt(t), ...smokeAt(t), ...creepAt(t), ...droneAt(DRONE, 'nato', t), ...droneAt(DRONE_DOWN, 'pact', t), ...reconAt(t), ...beaconAt(t), ...empAt(t), ...feintAt(t), ...supplyAt(t)],
-    vehicles: [...tanksAt(t).filter((v) => !driven(v, t)), ...jeepsAt(t).filter((v) => !driven(v, t)), ...helisAt(t), ...paraHeli(t), ...airAt(t), ...gunshipBodies(t), ...empVehicles(t)].map((v) => (heldByEmp(v, t) ? { ...v, disabled: true as const } : v)),
+    effects: [...missileAt(t), ...gunshipsAt(t), ...smokeAt(t), ...creepAt(t), ...droneAt(DRONE, 'nato', t), ...droneAt(DRONE_DOWN, 'pact', t), ...reconAt(t), ...beaconAt(t), ...empAt(t), ...feintAt(t), ...supplyAt(t), ...fireAt(t)],
+    vehicles: [...tanksAt(t).filter((v) => !driven(v, t)), ...jeepsAt(t).filter((v) => !driven(v, t)), ...helisAt(t), ...paraHeli(t), ...airAt(t), ...gunshipBodies(t), ...empVehicles(t), ...doomedAt(t), ...bomberAt(t)].map((v) => (heldByEmp(v, t) ? { ...v, disabled: true as const } : v)),
     marks: marksAt(t),
   };
 }
@@ -1032,6 +1034,83 @@ const keypadRows = (t: number): AssetView[] =>
         { asset: 'barrage', readyIn: 0, cooldown: G.barrageCooldownSeconds, radius: G.barrageSpreadM + G.barrageSuppressM, answers: 'barrage' },
       ];
 
+// DESTRUCTION: one enemy vehicle of each kind dies by the Squads, a few seconds apart, so each death can be judged on its own:
+// a tank (its ammunition, its turret thrown), a jeep (kicked, a wheel off), an AA (its rounds and a missile going off), a
+// helicopter shot down where it hovers, and a jet that comes down `jetCrashM` further on. Each is a live view until its
+// `destroyed` event, then its Wreck where the event puts it.
+const DEATH_AT = chapterAt('Destruction');
+const DOOMED: { id: number; kind: VehicleView['kind']; t: number; x: number; y: number; fx: number; fy: number; air?: boolean }[] = [
+  { id: 80, kind: 'tank', t: DEATH_AT + 2, x: -118, y: 44, fx: 0.8, fy: -0.6 },
+  { id: 81, kind: 'jeep', t: DEATH_AT + 5, x: -84, y: -12, fx: 0.6, fy: 0.8 },
+  { id: 82, kind: 'aa', t: DEATH_AT + 8, x: -24, y: 52, fx: -1, fy: 0 },
+  { id: 83, kind: 'helicopter', t: DEATH_AT + 13, x: -52, y: -42, fx: -0.6, fy: 0.8, air: true },
+  { id: 84, kind: 'jet', t: DEATH_AT + 17, x: -150, y: 86, fx: 1, fy: 0, air: true },
+];
+/** Where a doomed vehicle's Wreck lies: where it died, a jet's `jetCrashM` further on. */
+const restOf = (d: (typeof DOOMED)[number]) => (d.kind === 'jet' ? { x: d.x + d.fx * G.jetCrashM, y: d.y + d.fy * G.jetCrashM } : { x: d.x, y: d.y });
+function doomedAt(t: number): VehicleView[] {
+  if (t < DEATH_AT) return [];
+  return DOOMED.map((d): VehicleView => {
+    const facing = { fx: d.fx, fy: d.fy, tx: d.fx, ty: d.fy };
+    if (t >= d.t) return { id: -1, side: 'pact', kind: d.kind, ...restOf(d), ...facing, wreck: true };
+    const back = d.kind === 'jet' ? (d.t - t) * G.jetMps : 0; // the jet flies in along its heading
+    return { id: d.id, side: 'pact', kind: d.kind, x: d.x - d.fx * back, y: d.y - d.fy * back, ...facing, ...(d.air && { airborne: true }) };
+  });
+}
+const deathEvents = (): [number, SimEvent][] =>
+  DOOMED.map((d) => [d.t, { kind: 'destroyed', side: 'pact', id: d.id, vehicle: d.kind, ...restOf(d), fx: d.fx, fy: d.fy, ...(d.air && { from: { x: d.x, y: d.y } }) }]);
+
+// GUNS AND ORDNANCE: Alpha's four fire their guns at the Contacts, each in its own cadence (the rifle, the SMG, the LMG and the
+// Elite Squad's sniper rifle), for twelve seconds; then a Barrage lands north of them, its twelve shells leaving the battery at
+// the HQ a gun at a time; and a jet crosses and drops one bomb. The tank's main gun and the AA's missiles have chapters of their own.
+const FIRE_AT = chapterAt('Guns and ordnance');
+const GUN_ROSTER = ['rifle', 'smg', 'lmg', 'sniper'] as const;
+/** Each gun's bursts over the chapter's first twelve seconds: mid-length bursts and pauses from the Tune, staggered a little. */
+function gunEvents(): [number, SimEvent][] {
+  const events: [number, SimEvent][] = [];
+  GUN_ROSTER.forEach((gun, id) => {
+    const g = G.guns[gun];
+    const rounds = Math.round((g.burst[0] + g.burst[1]) / 2);
+    const pause = (g.pauseSeconds[0] + g.pauseSeconds[1]) / 2;
+    let n = 0;
+    for (let t = FIRE_AT + 1 + id * 0.3; t < FIRE_AT + 13; t += pause)
+      for (let k = 0; k < rounds; k++, t += g.gapSeconds, n++) events.push([t, { kind: 'shot', side: 'nato', from: id, to: CONTACTS[(id + (n % 7 === 0 ? 1 : 0)) % CONTACTS.length]!.id, hit: n % 5 === 2, gun }]);
+  });
+  return events;
+}
+const BARRAGE = { call: FIRE_AT + 13, x: -30, y: 96 };
+const BARRAGE_SHELLS = Array.from({ length: G.barrageShells }, (_, i) => ({ x: BARRAGE.x + (((i * 7) % 11) - 5) * 0.16 * G.barrageSpreadM, y: BARRAGE.y + (((i * 5) % 9) - 4) * 0.2 * G.barrageSpreadM, lands: 1 + G.barrageFlightSeconds + (i * G.barrageSpanSeconds) / G.barrageShells }));
+const BARRAGE_SECONDS = 1 + G.barrageFlightSeconds + G.barrageSpanSeconds;
+function fireAt(t: number): EffectView[] {
+  const s = t - BARRAGE.call;
+  if (s < 0 || s >= BARRAGE_SECONDS) return [];
+  return [{ asset: 'barrage', x: BARRAGE.x, y: BARRAGE.y, radius: G.barrageSpreadM + G.barrageSuppressM, left: BARRAGE_SECONDS - s, total: BARRAGE_SECONDS, shells: inFlight(BARRAGE_SHELLS, s), impactIn: Math.max(0, BARRAGE_SHELLS[0]!.lands - s) }];
+}
+const BOMBER = { id: 86, in: FIRE_AT + 30, y: -26, drop: -150, mark: { x: -20, y: -26 } };
+/** A nato jet crosses west to east and lets one bomb go so that it lands on its mark `jetBombFallSeconds` on. */
+function bomberAt(t: number): VehicleView[] {
+  const s = t - BOMBER.in;
+  const x = -620 + s * G.jetMps;
+  if (s < 0 || x > 700) return [];
+  const released = BOMBER.in + (BOMBER.drop + 620) / G.jetMps;
+  const flight = (t - released) / G.jetBombFallSeconds;
+  const rounds = flight >= 0 && flight < 1 ? [{ from: { x: BOMBER.drop, y: BOMBER.y }, to: BOMBER.mark, flight }] : [];
+  return [{ id: BOMBER.id, side: 'nato', kind: 'jet', x, y: BOMBER.y, fx: 1, fy: 0, tx: 1, ty: 0, hp: 1, seats: [-1], airborne: true, ...(rounds.length && { rounds }) }];
+}
+const fireEvents = (): [number, SimEvent][] => [
+  ...gunEvents(),
+  ...BARRAGE_SHELLS.map((x): [number, SimEvent] => [BARRAGE.call + x.lands, { kind: 'impact', side: 'nato', x: x.x, y: x.y, asset: 'barrage' }]),
+  [BOMBER.in + (BOMBER.drop + 620) / G.jetMps + G.jetBombFallSeconds, { kind: 'impact', side: 'nato', ...BOMBER.mark, asset: 'bomb', from: BOMBER.id }],
+  // #110: the AA chapter's two missiles end in the air: one on the helicopter, one spent
+  ...AA_MISSILES.map((s): [number, SimEvent] => {
+    const aim = at(s.path, s.when);
+    const d = Math.hypot(aim.x - AA_AT_SPOT.x, aim.y - AA_AT_SPOT.y) || 1;
+    const launch = s.when - d / G.airMissileMps;
+    const end = s.hits ? d : G.airMissileSeconds * G.airMissileMps;
+    return [s.hits ? s.when : launch + G.airMissileSeconds, { kind: 'airburst', side: 'nato', x: AA_AT_SPOT.x + ((aim.x - AA_AT_SPOT.x) / d) * end, y: AA_AT_SPOT.y + ((aim.y - AA_AT_SPOT.y) / d) * end, hit: s.hits }];
+  }),
+];
+
 function keypadEvents(): [number, SimEvent][] {
   const crate = gridRef(KALTENBACH_GRID, KEYPAD.crate);
   return [
@@ -1143,4 +1222,4 @@ function orbitFire(): [number, SimEvent][] {
   return events;
 }
 
-const EVENTS: [number, SimEvent][] = [...casualties(), ...firefight(), ...strike(), ...gun(), ...mg(), ...sideGun(), ...orbitFire(), ...airFire(), ...gunshipEvents(), ...markEvents(), ...lineEvents(), ...airEvents(), ...beaconEvents(), ...denialEvents(), ...keypadEvents()].sort((a, b) => a[0] - b[0]);
+const EVENTS: [number, SimEvent][] = [...deathEvents(), ...fireEvents(), ...casualties(), ...firefight(), ...strike(), ...gun(), ...mg(), ...sideGun(), ...orbitFire(), ...airFire(), ...gunshipEvents(), ...markEvents(), ...lineEvents(), ...airEvents(), ...beaconEvents(), ...denialEvents(), ...keypadEvents()].sort((a, b) => a[0] - b[0]);

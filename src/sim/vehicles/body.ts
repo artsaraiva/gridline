@@ -3,8 +3,9 @@
 // Strike's hold (#143).
 import type { Match } from '../index';
 import type { AirMissile, Lock } from '../air-missiles';
+import { insidePolygon } from '../geometry';
 import { vehicleOf, type Mix, type Soldier } from '../state';
-import { enemyOf, type MapData, type SideId, type Tune, type Vec2, type VehicleKind } from '../types';
+import type { MapData, SideId, SimEvent, Tune, Vec2, VehicleKind } from '../types';
 import type { Drive } from './drive-route';
 import type { Heli } from './helicopter';
 import type { Sortie } from './jet';
@@ -82,7 +83,7 @@ export interface Round {
   bomb?: boolean; // #110 a jet's bomb, not a main gun round
 }
 
-/** A destroyed vehicle where it died, for the rest of the Match. `seen`: the enemy saw it die. */
+/** A destroyed vehicle where it came to rest, for the rest of the Match; both Sides see it. `id` is the vehicle's; `from` is where it was in the air when it fell. */
 export interface Wreck {
   side: SideId;
   kind: VehicleKind;
@@ -90,7 +91,8 @@ export interface Wreck {
   y: number;
   fx: number;
   fy: number;
-  seen: boolean;
+  id: number;
+  from?: Vec2;
   tick: number; // when it was destroyed: a fresh one warns drivers off its road
 }
 
@@ -200,10 +202,19 @@ export const held = (m: Match, v: Vehicle) => m.tick < v.disabledUntil;
 /** #143: an EMP Strike holds `v` until the tick `until`; a second one over it holds it as long as the later says. */
 export const hold = (v: Vehicle, until: number) => void (v.disabledUntil = Math.max(v.disabledUntil, until));
 
-/** `v` is destroyed where it is: a Wreck, seen by the enemy only if they saw it in the last perception phase (#119: in the air too); #101 a lent body (the Gunship) falls in both Sides' sky. #139: a drone or the Recon Plane leaves none (too small to block a road or to mark the map). */
+/**
+ * `v` is destroyed: a Wreck where it is, which both Sides see; a jet shot down comes down `jetCrashM` further on along its heading
+ * (half that, or where it is, when the full way would leave the Play Area). #139: a drone or the Recon Plane leaves none (too small
+ * to block a road or to mark the map).
+ */
 export function wreck(m: Match, v: Vehicle) {
   if (!SPECS[v.kind].leavesWreck) return void Object.assign(v, { hp: 0, deadAt: m.tick, airborne: false });
-  const seen = SPECS[v.kind].lent || m.sightings[enemyOf(v.side)].some((o) => o.id === v.id && o.tick >= m.tick - 1);
-  m.wrecks.push({ side: v.side, kind: v.kind, x: v.x, y: v.y, fx: v.fx, fy: v.fy, seen, tick: m.tick });
+  const carry = v.kind === 'jet' && v.airborne ? [1, 0.5].map((k) => k * m.tune.jetCrashM).find((d) => insidePolygon(m.map.playArea, v.x + v.fx * d, v.y + v.fy * d)) ?? 0 : 0;
+  m.wrecks.push({ side: v.side, kind: v.kind, x: v.x + v.fx * carry, y: v.y + v.fy * carry, fx: v.fx, fy: v.fy, id: v.id, ...(v.airborne && { from: { x: v.x, y: v.y } }), tick: m.tick });
   Object.assign(v, { hp: 0, deadAt: m.tick, target: -1, coax: -1, airborne: false });
+}
+
+/** The `destroyed` events of the Wrecks made this tick. */
+export function wrecked(m: Match, events: SimEvent[]) {
+  for (const w of m.wrecks) if (w.tick === m.tick) events.push({ kind: 'destroyed', side: w.side, id: w.id, vehicle: w.kind, x: w.x, y: w.y, fx: w.fx, fy: w.fy, ...(w.from && { from: w.from }) });
 }

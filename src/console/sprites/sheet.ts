@@ -75,9 +75,9 @@ export function spriteSheetTexture(spec: SpriteSheetSpec): THREE.Texture {
 
 /**
  * Node material sampling one cell of a sprite sheet. Set `frame.value` (0-based) to switch frames.
- * World sprites use the map's tablet grade; `shadow: true` draws a dark ground shadow using the frame's alpha.
+ * World sprites use the map's tablet grade (`tint` darkens or colours it: black smoke from the grey puff); `shadow: true` draws a dark ground shadow using the frame's alpha.
  */
-export function spriteMaterial(spec: SpriteSheetSpec, opts: { frame?: number; shadow?: boolean; opacity?: number } = {}) {
+export function spriteMaterial(spec: SpriteSheetSpec, opts: { frame?: number; shadow?: boolean; opacity?: number; tint?: number } = {}) {
   const { cols, rows } = sheetDimensions(spec);
   const tex = spriteSheetTexture(spec);
   const frame = uniform(opts.frame ?? 0);
@@ -94,7 +94,8 @@ export function spriteMaterial(spec: SpriteSheetSpec, opts: { frame?: number; sh
     material.colorNode = vec3(0, 0, 0);
     material.opacityNode = sample.a.mul(DARK);
   } else {
-    material.colorNode = gradeNode(sample.rgb);
+    const tint = opts.tint === undefined ? null : new THREE.Color(opts.tint);
+    material.colorNode = tint ? gradeNode(sample.rgb).mul(vec3(tint.r, tint.g, tint.b)) : gradeNode(sample.rgb);
     material.opacityNode = sample.a.mul(materialOpacity);
   }
   return { material, frame };

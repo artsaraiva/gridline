@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { commanderView, createMatch, stateHash, step, type Match } from './index';
+import { PLAIN_GUNS } from './test-tune';
 import { DEFAULT_TUNE } from './tune';
 import { effectsOf } from './assets/lookup';
 import type { Command, MapData, SimEvent, Tune, Vec2 } from './types';
@@ -158,7 +159,7 @@ describe('Commander Score: UAV assist', () => {
   // pact 6 stands at V facing away from NATO, out of everyone's sight; a 1 s Scan on V reveals it. Bringing nato 0 in
   // 100 m west of it stands in for walking up: it sees 6, shoots it down with one round, and 6 bleeds out 8 s later.
   const V: Vec2 = { x: 200, y: 0 };
-  const SCAN: Partial<Tune> = { hitChance: 1, damage: [100, 100], fireRangeM: 140, scanSeconds: 1, scanCooldownSeconds: 0 };
+  const SCAN: Partial<Tune> = { hitChance: 1, damage: [100, 100], fireRangeM: 140, scanSeconds: 1, scanCooldownSeconds: 0, ...PLAIN_GUNS };
   const WINDOW = (1 + DEFAULT_TUNE.scoreUavGraceSeconds) * HZ; // the Scan plus the grace after it
   const scan = (m: Match, at: Vec2 = V): Command => ({ tick: m.tick, side: 'nato', kind: 'asset', asset: 'scan', at });
   const uavScene = (place: Record<number, Vec2 & { fx?: number }> = {}) => scene({ 6: { ...V, fx: 1 }, ...place }, SCAN);

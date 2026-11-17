@@ -364,7 +364,7 @@ describe('Gunship: the enemy AA', () => {
     expect(leaving).toBeGreaterThan(0);
     expect(down).toBeGreaterThan(leaving);
     expect(bailed).toBe(leaving); // its gunner jumped as it broke off
-    expect(m.wrecks).toContainEqual(expect.objectContaining({ side: 'nato', kind: 'gunship', seen: true }));
+    expect(m.wrecks).toContainEqual(expect.objectContaining({ side: 'nato', kind: 'gunship' }));
     expect(commanderView(m, 'pact').vehicles).toContainEqual(expect.objectContaining({ kind: 'gunship', wreck: true }));
     const launched = run.views.flatMap((u, i) => (effect(u)?.shells ?? []).filter((s) => s.flight === 0).map(() => i));
     expect(launched.every((i) => i < leaving)).toBe(true);
