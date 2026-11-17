@@ -41,7 +41,10 @@ export const barrage: Kind<BarrageEffect> = {
     const t = m.tune;
     const n = t.barrageShells;
     const R = t.barrageSpreadM;
-    const shells: Shell[] = [];
+    const spots: { dx: number; dy: number; near: number }[] = [];
+    // the salvo walks across the zone, away from the caller's guns: the spots are seeded as before, then taken nearest the HQ first
+    const hq = m.map.hqs[base.side];
+    const [ax, ay] = [base.x - hq.x, base.y - hq.y];
     for (let i = 0; i < n; i++) {
       let dx: number;
       let dy: number;
@@ -49,9 +52,13 @@ export const barrage: Kind<BarrageEffect> = {
         dx = (rnd(m) * 2 - 1) * R;
         dy = (rnd(m) * 2 - 1) * R;
       } while (dx * dx + dy * dy > R * R); // uniform over the disc, without trig
-      const launch = m.tick + Math.round((t.barrageWarningSeconds + (n > 1 ? (i * t.barrageSpanSeconds) / (n - 1) : 0)) * t.hz);
-      shells.push({ x: base.x + dx, y: base.y + dy, launch, land: launch + Math.round(t.barrageFlightSeconds * t.hz), done: false });
+      spots.push({ dx, dy, near: dx * ax + dy * ay });
     }
+    spots.sort((a, b) => a.near - b.near);
+    const shells: Shell[] = spots.map(({ dx, dy }, i) => {
+      const launch = m.tick + Math.round((t.barrageWarningSeconds + (n > 1 ? (i * t.barrageSpanSeconds) / (n - 1) : 0)) * t.hz);
+      return { x: base.x + dx, y: base.y + dy, launch, land: launch + Math.round(t.barrageFlightSeconds * t.hz), done: false };
+    });
     return { ...base, asset: 'barrage', shells };
   },
 

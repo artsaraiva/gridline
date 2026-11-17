@@ -80,6 +80,47 @@ describe('shell impact: explosion, drifting plume and lasting crater', () => {
     expect(impactLook(i, 30 * 60 * 1000).crater).toEqual(c);
   });
 
+  it('opens with a white flash and a light on the ground, both gone within a third of a second', () => {
+    const i = hit();
+    const first = impactLook(i, 0);
+    expect(first.flash).toMatchObject({ x: 50, y: -50, opacity: 1 });
+    expect(first.light!.size).toBeGreaterThan(first.explosion!.size);
+    expect(impactLook(i, 60).flash!.size).toBeGreaterThan(first.flash!.size);
+    expect(impactLook(i, 200).light!.opacity).toBeLessThan(first.light!.opacity);
+    const later = impactLook(i, 300);
+    expect([later.flash, later.light]).toEqual([null, null]);
+  });
+
+  it('runs a shock ring out and throws debris that slows and burns out', () => {
+    const i = hit();
+    const [early, late] = [impactLook(i, 60), impactLook(i, 300)];
+    expect(early.rings).toHaveLength(1);
+    expect(late.rings[0]!.size).toBeGreaterThan(early.rings[0]!.size);
+    expect(late.rings[0]!.opacity).toBeLessThan(early.rings[0]!.opacity);
+    expect(impactLook(i, 400).rings).toEqual([]);
+    const reach = (ms: number) => Math.max(...impactLook(i, ms).debris.map((d) => Math.hypot(d.x1 - 50, d.y1 + 50)));
+    expect(early.debris.length).toBeGreaterThan(8);
+    expect(reach(60) - reach(30)).toBeGreaterThan(reach(280) - reach(250)); // drag: fast at first, then held back
+    expect(impactLook(i, 900).debris).toEqual([]);
+    expect(impactLook(i, 2600).embers).toEqual([]);
+  });
+
+  it('leaves a scorch that stays and a heat in it that cools', () => {
+    const i = hit();
+    expect(impactLook(i, 1000).heat!.opacity).toBeGreaterThan(impactLook(i, 2000).heat!.opacity);
+    expect(impactLook(i, 2500).heat).toBeNull();
+    expect(impactLook(i, 30 * 60 * 1000).scorch).toEqual(impactLook(i, 1000).scorch);
+  });
+
+  it('a Cruise Missile hit throws two shock rings and more debris, and leaves fires burning in the crater', () => {
+    const missile = recordImpact([], 50, -50, 0, 'missile').at(-1)!;
+    expect(impactLook(missile, 200).rings).toHaveLength(2);
+    expect(impactLook(missile, 100).debris.length).toBeGreaterThan(impactLook(hit(), 100).debris.length);
+    expect(impactLook(missile, 2000).fires.length).toBeGreaterThan(0);
+    expect(impactLook(hit(), 2000).fires).toEqual([]);
+    expect(impactLook(missile, 8000).fires).toEqual([]);
+  });
+
   it('keeps at most CRATER_CAP impacts, removing the oldest first', () => {
     const list: ImpactRecord[] = [];
     for (let k = 0; k < CRATER_CAP + 5; k++) recordImpact(list, k, 0, k, 'barrage');

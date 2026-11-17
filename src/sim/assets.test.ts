@@ -101,8 +101,8 @@ describe('Scan UAV', () => {
     return out;
   };
 
-  it('reveals every enemy within 60 m of its spot as a live Contact for 15 s, then as a fading Last Known Position', () => {
-    const m = scene({ 2: { x: 200, y: 10 }, 3: { x: 200, y: 70 } }, { squads: 2 });
+  it('reveals every enemy within 120 m of its spot as a live Contact for 15 s, then as a fading Last Known Position', () => {
+    const m = scene({ 2: { x: 200, y: 10 }, 3: { x: 200, y: 150 } }, { squads: 2 });
     // pact 2 moves 30 m east 5 s in (placing it stands in for walking)
     const vs = views(m, 17 * HZ, (i) => i === 5 * HZ && Object.assign(m.soldiers[2]!, { x: 230 }));
     const during = vs.slice(0, 15 * HZ);
@@ -129,7 +129,7 @@ describe('Scan UAV', () => {
 
   it('shows on the map with its time left until it goes', () => {
     const vs = views(scene(), 15 * HZ);
-    expect(vs[0]!.effects).toEqual([{ asset: 'scan', x: 200, y: 0, radius: 60, left: 15 - 1 / HZ, total: 15 }]);
+    expect(vs[0]!.effects).toEqual([{ asset: 'scan', x: 200, y: 0, radius: 120, left: 15 - 1 / HZ, total: 15 }]);
     expect(vs[15 * HZ - 2]!.effects![0]!.left).toBeCloseTo(1 / HZ);
     expect(vs[15 * HZ - 1]!.effects).toEqual([]);
   });

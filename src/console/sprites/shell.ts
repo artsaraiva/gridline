@@ -21,9 +21,10 @@ export const SHELL_SHEET: SpriteSheetSpec = {
 
 // #98: a shell without a visible gun enters the view from the sky, ENTRY_ALTITUDE_M up over a ground spot short of its
 // target on the bearing toward the own HQ, and drops to it on a straight line DESCENT_RAD from horizontal. It is drawn
-// only from SHELL_VISIBLE_FROM of its flight (the last 0.8 s of the 4 s): a real round falls too fast to watch.
-export const SHELL_VISIBLE_FROM = 0.8;
-const ENTRY_ALTITUDE_M = 200;
+// only from SHELL_VISIBLE_FROM of its flight (the last 2 s of the 4 s): long enough to watch it fall, high and far off at
+// first, with its shadow on the ground closing in on where it will land.
+export const SHELL_VISIBLE_FROM = 0.5;
+const ENTRY_ALTITUDE_M = 420;
 const DESCENT_RAD = Math.PI / 3;
 const DESCENT_GROUND_M = ENTRY_ALTITUDE_M / Math.tan(DESCENT_RAD);
 const ALTITUDE_LIFT_PER_M = 0.22;
@@ -98,13 +99,72 @@ export interface ShellStreak {
   angle: number;
 }
 
-/** The thin bright line a falling shell leaves, from its entry spot to where it is now (nothing before it is drawn). */
-export function shellStreak(from: Vec2, to: Vec2, flight: number): ShellStreak {
-  const tail = shellInFlight(from, to, SHELL_VISIBLE_FROM);
+/**
+ * The thin bright line a falling shell leaves, from its entry spot to where it is now (nothing before it is drawn). With
+ * `back`, only the last `back` of its flight: a short tail behind the shell, not a line across the map.
+ */
+export function shellStreak(from: Vec2, to: Vec2, flight: number, back = 1): ShellStreak {
+  const tail = shellInFlight(from, to, Math.max(SHELL_VISIBLE_FROM, flight - back));
   const head = shellInFlight(from, to, flight);
   const dx = head.x - tail.x;
   const dy = head.y - tail.y;
   return { tail: { x: tail.x, y: tail.y }, head: { x: head.x, y: head.y }, length: Math.hypot(dx, dy), angle: Math.atan2(dy, dx) };
+}
+
+/** A stretch of a shell's trace through the air, from `a` to `b`. */
+export interface TraceSegment {
+  a: Vec2;
+  b: Vec2;
+  opacity: number;
+  /** #138: a Smoke Screen shell's: grey. */
+  smoke: boolean;
+}
+
+/** The trace runs this far back along the flight behind the shell, in this many stretches that fade toward its tail. */
+const TRACE_BACK = 0.4;
+const TRACE_STEPS = 8;
+/** It is this faint while the shell is up and away, and brightens to full from TRACE_BRIGHT_FROM of the flight to the hit. */
+const TRACE_FAINT = 0.1;
+const TRACE_BRIGHT_FROM = 0.6;
+
+/**
+ * Where a shell is at `flight` (0..1) on its whole way from the battery at `from` (its caller's HQ): climbing straight to its
+ * sky entry over the first SHELL_VISIBLE_FROM of the flight, then down the drawn fall of `shellInFlight`.
+ */
+export function shellPath(from: Vec2, to: Vec2, flight: number): Vec2 {
+  const u = Math.max(0, Math.min(1, flight));
+  const s = shellInFlight(from, to, Math.max(u, SHELL_VISIBLE_FROM));
+  const k = Math.min(1, u / SHELL_VISIBLE_FROM);
+  return { x: from.x + (s.x - from.x) * k, y: from.y + (s.y - from.y) * k };
+}
+
+/**
+ * The trace a shell leaves in the air at `flight`: from the battery up and over, faint for most of the way and intensifying
+ * as the shell comes down on its target, each stretch fainter toward the tail.
+ */
+export function shellTrace(from: Vec2, to: Vec2, flight: number, smoke = false): TraceSegment[] {
+  const u = Math.max(0, Math.min(1, flight));
+  const near = Math.max(0, (u - TRACE_BRIGHT_FROM) / (1 - TRACE_BRIGHT_FROM));
+  const strength = TRACE_FAINT + (1 - TRACE_FAINT) * near * near;
+  const start = Math.max(0, u - TRACE_BACK);
+  const out: TraceSegment[] = [];
+  if (u <= start) return out;
+  for (let i = 0; i < TRACE_STEPS; i++) {
+    const at = (k: number) => shellPath(from, to, start + ((u - start) * k) / TRACE_STEPS);
+    out.push({ a: at(i), b: at(i + 1), opacity: strength * ((i + 1) / TRACE_STEPS) ** 1.5, smoke });
+  }
+  return out;
+}
+
+/** The traces of every shell in the air in `view`, from the moment it leaves its caller's battery (as `barrageShells`, without the visible window). */
+export function shellTraces(view: CommanderView, map: MapData): TraceSegment[] {
+  const out: TraceSegment[] = [];
+  for (const e of view.effects ?? []) {
+    if (e.asset !== 'barrage' && e.asset !== 'creep' && e.asset !== 'smoke') continue;
+    const hq = map.hqs['side' in e ? e.side : view.side];
+    for (const s of e.shells) out.push(...shellTrace({ x: hq.x, y: hq.y }, { x: s.x, y: s.y }, s.flight, e.asset === 'smoke'));
+  }
+  return out;
 }
 
 /**

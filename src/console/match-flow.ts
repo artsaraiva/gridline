@@ -12,6 +12,7 @@ import { resetImpacts } from './layers/impacts';
 import { resetOrders } from './layers/orders';
 import { resetMarkers } from './layers/markers';
 import { resetPoints } from './layers/points';
+import { resetShells } from './layers/shells';
 import { resetTracers } from './layers/tracers';
 import { layer } from './renderer';
 import { session } from './session';
@@ -35,7 +36,12 @@ function fillSquads(want: number) {
   squadSelect.replaceChildren(...counts.map((n) => new Option(String(n))));
   squadSelect.value = String(counts.includes(want) ? want : Math.min(MAX_SQUADS, Math.max(MIN_SQUADS, want)));
 }
-mapSelect.addEventListener('change', () => fillSquads(Number(squadSelect.value)));
+/** The setup screen sits over the picked map's bake (console.css draws `--map` behind its column). */
+const showMap = () => setupForm.style.setProperty('--map', `url(${import.meta.env.BASE_URL}maps/${mapSelect.value}/map_1024.webp)`);
+mapSelect.addEventListener('change', () => {
+  fillSquads(Number(squadSelect.value));
+  showMap();
+});
 
 // URL params preset the setup screen; `seed` fixes the first match's seed (seed 4 shows a decisive capture on the test field).
 // `map=auental` presets the Map select; `map=test` plays the hand-written test field whatever the select says.
@@ -44,6 +50,7 @@ let urlSeed = params.get('seed');
 (setupForm.elements.namedItem('side') as RadioNodeList).value = params.get('side') === 'pact' ? 'pact' : 'nato';
 if (params.get('map') === 'auental') mapSelect.value = 'auental';
 fillSquads(Number(params.get('squads')) || DEFAULT_SQUADS);
+showMap();
 
 async function startMatch(setup: MatchSetup, map: MapId) {
   session.host?.stop();
@@ -54,6 +61,7 @@ async function startMatch(setup: MatchSetup, map: MapId) {
   resetContacts();
   resetMarkers();
   resetTracers();
+  resetShells();
   resetImpacts();
   resetOrders();
   resetSquads();
@@ -98,7 +106,11 @@ function showEnd(summary: ReturnType<typeof endSummary>) {
   set('end-time', summary.time);
   set('end-seed', String(session.seed));
   const score = document.getElementById('end-score')!;
-  score.innerHTML = `<dt>Commander Score</dt><dd>${summary.score.total}</dd>` + summary.score.rows.map((r) => `<dt class="sub">${r.label}</dt><dd class="sub">${r.points}</dd>`).join('');
+  const most = Math.max(1, ...summary.score.rows.map((r) => r.points)); // each row's bar is its share of the best row
+  score.innerHTML =
+    `<dt>Commander Score</dt><dd>${summary.score.total}</dd>` +
+    summary.score.rows.map((r) => `<dt class="sub">${r.label}</dt><dd class="sub"><i style="--w:${Math.round((100 * Math.max(0, r.points)) / most)}%"></i><b>${r.points}</b></dd>`).join('');
+  endScreen.dataset.result = summary.result.toLowerCase();
   set('end-copy', 'Copy match record');
   endScreen.hidden = false;
 }

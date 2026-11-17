@@ -5,7 +5,7 @@ import { drawAssetRail } from './chrome/assets';
 import { drawMark } from './chrome/mark';
 import { bindMixer } from './chrome/mixer';
 import { drawRadioLog, logRadio, showRadioLog } from './chrome/radio-log';
-import { drawRail, showAward, toastEvent } from './chrome/rail';
+import { drawRail, drawScoreFeed, showAward, toastEvent } from './chrome/rail';
 import { drawSquads } from './chrome/squads';
 import { drawChevrons, pulse } from './layers/chevrons';
 import { drawLastKnown } from './layers/contacts';
@@ -37,7 +37,7 @@ import { drawEmps } from './layers/emp';
 import { UNIT_PX } from './layers/symbols';
 import { addShot, drawTracers } from './layers/tracers';
 import { checkEnd } from './match-flow';
-import { renderFeed } from './post';
+import { flare, renderFeed } from './post';
 import { metresPerPx, pxToWorld, renderer } from './renderer';
 import { session } from './session';
 
@@ -68,18 +68,22 @@ renderer.setAnimationLoop(() => {
   const events = host.takeEvents();
   for (const e of events) {
     if (e.kind === 'death') addDeathMarker(e.x, e.y, e.side, now);
-    else if (e.kind === 'impact') addImpact(e.x, e.y, now, e.asset);
+    else if (e.kind === 'impact') {
+      addImpact(e.x, e.y, now, e.asset);
+      if (e.asset === 'missile') flare(0.2); // the feed over-exposes for a moment under a Cruise Missile
+    }
     else if (e.kind === 'shot' || e.kind === 'suppressive') {
       addShot(e, view, now);
       pulse(e.from, e.side, now);
     }
     logRadio(e, view);
     toastEvent(e, view);
-    showAward(e, view);
+    showAward(e, view, now);
   }
   metresPerPx.value = pxToWorld();
   const scale = UNIT_PX * metresPerPx.value; // one symbol unit in metres
   drawRail(view);
+  drawScoreFeed(now);
   drawAssetRail(view); // before the effects: their labels keep clear of the map Confirm button it places
   drawMark(view);
   drawSquads(view);

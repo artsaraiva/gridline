@@ -12,7 +12,6 @@
     <div id="score" class="score" data-hit hidden></div>
     <div id="rail" data-hit hidden>
       <div id="assets" hidden></div>
-      <div id="awards"></div>
     </div>
     <div id="squads" hidden><div class="tiles"></div><div class="card" hidden></div></div>
     <div id="radio" data-hit hidden>
@@ -25,10 +24,11 @@
     <button id="confirm" hidden><span></span><small>Tap again to call · Esc cancels</small></button>
     <form id="setup" class="screen">
       <h1>Gridline</h1>
+      <i class="rule"></i>
       <fieldset>
         <legend>Faction</legend>
-        <label><input type="radio" name="side" value="nato" checked /> NATO</label>
-        <label><input type="radio" name="side" value="pact" /> Warsaw Pact</label>
+        <label><input type="radio" name="side" value="nato" checked /><i class="frame"></i><span>NATO<small></small></span></label>
+        <label><input type="radio" name="side" value="pact" /><i class="frame"></i><span>Warsaw Pact<small></small></span></label>
       </fieldset>
       <label>Map <select name="map"><option value="kaltenbach">Kaltenbach</option><option value="auental">Auental</option></select></label>
       <label>Squads per Side <select name="squads"></select></label>

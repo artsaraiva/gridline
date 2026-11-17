@@ -39,7 +39,7 @@ const trails = pool(() => new THREE.Mesh(quad, streak()));
 const lines = pool(() => new THREE.Mesh(quad, fading(0xffffff, LINE.opacity)));
 const marks = pool(() => new THREE.Mesh(markGeometry, fading(0xffffff, MARK_OPACITY)));
 const rings = pool(() => {
-  const ring = dashedRing(80, 0xffffff, { dash: 3, gap: 5, width: 1.5, opacity: AIM_RING_OPACITY }); // a quad big enough for its ring
+  const ring = dashedRing(140, 0xffffff, { dash: 3, gap: 5, width: 1.5, opacity: AIM_RING_OPACITY }); // a quad big enough for its ring
   return Object.assign(new THREE.Group().add(ring.mesh), { ring });
 });
 const flashes = pool(() => new THREE.Mesh(disc, fading(EMP_BLUE, FLASH_OPACITY)));

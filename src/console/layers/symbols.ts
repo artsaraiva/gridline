@@ -75,6 +75,27 @@ export function streak(color = COLOR.bone) {
   return material;
 }
 
+/**
+ * A soft round glow on a unit quad, full at the centre and gone at the edge: muzzle and blast light, heat, dust puffs.
+ * `dark` for a scorch; `glow: false` for dust and smoke, which the bloom should leave alone.
+ */
+export function soft(color: number, { dark = false, glow = true } = {}) {
+  const material = new THREE.MeshBasicNodeMaterial({ color, transparent: true, depthWrite: false });
+  const fall = float(1).sub(smoothstep(0, 1, length(uv().sub(0.5)).mul(2)));
+  material.opacityNode = (dark ? DARK : BRIGHT).mul(fall);
+  if (glow && !dark) material.mrtNode = GLOW();
+  return material;
+}
+
+/** A soft ring on a unit quad, at 0.9 of its half-size and `band` of that wide: a blast's shock ring, the dust it rolls out. */
+export function softRing(color: number, band = 0.05, glow = true) {
+  const material = new THREE.MeshBasicNodeMaterial({ color, transparent: true, depthWrite: false });
+  const off = abs(length(uv().sub(0.5)).mul(2).sub(0.9));
+  material.opacityNode = BRIGHT.mul(float(1).sub(smoothstep(band * 0.3, band, off)));
+  if (glow) material.mrtNode = GLOW();
+  return material;
+}
+
 /** `flat` with opacity, for symbols that fade. */
 export function fading(color: number, opacity = 1) {
   const material = flat(color);

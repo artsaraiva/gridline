@@ -1,10 +1,10 @@
-// The feed's post chain, all TSL: symbology glow, chromatic fringe, then always-on VHS (grain, scanlines, roll bar,
-// vignette) with rare static bursts that split RGB wider and tear rows. Zoom and a confirmed Asset throw a burst;
+// The feed's post chain, all TSL: symbology glow, a lens's chromatic fringe toward the corners, then a little grain and a
+// soft vignette, with rare static bursts that split RGB wider and tear rows. Zoom and a confirmed Asset throw a burst;
 // call `burst(k)` on other big moments (#38: pan to a Callout).
 import * as THREE from 'three/webgpu';
-import { float, floor, fract, mix, mrt, output, pass, rand, renderOutput, screenSize, screenUV, smoothstep, step, time, uniform, vec2, vec3, vec4 } from 'three/tsl';
+import { float, floor, fract, mix, mrt, output, pass, rand, renderOutput, screenSize, screenUV, step, time, uniform, vec2, vec3, vec4 } from 'three/tsl';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
-import { scanlines, vignette } from 'three/addons/tsl/display/CRT.js';
+import { vignette } from 'three/addons/tsl/display/CRT.js';
 import { glitchScheduler } from './glitch';
 import { camera, renderer, scene } from './renderer';
 import { confirmed } from './targeting';
@@ -21,22 +21,21 @@ const tick = floor(time.mul(30));
 const row = floor(screenUV.y.mul(180));
 const tear = rand(vec2(row, tick)).sub(0.5).mul(0.03).mul(glitch).mul(step(0.7, rand(vec2(row.mul(0.37), tick))));
 const uv = screenUV.add(vec2(tear, 0));
-// chromatic fringe: 1 px always, up to 7 px in a burst
-const ca = float(1).add(glitch.mul(6)).div(screenSize.x);
+// chromatic fringe, as a lens gives it: none at the centre, 1.2 px out at the corners, up to 7 px anywhere in a burst
+const edge = screenUV.sub(0.5).length().mul(1.414);
+const ca = edge.mul(edge).mul(1.2).add(glitch.mul(6)).div(screenSize.x);
 const split = vec3(frame.sample(uv.add(vec2(ca, 0))).r, frame.sample(uv).g, frame.sample(uv.sub(vec2(ca, 0))).b);
 const glow = bloom(frame.mul(glowMask.r), 0.7, 0.35, 0);
 // VHS works in display space, like the prototype's CSS overlays
 const display = renderOutput(vec4(split.add(glow.rgb), 1)).rgb;
 
-const grain = rand(screenUV.add(fract(time))).sub(0.5).mul(0.07);
-const scanned = scanlines(display.add(grain), float(0.3), screenSize.y.mul((Math.PI * 2) / (3 * devicePixelRatio))); // dark line every 3 px
-const roll = fract(screenUV.y.add(time.div(7))); // a soft bright band crossing the screen every 7 s
-const bar = smoothstep(0.82, 0.91, roll).mul(float(1).sub(smoothstep(0.91, 1, roll)));
-const rolled = scanned.add(vec3(0.63, 0.86, 1).mul(bar.mul(0.08)));
+// a clean picture at rest: a little grain and a soft vignette, no scanlines and no roll bar; the wear shows only in a burst
+const grained = display.add(rand(screenUV.add(fract(time))).sub(0.5).mul(0.035));
 // static: coarse noise screened on, flickering with the burst
 const snow = rand(floor(screenUV.mul(screenSize).div(2)).add(fract(time.mul(7)))).mul(glitch).mul(step(0.35, rand(vec2(tick, 1.7))));
-const withStatic = mix(rolled, vec3(1), snow.mul(0.45));
-const feed = vignette(withStatic, float(0.7), float(0.6));
+const exposure = uniform(0); // a blast's over-exposure, 0..1, warm
+const withStatic = mix(grained, vec3(1), snow.mul(0.45)).add(vec3(1, 0.94, 0.82).mul(exposure));
+const feed = vignette(withStatic, float(0.5), float(0.6));
 
 const pipeline = new THREE.RenderPipeline(renderer, vec4(feed, 1));
 pipeline.outputColorTransform = false; // renderOutput above already did it
@@ -49,11 +48,20 @@ let last = performance.now();
 export const burst = (k: number) => !calm && scheduler.burst(performance.now(), k);
 confirmed.push(() => burst(0.4));
 
+/** A flare is gone this long after it starts. */
+const FLARE_MS = 120;
+let flared = { at: -Infinity, k: 0 };
+/** Over-exposes the whole feed by `k` (0..1) for a moment: a Cruise Missile's hit. */
+export const flare = (k: number) => {
+  if (!calm) flared = { at: performance.now(), k };
+};
+
 /** Renders the scene through the feed chain. */
 export function renderFeed() {
   const now = performance.now();
   if (!calm) scheduler.frame(now, now - last);
   last = now;
   glitch.value = scheduler.level(now);
+  exposure.value = flared.k * Math.max(0, 1 - (now - flared.at) / FLARE_MS);
   pipeline.render();
 }

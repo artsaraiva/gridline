@@ -29,8 +29,8 @@ function scene(place: Record<number, Placement>, tune: Partial<Tune> = {}): Matc
   return m;
 }
 
-// The wall runs north from (30, -22.5): its four discs sit at y = -15, 0, 15 and 30, the second on the line between the two Soldiers.
-const START: Vec2 = { x: 30, y: -22.5 };
+// The wall runs north from (30, -45): its four discs sit at y = -30, 0, 30 and 60, the second on the line between the two Soldiers.
+const START: Vec2 = { x: 30, y: -45 };
 const NORTH: Vec2 = { x: 30, y: 100 };
 const smoke = (m: Match, at = START, to: Vec2 | null = NORTH): Command => ({ tick: m.tick, side: 'nato', kind: 'asset', asset: 'smoke', at, ...(to && { to }) });
 
@@ -62,7 +62,7 @@ const fx = (v: CommanderView) => v.effects!.find((e) => e.asset === 'smoke');
 describe('Smoke Screen: the call', () => {
   it('is ready at match start, takes a start and a direction, and cools down for 1:30', () => {
     const m = scene({});
-    expect(row(m)).toEqual({ asset: 'smoke', readyIn: 0, cooldown: 90, radius: 7.5, line: { length: 60, width: 15 } });
+    expect(row(m)).toEqual({ asset: 'smoke', readyIn: 0, cooldown: 90, radius: 15, line: { length: 120, width: 30 } });
     const { events } = play(m, 1, [smoke(m)]);
     expect(events).toEqual([{ kind: 'radio', side: 'nato', squad: null, type: 'asset', text: 'Smoke inbound', grid: 'G7', priority: 1 }]);
     expect(row(m).readyIn).toBe(89);
@@ -85,14 +85,14 @@ describe('Smoke Screen: the call', () => {
     const t: Tune = { ...DEFAULT_TUNE, squadSize: 1, tanksPerSide: 0, jeepsPerSide: 0, helisPerSide: 0, jetsPerSide: 0, aasPerSide: 0, pointJeeps: false };
     const m = createMatch({ seed: 1, map: { ...field, hqs: { ...field.hqs, pact: { x: 560, y: 0, area } } }, tune: t, squadsPerSide: 1, commanderSide: 'nato' });
     const why = (c: Command) => step(m, [c]).map((e) => e.kind === 'rejected' && e.reason);
-    expect(why(smoke(m, { x: 530, y: 150 }, { x: 600, y: 150 }))).toEqual(['on the enemy HQ']); // through the strip, both ends clear
+    expect(why(smoke(m, { x: 470, y: 150 }, { x: 600, y: 150 }))).toEqual(['on the enemy HQ']); // through the strip, both ends clear
     expect(why(smoke(m, { x: 530, y: -30 }, { x: 530, y: 0 }))).toEqual([false]); // past the old circle's edge, clear of the area: called
   });
 
-  it('shows the strip from the start, 60 m towards the second tap and 15 m wide, to both Consoles', () => {
+  it('shows the strip from the start, 120 m towards the second tap and 30 m wide, to both Consoles', () => {
     const m = scene({});
     const { nato, pact } = play(m, 1, [smoke(m, START, { x: 30, y: 1000 })]);
-    expect(fx(nato[0]!)).toMatchObject({ asset: 'smoke', side: 'nato', x: 30, y: -22.5, line: { to: { x: 30, y: 37.5 }, width: 15 }, impactIn: 5.95, smoke: [] });
+    expect(fx(nato[0]!)).toMatchObject({ asset: 'smoke', side: 'nato', x: 30, y: -45, line: { to: { x: 30, y: 75 }, width: 30 }, impactIn: 5.95, smoke: [] });
     expect(pact[0]!.effects).toEqual(nato[0]!.effects);
   });
 });
@@ -107,19 +107,19 @@ describe('Smoke Screen: the screen', () => {
     expect(seen(LANDED + 5 + 40 + 10 + 0.5)).toEqual([[1], [0]]);
   });
 
-  it('four discs land along the wall half a second apart, bloom to 15 m across over 5 s, hold 40 s and thin over 10 s', () => {
+  it('four discs land along the wall half a second apart, bloom to 30 m across over 5 s, hold 40 s and thin over 10 s', () => {
     const m = scene({});
     const { nato, events } = play(m, 70, [smoke(m)]);
     const discs = (s: number) => fx(at(nato, s))?.smoke;
     expect(discs(5.5)).toEqual([]);
     expect(discs(8.5)!.map((d) => [d.x, d.y, d.r, d.age, d.density])).toEqual([
-      [30, -15, 3.75, 2.5, 1],
-      [30, 0, 3, 2, 1],
-      [30, 15, 2.25, 1.5, 1],
-      [30, 30, 1.5, 1, 1],
+      [30, -30, 7.5, 2.5, 1],
+      [30, 0, 6, 2, 1],
+      [30, 30, 4.5, 1.5, 1],
+      [30, 60, 3, 1, 1],
     ]);
-    expect(discs(30)!.map((d) => d.r)).toEqual([7.5, 7.5, 7.5, 7.5]);
-    expect(discs(56)![0]).toMatchObject({ r: 3.75, density: 0.5 }); // the first: 6 s + 5 s + 40 s, and half its thinning
+    expect(discs(30)!.map((d) => d.r)).toEqual([15, 15, 15, 15]);
+    expect(discs(56)![0]).toMatchObject({ r: 7.5, density: 0.5 }); // the first: 6 s + 5 s + 40 s, and half its thinning
     expect(fx(at(nato, 63))).toBeUndefined(); // 6 + 1.5 + 55 s: the last disc is gone, and the effect with it
     expect(events.filter((e) => e.kind === 'radio').map((e) => e.text)).toEqual(['Smoke inbound', 'Smoke on the deck']);
   });
@@ -184,6 +184,6 @@ describe('Smoke Screen: determinism', () => {
     };
     expect(run(NORTH, 3)).toBe(run(NORTH, 3));
     expect(run(NORTH, 3)).not.toBe(run(null, 3));
-    expect(run(NORTH, 3)).not.toBe(run({ x: 130, y: -22.5 }, 3)); // another direction, before any shell lands
+    expect(run(NORTH, 3)).not.toBe(run({ x: 130, y: -45 }, 3)); // another direction, before any shell lands
   });
 });

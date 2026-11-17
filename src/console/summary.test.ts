@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { awardLine, cursorReadout, drainingSide, endSummary, leaderOf, orderLine, orderState, radioLine, requestLine } from './summary';
+import { cursorReadout, drainingSide, endSummary, leaderOf, orderLine, orderState, radioLine, requestLine } from './summary';
 import type { CommanderView, MapGrid, MatchResult, SideId, SimEvent, SquadView } from '../sim/types';
 
 function ended(side: SideId, result: MatchResult, tickets: Record<SideId, number>, seconds: number): CommanderView {
@@ -48,17 +48,6 @@ describe('end summary', () => {
   });
 });
 
-describe('contribution message (#72)', () => {
-  const view = ended('nato', null as never, { nato: 1, pact: 1 }, 0);
-  const award = (side: SideId): SimEvent => ({ kind: 'award', side, category: 'artillery', points: 100, reason: 'Barrage kill' });
-
-  it('shows the points and the reason for an own-Side award, nothing for the enemy or other events', () => {
-    expect(awardLine(award('nato'), view)).toBe('+100 · Barrage kill');
-    expect(awardLine({ kind: 'award', side: 'nato', category: 'supply', points: 15.52, reason: 'Supply Drop resupplied Alpha' }, view)).toBe('+16 · Supply Drop resupplied Alpha'); // #74: Supply points are fractional
-    expect(awardLine(award('pact'), view)).toBeNull();
-    expect(awardLine({ kind: 'impact', side: 'nato', x: 0, y: 0, asset: 'barrage' }, view)).toBeNull();
-  });
-});
 
 describe('Order line and Squad tag', () => {
   const view = { points: [{ id: 'C', name: 'C' }] } as CommanderView;

@@ -29,8 +29,6 @@ export function endSummary(view: CommanderView) {
   };
 }
 
-/** #72: the contribution message for an own-Side award: "+100 · Barrage kill". Null for anything else. Whole points (#74 Supply earns fractions). */
-export const awardLine = (e: SimEvent, view: CommanderView) => (e.kind === 'award' && e.side === view.side ? `+${Math.round(e.points)} · ${e.reason}` : null);
 
 /** A Squad's Order as its card button names it: "TAKE C", "HOLD C", "ORDER C" while it is sent or delayed, "CLEAR SENT"; null with no Order. */
 export function orderLine(q: SquadView, view: CommanderView): string | null {

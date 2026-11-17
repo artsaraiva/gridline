@@ -5,7 +5,7 @@ import type { Command, CommanderView, MapData, SimEvent, Tune, Vec2 } from './ty
 
 const HZ = DEFAULT_TUNE.hz;
 const AT: Vec2 = { x: 100, y: 50 };
-const ZONE = 40; // the danger zone: shells land within 25 m, and suppress out to 15 m past that
+const ZONE = 80; // the danger zone: shells land within 65 m, and suppress out to 15 m past that
 
 /** Open ground 1200 m across, HQs far out on the flanks, no Capture Points: Soldiers not placed stand at their HQ. */
 const field: MapData = {
@@ -95,13 +95,13 @@ describe('Artillery Barrage: the call', () => {
 });
 
 describe('Artillery Barrage: the shells', () => {
-  it('six shells, seeded within 25 m of the spot: the first lands 10 s + 4 s after the call, the rest over 5 s', () => {
+  it('twelve shells, seeded within 65 m of the spot: the first lands 10 s + 4 s after the call, the rest over 5 s', () => {
     const hits = landings();
-    expect(hits).toHaveLength(6);
+    expect(hits).toHaveLength(12);
     expect(hits[0]!.tick).toBe(14 * HZ);
-    expect(hits[5]!.tick - hits[0]!.tick).toBe(5 * HZ);
-    for (const h of hits) expect(dist(h, AT)).toBeLessThanOrEqual(25);
-    expect(new Set(hits.map((h) => `${h.x},${h.y}`)).size).toBe(6);
+    expect(hits[11]!.tick - hits[0]!.tick).toBe(5 * HZ);
+    for (const h of hits) expect(dist(h, AT)).toBeLessThanOrEqual(65);
+    expect(new Set(hits.map((h) => `${h.x},${h.y}`)).size).toBe(12);
   });
 
   it('the same seed drops them on the same spots, another seed elsewhere', () => {
@@ -116,7 +116,7 @@ describe('Artillery Barrage: the shells', () => {
     const run = play(m, 16 * HZ);
     const air = (i: number) => run.views[i]!.effects!.find((e) => e.asset === 'barrage')!.shells;
     expect(air(9 * HZ)).toEqual([]); // 9 s: nothing has left yet
-    const t0 = 10 * HZ + 10; // the first shell is up, the second (1 s behind it) not yet
+    const t0 = 10 * HZ + 5; // the first shell is up, the second (5/11 s behind it) not yet
     expect(air(t0)).toMatchObject([{ x: first!.x, y: first!.y }]); // launched
     expect(air(t0)[0]!.flight).toBeGreaterThan(0);
     expect(air(t0 + 15)[0]!.flight).toBeGreaterThan(air(t0)[0]!.flight);
@@ -169,7 +169,7 @@ describe('Artillery Barrage: nobody dodges', () => {
     const friend = { x: AT.x + 5, y: AT.y };
     const enemy = { x: AT.x + 20, y: AT.y };
     const run = play(scene({ 0: friend, 6: enemy }, harmless), SHELLS_DONE);
-    expect(impacts(run).length).toBe(6);
+    expect(impacts(run).length).toBe(12);
     for (const v of run.views) expect(dist(pos(v, 0), friend)).toBe(0);
     for (const v of run.pact) expect(dist(pos(v, 6), enemy)).toBe(0);
   });
@@ -205,7 +205,7 @@ describe('Artillery Barrage: Contacts', () => {
     const m = scene();
     const events: SimEvent[] = [];
     for (let i = 0; i < SHELLS_DONE; i++) events.push(...step(m, i === 0 ? [barrage(m)] : []));
-    expect(commanderEvents(m, 'nato', events).filter((e) => e.kind === 'impact')).toHaveLength(6);
+    expect(commanderEvents(m, 'nato', events).filter((e) => e.kind === 'impact')).toHaveLength(12);
     expect(commanderEvents(m, 'pact', events).filter((e) => e.kind === 'impact')).toHaveLength(0);
   });
 });
