@@ -377,6 +377,7 @@ export interface Tune {
   // #110 Jet and AA
   jetsPerSide: number | null; // #154: jets per Side, at the off-map base, each taking off with a pilot (at match start, then a Soldier coming back); null = the map's `jets`; 0 = none
   jetHp: number; // only the AA and the enemy jet hurt it
+  jetCrashM: number; // shot down, it comes down this far on along its heading (less where that would leave the Play Area)
   jetTurnDegPerS: number; // it turns toward where it flies (a mark, home, the enemy jet) this fast; in a dogfight x its pilot's quickness
   jetMps: number; // flight speed, base to point and through every pass
   jetFireM: number; // inbound, the cannon fires from this far short of the point ...
@@ -925,5 +926,10 @@ export type SimEvent =
   | { kind: 'suppressive'; side: SideId; from: number; x: number; y: number; hit: boolean }
   /** #40: a Barrage shell landed at (x, y); `side` called it. #99: or a Cruise Missile (`asset`), #101 a Gunship's shell. #107: or a tank's main gun, fired by vehicle `from`. */
   | { kind: 'impact'; side: SideId; x: number; y: number; asset: 'barrage' | 'missile' | 'tank' | 'bomb' | 'gunship' | 'creep' | 'drone'; from?: number } // #138: or a Creeping Barrage's shell, #139 a Drone Strike
+  /**
+   * A vehicle of `side` was destroyed and its Wreck lies at (x, y), facing (fx, fy). `from` is set when it fell out of the air:
+   * where it was hit (a helicopter falls in place; a jet comes down `jetCrashM` further on). Both Sides' Consoles show it.
+   */
+  | { kind: 'destroyed'; side: SideId; id: number; vehicle: VehicleKind; x: number; y: number; fx: number; fy: number; from?: Vec2 }
   /** #55: `side`'s Commander earned `points` of Commander Score. `reason` is safe to show: it never names a position or an unseen enemy. */
   | { kind: 'award'; side: SideId; category: ScoreCategory; points: number; reason: string };

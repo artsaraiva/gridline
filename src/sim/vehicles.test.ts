@@ -194,7 +194,7 @@ describe('#107 views, slots and the hash', () => {
       disabledUntil: () => (v.disabledUntil = 99),
     });
     hashes(m, {
-      wreck: () => m.wrecks.push({ side: 'nato', kind: 'tank', x: 1, y: 2, fx: 1, fy: 0, seen: false, tick: 0 }),
+      wreck: () => m.wrecks.push({ side: 'nato', kind: 'tank', x: 1, y: 2, fx: 1, fy: 0, id: -1, tick: 0 }),
       vehicle: () => (m.soldiers[1]!.vehicle = 4),
       rockets: () => (m.soldiers[1]!.rockets -= 1),
       crew: () => (m.soldiers[0]!.crew = true), // #129 crew and #130 parachute, per Soldier

@@ -8,8 +8,10 @@ import { COLOR, pool } from '../renderer';
 import { session } from '../session';
 import { targeting } from '../targeting';
 import { aaPose, AA_SHEET } from '../sprites/aa';
+import { turned, turretOf } from '../sprites/destruction';
 import { spriteMesh } from '../sprites/sheet';
 import { iconDim, vehicleIcon } from '../sprites/vehicle-icon';
+import { deathFor } from './destruction';
 import { bar, fading, merge, px, shade } from './symbols';
 
 const Z = { wreck: 0.44, shadow: 0.42, hull: 0.46, turret: 0.47, icon: 0.93 };
@@ -42,12 +44,14 @@ const icons = pool(() => {
   return Object.assign(new THREE.Group().add(frame, top), { hull: frame, turret: top });
 });
 
-/** `scale` is the chevron size in metres (constant on screen), for the icon. */
-export function drawAas(view: CommanderView, scale: number) {
+/** `scale` is the chevron size in metres (constant on screen), for the icon; `now` in milliseconds, for a Wreck's slewing turret. */
+export function drawAas(view: CommanderView, scale: number, now: number) {
   const selected = view.friendlies.filter((f) => f.squad === targeting.selected).map((f) => f.id);
   for (const v of view.vehicles ?? []) {
     if (v.kind !== 'aa') continue;
-    const p = aaPose(v);
+    const death = v.wreck ? deathFor(v) : undefined;
+    const [tx, ty] = death ? turned(v.tx, v.ty, turretOf(death, now).turn) : [v.tx, v.ty]; // a Wreck's turret slews round and stops (sprites/destruction.ts)
+    const p = aaPose({ ...v, tx, ty });
     for (const s of [p.shadow.hull, p.shadow.turret]) {
       const m = shadows.next();
       m.position.set(p.x, p.y, Z.shadow);

@@ -18,7 +18,7 @@ import { between, rnd } from './rng';
 import { hashScore, newScore, type Score } from './score';
 import { hashSoldiers, hashSquads, sign, stageTicks, ticksOf, type Point, type Soldier, type Squad } from './state';
 import { SIDES, type Command, type MapData, type MatchResult, type SideId, type SimEvent, type Tune } from './types';
-import { deployPilots, drive, hashVehicles, newVehicles, type Vehicle, type Wreck } from './vehicles';
+import { deployPilots, drive, hashVehicles, newVehicles, wrecked, type Vehicle, type Wreck } from './vehicles';
 
 export * from './types';
 export { commanderEvents, commanderView } from './view';
@@ -133,6 +133,7 @@ export function step(m: Match, commands: Command[]): SimEvent[] {
   orders(m, events);
   requests(m, events);
   drain(m);
+  wrecked(m, events);
   radio(m, events);
   m.tick++;
   end(m);

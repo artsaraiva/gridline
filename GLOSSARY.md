@@ -117,7 +117,7 @@ How a Soldier leaves a helicopter in the air: they come down over a few seconds,
 _Avoid_: Bail (the helicopter's own job), drop (the Ferry's hot-goal run), fast rope
 
 **Wreck**:
-A destroyed Vehicle's hull, left where it died until its slot gives the Side a fresh one. A Gunship shot down leaves one where it fell.
+A destroyed Vehicle's hull, left where it came to rest until its slot gives the Side a fresh one, and shown to both Sides whether or not the enemy saw it die. A helicopter or Gunship shot down leaves one where it fell; a jet's lies further on along its flight.
 _Avoid_: Debris, corpse, destroyed vehicle (as a thing on the map)
 
 **Launcher**:

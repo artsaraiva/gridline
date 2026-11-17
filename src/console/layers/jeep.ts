@@ -8,8 +8,10 @@ import { COLOR, pool } from '../renderer';
 import { session } from '../session';
 import { targeting } from '../targeting';
 import { spriteMesh } from '../sprites/sheet';
+import { drawnAt, kickOf, turned } from '../sprites/destruction';
 import { JEEP_SHEET, jeepPose } from '../sprites/jeep';
 import { iconDim, vehicleIcon } from '../sprites/vehicle-icon';
+import { deathFor } from './destruction';
 import { bar, merge, px, shade } from './symbols';
 
 const Z = { wreck: 0.44, shadow: 0.42, body: 0.46, icon: 0.93 };
@@ -55,21 +57,25 @@ const icons = pool(() => {
   return Object.assign(m, { top });
 });
 
-/** `scale` is the chevron size in metres (constant on screen), for the icon. */
-export function drawJeeps(view: CommanderView, scale: number) {
+/** `scale` is the chevron size in metres (constant on screen), for the icon; `now` in milliseconds, for a Wreck's kick. */
+export function drawJeeps(view: CommanderView, scale: number, now: number) {
   const selected = view.friendlies.filter((f) => f.squad === targeting.selected).map((f) => f.id);
   for (const v of view.vehicles ?? []) {
     if (v.kind !== 'jeep') continue;
-    const p = jeepPose(v);
+    const death = v.wreck ? deathFor(v) : undefined;
+    const kick = death ? kickOf(death, now) : null; // a Wreck hops and slews as its fuel goes up (sprites/destruction.ts)
+    const [fx, fy] = kick ? turned(v.fx, v.fy, kick.turn) : [v.fx, v.fy];
+    const p = jeepPose({ ...v, fx, fy });
+    const off = kick ? drawnAt(kick) : { x: 0, y: 0 };
     const s = shadows.next();
     s.position.set(p.x, p.y, Z.shadow);
     s.rotation.z = p.shadow.rotation;
     s.scale.setScalar(p.size);
     s.frame.value = p.shadow.frame;
     const b = bodies.next();
-    b.position.set(p.x, p.y, v.wreck ? Z.wreck : Z.body);
+    b.position.set(p.x + off.x, p.y + off.y, v.wreck ? Z.wreck : Z.body);
     b.rotation.z = p.body.rotation;
-    b.scale.setScalar(p.size);
+    b.scale.setScalar(p.size * (kick ? 1 + kick.up / 10 : 1));
     b.frame.value = p.body.frame;
     const role = vehicleIcon(v, session.commanderSide, selected);
     if (role) {

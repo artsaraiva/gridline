@@ -8,6 +8,7 @@ import { resetChevrons } from './layers/chevrons';
 import { resetContacts } from './layers/contacts';
 import { resetRadioLog } from './chrome/radio-log';
 import { resetSquads } from './chrome/squads';
+import { resetDeaths } from './layers/destruction';
 import { resetImpacts } from './layers/impacts';
 import { resetOrders } from './layers/orders';
 import { resetMarkers } from './layers/markers';
@@ -63,6 +64,7 @@ async function startMatch(setup: MatchSetup, map: MapId) {
   resetTracers();
   resetShells();
   resetImpacts();
+  resetDeaths();
   resetOrders();
   resetSquads();
   resetRadioLog();

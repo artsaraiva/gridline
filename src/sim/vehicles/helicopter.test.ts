@@ -213,7 +213,7 @@ describe('#109 the helicopter\'s sight, and being seen', () => {
     expect(lost.at(-1)!.lastKnown).toEqual([]); // gone lkpSeconds later
   });
 
-  it('a Barrage shell hurts it only on the ground; a Cruise Missile destroys it in the air, and the enemy sees the Wreck only when they saw it die', () => {
+  it('a Barrage shell hurts it only on the ground; a Cruise Missile destroys it in the air, and the enemy sees the Wreck whether or not they saw it die', () => {
     const shell = (airborne: boolean) => {
       const m = sky({}, { airborne }, { visionM: 0, barrageCooldownSeconds: 0, barrageShells: 1, barrageSpreadM: 0 });
       play(m, 20 * HZ, 'nato', (m) => (m.tick === 0 ? [{ tick: 0, side: 'pact', kind: 'asset', asset: 'barrage', at: { x: 0, y: 0 } }] : []));
@@ -231,7 +231,7 @@ describe('#109 the helicopter\'s sight, and being seen', () => {
       return views.at(-1)!.vehicles!.find((x) => x.wreck);
     };
     expect(wreck(true)).toMatchObject({ side: 'nato', kind: 'helicopter', x: 0, y: 0 });
-    expect(wreck(false)).toBeUndefined();
+    expect(wreck(false)).toMatchObject({ side: 'nato', kind: 'helicopter', x: 0, y: 0 });
   });
 });
 

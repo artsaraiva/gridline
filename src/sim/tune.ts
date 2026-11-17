@@ -280,6 +280,7 @@ export const DEFAULT_TUNE: Tune = {
   jetHp: 100,
   jetTurnDegPerS: 40,
   jetMps: 120,
+  jetCrashM: 110,
   jetFireM: 200,
   jetFireSeconds: 0.1,
   jetStripM: 15,

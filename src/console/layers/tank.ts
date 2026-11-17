@@ -8,8 +8,10 @@ import { COLOR, metresPerPx, pool } from '../renderer';
 import { session } from '../session';
 import { targeting } from '../targeting';
 import { spriteMesh } from '../sprites/sheet';
+import { drawnAt, turned, turretOf } from '../sprites/destruction';
 import { roundStreak, TANK_SHEET, tankPose } from '../sprites/tank';
 import { iconDim, vehicleIcon } from '../sprites/vehicle-icon';
+import { deathFor } from './destruction';
 import { bar, fading, merge, px, shade, streak } from './symbols';
 
 const Z = { wreck: 0.44, shadow: 0.42, hull: 0.46, turret: 0.47, round: 0.6, icon: 0.93 };
@@ -56,24 +58,28 @@ const icons = pool(() => {
 });
 const rounds = pool(() => new THREE.Mesh(new THREE.PlaneGeometry(1, 1), streak(0xffe6a0)));
 
-/** `scale` is the chevron size in metres (constant on screen), for the icon. */
-export function drawTanks(view: CommanderView, scale: number) {
+/** `scale` is the chevron size in metres (constant on screen), for the icon; `now` in milliseconds, for a Wreck's thrown turret. */
+export function drawTanks(view: CommanderView, scale: number, now: number) {
   const selected = view.friendlies.filter((f) => f.squad === targeting.selected).map((f) => f.id);
   for (const v of view.vehicles ?? []) {
     if (v.kind !== 'tank') continue; // #108: layers/jeep.ts draws jeeps
-    const p = tankPose(v);
-    for (const s of [p.shadow.hull, p.shadow.turret]) {
+    const death = v.wreck ? deathFor(v) : undefined;
+    const thrown = death ? turretOf(death, now) : null; // a Wreck's turret, blown off its hull (sprites/destruction.ts)
+    const [tx, ty] = thrown ? turned(v.tx, v.ty, thrown.turn) : [v.tx, v.ty];
+    const p = tankPose({ ...v, tx, ty });
+    const off = thrown ? drawnAt(thrown) : { x: 0, y: 0 };
+    [p.shadow.hull, p.shadow.turret].forEach((s, i) => {
       const m = shadows.next();
-      m.position.set(p.x, p.y, Z.shadow);
+      m.position.set(p.x + (i && thrown ? thrown.dx : 0), p.y + (i && thrown ? thrown.dy : 0), Z.shadow);
       m.rotation.z = s.rotation;
       m.scale.setScalar(p.size);
       m.frame.value = s.frame;
-    }
+    });
     [p.hull, p.turret].forEach((s, i) => {
       const m = parts.next();
-      m.position.set(p.x, p.y, v.wreck ? Z.wreck + i * 0.005 : i ? Z.turret : Z.hull);
+      m.position.set(p.x + (i ? off.x : 0), p.y + (i ? off.y : 0), v.wreck ? Z.wreck + i * 0.005 : i ? Z.turret : Z.hull);
       m.rotation.z = s.rotation;
-      m.scale.setScalar(p.size);
+      m.scale.setScalar(p.size * (i && thrown ? 1 + thrown.up / 25 : 1));
       m.frame.value = s.frame;
     });
     const role = vehicleIcon(v, session.commanderSide, selected);

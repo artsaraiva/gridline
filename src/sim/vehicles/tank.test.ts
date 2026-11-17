@@ -68,7 +68,7 @@ describe('#107 where its driver takes it', () => {
       const p = m.points[goal]!;
       const foes = m.vehicles.filter((o) => o.side === 'pact' && o.kind === 'tank');
       expect(foes.length).toBeGreaterThan(1);
-      if (tune.tankWreckPenalty) m.wrecks.push({ side: 'nato', kind: 'tank', x: p.x, y: p.y, fx: 1, fy: 0, seen: false, tick: m.tick });
+      if (tune.tankWreckPenalty) m.wrecks.push({ side: 'nato', kind: 'tank', x: p.x, y: p.y, fx: 1, fy: 0, id: -1, tick: m.tick });
       else foes.forEach((o) => sq.memory.push({ id: o.id, x: p.x, y: p.y, tick: m.tick, source: 'seen' }));
       expect(tank.goal!(m, sq, s, v)).not.toBe(goal);
     }

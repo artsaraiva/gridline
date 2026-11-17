@@ -58,11 +58,13 @@ export interface ImpactRecord {
   seed: number;
   /** #99: what landed; only a shell leaves a streak (layers/shells.ts). */
   asset: ImpactAsset;
+  /** A blast that is not a munition's (a vehicle blowing up, sprites/destruction.ts): its size as a fraction of a shell's, in place of the asset's; it leaves no plume. */
+  size?: number;
 }
 
 /** Records an impact at `at` ms, dropping the oldest past CRATER_CAP. Returns `list`. */
-export function recordImpact(list: ImpactRecord[], x: number, y: number, at: number, asset: ImpactAsset): ImpactRecord[] {
-  list.push({ x, y, at, seed: (list.at(-1)?.seed ?? -1) + 1, asset });
+export function recordImpact(list: ImpactRecord[], x: number, y: number, at: number, asset: ImpactAsset, size?: number): ImpactRecord[] {
+  list.push({ x, y, at, seed: (list.at(-1)?.seed ?? -1) + 1, asset, ...(size !== undefined && { size }) });
   if (list.length > CRATER_CAP) list.splice(0, list.length - CRATER_CAP);
   return list;
 }
@@ -188,7 +190,7 @@ function blast(i: ImpactRecord, age: number, e: number, heavy: boolean) {
 /** What one impact shows at `now` ms: the explosion flipbook, then a drifting, fading plume, and a crater that stays. */
 export function impactLook(i: ImpactRecord, now: number): ImpactLook {
   const heavy = i.asset === 'missile';
-  const light = i.asset === 'creep' ? CREEP_SIZE : i.asset === 'drone' ? DRONE_SIZE : 1;
+  const light = i.size ?? (i.asset === 'creep' ? CREEP_SIZE : i.asset === 'drone' ? DRONE_SIZE : 1);
   const big = heavy ? MISSILE_SIZE : light;
   const hold = heavy ? MISSILE_HOLD : 1;
   const flashMs = EXPLOSION_MS * hold;
@@ -201,7 +203,7 @@ export function impactLook(i: ImpactRecord, now: number): ImpactLook {
   const explosionSize = big * EXPLOSION_WORLD_M * (0.9 + 0.2 * r);
   const explosion = frame < EXPLOSION_FRAMES ? { x: i.x, y: i.y, size: explosionSize, frame, flip: !flip, opacity: Math.min(1, (flashMs - age) / handoverMs) } : null;
   const plume: ImpactSprite[] = [];
-  if (age < SMOKE_FADE_MS) {
+  if (age < SMOKE_FADE_MS && i.size === undefined) { // a vehicle's blast leaves no plume: its Wreck burns under its own black smoke
     const s = age / 1000;
     const fadeIn = Math.max(0, Math.min(1, (age - (flashMs - handoverMs)) / handoverMs));
     const life = age / SMOKE_FADE_MS;

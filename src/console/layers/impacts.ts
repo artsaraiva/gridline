@@ -34,7 +34,7 @@ export const resetImpacts = () => {
   impacts.length = 0;
 };
 
-export const addImpact = (x: number, y: number, now: number, asset: ImpactAsset) => recordImpact(impacts, x, y, now, asset);
+export const addImpact = (x: number, y: number, now: number, asset: ImpactAsset, size?: number) => recordImpact(impacts, x, y, now, asset, size);
 /** When the latest impact of `asset` landed, in ms; -Infinity before the first. */
 export const lastImpactAt = (asset: ImpactAsset) => impacts.filter((i) => i.asset === asset).at(-1)?.at ?? -Infinity;
 /** The impacts of `asset` in the last `ms` ms, oldest first. */

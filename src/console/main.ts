@@ -9,6 +9,7 @@ import { drawRail, drawScoreFeed, showAward, toastEvent } from './chrome/rail';
 import { drawSquads } from './chrome/squads';
 import { drawChevrons, pulse } from './layers/chevrons';
 import { drawLastKnown } from './layers/contacts';
+import { addDeath, drawDestruction } from './layers/destruction';
 import { drawEffects, hideEffectLabels } from './layers/effects';
 import { drawGrid } from './layers/grid';
 import { addImpact, drawImpacts } from './layers/impacts';
@@ -68,6 +69,7 @@ renderer.setAnimationLoop(() => {
   const events = host.takeEvents();
   for (const e of events) {
     if (e.kind === 'death') addDeathMarker(e.x, e.y, e.side, now);
+    else if (e.kind === 'destroyed') addDeath(e, now);
     else if (e.kind === 'impact') {
       addImpact(e.x, e.y, now, e.asset);
       if (e.asset === 'missile') flare(0.2); // the feed over-exposes for a moment under a Cruise Missile
@@ -90,6 +92,7 @@ renderer.setAnimationLoop(() => {
   showRadioLog(true);
   drawRadioLog(now);
   drawGrid(view);
+  drawDestruction(now); // before the impacts: it sets off each death's blasts
   drawImpacts(now);
   drawSmokeScreens(view);
   drawEffects(view, now);
@@ -103,10 +106,10 @@ renderer.setAnimationLoop(() => {
   drawDrones(view, scale);
   drawRecons(view, scale, now);
   drawEmps(view, scale, now);
-  drawTanks(view, scale);
-  drawJeeps(view, scale);
+  drawTanks(view, scale, now);
+  drawJeeps(view, scale, now);
   drawHelicopters(view, scale, now);
-  drawAas(view, scale);
+  drawAas(view, scale, now);
   drawJets(view, scale, now);
   drawAirMissiles(view, scale);
   drawOrders(view, metresPerPx.value);

@@ -469,8 +469,7 @@ export function vehicleViews(m: Match, side: SideId, seen: Set<number>): Vehicle
     const missiles = v.missiles.map(({ x, y, fx, fy }) => ({ x, y, fx, fy }));
     views.push({ ...base, ...(v.side === side && { hp: v.hp / SPECS[v.kind].hp(m.tune), seats: [...v.seats] }), ...(rounds.length && { rounds }), ...(missiles.length && { missiles }), ...(v.seats.every((id) => id < 0) && { empty: true }), ...(v.airborne && { airborne: true }), ...(held(m, v) && { disabled: true as const }) });
   }
-  for (const w of m.wrecks)
-    if (w.side === side || w.seen) views.push({ id: -1, side: w.side, kind: w.kind, x: w.x, y: w.y, fx: w.fx, fy: w.fy, tx: w.fx, ty: w.fy, wreck: true });
+  for (const w of m.wrecks) views.push({ id: -1, side: w.side, kind: w.kind, x: w.x, y: w.y, fx: w.fx, fy: w.fy, tx: w.fx, ty: w.fy, wreck: true });
   return views;
 }
 
@@ -486,5 +485,5 @@ export function hashVehicles(m: Match, mix: Mix) {
     rulesOf(v.kind).hash(v, mix);
   }
   mix(m.wrecks.length);
-  for (const w of m.wrecks) for (const n of [Math.round(w.x * 1000), Math.round(w.y * 1000), +w.seen, w.tick]) mix(n);
+  for (const w of m.wrecks) for (const n of [Math.round(w.x * 1000), Math.round(w.y * 1000), w.id, Math.round((w.from?.x ?? 0) * 1000), Math.round((w.from?.y ?? 0) * 1000), +!!w.from, w.tick]) mix(n);
 }
