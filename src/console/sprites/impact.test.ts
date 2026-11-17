@@ -105,20 +105,17 @@ describe('shell impact: explosion, drifting plume and lasting crater', () => {
     expect(impactLook(i, 2600).embers).toEqual([]);
   });
 
-  it('leaves a scorch that stays and a heat in it that cools, and kicks the camera only at the start', () => {
+  it('leaves a scorch that stays and a heat in it that cools', () => {
     const i = hit();
     expect(impactLook(i, 1000).heat!.opacity).toBeGreaterThan(impactLook(i, 2000).heat!.opacity);
     expect(impactLook(i, 2500).heat).toBeNull();
     expect(impactLook(i, 30 * 60 * 1000).scorch).toEqual(impactLook(i, 1000).scorch);
-    expect(impactLook(i, 0).kick).toBe(1);
-    expect(impactLook(i, 250).kick).toBe(0);
   });
 
-  it('a Cruise Missile hit throws two shock rings and more debris, kicks longer, and leaves fires burning in the crater', () => {
+  it('a Cruise Missile hit throws two shock rings and more debris, and leaves fires burning in the crater', () => {
     const missile = recordImpact([], 50, -50, 0, 'missile').at(-1)!;
     expect(impactLook(missile, 200).rings).toHaveLength(2);
     expect(impactLook(missile, 100).debris.length).toBeGreaterThan(impactLook(hit(), 100).debris.length);
-    expect(impactLook(missile, 300).kick).toBeGreaterThan(0);
     expect(impactLook(missile, 2000).fires.length).toBeGreaterThan(0);
     expect(impactLook(hit(), 2000).fires).toEqual([]);
     expect(impactLook(missile, 8000).fires).toEqual([]);

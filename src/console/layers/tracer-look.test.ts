@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { FLASH_HOT_MS, FLASH_MS, flashAt, flightMs, KICK_MS, landing, puffAt, ROUND_LENGTH_M, ROUND_MPS, roundAt, sparkAt } from './tracer-look';
+import { flightMs, KICK_MS, landing, puffAt, ROUND_LENGTH_M, ROUND_MPS, roundAt, roundLength, roundOf, sparkAt } from './tracer-look';
 
-describe('a shot: a round that flies, a muzzle flash, and what the round kicks up', () => {
+describe('a shot: a round that flies, and what it kicks up', () => {
   const from = { x: 0, y: 0 };
   const to = { x: 84, y: 0 };
 
@@ -15,11 +15,17 @@ describe('a shot: a round that flies, a muzzle flash, and what the round kicks u
     expect(roundAt(from, to, flightMs(from, to) + 1)).toBeNull();
   });
 
-  it('flashes hot for a frame, then smaller, its light fading out with it', () => {
-    expect(flashAt(0)).toEqual({ size: 1, light: 1 });
-    expect(flashAt(FLASH_HOT_MS)!.size).toBeLessThan(1);
-    expect(flashAt(FLASH_MS - 1)!.light).toBeLessThan(0.05);
-    expect(flashAt(FLASH_MS)).toBeNull();
+  it('sizes and speeds the round by who fired it', () => {
+    expect(roundOf('foot')).toEqual({ size: 0.85, mps: ROUND_MPS });
+    expect(roundOf('tank').size).toBe(0.8); // a tank's machine gun never hides its main gun's round
+    expect(roundOf('jet').size).toBe(0.8);
+    expect(roundOf('helicopter')).toMatchObject({ size: 0.9 });
+    expect(roundOf('helicopter').mps).toBeGreaterThan(ROUND_MPS * 2);
+    expect(roundOf('aa').mps).toBeGreaterThan(roundOf('helicopter').mps);
+    expect(roundOf('jeep')).toEqual({ size: 1, mps: ROUND_MPS });
+    expect(flightMs(from, to, roundOf('aa').mps)).toBeLessThan(flightMs(from, to) / 2);
+    expect(roundLength(roundOf('aa'))).toBeGreaterThan(roundLength(roundOf('foot')));
+    expect(roundAt(from, to, 50, 12, 840)!.head.x).toBeCloseTo(42);
   });
 
   it('throws sparks back toward the shooter on a hit', () => {
@@ -37,11 +43,11 @@ describe('a shot: a round that flies, a muzzle flash, and what the round kicks u
   });
 
   it('swells and fades a puff, and runs a spark out along its heading', () => {
-    const young = puffAt('dust', 50)!;
-    const old = puffAt('dust', KICK_MS.dust - 50)!;
+    const young = puffAt(50)!;
+    const old = puffAt(KICK_MS.dust - 50)!;
     expect(old.radius).toBeGreaterThan(young.radius);
     expect(old.opacity).toBeLessThan(young.opacity);
-    expect(puffAt('dust', KICK_MS.dust)).toBeNull();
+    expect(puffAt(KICK_MS.dust)).toBeNull();
     const spark = landing(to, 0, true, 0, () => 0.5)[0]!;
     expect(sparkAt(spark, 100)!.head).toBeGreaterThan(sparkAt(spark, 50)!.head);
     expect(sparkAt(spark, KICK_MS.spark)).toBeNull();

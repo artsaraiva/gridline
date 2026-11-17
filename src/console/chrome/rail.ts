@@ -1,11 +1,12 @@
 // The score strip top-centre (Capture Point badges with capture arcs between the two Sides' Tickets and bars, the clock
-// under them, a mark on the Side that is draining), the contribution messages under the Asset keypad (#72), and right-side
+// under them, a mark on the Side that is draining), the score feed low on the map's centre (#72), and right-side
 // toasts on major radio events. `chrome/assets.ts` owns the Asset keypad itself.
 import { DEFAULT_TUNE } from '../../sim/tune';
 import type { CommanderView, PointView, SideId, SimEvent } from '../../sim/types';
 import { PAD_SIZE } from '../pad';
 import { session } from '../session';
-import { awardLine, clock, drainingSide, FACTION } from '../summary';
+import { addAward, type FeedAward, feedLook } from '../score-feed';
+import { clock, drainingSide, FACTION } from '../summary';
 import { POINT_FRAME } from './icons';
 
 /** Chrome geometry in px, which frames the map (`fitView`) and places its grid labels. `console.css` sizes the same boxes:
@@ -16,7 +17,14 @@ export const LAYOUT = { margin: 16, pad: PAD_SIZE, column: 40, squadRail: 56, ga
 
 const rail = document.getElementById('rail')!;
 const score = document.getElementById('score')!;
-const awards = document.getElementById('awards')!;
+const feed = document.body.appendChild(document.createElement('div'));
+feed.id = 'feed';
+feed.hidden = true;
+feed.innerHTML = '<div class="tot"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 22 15H15.5V21H8.5V15H2Z"/></svg><span></span></div><i class="rule"></i><div class="why"></div>';
+const feedTotal = feed.querySelector('span')!;
+const feedWhy = feed.querySelector<HTMLElement>('.why')!;
+/** The awards of the score feed's open total, oldest first. */
+const awarded: FeedAward[] = [];
 const toastEl = document.getElementById('toast')!;
 const toastTitle = toastEl.querySelector('div')!;
 const toastSub = toastEl.querySelector('small')!;
@@ -44,14 +52,22 @@ export function showToast(title: string, sub: string) {
   toastEl.classList.add('show');
 }
 
-/** #72: shows an award as a contribution message under the Asset keypad (#181: below its Confirm row while one shows) for a few seconds. */
-export function showAward(e: SimEvent, view: CommanderView) {
-  const line = awardLine(e, view);
-  if (!line) return;
-  const row = awards.appendChild(document.createElement('div'));
-  row.className = 'award';
-  row.textContent = line;
-  row.onanimationend = () => row.remove();
+/** #72: adds an own-Side award to the score feed. */
+export function showAward(e: SimEvent, view: CommanderView, now: number) {
+  if (e.kind === 'award' && e.side === view.side) addAward(awarded, { at: now, points: e.points, reason: e.reason });
+}
+
+/** Draws the score feed at `now` ms: the running total over its reasons, or nothing once it has lifted away. */
+export function drawScoreFeed(now: number) {
+  const look = feedLook(awarded, now);
+  feed.hidden = !look;
+  if (!look) return;
+  feed.style.opacity = String(look.opacity);
+  feed.style.transform = `translateY(${-look.lift}px)`;
+  feedTotal.textContent = String(look.total);
+  feedTotal.parentElement!.style.transform = `scale(${look.scale})`;
+  const html = look.lines.map((l) => `<div><span>${l.reason}</span>${l.times > 1 ? `<i>×${l.times}</i>` : ''}<b>${l.points}</b></div>`).join('');
+  if (feedWhy.dataset.h !== html) feedWhy.innerHTML = feedWhy.dataset.h = html;
 }
 
 /** Fires a toast on notable own-Side radio events (Asset called, point captured/lost, Squad wiped, Request). */
@@ -75,7 +91,8 @@ export function drawRail(view: CommanderView | null) {
   if (!view) {
     toastEl.hidden = true;
     toastEl.classList.remove('show');
-    awards.replaceChildren();
+    awarded.length = 0;
+    feed.hidden = true;
     return;
   }
   const { commanderSide: us, enemySide: them } = session;

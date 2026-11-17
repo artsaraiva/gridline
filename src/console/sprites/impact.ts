@@ -1,7 +1,7 @@
 // A Barrage shell's impact (#62): the baked explosion flipbook and crater decal, and what one impact shows as it ages.
 // A Cruise Missile's (#99) is the same, bigger and held longer; a Creeping Barrage shell's (#138) and a Drone Strike's (#139) the same, smaller.
 // Round the flipbook sit the layers that make it a blast: a white flash and the light it throws on the ground, a shock
-// ring, debris and embers, dust rolling out, a scorch whose heat cools, and a short kick of the camera.
+// ring, debris and embers, dust rolling out, and a scorch whose heat cools.
 // layers/impacts.ts draws it. Crater cap and smoke fade are Console constants, not Simulation Tune values: they only
 // change the look, and the Console has no Tune of its own.
 import type { SimEvent } from '../../sim/types';
@@ -118,15 +118,13 @@ export interface ImpactLook {
   embers: ImpactGlow[];
   /** A missile only: small fires that burn on in the crater. */
   fires: ImpactGlow[];
-  /** How hard the camera is kicked now, 1 at the impact falling to 0. */
-  kick: number;
 }
 
 const hash = (n: number) => Math.abs(Math.sin(n * 12.9898 + 78.233) * 43758.5453) % 1;
 
 /** Console look: how long each blast layer lasts for a shell, in ms, and how many pieces it throws; a missile's follow. Judged by eye in the review scene. */
-const BLAST = { flash: 90, light: 280, ring: 380, dust: 1300, heat: 2500, kick: 250, debris: 16, embers: 8 };
-const HEAVY = { flash: 140, light: 500, ring: 550, dust: 2600, heat: 4000, kick: 500, debris: 34, embers: 14 };
+const BLAST = { flash: 90, light: 280, ring: 380, dust: 1300, heat: 2500, debris: 16, embers: 8 };
+const HEAVY = { flash: 140, light: 500, ring: 550, dust: 2600, heat: 4000, debris: 34, embers: 14 };
 /** A missile's second shock ring leaves this long after the first. */
 const RING_GAP_MS = 90;
 const FIRES = 4;
@@ -184,7 +182,6 @@ function blast(i: ImpactRecord, age: number, e: number, heavy: boolean) {
     debris,
     embers,
     fires,
-    kick: left(t.kick),
   };
 }
 

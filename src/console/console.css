@@ -4,11 +4,18 @@
   --bone: #e8e2c8; --bone-dim: rgba(232, 226, 200, 0.55); --bone-faint: rgba(232, 226, 200, 0.22); --bone-hover: rgba(232, 226, 200, 0.12);
   --friendly: #6fd0ff; --hostile: #ff4b3e; --fr: var(--friendly); --ho: var(--hostile); --faint: var(--bone-faint); --amber: #ffc23d; --ink: #05090b; --panel: rgba(5, 9, 11, 0.74);
   --font: 'Chakra Petch', ui-monospace, monospace;
-  --rgb-split: -1px 0 rgba(255, 40, 60, 0.35), 1px 0 rgba(40, 220, 255, 0.35);
+  /* Chrome text is clean: the feed's fringe stays on the map (post.ts) and, faintly, on the HUD canvas. */
+  --rgb-split: none;
+  /* A chrome cell is glass over the map: the panel fill, a blur of what is under it, a lit top edge. `--lift` is the soft
+     shadow that lifts a panel off the map; cells that sit in a group share one, the lone ones each carry it. Light is
+     kept for what is live: an Asset at work, the armed cell, the Confirm buttons, the selected Squad. */
+  --glass: blur(10px) saturate(1.15);
+  --edge: inset 0 1px 0 rgba(232, 226, 200, 0.07);
+  --lift: 0 10px 28px rgba(0, 0, 0, 0.38);
 }
 html, body { margin: 0; height: 100%; overflow: hidden; background: var(--ink); font: 500 13px/1.3 var(--font); font-variant-numeric: tabular-nums; letter-spacing: 0.02em; color: var(--bone); }
 canvas { display: block; touch-action: none; }
-#hud { position: fixed; inset: 0; pointer-events: none; filter: drop-shadow(-1px 0 rgba(255, 40, 60, 0.45)) drop-shadow(1px 0 rgba(40, 220, 255, 0.45)) drop-shadow(0 0 5px rgba(120, 210, 255, 0.3)); }
+#hud { position: fixed; inset: 0; pointer-events: none; filter: drop-shadow(-1px 0 rgba(255, 40, 60, 0.16)) drop-shadow(1px 0 rgba(40, 220, 255, 0.16)) drop-shadow(0 0 5px rgba(120, 210, 255, 0.26)); }
 .fr { color: var(--fr); }
 .ho { color: var(--ho); }
 @keyframes blink { 50% { opacity: 0; } }
@@ -37,6 +44,62 @@ canvas { display: block; touch-action: none; }
 .screen button:hover, .screen button:focus-visible { background: rgba(232, 226, 200, 0.12); }
 .screen .row { display: flex; gap: 8px; }
 
+/* The setup screen: a column on the left over the picked map (`--map`, set by match-flow.ts), which fades out under it.
+   The wordmark over a rule in the two Sides' colours, the faction as two cards (the picked one is your Side, so it takes the
+   friendly colour and frame, the other the enemy's), the two selects, and the one solid bone button that starts the match. */
+#setup {
+  inset: 0; transform: none; min-width: 0; border: 0; padding: 0 24px 0 clamp(24px, 6.6vw, 96px); justify-content: center; gap: 26px;
+  background: var(--ink); isolation: isolate; overflow: hidden;
+}
+#setup > * { width: min(440px, 100%); box-sizing: border-box; }
+#setup::before { content: ''; position: absolute; inset: 0; z-index: -2; background: var(--map) 80% 50% / auto 135% no-repeat; filter: grayscale(0.88) brightness(0.66) contrast(1.22); }
+#setup::after {
+  content: ''; position: absolute; inset: 0; z-index: -1;
+  background: linear-gradient(90deg, var(--ink) 0, var(--ink) 30%, rgba(5, 9, 11, 0.55) 52%, rgba(5, 9, 11, 0.1) 75%, rgba(5, 9, 11, 0.5) 100%), linear-gradient(rgba(24, 52, 70, 0.22), rgba(24, 52, 70, 0.22));
+}
+#setup h1 { font-size: 64px; line-height: 1; letter-spacing: 0.18em; }
+#setup .rule { height: 4px; margin-top: -12px; background: linear-gradient(90deg, var(--fr) 0 49.6%, transparent 49.6% 50.4%, var(--ho) 50.4%); }
+#setup legend, #setup > label { font-size: 11px; letter-spacing: 0.16em; color: var(--bone-dim); opacity: 1; }
+#setup fieldset { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+#setup legend { padding: 0 0 10px; }
+#setup fieldset label {
+  position: relative; min-height: 72px; padding: 0 16px; gap: 14px; font-size: 17px; letter-spacing: 0.1em; color: var(--bone);
+  background: var(--panel); border: 1px solid var(--faint); -webkit-backdrop-filter: var(--glass); backdrop-filter: var(--glass); box-shadow: var(--edge);
+}
+#setup fieldset input { position: absolute; opacity: 0; }
+#setup fieldset label:has(:focus-visible) { outline: 1px solid var(--bone); }
+#setup fieldset span { display: grid; gap: 4px; }
+#setup fieldset small { font-size: 10px; letter-spacing: 0.14em; color: var(--bone-dim); }
+#setup fieldset small::after { content: 'Enemy'; }
+#setup .frame { flex: none; width: 18px; height: 18px; border: 2px solid var(--ho); rotate: 45deg; scale: 0.82; } /* the enemy's diamond */
+#setup fieldset label:has(:checked) { color: var(--fr); border-color: var(--fr); background: rgba(111, 208, 255, 0.1); box-shadow: var(--edge), 0 0 22px rgba(111, 208, 255, 0.18); }
+#setup fieldset label:has(:checked) .frame { border-color: var(--fr); rotate: none; scale: 1; } /* your own square */
+#setup fieldset label:has(:checked) small::after { content: 'Your Side'; }
+#setup > label { display: grid; gap: 8px; cursor: default; }
+#setup select { width: 100%; min-height: 44px; font-size: 15px; letter-spacing: 0.08em; color: var(--bone); background: var(--panel); border-color: var(--faint); -webkit-backdrop-filter: var(--glass); backdrop-filter: var(--glass); }
+#setup button, #end-new {
+  min-height: 56px; padding: 0 20px; text-align: left; font-size: 16px; font-weight: 700; letter-spacing: 0.16em; text-shadow: none;
+  color: var(--ink); background: var(--bone); border: 0; box-shadow: 0 0 0 3px rgba(232, 226, 200, 0.14), 0 0 28px rgba(232, 226, 200, 0.22);
+}
+#setup button:is(:hover, :focus-visible), #end-new:is(:hover, :focus-visible) { background: #fff8de; }
+
+/* The end screen: the result in its Side's colour, why, the Tickets, then the Commander Score with a bar for each row. */
+#end { width: min(720px, calc(100vw - 32px)); box-sizing: border-box; padding: 40px 48px; gap: 22px; -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); box-shadow: var(--edge), 0 24px 60px rgba(0, 0, 0, 0.5); }
+#end h1 { font-size: 72px; line-height: 0.9; letter-spacing: 0.14em; }
+#end[data-result='victory'] h1 { color: var(--fr); text-shadow: 0 0 34px rgba(111, 208, 255, 0.45); }
+#end[data-result='defeat'] h1 { color: var(--ho); text-shadow: 0 0 34px rgba(255, 75, 62, 0.45); }
+#end-reason { text-transform: none; letter-spacing: 0.1em; color: rgba(232, 226, 200, 0.85); }
+#end dl { grid-template-columns: max-content 1fr; gap: 8px 24px; align-items: center; }
+#end dt { font-size: 11px; letter-spacing: 0.16em; color: var(--bone-dim); }
+#end dd { font-size: 16px; }
+#end-score dd:first-of-type { font-size: 40px; line-height: 0.9; color: var(--amber); text-shadow: 0 0 28px rgba(255, 194, 61, 0.35); }
+#end-score dd.sub { display: flex; align-items: center; gap: 14px; font-size: 13px; color: var(--bone); }
+#end-score dd.sub i { flex: 1; height: 4px; background: linear-gradient(90deg, var(--bone) var(--w), rgba(232, 226, 200, 0.14) var(--w)); }
+#end-score dd.sub b { min-width: 4ch; font-weight: 600; }
+#end .row { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+#end .row button { min-height: 52px; letter-spacing: 0.14em; }
+#end-new { font-size: 14px; }
+
 /* Asset keypad (#181; the Asset rail since #37), top-left: 48 px cells in three bands that mirror the keyboard's rows (Q to
    T, A to G, Z to B), each band under a 12 px ruler naming its categories over the cells they span (pad.ts lays them out:
    256 × 212). A cell has its hotkey in the corner and the Asset's icon, lifted when a timer, count, keystone frame or Grid
@@ -58,24 +121,27 @@ canvas { display: block; touch-action: none; }
 #assets .ruler b { font-size: 9.5px; font-weight: 600; line-height: 1; letter-spacing: 0.1em; color: var(--bone-dim); white-space: nowrap; }
 #assets .ruler i { flex: 1; min-width: 0; height: 4px; margin-bottom: 1px; border: solid var(--faint); border-width: 1px 1px 0 0; } /* the hairline bracket to the end of the span */
 #assets .cells { display: flex; gap: 4px; }
-.cell { position: relative; flex: none; width: 48px; height: 48px; box-sizing: border-box; margin: 0; background: var(--panel); border: 1px solid var(--faint); border-radius: 0; }
-.cell .key { position: absolute; left: 2px; top: 2px; font-size: 9px; font-weight: 700; line-height: 1; color: var(--bone-dim); }
+.cell { position: relative; flex: none; width: 48px; height: 48px; box-sizing: border-box; margin: 0; background: var(--panel); border: 1px solid var(--faint); border-radius: 0; -webkit-backdrop-filter: var(--glass); backdrop-filter: var(--glass); box-shadow: var(--edge); }
+/* the hotkey sits on a small keycap */
+.cell .key { position: absolute; left: 3px; top: 3px; min-width: 11px; height: 11px; font-size: 8.5px; font-weight: 700; line-height: 11px; text-align: center; color: rgba(232, 226, 200, 0.78); background: rgba(232, 226, 200, 0.1); }
 .cell .ico { position: absolute; left: 11px; top: 11px; width: 24px; height: 24px; }
 .cell .ico svg { display: block; width: 24px; height: 24px; }
 .cell.lift .ico { top: 5px; }
 .cell .slot { position: absolute; left: 0; right: 0; bottom: 6px; display: flex; justify-content: center; gap: 2px; font-size: 10.5px; font-weight: 600; line-height: 1; color: var(--bone-dim); }
 .cell .slot svg { width: 15px; height: 15px; overflow: visible; } /* a gated cell's keystone frames */
-.cell .bar { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--bone-dim); }
+.cell .bar { position: absolute; left: 0; bottom: 0; height: 2px; background: var(--bone-dim); }
 .cell:is(:hover, :focus-visible):not(.armed, .held) { background-image: linear-gradient(var(--bone-hover), var(--bone-hover)); }
 .cell:is(.cooling, .off) .ico { opacity: 0.42; }
 .cell.off { cursor: default !important; }
 .cell.off.lift .ico { top: 4px; }
 .cell.off .slot { bottom: 5px; }
 .cell.off .bar { background: var(--faint); } /* its cooldown keeps draining */
+.cell.active { border-color: rgba(111, 208, 255, 0.5); }
 .cell.active .slot { color: var(--fr); }
-.cell.active .bar { background: var(--fr); }
-#assets .cell.armed { background: var(--bone); border-color: var(--bone); color: var(--ink); text-shadow: none; } /* over `#assets button`'s bone */
-.cell.armed :is(.key, .slot) { color: var(--ink); }
+.cell.active .bar { background: var(--fr); box-shadow: 0 0 8px var(--fr); }
+#assets .cell.armed { background: var(--bone); border-color: var(--bone); color: var(--ink); text-shadow: none; box-shadow: 0 0 0 3px rgba(232, 226, 200, 0.16), 0 0 22px rgba(232, 226, 200, 0.28); } /* over `#assets button`'s bone */
+.cell.armed .slot { color: var(--ink); }
+.cell.armed .key { color: var(--bone); background: var(--ink); }
 .cell.armed .slot { font-weight: 700; }
 .cell.armed .key { animation: blink 1s steps(1) infinite; }
 .cell.armed .bar { display: none; }
@@ -83,11 +149,11 @@ canvas { display: block; touch-action: none; }
   content: ''; position: absolute; top: -1px; right: -1px; width: 10px; height: 10px;
   background: linear-gradient(225deg, var(--amber) 50%, transparent 50%); animation: blink 1s steps(1) infinite;
 }
-.cell.held { background: rgba(5, 9, 11, 0.5); border-style: dashed; } /* a slot held for an Asset or standing action yet to ship */
-.cell.held .key { color: var(--faint); }
+.cell.held { background: rgba(5, 9, 11, 0.5); border-style: dashed; box-shadow: none; } /* a slot held for an Asset or standing action yet to ship */
+.cell.held .key { color: var(--faint); background: none; }
 .cell.mark .ico text { fill: var(--ink); font-family: var(--font); } /* #136: the "?" cut out of the diamond */
 .cell.mark.armed .ico text { fill: var(--bone); }
-#assets .readout { height: 28px; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 10px; background: var(--panel); border: 1px solid var(--faint); white-space: nowrap; }
+#assets .readout { height: 28px; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 10px; background: var(--panel); border: 1px solid var(--faint); white-space: nowrap; -webkit-backdrop-filter: var(--glass); backdrop-filter: var(--glass); box-shadow: var(--edge), var(--lift); }
 #assets .readout .nm { font-size: 12.5px; }
 #assets .readout .st { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--bone-dim); }
 #assets .readout .st.rq { color: var(--amber); } /* an open Request's Squad and Grid Reference */
@@ -96,13 +162,25 @@ canvas { display: block; touch-action: none; }
 #assets .readout[hidden], .cfrow[hidden] { display: none; }
 #assets .cfrow button { border: 0; background: var(--ho); color: var(--ink); font-weight: 700; font-size: 13px; letter-spacing: 0.1em; text-shadow: none; min-height: 36px; }
 #assets .cfrow .cf { flex: 1; display: flex; white-space: nowrap; gap: 8px; justify-content: space-between; align-items: center; padding: 0 12px; }
-#assets .cfrow .cf:disabled { opacity: 0.6; cursor: default; }
-#assets .cfrow .cx { width: 36px; }
+#assets .cfrow .cf { box-shadow: 0 0 0 3px rgba(255, 75, 62, 0.18), 0 0 22px rgba(255, 75, 62, 0.35); } /* the one red glow on screen: the commit */
+#assets .cfrow .cf:disabled { opacity: 0.6; cursor: default; box-shadow: none; }
+#assets .cfrow .cx { width: 36px; background: var(--panel); color: var(--ho); border: 1px solid rgba(255, 75, 62, 0.7); -webkit-backdrop-filter: var(--glass); backdrop-filter: var(--glass); }
 .cfrow small, #confirm small { font-size: 11px; font-weight: 600; opacity: 0.8; text-transform: none; letter-spacing: 0.04em; }
-/* #72: the contribution messages that briefly stack under the keypad (#181: below its Confirm row while one shows) */
-#awards { display: grid; gap: 4px; pointer-events: none; }
-.award { padding: 5px 12px; font-size: 13px; letter-spacing: 0.06em; color: var(--amber); background: var(--panel); border: 1px solid var(--faint); text-transform: none; animation: toast 4.5s forwards; }
-@media (prefers-reduced-motion: reduce) { .award { animation-duration: 0.01s; animation-delay: 4.5s; } }
+/* #72: the score feed, low on the map's centre over the cursor readout: an up arrow and the running total of the awards that
+   landed close together, a rule, and under it their reasons, the newest on top (score-feed.ts says how they add up). */
+#feed {
+  position: fixed; left: 50%; bottom: 76px; display: flex; flex-direction: column; align-items: center; gap: 7px; pointer-events: none;
+  font: 600 13px/1.2 var(--font); font-variant-numeric: tabular-nums; color: var(--bone); translate: -50% 0;
+}
+#feed[hidden] { display: none; }
+#feed .tot { display: flex; align-items: center; gap: 10px; font-size: 46px; line-height: 0.9; color: var(--amber); text-shadow: 0 0 26px rgba(255, 194, 61, 0.45); }
+#feed .tot svg { width: 22px; height: 22px; fill: currentColor; }
+#feed .rule { width: 160px; height: 1px; background: linear-gradient(90deg, transparent, rgba(255, 194, 61, 0.8), transparent); }
+#feed .why { display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 60px; }
+#feed .why div { display: flex; gap: 12px; padding: 1px 10px; background: rgba(5, 9, 11, 0.62); letter-spacing: 0.1em; white-space: nowrap; }
+#feed .why div:not(:first-child) { opacity: 0.72; }
+#feed .why i { font-style: normal; color: var(--bone-dim); }
+#feed .why b { color: var(--amber); font-weight: 700; }
 
 /* Score strip, top-centre: each Side's Tickets and bar either side of the Capture Point badges, the clock under them. A
    blinking amber mark follows the Tickets of the Side that is draining. #147: it is centred between equal insets that hold
@@ -112,7 +190,7 @@ canvas { display: block; touch-action: none; }
 .score {
   position: fixed; top: 10px; left: 288px; right: 288px; width: max-content; margin: 0 auto; padding: 6px 12px 7px; box-sizing: border-box;
   display: grid; grid-template: 'fr pts ho' auto 'fr clock ho' auto / auto auto auto; gap: 2px 14px; align-items: center;
-  background: rgba(5, 9, 11, 0.6);
+  background: rgba(5, 9, 11, 0.6); border: 1px solid var(--faint); -webkit-backdrop-filter: var(--glass); backdrop-filter: var(--glass); box-shadow: var(--edge), var(--lift);
   font: 600 14px/1.2 var(--font); text-shadow: var(--rgb-split); font-variant-numeric: tabular-nums; text-transform: uppercase; color: var(--bone);
 }
 .pts { grid-area: pts; display: flex; gap: 4px; justify-content: center; }
@@ -123,17 +201,21 @@ canvas { display: block; touch-action: none; }
 .score .side.ho { grid-area: ho; }
 .score .side.ho small { order: 2; text-align: right; }
 .score .side small { font-size: 10px; font-weight: 600; letter-spacing: 0.14em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.score .side b { font-size: 20px; font-weight: 600; line-height: 1; }
+.score .side b { font-size: 24px; font-weight: 600; line-height: 0.9; }
+.score .side.fr :is(small, b) { color: var(--fr); }
+.score .side.ho :is(small, b) { color: var(--ho); }
 .score .side.fr b { text-align: right; }
 .score .side.draining b::after { content: '▾'; margin-left: 3px; font-size: 12px; color: var(--amber); animation: blink 1s steps(1) infinite; }
-.tbar { grid-column: 1 / -1; height: 3px; background: var(--faint); position: relative; }
+.tbar { grid-column: 1 / -1; height: 4px; background: rgba(232, 226, 200, 0.16); position: relative; }
 .tbar i { position: absolute; top: 0; bottom: 0; }
-.fr .tbar i { left: 0; background: var(--fr); }
-.ho .tbar i { right: 0; background: var(--ho); }
+.tbar::after { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent 0 24.2%, var(--ink) 24.2% 25%); } /* a notch at each quarter */
+.fr .tbar i { left: 0; background: var(--fr); box-shadow: 0 0 8px rgba(111, 208, 255, 0.7); }
+.ho .tbar i { right: 0; background: var(--ho); box-shadow: 0 0 8px rgba(255, 75, 62, 0.7); }
 
 #confirm {
   position: fixed; left: 0; top: 0; min-height: 36px; padding: 7px 14px; border: 0; cursor: pointer; white-space: nowrap;
   font: 700 13px/1.2 var(--font); letter-spacing: 0.1em; text-transform: uppercase; background: var(--ho); color: var(--ink); text-shadow: none;
+  box-shadow: 0 0 0 3px rgba(255, 75, 62, 0.18), 0 0 22px rgba(255, 75, 62, 0.35);
 }
 #confirm[hidden] { display: none; }
 #confirm small { display: block; }
@@ -142,7 +224,13 @@ canvas { display: block; touch-action: none; }
   position: absolute; left: 0; top: 0; padding: 1px 5px; white-space: nowrap; background: rgba(8, 10, 8, 0.72);
   font: 600 11px/1.3 var(--font); text-shadow: var(--rgb-split); font-variant-numeric: tabular-nums; letter-spacing: 0.06em;
 }
-#labels span[hidden] { display: none; }
+/* An Asset's tag: its name dim and its countdown or Grid Reference bright in the tag's colour (`--c`), on a leader line
+   back to its mark; tags that would overlap dock into a stack (dock.ts). */
+#labels span.at { display: flex; gap: 7px; padding: 2px 7px; letter-spacing: 0.08em; color: rgba(232, 226, 200, 0.8); background: rgba(5, 9, 11, 0.84); border: 1px solid color-mix(in srgb, var(--c) 50%, transparent); }
+#labels span.at b { font-weight: 700; color: var(--c); }
+#leaders { position: absolute; inset: 0; width: 100%; height: 100%; }
+#leaders path { fill: none; stroke-width: 1; opacity: 0.8; }
+#labels span[hidden], #labels span.at[hidden] { display: none; }
 
 /* Right rail (#36, #41, #44): 56 × 48 Squad tiles; the selected Squad opens in place into a 264 × 90 px card of fixed height. */
 #squads {
@@ -156,16 +244,17 @@ canvas { display: block; touch-action: none; }
   pointer-events: auto; width: 56px; height: 48px; position: relative; box-sizing: border-box;
   display: grid; grid-template-rows: 1fr 9px; justify-items: center; align-items: center; padding: 4px 0 6px;
   font: inherit; color: var(--bone); background: var(--panel); border: 1px solid var(--faint); cursor: pointer;
+  -webkit-backdrop-filter: var(--glass); backdrop-filter: var(--glass); box-shadow: var(--edge), var(--lift);
 }
 .tile b { font-size: 19px; font-weight: 700; color: var(--fr); line-height: 1; }
 .tile .pips { display: flex; gap: 2px; }
 .tile .pips i { width: 8px; height: 5px; border: 1px solid var(--fr); box-sizing: border-box; }
 .tile .pips i.on, .tile .pips i.ok { background: var(--fr); border-color: var(--fr); }
 .tile .pips i.hurt, .squad .pips i.hurt { background: linear-gradient(90deg, var(--fr) 45%, transparent 45%); }
-.tile.sel { border-color: var(--amber); }
+.tile.sel { border-color: var(--amber); box-shadow: var(--edge), 0 0 18px rgba(255, 194, 61, 0.22); }
 .tile.delayed { border-color: var(--amber); }
-.tile.sel.delayed { box-shadow: 0 0 0 1px var(--amber); }
-.tile.fire { border-color: var(--ho); }
+.tile.sel.delayed { box-shadow: 0 0 0 1px var(--amber), 0 0 18px rgba(255, 194, 61, 0.22); }
+.tile.fire { border-color: var(--ho); box-shadow: inset 0 0 14px rgba(255, 75, 62, 0.28), var(--lift); }
 .tile.wiped b { color: var(--faint); }
 .tile.wiped .pips i { border-color: var(--faint); background: none; }
 .tile .rq {
@@ -191,8 +280,9 @@ canvas { display: block; touch-action: none; }
   pointer-events: auto; width: 264px; height: 90px; display: grid; grid-template-columns: 44px 1fr; gap: 4px;
   padding: 0; background: none; border: 0; cursor: pointer;
 }
-#squads .card > * { background: var(--panel); border: 1px solid var(--faint); box-sizing: border-box; }
+#squads .card > * { background: var(--panel); border: 1px solid var(--faint); box-sizing: border-box; -webkit-backdrop-filter: var(--glass); backdrop-filter: var(--glass); box-shadow: var(--edge), var(--lift); }
 #squads .card.sel > * { border-color: var(--amber); }
+#squads .card.sel .letter { box-shadow: var(--edge), 0 0 18px rgba(255, 194, 61, 0.22); }
 #squads .card .letter { display: grid; place-items: center; font-size: 22px; font-weight: 700; line-height: 1; color: var(--fr); }
 #squads .card.sel .letter, #squads .card.sel .top b { color: var(--amber); }
 #squads .card.wiped .letter, #squads .card.wiped .top b { color: var(--faint); }
@@ -232,6 +322,7 @@ canvas { display: block; touch-action: none; }
 }
 #radio .head {
   display: flex; align-items: center; gap: 6px; padding: 0 0 0 10px; width: fit-content; pointer-events: auto; background: var(--panel);
+  -webkit-backdrop-filter: var(--glass); backdrop-filter: var(--glass); box-shadow: var(--edge), var(--lift);
   font-size: 11px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--bone-dim);
   opacity: 0.55; transition: opacity 0.15s;
 }
@@ -269,7 +360,10 @@ canvas { display: block; touch-action: none; }
 @media (prefers-reduced-motion: reduce) { #radio .ln { animation: none; } }
 #radio .ln[role=button] { cursor: pointer; }
 #radio .ln:focus-visible { outline: 1px solid var(--bone); }
-#radio .ln b { text-transform: uppercase; color: var(--fr); font-weight: 700; letter-spacing: 0.08em; }
+#radio .ln:last-child { background: rgba(5, 9, 11, 0.82); } /* the newest line sits on a darker strip */
+/* the match clock and the speaker keep fixed columns, so the lines scan as a table */
+#radio .ln time { flex: none; width: 34px; font-size: 11px; color: var(--bone-dim); }
+#radio .ln b { flex: none; min-width: 66px; text-transform: uppercase; color: var(--fr); font-weight: 700; letter-spacing: 0.08em; }
 #radio .ln .tx { overflow: hidden; text-overflow: ellipsis; }
 #radio .ln.bad .tx { color: var(--ho); }
 #radio .ln.req .tx { color: var(--amber); }
@@ -288,7 +382,8 @@ canvas { display: block; touch-action: none; }
   position: fixed; right: 96px; bottom: 200px; text-align: right; pointer-events: none;
   font: 600 14px/1.3 var(--font); text-shadow: var(--rgb-split); text-transform: uppercase; color: var(--bone);
 }
-#toast div { font-size: 19px; font-weight: 600; letter-spacing: 0.08em; }
+#toast div { font-size: 20px; font-weight: 600; letter-spacing: 0.12em; display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
+#toast div::before { content: ''; width: 64px; height: 1px; background: linear-gradient(90deg, transparent, var(--bone)); } /* the rule the title rides in on */
 #toast small { display: block; color: var(--bone-dim); font-size: 14px; letter-spacing: 0.08em; }
 #toast.show { animation: toast 4.5s forwards; }
 #toast:not(.show) { opacity: 0; }

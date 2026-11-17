@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { commanderView, createMatch, step } from '../../sim';
 import { TEST_FIELD } from '../../maps/test-field';
 import { DEFAULT_TUNE } from '../../sim/tune';
-import { barrageShells, SHELL_EXAGGERATION, SHELL_HEADINGS, SHELL_PITCH_FRAMES, SHELL_VISIBLE_FROM, SHELL_WORLD_M, type ShellInFlight, shellInFlight, shellStreak } from './shell';
+import { barrageShells, SHELL_EXAGGERATION, SHELL_HEADINGS, SHELL_PITCH_FRAMES, SHELL_VISIBLE_FROM, SHELL_WORLD_M, type ShellInFlight, shellInFlight, shellPath, shellStreak, shellTrace } from './shell';
 
 describe('artillery shell sky entry, streak and fog', () => {
   const from = { x: -415, y: 0 };
@@ -123,8 +123,29 @@ describe('shell streak', () => {
     expect(late.angle).toBeCloseTo(Math.atan2(to.y - entry.y, to.x - entry.x));
   });
 
+  it('traces the shell all the way from the battery: faint while it is up and away, intensifying as it comes down', () => {
+    const near = (p: { x: number; y: number }, q: { x: number; y: number }) => expect(Math.hypot(p.x - q.x, p.y - q.y)).toBeCloseTo(0);
+    near(shellPath(from, to, 0), from);
+    near(shellPath(from, to, 1), to);
+    near(shellPath(from, to, SHELL_VISIBLE_FROM), shellInFlight(from, to, SHELL_VISIBLE_FROM));
+    expect(shellTrace(from, to, 0)).toEqual([]);
+    const head = (flight: number) => shellTrace(from, to, flight).at(-1)!;
+    expect(head(0.2).a).not.toEqual(head(0.2).b);
+    expect(head(0.2).opacity).toBeLessThan(0.15); // just a hint of it on the way up
+    expect(head(0.8).opacity).toBeGreaterThan(head(0.5).opacity);
+    expect(head(1).opacity).toBe(1);
+    near(head(1).b, to);
+    const landing = shellTrace(from, to, 1);
+    expect(landing[0]!.opacity).toBeLessThan(landing.at(-1)!.opacity); // fainter toward the tail
+    expect(shellTrace(from, to, 0.5, true).every((s) => s.smoke)).toBe(true);
+  });
+
   it('has no length before the shell is drawn', () => {
     expect(shellStreak(from, to, 0).length).toBe(0);
     expect(shellStreak(from, to, SHELL_VISIBLE_FROM).length).toBe(0);
+    // a tail: only the last stretch of the fall, so it is shorter than the whole line and ends on the shell all the same
+    const tail = shellStreak(from, to, 0.9, 0.13);
+    expect(tail.length).toBeLessThan(shellStreak(from, to, 0.9).length / 2);
+    expect(tail.head).toEqual(shellStreak(from, to, 0.9).head);
   });
 });

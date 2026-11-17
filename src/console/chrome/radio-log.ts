@@ -1,5 +1,5 @@
 // The radio log (#38): the Commander's Side's radio lines, typed out one at a time as they go on air, newest at the bottom,
-// older lines fading, the Grid Reference as a bone chip, bad news in red. ▾ folds it to the newest line. Tapping a line
+// each after the match clock it was sent at and its speaker in fixed columns, older lines fading, the Grid Reference as a bone chip, bad news in red. ▾ folds it to the newest line. Tapping a line
 // pans the map to its grid and selects the Squad. While a line types, the "Squad net" light is on and the radio sounds.
 import { gridCentre } from '../../sim/grid-ref';
 import type { CommanderView, SimEvent } from '../../sim/types';
@@ -7,14 +7,15 @@ import { transmit } from '../audio';
 import { burst } from '../post';
 import { camera } from '../renderer';
 import { session } from '../session';
-import { radioLine } from '../summary';
+import { clock, radioLine } from '../summary';
 import { answer, select } from '../targeting';
 
 const KEPT = 8; // lines in the log
 const CPS = 45; // characters typed per second; faster when lines are queued up
 const PAN_MS = 250;
 
-type Line = NonNullable<ReturnType<typeof radioLine>>;
+/** A log line and the match clock when it was sent, as its first column shows it. */
+type Line = NonNullable<ReturnType<typeof radioLine>> & { sent: string };
 
 const box = document.getElementById('radio')!;
 const list = box.querySelector<HTMLElement>('.lines')!;
@@ -40,7 +41,7 @@ export function resetRadioLog() {
 /** Queues the log line for `e`, if it has one. */
 export function logRadio(e: SimEvent, view: CommanderView) {
   const line = radioLine(e, view);
-  if (line) queue.push(line);
+  if (line) queue.push({ ...line, sent: clock(view.seconds) });
 }
 
 let panning = 0;
@@ -65,8 +66,9 @@ addEventListener('pointerdown', () => panning++, { capture: true });
 function open(line: Line, now: number) {
   const row = list.appendChild(document.createElement('div'));
   row.className = `ln${line.bad ? ' bad' : ''}${line.request ? ' req' : ''}`;
-  row.innerHTML = '<b></b><span class="tx"></span><i class="chip"></i>';
-  row.querySelector('b')!.textContent = `${line.from}:`;
+  row.innerHTML = '<time></time><b></b><span class="tx"></span><i class="chip"></i>';
+  row.querySelector('time')!.textContent = line.sent;
+  row.querySelector('b')!.textContent = line.from;
   const chip = row.querySelector<HTMLElement>('.chip')!;
   const centre = line.grid && session.host?.map.grid ? gridCentre(session.host.map.grid, line.grid) : null;
   if (line.grid) chip.textContent = line.grid;

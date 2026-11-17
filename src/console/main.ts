@@ -5,13 +5,13 @@ import { drawAssetRail } from './chrome/assets';
 import { drawMark } from './chrome/mark';
 import { bindMixer } from './chrome/mixer';
 import { drawRadioLog, logRadio, showRadioLog } from './chrome/radio-log';
-import { drawRail, showAward, toastEvent } from './chrome/rail';
+import { drawRail, drawScoreFeed, showAward, toastEvent } from './chrome/rail';
 import { drawSquads } from './chrome/squads';
 import { drawChevrons, pulse } from './layers/chevrons';
 import { drawLastKnown } from './layers/contacts';
 import { drawEffects, hideEffectLabels } from './layers/effects';
 import { drawGrid } from './layers/grid';
-import { addImpact, drawImpacts, impactKick } from './layers/impacts';
+import { addImpact, drawImpacts } from './layers/impacts';
 import { addDeathMarker, drawDeathMarkers } from './layers/markers';
 import { watchFrame } from './layers/map';
 import { drawMissiles } from './layers/missile';
@@ -78,11 +78,12 @@ renderer.setAnimationLoop(() => {
     }
     logRadio(e, view);
     toastEvent(e, view);
-    showAward(e, view);
+    showAward(e, view, now);
   }
   metresPerPx.value = pxToWorld();
   const scale = UNIT_PX * metresPerPx.value; // one symbol unit in metres
   drawRail(view);
+  drawScoreFeed(now);
   drawAssetRail(view); // before the effects: their labels keep clear of the map Confirm button it places
   drawMark(view);
   drawSquads(view);
@@ -121,5 +122,5 @@ renderer.setAnimationLoop(() => {
     soundFrame(view, host.map.hqs[view.side], now / 1000); // the looping cues (UAV, shells, crate) follow the Asset layers
   }
   checkEnd(view);
-  renderFeed(impactKick() * metresPerPx.value);
+  renderFeed();
 });
